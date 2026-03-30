@@ -82,5 +82,23 @@
     "description": "Gestalt-inspired visual perception audit — proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "integration-pattern-auditor",
+    "description": "Hohpe & Woolf-inspired messaging analysis — name the integration pattern, verify delivery guarantees, identify missing infrastructure",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "unidirectional-flow-enforcer",
+    "description": "Elm Architecture-inspired data flow analysis — enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "event-design-reviewer",
+    "description": "Evans/Vernon/Dahan-inspired event design — domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]

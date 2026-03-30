@@ -93,6 +93,15 @@ Jeff Johnson-inspired cognitive load analysis. Evaluates UI against Miller's Law
 ### gestalt-reviewer
 Gestalt-inspired visual perception audit. Checks that visual grouping matches logical grouping through proximity, similarity, closure, continuity, and figure-ground analysis.
 
+### integration-pattern-auditor
+Hohpe & Woolf-inspired messaging analysis. Names the integration pattern (channel, router, transformer, endpoint), verifies delivery guarantees, and identifies missing infrastructure like dead letter queues and idempotency.
+
+### unidirectional-flow-enforcer
+Elm Architecture-inspired data flow analysis. Enforces unidirectional state flow in UI applications — events up, state down, mutations in one place. Detects bidirectional mutations and cascading effects.
+
+### event-design-reviewer
+Evans/Vernon/Dahan-inspired domain event design. Events should describe what happened in the domain, not what changed in the database. Applies the domain expert test, evaluates payload design, and catches CRUD naming smells.
+
 ## Supported Tools
 
 | Tool | Prompt Skills | MCP/Code Skills |
