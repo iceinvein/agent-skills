@@ -17,6 +17,18 @@
     "test": "bun test",
     "dev": "bun run src/cli/index.ts"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "skills",
+    "claude",
+    "cursor",
+    "codex",
+    "gemini",
+    "mcp",
+    "cli",
+    "prompt-engineering"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/iceinvein/agent-skills"
