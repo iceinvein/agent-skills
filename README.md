@@ -1,5 +1,12 @@
 # @iceinvein/agent-skills
 
+[![npm version](https://img.shields.io/npm/v/@iceinvein/agent-skills)](https://www.npmjs.com/package/@iceinvein/agent-skills)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-supported-blueviolet)](https://claude.ai/code)
+[![Cursor](https://img.shields.io/badge/Cursor-supported-blue)](https://cursor.com)
+[![Codex](https://img.shields.io/badge/Codex-supported-green)](https://openai.com/codex)
+[![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-supported-orange)](https://github.com/google-gemini/gemini-cli)
+
 Install agent skills into AI coding tools — Claude Code, Cursor, Codex, Gemini CLI.
 
 ## Quick Start
