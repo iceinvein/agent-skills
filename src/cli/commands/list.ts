@@ -1,5 +1,5 @@
 const REPO = "iceinvein/agent-skills";
-const BRANCH = "main";
+const BRANCH = "master";
 const INDEX_URL = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/skills/index.json`;
 
 export type SkillSummary = {

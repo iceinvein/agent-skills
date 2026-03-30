@@ -2,7 +2,7 @@ import { test, expect, mock } from "bun:test";
 import { buildRawUrl, fetchSkillManifest, fetchSkillFile } from "../src/cli/github";
 
 const REPO = "iceinvein/agent-skills";
-const BRANCH = "main";
+const BRANCH = "master";
 
 test("buildRawUrl constructs correct GitHub raw URL", () => {
   const url = buildRawUrl("design-review", "skill.json");

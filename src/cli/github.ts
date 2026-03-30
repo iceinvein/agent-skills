@@ -1,7 +1,7 @@
 import { validateManifest, type SkillManifest } from "./types";
 
 const REPO = "iceinvein/agent-skills";
-const BRANCH = "main";
+const BRANCH = "master";
 const BASE = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
 
 export function buildRawUrl(skillName: string, filePath: string): string {
