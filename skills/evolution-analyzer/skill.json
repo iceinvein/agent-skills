@@ -1,0 +1,26 @@
+{
+  "name": "evolution-analyzer",
+  "version": "1.0.0",
+  "description": "Lehman-inspired software evolution analysis — trajectory assessment, debt visibility, and change impact on system health",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/evolution-analyzer/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/evolution-analyzer.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/evolution-analyzer.md"
+    }
+  }
+}
