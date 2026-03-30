@@ -1,0 +1,26 @@
+{
+  "name": "contract-enforcer",
+  "version": "1.0.0",
+  "description": "Meyer-inspired Design by Contract — preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/contract-enforcer/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/contract-enforcer.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/contract-enforcer.md"
+    }
+  }
+}
