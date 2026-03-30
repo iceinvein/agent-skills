@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Adapter } from "./claude";
+import { readFile, writeFile } from "../fs";
 
 export const codexAdapter: Adapter = {
   name: "codex",
@@ -21,7 +22,7 @@ export const codexAdapter: Adapter = {
       const agentsPath = join(cwd, config.prompt);
       let existing = "";
       if (existsSync(agentsPath)) {
-        existing = await Bun.file(agentsPath).text();
+        existing = await readFile(agentsPath);
       }
 
       const content = files.get(manifest.files!.prompt!)!;
@@ -31,7 +32,7 @@ export const codexAdapter: Adapter = {
         `<!-- agent-skills:end:${manifest.name} -->\n`,
       ].join("\n");
 
-      await Bun.write(agentsPath, existing + section);
+      await writeFile(agentsPath, existing + section);
       installed.push("AGENTS.md");
     }
 
@@ -45,7 +46,7 @@ export const codexAdapter: Adapter = {
     if (config.append && config.prompt) {
       const agentsPath = join(cwd, config.prompt);
       if (existsSync(agentsPath)) {
-        const content = await Bun.file(agentsPath).text();
+        const content = await readFile(agentsPath);
         const startMarker = `<!-- agent-skills:start:${manifest.name} -->`;
         const endMarker = `<!-- agent-skills:end:${manifest.name} -->`;
         const startIdx = content.indexOf(startMarker);
@@ -54,7 +55,7 @@ export const codexAdapter: Adapter = {
         if (startIdx !== -1 && endIdx !== -1) {
           const before = content.slice(0, startIdx).replace(/\n$/, "");
           const after = content.slice(endIdx + endMarker.length).replace(/^\n/, "");
-          await Bun.write(agentsPath, before + after);
+          await writeFile(agentsPath, before + after);
         }
       }
     }

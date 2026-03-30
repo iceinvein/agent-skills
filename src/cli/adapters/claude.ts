@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SkillManifest } from "../types";
+import { readJsonFile, writeFile } from "../fs";
 
 export type Adapter = {
   name: string;
@@ -20,7 +21,7 @@ export const claudeAdapter: Adapter = {
     if (config.prompt && files.has(manifest.files?.prompt ?? "")) {
       const targetPath = join(cwd, config.prompt);
       mkdirSync(dirname(targetPath), { recursive: true });
-      await Bun.write(targetPath, files.get(manifest.files!.prompt!)!);
+      await writeFile(targetPath, files.get(manifest.files!.prompt!)!);
       installed.push(config.prompt);
     }
 
@@ -30,7 +31,7 @@ export const claudeAdapter: Adapter = {
         if (files.has(sourceFile)) {
           const targetPath = join(cwd, targetRel);
           mkdirSync(dirname(targetPath), { recursive: true });
-          await Bun.write(targetPath, files.get(sourceFile)!);
+          await writeFile(targetPath, files.get(sourceFile)!);
           installed.push(targetRel);
         }
       }
@@ -41,7 +42,7 @@ export const claudeAdapter: Adapter = {
       const settingsPath = join(cwd, ".claude/settings.json");
       let settings: Record<string, any> = {};
       if (existsSync(settingsPath)) {
-        settings = await Bun.file(settingsPath).json();
+        settings = await readJsonFile<Record<string, any>>(settingsPath);
       }
       if (!settings.mcpServers) settings.mcpServers = {};
 
@@ -49,7 +50,7 @@ export const claudeAdapter: Adapter = {
         settings.mcpServers[name] = serverConfig;
       }
 
-      await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+      await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
       installed.push(".claude/settings.json");
     }
 
@@ -76,12 +77,12 @@ export const claudeAdapter: Adapter = {
     if (config.mcpServers) {
       const settingsPath = join(cwd, ".claude/settings.json");
       if (existsSync(settingsPath)) {
-        const settings = await Bun.file(settingsPath).json();
+        const settings = await readJsonFile<Record<string, any>>(settingsPath);
         if (settings.mcpServers) {
           for (const name of Object.keys(config.mcpServers)) {
             delete settings.mcpServers[name];
           }
-          await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+          await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n");
         }
       }
     }
