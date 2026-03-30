@@ -9,14 +9,22 @@
 
 Install agent skills into AI coding tools — Claude Code, Cursor, Codex, Gemini CLI.
 
+## Prerequisites
+
+[Bun](https://bun.sh) is required. Install it with:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
 ## Quick Start
 
 ```bash
 # Install a skill (auto-detects your tools)
-npx @iceinvein/agent-skills install design-review
+bunx @iceinvein/agent-skills install design-review
 
 # Install for a specific tool
-npx @iceinvein/agent-skills install design-review --tool claude
+bunx @iceinvein/agent-skills install design-review --tool claude
 ```
 
 ## Commands

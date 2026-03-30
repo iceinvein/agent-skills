@@ -13,7 +13,7 @@
     "skills"
   ],
   "scripts": {
-    "build": "bun build src/cli/index.ts --outdir dist/cli --target node && sed -i'' -e '1s|#!/usr/bin/env bun|#!/usr/bin/env node|' dist/cli/index.js",
+    "build": "bun build src/cli/index.ts --outdir dist/cli --target bun",
     "test": "bun test",
     "dev": "bun run src/cli/index.ts"
   },
