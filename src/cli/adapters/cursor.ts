@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { SkillManifest } from "../types";
 import type { Adapter } from "./claude";
 
 export const cursorAdapter: Adapter = {

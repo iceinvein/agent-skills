@@ -1,4 +1,4 @@
-import { validateManifest, type SkillManifest, type ValidationResult } from "./types";
+import { validateManifest, type SkillManifest } from "./types";
 
 const REPO = "iceinvein/agent-skills";
 const BRANCH = "main";
