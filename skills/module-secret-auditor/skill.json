@@ -1,0 +1,26 @@
+{
+  "name": "module-secret-auditor",
+  "version": "1.0.0",
+  "description": "Parnas-inspired information hiding analysis — module boundaries drawn by change-reason, not by noun or technical layer",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/module-secret-auditor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/module-secret-auditor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/module-secret-auditor.md"
+    }
+  }
+}
