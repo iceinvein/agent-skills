@@ -1,0 +1,26 @@
+{
+  "name": "event-design-reviewer",
+  "version": "1.0.0",
+  "description": "Evans/Vernon/Dahan-inspired event design — domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/event-design-reviewer/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/event-design-reviewer.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/event-design-reviewer.md"
+    }
+  }
+}
