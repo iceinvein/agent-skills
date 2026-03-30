@@ -25,17 +25,29 @@ bunx @iceinvein/agent-skills install design-review
 
 # Install for a specific tool
 bunx @iceinvein/agent-skills install design-review --tool claude
+
+# Install globally (available in all projects)
+bunx @iceinvein/agent-skills install design-review -g
 ```
+
+If no tools are detected in your directory, the CLI will prompt you to choose which tools you use.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `install <skill> [--tool <tool>]` | Install a skill |
-| `remove <skill>` | Remove a skill |
-| `update <skill>` | Update to latest version |
+| `install <skill> [--tool <tool>] [-g]` | Install a skill |
+| `remove <skill> [-g]` | Remove a skill |
+| `update <skill> [-g]` | Update to latest version |
 | `list` | List all available skills |
 | `info <skill>` | Show skill details |
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--tool <tool>` | Install for a specific tool (claude, cursor, codex, gemini) |
+| `-g, --global` | Install to home directory instead of current project |
 
 ## Available Skills
 
@@ -65,6 +77,10 @@ Skills live in this repo under `skills/`. The CLI fetches them from GitHub and i
 - **Cursor**: `.cursor/rules/` + `.cursor/mcp.json`
 - **Codex**: Appended to `AGENTS.md`
 - **Gemini CLI**: `.gemini/skills/` + `.gemini/settings.json`
+
+### Local vs Global
+
+By default, skills install to the **current project directory** (e.g., `./claude/skills/`). Use `-g` to install to your **home directory** (e.g., `~/.claude/skills/`) so the skill is available in every project.
 
 A `.agent-skills.lock` file tracks installations for update and remove.
 
