@@ -16,5 +16,35 @@
     "description": "Semantic code search, call hierarchy, dependency graphs, and impact analysis via MCP",
     "type": "code",
     "version": "1.0.0"
+  },
+  {
+    "name": "contract-enforcer",
+    "description": "Meyer-inspired Design by Contract — preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "complexity-accountant",
+    "description": "Ousterhout-inspired complexity analysis — deep vs shallow modules, complexity budget, justified abstractions",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "module-secret-auditor",
+    "description": "Parnas-inspired information hiding analysis — module boundaries drawn by change-reason, not by noun or technical layer",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "seam-finder",
+    "description": "Feathers-inspired legacy code modification — find seams, make minimal incisions, preserve existing behavior",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "simplicity-razor",
+    "description": "Hickey-inspired simplicity analysis — simple vs easy, complecting detection, strand decomposition",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
