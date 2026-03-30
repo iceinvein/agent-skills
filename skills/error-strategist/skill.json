@@ -1,0 +1,26 @@
+{
+  "name": "error-strategist",
+  "version": "1.0.0",
+  "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/error-strategist/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/error-strategist.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/error-strategist.md"
+    }
+  }
+}
