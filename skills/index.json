@@ -64,5 +64,23 @@
     "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "rams-design-audit",
+    "description": "Dieter Rams-inspired design audit — every visual element must earn its presence, less but better, clarity through restraint",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cognitive-load-auditor",
+    "description": "Jeff Johnson-inspired cognitive load analysis — evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "gestalt-reviewer",
+    "description": "Gestalt-inspired visual perception audit — proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]

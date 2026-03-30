@@ -84,6 +84,15 @@ Lehman-inspired software evolution analysis. Evaluates changes through the Laws 
 ### error-strategist
 Duffy & Abrahams-inspired error handling. Classifies errors (bug/recoverable/fatal), assigns exception safety guarantees (nothrow/strong/basic), and designs recovery boundaries.
 
+### rams-design-audit
+Dieter Rams-inspired design audit. Every visual element must earn its presence — if removing it loses nothing, remove it. Evaluates UI against the ten principles of good design.
+
+### cognitive-load-auditor
+Jeff Johnson-inspired cognitive load analysis. Evaluates UI against Miller's Law (working memory), Hick's Law (decision time), Fitts's Law (target size), and cognitive load theory.
+
+### gestalt-reviewer
+Gestalt-inspired visual perception audit. Checks that visual grouping matches logical grouping through proximity, similarity, closure, continuity, and figure-ground analysis.
+
 ## Supported Tools
 
 | Tool | Prompt Skills | MCP/Code Skills |
