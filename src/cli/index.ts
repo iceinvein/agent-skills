@@ -7,6 +7,9 @@ import { listSkills } from "./commands/list";
 import { infoSkill } from "./commands/info";
 import { updateSkill } from "./commands/update";
 import { TOOL_NAMES, type ToolName } from "./types";
+import { promptSelect } from "./prompt";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 type ParsedArgs = {
   command: string;
@@ -96,10 +99,31 @@ async function main() {
       } else {
         tools = await detectTools(process.cwd());
         if (tools.length === 0) {
-          console.error("Error: no supported tools detected. Use --tool to specify one.");
-          process.exit(1);
+          // Filter to only tools the skill supports
+          const supportedTools = manifestResult.manifest.tools;
+          const selected = await promptSelect(
+            "No tools detected in this directory. Which tools do you use?",
+            supportedTools.map((t) => ({
+              label: { claude: "Claude Code", cursor: "Cursor", codex: "Codex", gemini: "Gemini CLI" }[t],
+              value: t,
+            }))
+          );
+          tools = selected as ToolName[];
+
+          // Create tool directories so future runs auto-detect
+          for (const tool of tools) {
+            const dirs: Record<string, string> = {
+              claude: ".claude",
+              cursor: ".cursor",
+              gemini: ".gemini",
+            };
+            if (dirs[tool]) {
+              mkdirSync(join(process.cwd(), dirs[tool]), { recursive: true });
+            }
+          }
+        } else {
+          console.log(`Detected tools: ${tools.join(", ")}`);
         }
-        console.log(`Detected tools: ${tools.join(", ")}`);
       }
 
       const result = await installSkill(process.cwd(), manifestResult.manifest, filesResult, tools);
