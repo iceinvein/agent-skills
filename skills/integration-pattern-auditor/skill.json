@@ -1,0 +1,26 @@
+{
+  "name": "integration-pattern-auditor",
+  "version": "1.0.0",
+  "description": "Hohpe & Woolf-inspired messaging analysis — name the integration pattern, verify delivery guarantees, identify missing infrastructure",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/integration-pattern-auditor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/integration-pattern-auditor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/integration-pattern-auditor.md"
+    }
+  }
+}
