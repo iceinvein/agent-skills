@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { detectTools } from "./detect";
 import { fetchSkillManifest, fetchAllSkillFiles } from "./github";
 import { installSkill } from "./commands/install";
