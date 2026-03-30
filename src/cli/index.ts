@@ -10,12 +10,22 @@ import { TOOL_NAMES, type ToolName } from "./types";
 import { promptSelect } from "./prompt";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
+
+function resolveInstallDir(flags: Record<string, string>): string {
+  if (flags.global !== undefined || flags.g !== undefined) {
+    return homedir();
+  }
+  return process.cwd();
+}
 
 type ParsedArgs = {
   command: string;
   args: string[];
   flags: Record<string, string>;
 };
+
+const BOOLEAN_FLAGS = new Set(["global", "g"]);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) return { command: "help", args: [], flags: {} };
@@ -25,11 +35,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string> = {};
 
   for (let i = 1; i < argv.length; i++) {
-    if (argv[i].startsWith("--") && i + 1 < argv.length) {
-      flags[argv[i].slice(2)] = argv[i + 1];
-      i++;
+    const arg = argv[i];
+    if (arg === "-g") {
+      flags.global = "true";
+    } else if (arg.startsWith("--")) {
+      const key = arg.slice(2);
+      if (BOOLEAN_FLAGS.has(key)) {
+        flags[key] = "true";
+      } else if (i + 1 < argv.length) {
+        flags[key] = argv[i + 1];
+        i++;
+      }
     } else {
-      args.push(argv[i]);
+      args.push(arg);
     }
   }
 
@@ -41,15 +59,15 @@ function printHelp() {
 @iceinvein/agent-skills — Install agent skills into AI coding tools
 
 Usage:
-  agent-skills install <skill>  [--tool <tool>]   Install a skill
-  agent-skills remove  <skill>                     Remove a skill
-  agent-skills update  <skill>                     Update a skill
-  agent-skills list                                List available skills
-  agent-skills info    <skill>                     Show skill details
+  agent-skills install <skill>  [--tool <tool>] [-g]  Install a skill
+  agent-skills remove  <skill>  [-g]                   Remove a skill
+  agent-skills update  <skill>  [-g]                   Update a skill
+  agent-skills list                                    List available skills
+  agent-skills info    <skill>                         Show skill details
 
-Tools: ${TOOL_NAMES.join(", ")}
-
-If --tool is omitted, auto-detects tools in the current directory.
+Flags:
+  --tool <tool>   Install for a specific tool (${TOOL_NAMES.join(", ")})
+  -g, --global    Install to home directory (available in all projects)
 `);
 }
 
@@ -76,6 +94,10 @@ async function main() {
         process.exit(1);
       }
 
+      const installDir = resolveInstallDir(flags);
+      const isGlobal = installDir === homedir();
+      if (isGlobal) console.log(`Installing globally to ${installDir}`);
+
       console.log(`Fetching skill '${skillName}'...`);
       const manifestResult = await fetchSkillManifest(skillName);
       if (!manifestResult.ok) {
@@ -97,12 +119,14 @@ async function main() {
         }
         tools = [flags.tool as ToolName];
       } else {
-        tools = await detectTools(process.cwd());
+        tools = await detectTools(installDir);
         if (tools.length === 0) {
           // Filter to only tools the skill supports
           const supportedTools = manifestResult.manifest.tools;
           const selected = await promptSelect(
-            "No tools detected in this directory. Which tools do you use?",
+            isGlobal
+              ? "Which tools do you use?"
+              : "No tools detected in this directory. Which tools do you use?",
             supportedTools.map((t) => ({
               label: { claude: "Claude Code", cursor: "Cursor", codex: "Codex", gemini: "Gemini CLI" }[t],
               value: t,
@@ -118,7 +142,7 @@ async function main() {
               gemini: ".gemini",
             };
             if (dirs[tool]) {
-              mkdirSync(join(process.cwd(), dirs[tool]), { recursive: true });
+              mkdirSync(join(installDir, dirs[tool]), { recursive: true });
             }
           }
         } else {
@@ -126,13 +150,13 @@ async function main() {
         }
       }
 
-      const result = await installSkill(process.cwd(), manifestResult.manifest, filesResult, tools);
+      const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools);
       if (!result.ok) {
         console.error(`Error: ${result.error}`);
         process.exit(1);
       }
 
-      console.log(`\n✓ Installed '${skillName}' v${manifestResult.manifest.version}:`);
+      console.log(`\n✓ Installed '${skillName}' v${manifestResult.manifest.version}${isGlobal ? " (global)" : ""}:`);
       printInstalled(result.installed, result.skipped);
       break;
     }
@@ -144,7 +168,8 @@ async function main() {
         process.exit(1);
       }
 
-      const result = await removeSkill(process.cwd(), skillName);
+      const removeDir = resolveInstallDir(flags);
+      const result = await removeSkill(removeDir, skillName);
       if (!result.ok) {
         console.error(`Error: ${result.error}`);
         process.exit(1);
@@ -161,8 +186,9 @@ async function main() {
         process.exit(1);
       }
 
+      const updateDir = resolveInstallDir(flags);
       console.log(`Updating '${skillName}'...`);
-      const result = await updateSkill(process.cwd(), skillName);
+      const result = await updateSkill(updateDir, skillName);
       if (!result.ok) {
         console.error(`Error: ${result.error}`);
         process.exit(1);

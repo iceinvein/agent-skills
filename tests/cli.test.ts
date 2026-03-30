@@ -35,3 +35,18 @@ test("parseArgs returns help for no args", () => {
   const result = parseArgs([]);
   expect(result).toEqual({ command: "help", args: [], flags: {} });
 });
+
+test("parseArgs parses --global flag", () => {
+  const result = parseArgs(["install", "design-review", "--global"]);
+  expect(result).toEqual({ command: "install", args: ["design-review"], flags: { global: "true" } });
+});
+
+test("parseArgs parses -g shorthand", () => {
+  const result = parseArgs(["install", "design-review", "-g"]);
+  expect(result).toEqual({ command: "install", args: ["design-review"], flags: { global: "true" } });
+});
+
+test("parseArgs parses --global with --tool", () => {
+  const result = parseArgs(["install", "design-review", "--global", "--tool", "claude"]);
+  expect(result).toEqual({ command: "install", args: ["design-review"], flags: { global: "true", tool: "claude" } });
+});
