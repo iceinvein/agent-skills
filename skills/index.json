@@ -1,0 +1,20 @@
+[
+  {
+    "name": "design-review",
+    "description": "Brooks-inspired design integrity review — tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "codebase-architecture",
+    "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "code-intelligence",
+    "description": "Semantic code search, call hierarchy, dependency graphs, and impact analysis via MCP",
+    "type": "code",
+    "version": "1.0.0"
+  }
+]

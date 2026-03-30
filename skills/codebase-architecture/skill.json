@@ -1,0 +1,36 @@
+{
+  "name": "codebase-architecture",
+  "version": "1.0.0",
+  "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md",
+    "supporting": ["patterns-reference.md"]
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/codebase-architecture/SKILL.md",
+      "supporting": {
+        "patterns-reference.md": ".claude/skills/codebase-architecture/patterns-reference.md"
+      }
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/codebase-architecture.mdc",
+      "supporting": {
+        "patterns-reference.md": ".cursor/rules/codebase-architecture-patterns.mdc"
+      }
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/codebase-architecture.md",
+      "supporting": {
+        "patterns-reference.md": ".gemini/skills/codebase-architecture-patterns.md"
+      }
+    }
+  }
+}

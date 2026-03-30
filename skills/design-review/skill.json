@@ -1,0 +1,26 @@
+{
+  "name": "design-review",
+  "version": "1.0.0",
+  "description": "Brooks-inspired design integrity review — tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/design-review/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/design-review.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/design-review.md"
+    }
+  }
+}
