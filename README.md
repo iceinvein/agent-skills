@@ -60,6 +60,30 @@ Architecture review for existing codebases or structured design for new projects
 ### code-intelligence
 Semantic code search, call hierarchy, dependency graphs, and impact analysis. MCP server powered by `@iceinvein/code-intelligence-mcp`.
 
+### contract-enforcer
+Meyer-inspired Design by Contract. Before writing non-trivial functions, articulates preconditions, postconditions, invariants, and failure contracts — then verifies the implementation satisfies them.
+
+### complexity-accountant
+Ousterhout-inspired complexity analysis. Treats complexity as a finite budget — every abstraction must justify itself by being deep (simple interface, rich functionality), not shallow.
+
+### module-secret-auditor
+Parnas-inspired information hiding. Every module should hide exactly one design decision that's likely to change. Boundaries drawn by change-reason, not by noun or technical layer.
+
+### seam-finder
+Feathers-inspired legacy code modification. Before changing existing code, finds seams — places where behavior can be altered without editing the code at that point. Minimal incision, preserve the unknown.
+
+### simplicity-razor
+Hickey-inspired simplicity analysis. Distinguishes simple (not interleaved) from easy (familiar). Names the strands, detects complecting, and decomplects or justifies.
+
+### coupling-auditor
+Constantine & Yourdon-inspired coupling analysis. Classifies coupling between modules on the spectrum (data → stamp → control → common → content) and recommends one step down.
+
+### evolution-analyzer
+Lehman-inspired software evolution analysis. Evaluates changes through the Laws of Software Evolution — assessing trajectory, debt impact, and whether the system is adapting or accreting.
+
+### error-strategist
+Duffy & Abrahams-inspired error handling. Classifies errors (bug/recoverable/fatal), assigns exception safety guarantees (nothrow/strong/basic), and designs recovery boundaries.
+
 ## Supported Tools
 
 | Tool | Prompt Skills | MCP/Code Skills |
