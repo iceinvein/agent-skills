@@ -1,0 +1,26 @@
+{
+  "name": "gestalt-reviewer",
+  "version": "1.0.0",
+  "description": "Gestalt-inspired visual perception audit — proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/gestalt-reviewer/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/gestalt-reviewer.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/gestalt-reviewer.md"
+    }
+  }
+}
