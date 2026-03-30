@@ -100,6 +100,10 @@ COMPLEXITY: Extract validateEmail into utils/validation.ts
   Net:    not worth it — inline it. If a second caller appears, extract then.
 ```
 
+## Interaction Model
+
+Decision engine. The agent runs this analysis on its own work before presenting code to the human. The complexity report appears alongside the diff — the human sees what complexity was added, what it bought, and whether it's justified. The human can challenge the assessment or override the verdict.
+
 ## Red Flags
 
 | Signal | Diagnosis |

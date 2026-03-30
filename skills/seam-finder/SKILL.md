@@ -99,6 +99,10 @@ SEAM ANALYSIS: Add retry logic to payment processing
   Risk:       retry could cause duplicate charges if the gateway doesn't support idempotency keys — verify before implementing
 ```
 
+## Interaction Model
+
+Decision engine. When the agent encounters existing code it needs to modify, it produces the seam analysis before making any changes. The human sees the surgical plan — seam type, incision point, what's preserved, what's at risk — and approves before cuts are made.
+
 ## Red Flags
 
 | Agent impulse | Better approach |
