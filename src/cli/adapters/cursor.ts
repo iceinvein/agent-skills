@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Adapter } from "./claude";
-import { readJsonFile, writeFile } from "../fs";
 
 export const cursorAdapter: Adapter = {
   name: "cursor",
@@ -14,7 +13,7 @@ export const cursorAdapter: Adapter = {
     if (config.prompt && files.has(manifest.files?.prompt ?? "")) {
       const targetPath = join(cwd, config.prompt);
       mkdirSync(dirname(targetPath), { recursive: true });
-      await writeFile(targetPath, files.get(manifest.files!.prompt!)!);
+      await Bun.write(targetPath, files.get(manifest.files!.prompt!)!);
       installed.push(config.prompt);
     }
 
@@ -23,7 +22,7 @@ export const cursorAdapter: Adapter = {
         if (files.has(sourceFile)) {
           const targetPath = join(cwd, targetRel);
           mkdirSync(dirname(targetPath), { recursive: true });
-          await writeFile(targetPath, files.get(sourceFile)!);
+          await Bun.write(targetPath, files.get(sourceFile)!);
           installed.push(targetRel);
         }
       }
@@ -33,7 +32,7 @@ export const cursorAdapter: Adapter = {
       const mcpPath = join(cwd, ".cursor/mcp.json");
       let mcpConfig: Record<string, any> = {};
       if (existsSync(mcpPath)) {
-        mcpConfig = await readJsonFile<Record<string, any>>(mcpPath);
+        mcpConfig = await Bun.file(mcpPath).json();
       }
       if (!mcpConfig.mcpServers) mcpConfig.mcpServers = {};
 
@@ -41,7 +40,7 @@ export const cursorAdapter: Adapter = {
         mcpConfig.mcpServers[name] = serverConfig;
       }
 
-      await writeFile(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
+      await Bun.write(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
       installed.push(".cursor/mcp.json");
     }
 
@@ -64,12 +63,12 @@ export const cursorAdapter: Adapter = {
     if (config.mcpServers) {
       const mcpPath = join(cwd, ".cursor/mcp.json");
       if (existsSync(mcpPath)) {
-        const mcpConfig = await readJsonFile<Record<string, any>>(mcpPath);
+        const mcpConfig = await Bun.file(mcpPath).json();
         if (mcpConfig.mcpServers) {
           for (const name of Object.keys(config.mcpServers)) {
             delete mcpConfig.mcpServers[name];
           }
-          await writeFile(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
+          await Bun.write(mcpPath, JSON.stringify(mcpConfig, null, 2) + "\n");
         }
       }
     }
