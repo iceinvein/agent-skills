@@ -46,5 +46,23 @@
     "description": "Hickey-inspired simplicity analysis — simple vs easy, complecting detection, strand decomposition",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "coupling-auditor",
+    "description": "Constantine & Yourdon-inspired coupling analysis — classify, measure, and reduce interdependence between modules",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "evolution-analyzer",
+    "description": "Lehman-inspired software evolution analysis — trajectory assessment, debt visibility, and change impact on system health",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "error-strategist",
+    "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
