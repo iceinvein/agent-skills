@@ -1,0 +1,26 @@
+{
+  "name": "simplicity-razor",
+  "version": "1.0.0",
+  "description": "Hickey-inspired simplicity analysis — simple vs easy, complecting detection, strand decomposition",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/simplicity-razor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/simplicity-razor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/simplicity-razor.md"
+    }
+  }
+}
