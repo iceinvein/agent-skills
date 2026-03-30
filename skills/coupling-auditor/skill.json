@@ -1,0 +1,26 @@
+{
+  "name": "coupling-auditor",
+  "version": "1.0.0",
+  "description": "Constantine & Yourdon-inspired coupling analysis — classify, measure, and reduce interdependence between modules",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/coupling-auditor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/coupling-auditor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/coupling-auditor.md"
+    }
+  }
+}
