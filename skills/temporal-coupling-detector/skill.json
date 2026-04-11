@@ -1,0 +1,26 @@
+{
+  "name": "temporal-coupling-detector",
+  "version": "1.0.0",
+  "description": "Hidden ordering dependency analysis — detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/temporal-coupling-detector/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/temporal-coupling-detector.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/temporal-coupling-detector.md"
+    }
+  }
+}
