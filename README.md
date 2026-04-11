@@ -40,6 +40,8 @@ Skills that analyze how code is structured — module boundaries, coupling, comp
 | **cohesion-analyzer** | Constantine & Yourdon, *Structured Design* | Classifies module focus on the 7-level cohesion spectrum (coincidental → functional), identifies mixed responsibilities, and proposes specific split lines. |
 | **demeter-enforcer** | Lieberherr, *Law of Demeter* | Detects chain violations, parameter drilling, and hidden traversal. Fixes with "tell, don't ask" or parameter narrowing to reduce structural coupling. |
 | **dependency-direction-auditor** | Martin, *Clean Architecture* | Traces imports across architectural layers, classifies direction violations by severity (hard/soft/transitive), and recommends specific inversions. |
+| **type-driven-designer** | Wlaschin, *Domain Modeling Made Functional*; Minsky, "Make Illegal States Unrepresentable" | Uses the type system to encode business rules — branded types for validated values, discriminated unions for state machines, elimination of primitive obsession. |
+| **cqs-auditor** | Meyer, *Object-Oriented Software Construction* | Classifies functions as commands (change state) or queries (return data), detects mixed violations, and separates side effects from return values. |
 
 ### UI & Visual Design
 
@@ -65,6 +67,8 @@ Skills for reviewing high-level architecture, messaging patterns, and data flow.
 | **bounded-context-auditor** | Evans, *Domain-Driven Design* | Detects linguistic fractures (polysemous terms, contested models), draws context maps with relationship types, and identifies leaking language and shared model pollution. |
 | **port-adapter-auditor** | Cockburn, *Hexagonal Architecture* | Maps driving and driven ports, classifies boundary health (clean/missing/leaking/wrong-language), and ensures core testability and infrastructure swappability. |
 | **idempotency-guardian** | Helland, *Idempotence Is Not a Medical Condition* | Audits mutation endpoints and event handlers for retry safety — classifies natural idempotency, checks protection mechanisms, and evaluates side effect safety. |
+| **composability-auditor** | McIlroy, Pike, Thompson — Unix Philosophy | Identifies reuse blockers (hidden I/O, non-standard interfaces, statefulness) and decomposes self-sufficient units into composable pieces. |
+| **temporal-coupling-detector** | Beck, Fowler — software engineering canon | Detects hidden ordering dependencies (two-phase init, method order, invisible preconditions) and enforces them through types, parameters, and factory patterns. |
 
 ### Tooling
 

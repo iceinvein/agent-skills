@@ -136,5 +136,29 @@
     "description": "Helland-inspired idempotency analysis — classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "type-driven-designer",
+    "description": "Wlaschin & Minsky-inspired type design — make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cqs-auditor",
+    "description": "Meyer-inspired Command-Query Separation — classify functions as commands or queries, detect mixed violations, separate side effects from return values",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "composability-auditor",
+    "description": "Unix Philosophy-inspired composability analysis — identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "temporal-coupling-detector",
+    "description": "Hidden ordering dependency analysis — detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
