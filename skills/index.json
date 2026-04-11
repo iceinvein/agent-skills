@@ -100,5 +100,41 @@
     "description": "Evans/Vernon/Dahan-inspired event design — domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "dependency-direction-auditor",
+    "description": "Martin-inspired dependency direction analysis — trace imports across layers, classify violations by severity, recommend inversion",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cohesion-analyzer",
+    "description": "Constantine & Yourdon-inspired cohesion analysis — classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "demeter-enforcer",
+    "description": "Lieberherr-inspired Law of Demeter analysis — detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "bounded-context-auditor",
+    "description": "Evans-inspired bounded context analysis — detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "port-adapter-auditor",
+    "description": "Cockburn-inspired hexagonal architecture analysis — identify ports and adapters, classify boundary health, ensure core testability and swappability",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "idempotency-guardian",
+    "description": "Helland-inspired idempotency analysis — classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
