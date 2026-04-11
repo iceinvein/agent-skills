@@ -1,0 +1,26 @@
+{
+  "name": "composability-auditor",
+  "version": "1.0.0",
+  "description": "Unix Philosophy-inspired composability analysis — identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/composability-auditor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/composability-auditor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/composability-auditor.md"
+    }
+  }
+}
