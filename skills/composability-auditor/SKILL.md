@@ -227,6 +227,6 @@ Translated to functions and modules:
 
 ## Cross-References
 
-- → cohesion-analyzer: Composability improves when modules have high cohesion (do one thing well). If a module is internally scattered, it can't be cleanly reusable.
-- → simplicity-razor: Composability is a form of simplicity — simple enough to be understood and reused. A complex, heavily optimized unit that does three things is not simple.
-- → cqs-auditor: Composability works best when queries (reads) and commands (writes) are separated. A function that both queries and modifies state is hard to reuse.
+→ `cohesion-analyzer` — composability improves when modules have high cohesion (do one thing well). If a module is internally scattered, it can't be cleanly reusable.
+→ `simplicity-razor` — composability is a form of simplicity — simple enough to be understood and reused. A complected unit that does three things is neither simple nor composable.
+→ `cqs-auditor` — queries are inherently more composable than commands because they have no side effects. CQS increases the composable surface area of your codebase.

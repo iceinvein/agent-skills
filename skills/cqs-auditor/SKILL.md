@@ -230,18 +230,18 @@ function getUserByEmail(email: string): User | null {
   return database.findByEmail(email);
 }
 
-// ✅ Command — create new
-function createUser(email: string): User {
+// ✅ Command — create new (returns void — pure command)
+function createUser(email: string): void {
   const user = { email, id: generateId(), createdAt: now() };
   database.insert(user);
   eventBus.emit("user.created", { email });
-  return user;
 }
 
-// Caller — now explicit:
+// Caller — command then query:
 let user = getUserByEmail("alice@example.com");
 if (!user) {
-  user = createUser("alice@example.com");
+  createUser("alice@example.com");
+  user = getUserByEmail("alice@example.com")!;
 }
 
 // Or with a single operation at a higher level:

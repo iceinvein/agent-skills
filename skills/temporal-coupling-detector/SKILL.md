@@ -83,7 +83,7 @@ TEMPORAL: DatabaseService initialization
 
 ### 3. Apply Fix Patterns
 
-For each unenforcved dependency, propose a fix. There are five core patterns:
+For each unenforced dependency, propose a fix. There are five core patterns:
 
 **Merge into single operation** — Constructor or factory method does all initialization atomically
 - Instead of: `new Service()` then `.init()`, use: `Service.create()` that fails if init fails
@@ -356,6 +356,6 @@ Decision engine. The agent analyzes code for hidden ordering dependencies, prior
 
 ## Cross-References
 
-- → contract-enforcer: Temporal coupling is a type of broken contract — the contract exists but is invisible. Encoding it as a type or parameter makes the contract explicit and enforceable.
-- → type-driven-designer: Type systems are your primary tool for preventing temporal coupling. Builder patterns, state types, and parameter passing are all type-level solutions.
-- → cqs-auditor: Temporal coupling often arises when commands (setters that modify state) are separated from queries (operations that assume prior state). Separating them makes dependencies visible.
+→ `contract-enforcer` — temporal coupling is a type of broken contract. The ordering requirement exists but is invisible. Encoding it as a type or parameter makes the contract explicit and enforceable.
+→ `type-driven-designer` — type systems are the primary tool for preventing temporal coupling. Builder patterns, state machine types, and parameter requirements are all type-level solutions.
+→ `cqs-auditor` — temporal coupling often arises when commands modify shared state that subsequent queries or commands depend on. Separating commands from queries makes state dependencies visible.
