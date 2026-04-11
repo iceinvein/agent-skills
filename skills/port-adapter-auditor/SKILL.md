@@ -302,7 +302,7 @@ Decision engine. The agent prioritizes driven ports (outbound) first because the
 | Ports for internal collaboration | Ports are for external systems (database, API, messaging). Internal communication between core modules uses dependency injection, not ports. |
 | Circular imports | Core imports adapter to construct it (bad). Use a composition root outside core to wire dependencies. Core only imports ports. |
 
-## Cross-references
+## Cross-References
 
 - **dependency-direction-auditor**: For analyzing dependency direction across layers; complements port-adapter analysis by checking if dependencies point correctly.
 - **contract-enforcer**: For designing contracts between services; port definitions are internal contracts, but service boundaries have their own concerns.

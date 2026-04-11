@@ -161,6 +161,8 @@ Decision engine. The agent analyzes dependency direction in code it writes or re
 | "Clean Architecture means four directories" | The layers are conceptual, not physical. A small project may have two layers (core + infra). The principle is dependency direction, not directory count |
 | Creating an interface for every dependency | Only introduce interfaces at boundaries where the inner layer would otherwise depend on the outer layer. Pure utility functions and standard library calls don't need interfaces |
 
-## Context
+## Cross-References
 
-This is one of 17+ prompt-based skills in the @iceinvein/agent-skills package. Each skill is a markdown file with YAML frontmatter installed into AI coding agents. The file must follow the exact format of existing skills like `skills/coupling-auditor/SKILL.md`.
+→ `port-adapter-auditor` — hexagonal architecture is the specific pattern for implementing the inversion this skill identifies as the fix.
+→ `coupling-auditor` — measures coupling *strength* between modules at the same layer; this skill handles cross-layer *direction*.
+→ `cohesion-analyzer` — when a dependency direction problem also manifests as a module with mixed-layer responsibilities, low cohesion is often the root cause.

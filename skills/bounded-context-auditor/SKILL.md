@@ -211,7 +211,7 @@ Hybrid. For greenfield design, the skill is interview-driven — asks about doma
 | Ignoring polysemous terms | When the same word means different things, stop and ask: are these really separate contexts? Usually yes. Separate them. |
 | Leaking upstream terminology downstream | Conformist and ACL are different. Conformist means you accept upstream's language. ACL means you translate to your own. Choose deliberately. |
 
-## Cross-references
+## Cross-References
 
 - **coupling-auditor**: For analyzing how modules communicate within a bounded context; not for inter-context relationships (that's this skill).
 - **event-design-reviewer**: For designing event contracts within a context, or for event structure between contexts; assumes contexts are already known.

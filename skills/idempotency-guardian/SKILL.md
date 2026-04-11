@@ -272,7 +272,7 @@ Decision engine, prioritizes by blast radius (financial > external API > data in
 | Relying on database constraints alone | Unique constraints ensure data dedup but don't prevent side effect duplication (email, charge). |
 | One key per operation, not per request | If the same operation is retried, the same key should be used. Different clients/requests get different keys. |
 
-## Cross-references
+## Cross-References
 
 - **error-strategist**: For designing retry policies, backoff strategies, and error handling; complements idempotency by defining when/how to retry.
 - **contract-enforcer**: For designing API contracts; idempotency keys should be documented in your API contract.
