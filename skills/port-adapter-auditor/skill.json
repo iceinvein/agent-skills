@@ -1,0 +1,26 @@
+{
+  "name": "port-adapter-auditor",
+  "version": "1.0.0",
+  "description": "Cockburn-inspired hexagonal architecture analysis — identify ports and adapters, classify boundary health, ensure core testability and swappability",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/port-adapter-auditor/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/port-adapter-auditor.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/port-adapter-auditor.md"
+    }
+  }
+}
