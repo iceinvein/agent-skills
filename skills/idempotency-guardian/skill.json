@@ -1,0 +1,26 @@
+{
+  "name": "idempotency-guardian",
+  "version": "1.0.0",
+  "description": "Helland-inspired idempotency analysis — classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/idempotency-guardian/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/idempotency-guardian.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/idempotency-guardian.md"
+    }
+  }
+}
