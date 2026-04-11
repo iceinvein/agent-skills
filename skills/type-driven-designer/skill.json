@@ -1,0 +1,26 @@
+{
+  "name": "type-driven-designer",
+  "version": "1.0.0",
+  "description": "Wlaschin & Minsky-inspired type design — make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/type-driven-designer/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/type-driven-designer.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/type-driven-designer.md"
+    }
+  }
+}
