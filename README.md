@@ -70,6 +70,14 @@ Skills for reviewing high-level architecture, messaging patterns, and data flow.
 | **composability-auditor** | McIlroy, Pike, Thompson — Unix Philosophy | Identifies reuse blockers (hidden I/O, non-standard interfaces, statefulness) and decomposes self-sufficient units into composable pieces. |
 | **temporal-coupling-detector** | Beck, Fowler — software engineering canon | Detects hidden ordering dependencies (two-phase init, method order, invisible preconditions) and enforces them through types, parameters, and factory patterns. |
 
+### Communication
+
+Skills that control how the agent communicates — output compression, token efficiency, and response style.
+
+| Skill | Based on | What it does |
+|-------|----------|--------------|
+| **terse** | Caveman (refined) | Professional output compression — cuts ~50-60% of tokens by eliminating LLM verbosity habits (preambles, hedging, trailing summaries) while keeping proper grammar. Three levels: clean, tight, sharp. |
+
 ### Tooling
 
 | Skill | Type | What it does |

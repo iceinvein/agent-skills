@@ -160,5 +160,11 @@
     "description": "Hidden ordering dependency analysis — detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "terse",
+    "description": "Professional output compression — proper grammar, no fluff, ~50-60% fewer tokens. Three levels: clean, tight, sharp.",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
