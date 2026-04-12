@@ -1,10 +1,12 @@
 import { createInterface } from "node:readline";
 
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-
 function ask(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
-    rl.question(question, (answer) => resolve(answer.trim()));
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
   });
 }
 
@@ -19,7 +21,6 @@ export async function promptSelect(
   console.log(`  ${options.length + 1}) All of the above`);
 
   const answer = await ask("\nSelect (comma-separated numbers, e.g. 1,3): ");
-  rl.close();
 
   const nums = answer.split(",").map((s) => parseInt(s.trim(), 10));
 
@@ -42,6 +43,5 @@ export async function promptSelect(
 
 export async function promptConfirm(message: string): Promise<boolean> {
   const answer = await ask(`${message} (y/n): `);
-  rl.close();
   return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
 }
