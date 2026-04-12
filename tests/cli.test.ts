@@ -50,3 +50,13 @@ test("parseArgs parses --global with --tool", () => {
   const result = parseArgs(["install", "design-review", "--global", "--tool", "claude"]);
   expect(result).toEqual({ command: "install", args: ["design-review"], flags: { global: "true", tool: "claude" } });
 });
+
+test("parseArgs parses update --all", () => {
+  const result = parseArgs(["update", "--all"]);
+  expect(result).toEqual({ command: "update", args: [], flags: { all: "true" } });
+});
+
+test("parseArgs parses update --all -g", () => {
+  const result = parseArgs(["update", "--all", "-g"]);
+  expect(result).toEqual({ command: "update", args: [], flags: { all: "true", global: "true" } });
+});

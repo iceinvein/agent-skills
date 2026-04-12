@@ -5,7 +5,8 @@ import { installSkill } from "./commands/install";
 import { removeSkill } from "./commands/remove";
 import { listSkills } from "./commands/list";
 import { infoSkill } from "./commands/info";
-import { updateSkill } from "./commands/update";
+import { updateSkill, updateAllSkills } from "./commands/update";
+import { checkForUpdates } from "./update-check";
 import { TOOL_NAMES, type ToolName } from "./types";
 import { promptSelect } from "./prompt";
 import { mkdirSync } from "node:fs";
@@ -62,6 +63,7 @@ Usage:
   agent-skills install <skill>  [--tool <tool>] [-g]  Install a skill
   agent-skills remove  <skill>  [-g]                   Remove a skill
   agent-skills update  <skill>  [-g]                   Update a skill
+  agent-skills update  --all    [-g]                   Update all installed skills
   agent-skills list                                    List available skills
   agent-skills info    <skill>                         Show skill details
 
@@ -180,13 +182,33 @@ async function main() {
     }
 
     case "update": {
+      const updateDir = resolveInstallDir(flags);
+
+      if (flags.all !== undefined) {
+        console.log("Updating all installed skills...\n");
+        const results = await updateAllSkills(updateDir);
+        if (results.length === 0) {
+          console.log("No skills installed.");
+          break;
+        }
+        for (const r of results) {
+          if (!r.ok) {
+            console.error(`  ✗ ${r.name}: ${r.error}`);
+          } else if (r.from === r.to) {
+            console.log(`  ⊘ ${r.name} already up to date (v${r.to})`);
+          } else {
+            console.log(`  ✓ ${r.name} v${r.from} → v${r.to}`);
+          }
+        }
+        break;
+      }
+
       const skillName = args[0];
       if (!skillName) {
         console.error("Error: skill name required. Usage: agent-skills update <skill>");
         process.exit(1);
       }
 
-      const updateDir = resolveInstallDir(flags);
       console.log(`Updating '${skillName}'...`);
       const result = await updateSkill(updateDir, skillName);
       if (!result.ok) {
@@ -241,6 +263,17 @@ async function main() {
     default:
       printHelp();
       break;
+  }
+
+  // Post-command update check (skip for update command)
+  if (command !== "update") {
+    const checkDir = flags.global !== undefined || flags.g !== undefined ? homedir() : process.cwd();
+    const outdated = await checkForUpdates(checkDir);
+    if (outdated.length > 0) {
+      const list = outdated.map((s) => `${s.name} (v${s.installed} → v${s.latest})`).join(", ");
+      console.log(`\n⚠ Updates available: ${list}`);
+      console.log("  Run: agent-skills update --all");
+    }
   }
 }
 
