@@ -28,4 +28,7 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - run: npm publish --provenance --access public
+      - name: Publish with npm 11 (bypasses broken bundled npm)
+        run: |
+          curl -sL https://registry.npmjs.org/npm/-/npm-11.12.1.tgz | tar xz
+          node package/bin/npm-cli.js publish --provenance --access public
