@@ -28,9 +28,4 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Ensure working npm
-        run: |
-          corepack enable
-          corepack install -g npm@latest
-
       - run: npm publish --access public
