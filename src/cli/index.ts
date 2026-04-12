@@ -25,7 +25,7 @@ type ParsedArgs = {
   flags: Record<string, string>;
 };
 
-const BOOLEAN_FLAGS = new Set(["global", "g"]);
+const BOOLEAN_FLAGS = new Set(["global", "g", "all"]);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) return { command: "help", args: [], flags: {} };

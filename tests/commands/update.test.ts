@@ -1,6 +1,6 @@
 // tests/commands/update.test.ts
 import { test, expect, beforeEach, afterEach, mock } from "bun:test";
-import { updateSkill } from "../../src/cli/commands/update";
+import { updateSkill, updateAllSkills } from "../../src/cli/commands/update";
 import { installSkill } from "../../src/cli/commands/install";
 import { readLockfile } from "../../src/cli/lockfile";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
@@ -57,4 +57,64 @@ test("updateSkill returns error for skill not in lockfile", async () => {
   const result = await updateSkill(TMP, "nonexistent");
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toContain("not installed");
+});
+
+test("updateAllSkills updates all installed skills", async () => {
+  const manifest1: SkillManifest = {
+    name: "skill-a",
+    version: "1.0.0",
+    description: "Skill A",
+    author: "iceinvein",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/skill-a/SKILL.md" } },
+  };
+  const manifest2: SkillManifest = {
+    name: "skill-b",
+    version: "1.0.0",
+    description: "Skill B",
+    author: "iceinvein",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/skill-b/SKILL.md" } },
+  };
+  await installSkill(TMP, manifest1, new Map([["SKILL.md", "# A v1"]]), ["claude"]);
+  await installSkill(TMP, manifest2, new Map([["SKILL.md", "# B v1"]]), ["claude"]);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock(async (url: string) => {
+    if ((url as string).includes("skill-a/skill.json")) {
+      return new Response(JSON.stringify({ ...manifest1, version: "2.0.0" }), { status: 200 });
+    }
+    if ((url as string).includes("skill-b/skill.json")) {
+      return new Response(JSON.stringify({ ...manifest2, version: "1.0.0" }), { status: 200 });
+    }
+    return new Response("# Updated", { status: 200 });
+  }) as any;
+
+  const results = await updateAllSkills(TMP);
+  expect(results).toHaveLength(2);
+
+  const a = results.find((r) => r.name === "skill-a")!;
+  expect(a.ok).toBe(true);
+  if (a.ok) {
+    expect(a.from).toBe("1.0.0");
+    expect(a.to).toBe("2.0.0");
+  }
+
+  const b = results.find((r) => r.name === "skill-b")!;
+  expect(b.ok).toBe(true);
+  if (b.ok) {
+    expect(b.from).toBe("1.0.0");
+    expect(b.to).toBe("1.0.0");
+  }
+
+  globalThis.fetch = originalFetch;
+});
+
+test("updateAllSkills returns empty array when no skills installed", async () => {
+  const results = await updateAllSkills(TMP);
+  expect(results).toEqual([]);
 });

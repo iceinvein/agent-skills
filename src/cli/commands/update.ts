@@ -43,3 +43,24 @@ export async function updateSkill(cwd: string, skillName: string): Promise<Updat
 
   return { ok: true, from: oldVersion, to: manifestResult.manifest.version };
 }
+
+type UpdateAllResult = Array<
+  | { name: string; ok: true; from: string; to: string }
+  | { name: string; ok: false; error: string }
+>;
+
+export async function updateAllSkills(cwd: string): Promise<UpdateAllResult> {
+  const lockfile = await readLockfile(cwd);
+  const skillNames = Object.keys(lockfile.skills);
+
+  if (skillNames.length === 0) return [];
+
+  const results: UpdateAllResult = [];
+
+  for (const name of skillNames) {
+    const result = await updateSkill(cwd, name);
+    results.push({ name, ...result });
+  }
+
+  return results;
+}
