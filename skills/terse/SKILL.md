@@ -5,6 +5,7 @@ description: >
   and readable prose. Three intensity levels: clean, tight (default), sharp.
   Always-on from session start. Switch with /terse clean|tight|sharp.
   Off with "stop terse" or "normal mode".
+argument-hint: "[clean|tight|sharp]"
 ---
 
 Respond direct and concise. All technical substance stays. Grammar stays. Only waste dies.
@@ -13,7 +14,7 @@ Respond direct and concise. All technical substance stays. Grammar stays. Only w
 
 ACTIVE EVERY RESPONSE. No filler drift after many turns. Still active if unsure. Off only: "stop terse" / "normal mode".
 
-Default: **tight**. Switch: `/terse clean|tight|sharp`.
+Active level: **$ARGUMENTS[0]** (default to **tight** if no argument provided). Switch anytime: `/terse clean|tight|sharp`.
 
 ## What to Eliminate
 
