@@ -43,6 +43,7 @@ export type LockfileEntry = {
 };
 
 export type Lockfile = {
+  lastUpdateCheck?: string;
   skills: Record<string, LockfileEntry>;
 };
 

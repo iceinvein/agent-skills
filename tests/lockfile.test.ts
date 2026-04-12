@@ -59,3 +59,25 @@ test("removeSkillFromLockfile removes entry", async () => {
   const lock = await readLockfile(TMP);
   expect(lock.skills["design-review"]).toBeUndefined();
 });
+
+test("writeLockfile persists lastUpdateCheck field", async () => {
+  const lock = {
+    lastUpdateCheck: "2026-04-12T10:00:00Z",
+    skills: {
+      "design-review": {
+        version: "1.0.0",
+        tools: ["claude" as const],
+        installedAt: "2026-03-30T10:00:00Z",
+        files: [".claude/skills/design-review/SKILL.md"],
+      },
+    },
+  };
+  await writeLockfile(TMP, lock);
+  const result = await readLockfile(TMP);
+  expect(result.lastUpdateCheck).toBe("2026-04-12T10:00:00Z");
+});
+
+test("readLockfile returns undefined lastUpdateCheck when field absent", async () => {
+  const lock = await readLockfile(TMP);
+  expect(lock.lastUpdateCheck).toBeUndefined();
+});
