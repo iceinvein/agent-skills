@@ -28,6 +28,20 @@ fi
 echo "Running tests..."
 bun test
 
+# Check for un-bumped skill versions
+echo "Checking skill versions..."
+if UNBUMPED=$(bun run src/cli/index.ts bump --all --dry-run 2>&1); then
+  # exit 0 means nothing to bump — all good
+  :
+else
+  echo "Error: skills have changes since last release but no version bump:"
+  echo "$UNBUMPED"
+  echo ""
+  echo "Run: bun run src/cli/index.ts bump --all"
+  echo "  or: bun run src/cli/index.ts bump <skill> [patch|minor|major]"
+  exit 1
+fi
+
 # Bump version in package.json (no git tag — we do it manually)
 NEW_VERSION="$(npm version "$BUMP" --no-git-tag-version)"
 echo "Bumped to $NEW_VERSION"
