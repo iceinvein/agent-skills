@@ -103,3 +103,32 @@ test("unwireSessionStartHook preserves hooks in other events", async () => {
   expect(contents.hooks.PreToolUse[0].hooks[0].command).toBe("echo pre");
   expect(contents.hooks.SessionStart).toBeUndefined();
 });
+
+test("wireSessionStartHook tolerates groups with no hooks array", async () => {
+  // Simulate a malformed/third-party entry missing the `hooks` key
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: {
+      SessionStart: [{ someOtherField: "value" }],
+    },
+  }));
+  await wireSessionStartHook(SETTINGS, "terse", "Activate terse skill at tight level for this session.");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(2);
+  expect(contents.hooks.SessionStart[1].hooks[0].command).toContain("Activate terse skill");
+});
+
+test("unwireSessionStartHook tolerates groups with no hooks array", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: {
+      SessionStart: [
+        { someOtherField: "value" },
+        { hooks: [{ type: "command", command: "echo 'Activate terse skill at tight level for this session.'" }] },
+      ],
+    },
+  }));
+  await unwireSessionStartHook(SETTINGS, "terse");
+  const contents = await Bun.file(SETTINGS).json();
+  // Groups without hooks array are filtered out (empty filteredGroups)
+  // because filteredGroups filters to groups with hooks.length > 0
+  expect(contents.hooks).toBeUndefined();
+});

@@ -26,7 +26,7 @@ export async function wireSessionStartHook(
 
   // Idempotency: skip if any existing entry already matches this skill
   for (const group of settings.hooks.SessionStart as HookGroup[]) {
-    for (const hook of group.hooks) {
+    for (const hook of group.hooks ?? []) {
       if (matchesSkillDirective(hook.command, skillName)) return;
     }
   }
@@ -51,7 +51,7 @@ export async function unwireSessionStartHook(
 
   const filteredGroups = sessionStart
     .map((group) => ({
-      hooks: group.hooks.filter((h) => !matchesSkillDirective(h.command, skillName)),
+      hooks: (group.hooks ?? []).filter((h) => !matchesSkillDirective(h.command, skillName)),
     }))
     .filter((group) => group.hooks.length > 0);
 
