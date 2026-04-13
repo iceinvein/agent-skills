@@ -1,4 +1,5 @@
 import { createInterface } from "node:readline";
+import type { ActivationMode } from "./types";
 
 function ask(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -44,4 +45,25 @@ export async function promptSelect(
 export async function promptConfirm(message: string): Promise<boolean> {
   const answer = await ask(`${message} (y/n): `);
   return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
+}
+
+export async function promptActivation(
+  skillName: string,
+  modes: ActivationMode[]
+): Promise<ActivationMode> {
+  console.log(`\nHow should ${skillName} activate in Claude Code?\n`);
+  const labels: Record<ActivationMode, string> = {
+    session: `Per-session — invoke manually with /${skillName}`,
+    global: "Global — auto-activate every session (adds SessionStart hook)",
+  };
+  for (let i = 0; i < modes.length; i++) {
+    console.log(`  ${i + 1}) ${labels[modes[i]]}`);
+  }
+  const answer = await ask("\nSelect: ");
+  const n = parseInt(answer, 10);
+  if (isNaN(n) || n < 1 || n > modes.length) {
+    console.error("Invalid selection. Exiting.");
+    process.exit(1);
+  }
+  return modes[n - 1];
 }
