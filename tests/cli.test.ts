@@ -85,3 +85,20 @@ test("parseArgs parses bump --all --dry-run", () => {
   const result = parseArgs(["bump", "--all", "--dry-run"]);
   expect(result).toEqual({ command: "bump", args: [], flags: { all: "true", "dry-run": "true" } });
 });
+
+test("parseArgs captures --activation value", () => {
+  const result = parseArgs(["install", "terse", "--activation", "global"]);
+  expect(result.command).toBe("install");
+  expect(result.args).toEqual(["terse"]);
+  expect(result.flags.activation).toBe("global");
+});
+
+test("parseArgs captures --activation session", () => {
+  const result = parseArgs(["install", "terse", "--activation", "session"]);
+  expect(result.flags.activation).toBe("session");
+});
+
+test("parseArgs handles install without --activation", () => {
+  const result = parseArgs(["install", "terse"]);
+  expect(result.flags.activation).toBeUndefined();
+});

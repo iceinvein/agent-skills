@@ -8,7 +8,7 @@ import { infoSkill } from "./commands/info";
 import { updateSkill, updateAllSkills } from "./commands/update";
 import { bumpSkill, bumpAllChanged } from "./commands/bump";
 import { checkForUpdates } from "./update-check";
-import { TOOL_NAMES, type ToolName } from "./types";
+import { TOOL_NAMES, type ToolName, type ActivationMode } from "./types";
 import { promptSelect } from "./prompt";
 import type { BumpLevel } from "./semver";
 import { mkdirSync } from "node:fs";
@@ -62,7 +62,7 @@ function printHelp() {
 @iceinvein/agent-skills — Install agent skills into AI coding tools
 
 Usage:
-  agent-skills install <skill>  [--tool <tool>] [-g]  Install a skill
+  agent-skills install <skill>  [--tool <tool>] [--activation <session|global>] [-g]  Install a skill
   agent-skills remove  <skill>  [-g]                   Remove a skill
   agent-skills update  <skill>  [-g]                   Update a skill
   agent-skills update  --all    [-g]                   Update all installed skills
@@ -75,6 +75,7 @@ Flags:
   --tool <tool>   Install for a specific tool (${TOOL_NAMES.join(", ")})
   -g, --global    Install to home directory (available in all projects)
   --dry-run       With bump --all: check without writing (exit 1 if unbumped)
+  --activation <mode>  Set activation mode for skills that support it (session or global)
 `);
 }
 
@@ -157,7 +158,27 @@ async function main() {
         }
       }
 
-      const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools);
+      // Resolve activation mode
+      let activation: ActivationMode | undefined;
+      const manifest = manifestResult.manifest;
+      if (manifest.activation && tools.includes("claude")) {
+        const validModes = manifest.activation.modes;
+
+        if (flags.activation) {
+          if (!validModes.includes(flags.activation as ActivationMode)) {
+            console.error(`Error: activation mode '${flags.activation}' not supported. Must be one of: ${validModes.join(", ")}`);
+            process.exit(1);
+          }
+          activation = flags.activation as ActivationMode;
+        } else if (process.stdin.isTTY) {
+          const { promptActivation } = await import("./prompt");
+          activation = await promptActivation(manifest.name, validModes);
+        } else {
+          activation = manifest.activation.default;
+        }
+      }
+
+      const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools, activation);
       if (!result.ok) {
         console.error(`Error: ${result.error}`);
         process.exit(1);
