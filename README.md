@@ -87,7 +87,7 @@ Skills that control how the agent communicates — output compression, token eff
 ## Commands
 
 ```
-bunx @iceinvein/agent-skills install <skill> [--tool <tool>] [-g]
+bunx @iceinvein/agent-skills install <skill> [--tool <tool>] [--activation <mode>] [-g]
 bunx @iceinvein/agent-skills remove <skill> [-g]
 bunx @iceinvein/agent-skills update <skill> [-g]
 bunx @iceinvein/agent-skills list
@@ -97,7 +97,17 @@ bunx @iceinvein/agent-skills info <skill>
 | Flag | |
 |------|---|
 | `--tool <tool>` | Target a specific tool: `claude`, `cursor`, `codex`, `gemini` |
+| `--activation <mode>` | For skills that support it: `session` (manual `/skill`) or `global` (auto via `SessionStart` hook). Claude Code only. |
 | `-g, --global` | Install to home directory (available in all projects) |
+
+## Activation Modes (Claude Code)
+
+Some skills — like `terse` — support activation modes. Pick one at install time:
+
+- **session** (default) — invoke the skill manually with `/<skill>` each session
+- **global** — auto-activate every Claude Code session via a `SessionStart` hook in `.claude/settings.json`
+
+If a skill declares activation support and you're installing for Claude Code interactively, the CLI prompts you. Use `--activation session` or `--activation global` for scripted installs. `remove` strips the hook cleanly; `update` preserves your choice across version bumps.
 
 ## Supported Tools
 
