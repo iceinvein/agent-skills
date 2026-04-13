@@ -19,6 +19,7 @@ export async function updateSkill(cwd: string, skillName: string): Promise<Updat
 
   const oldVersion = entry.version;
   const tools = entry.tools;
+  const activation = entry.activation;
 
   // Fetch latest manifest
   const manifestResult = await fetchSkillManifest(skillName);
@@ -36,7 +37,7 @@ export async function updateSkill(cwd: string, skillName: string): Promise<Updat
   await removeSkill(cwd, skillName);
 
   // Re-install with latest
-  const installResult = await installSkill(cwd, manifestResult.manifest, filesResult, tools as ToolName[]);
+  const installResult = await installSkill(cwd, manifestResult.manifest, filesResult, tools as ToolName[], activation);
   if (!installResult.ok) {
     return { ok: false, error: installResult.error };
   }

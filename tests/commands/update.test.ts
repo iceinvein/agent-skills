@@ -118,3 +118,26 @@ test("updateAllSkills returns empty array when no skills installed", async () =>
   const results = await updateAllSkills(TMP);
   expect(results).toEqual([]);
 });
+
+test("lockfile persists activation through install (baseline for update flow)", async () => {
+  const manifest: SkillManifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "Terse",
+    author: "iceinvein",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/terse/SKILL.md" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "session",
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  const files = new Map([["SKILL.md", "# Terse"]]);
+
+  await installSkill(TMP, manifest, files, ["claude"], "global");
+  const lock = await readLockfile(TMP);
+  expect(lock.skills["terse"].activation).toBe("global");
+});
