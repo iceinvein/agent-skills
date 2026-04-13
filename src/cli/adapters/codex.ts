@@ -5,7 +5,7 @@ import type { Adapter } from "./claude";
 export const codexAdapter: Adapter = {
   name: "codex",
 
-  async install(cwd, manifest, files) {
+  async install(cwd, manifest, files, _activation) {
     const installed: string[] = [];
     const config = manifest.install.codex;
     if (!config) return installed;

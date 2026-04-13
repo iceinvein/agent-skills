@@ -5,7 +5,7 @@ import type { Adapter } from "./claude";
 export const geminiAdapter: Adapter = {
   name: "gemini",
 
-  async install(cwd, manifest, files) {
+  async install(cwd, manifest, files, _activation) {
     const installed: string[] = [];
     const config = manifest.install.gemini;
     if (!config) return installed;

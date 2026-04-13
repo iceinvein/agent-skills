@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { SkillManifest } from "../types";
+import type { ActivationMode, SkillManifest } from "../types";
 
 type HookEntry = { type: "command"; command: string };
 type HookGroup = { hooks: HookEntry[] };
@@ -70,14 +70,19 @@ export async function unwireSessionStartHook(
 
 export type Adapter = {
   name: string;
-  install(cwd: string, manifest: SkillManifest, files: Map<string, string>): Promise<string[]>;
+  install(
+    cwd: string,
+    manifest: SkillManifest,
+    files: Map<string, string>,
+    activation?: ActivationMode
+  ): Promise<string[]>;
   remove(cwd: string, manifest: SkillManifest, installedFiles: string[]): Promise<void>;
 };
 
 export const claudeAdapter: Adapter = {
   name: "claude",
 
-  async install(cwd, manifest, files) {
+  async install(cwd, manifest, files, activation) {
     const installed: string[] = [];
     const config = manifest.install.claude;
     if (!config) return installed;
@@ -119,6 +124,14 @@ export const claudeAdapter: Adapter = {
       installed.push(".claude/settings.json");
     }
 
+    if (activation === "global" && manifest.activation?.claudeHookDirective) {
+      const settingsPath = join(cwd, ".claude/settings.json");
+      await wireSessionStartHook(settingsPath, manifest.name, manifest.activation.claudeHookDirective);
+      if (!installed.includes(".claude/settings.json")) {
+        installed.push(".claude/settings.json");
+      }
+    }
+
     return installed;
   },
 
@@ -150,6 +163,11 @@ export const claudeAdapter: Adapter = {
           await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
         }
       }
+    }
+
+    if (manifest.activation?.claudeHookDirective) {
+      const settingsPath = join(cwd, ".claude/settings.json");
+      await unwireSessionStartHook(settingsPath, manifest.name);
     }
   },
 };

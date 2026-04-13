@@ -5,7 +5,7 @@ import type { Adapter } from "./claude";
 export const cursorAdapter: Adapter = {
   name: "cursor",
 
-  async install(cwd, manifest, files) {
+  async install(cwd, manifest, files, _activation) {
     const installed: string[] = [];
     const config = manifest.install.cursor;
     if (!config) return installed;

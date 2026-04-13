@@ -1,5 +1,6 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { wireSessionStartHook, unwireSessionStartHook } from "../../src/cli/adapters/claude";
+import { claudeAdapter, wireSessionStartHook, unwireSessionStartHook } from "../../src/cli/adapters/claude";
+import type { SkillManifest } from "../../src/cli/types";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -130,5 +131,74 @@ test("unwireSessionStartHook tolerates groups with no hooks array", async () => 
   const contents = await Bun.file(SETTINGS).json();
   // Groups without hooks array are filtered out (empty filteredGroups)
   // because filteredGroups filters to groups with hooks.length > 0
+  expect(contents.hooks).toBeUndefined();
+});
+
+test("claudeAdapter.install wires hook when activation is global", async () => {
+  const manifest: SkillManifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/terse/SKILL.md" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "session",
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  const files = new Map([["SKILL.md", "# Terse"]]);
+  const installed = await claudeAdapter.install(TMP, manifest, files, "global");
+  const contents = await Bun.file(join(TMP, ".claude/settings.json")).json();
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toContain("Activate terse skill");
+  expect(installed).toContain(".claude/settings.json");
+});
+
+test("claudeAdapter.install does not wire hook when activation is session", async () => {
+  const manifest: SkillManifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/terse/SKILL.md" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "session",
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  const files = new Map([["SKILL.md", "# Terse"]]);
+  await claudeAdapter.install(TMP, manifest, files, "session");
+  expect(existsSync(join(TMP, ".claude/settings.json"))).toBe(false);
+});
+
+test("claudeAdapter.remove unwires hook", async () => {
+  const settingsPath = join(TMP, ".claude/settings.json");
+  mkdirSync(join(TMP, ".claude"), { recursive: true });
+  await wireSessionStartHook(settingsPath, "terse", "Activate terse skill at tight level for this session.");
+
+  const manifest: SkillManifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    install: { claude: { prompt: ".claude/skills/terse/SKILL.md" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "session",
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  await claudeAdapter.remove(TMP, manifest, [".claude/skills/terse/SKILL.md"]);
+  const contents = await Bun.file(settingsPath).json();
   expect(contents.hooks).toBeUndefined();
 });
