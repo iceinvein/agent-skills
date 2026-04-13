@@ -2,6 +2,72 @@ import { existsSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SkillManifest } from "../types";
 
+type HookEntry = { type: "command"; command: string };
+type HookGroup = { hooks: HookEntry[] };
+type Settings = Record<string, any>;
+
+function matchesSkillDirective(command: string, skillName: string): boolean {
+  return command.includes(`Activate ${skillName} skill`);
+}
+
+export async function wireSessionStartHook(
+  settingsPath: string,
+  skillName: string,
+  directive: string
+): Promise<void> {
+  let settings: Settings = {};
+  if (existsSync(settingsPath)) {
+    settings = await Bun.file(settingsPath).json();
+  }
+  if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+
+  const command = `echo '${directive}'`;
+
+  // Idempotency: skip if any existing entry already matches this skill
+  for (const group of settings.hooks.SessionStart as HookGroup[]) {
+    for (const hook of group.hooks) {
+      if (matchesSkillDirective(hook.command, skillName)) return;
+    }
+  }
+
+  settings.hooks.SessionStart.push({
+    hooks: [{ type: "command", command }],
+  });
+
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+export async function unwireSessionStartHook(
+  settingsPath: string,
+  skillName: string
+): Promise<void> {
+  if (!existsSync(settingsPath)) return;
+
+  const settings: Settings = await Bun.file(settingsPath).json();
+  const sessionStart = settings.hooks?.SessionStart as HookGroup[] | undefined;
+  if (!sessionStart) return;
+
+  const filteredGroups = sessionStart
+    .map((group) => ({
+      hooks: group.hooks.filter((h) => !matchesSkillDirective(h.command, skillName)),
+    }))
+    .filter((group) => group.hooks.length > 0);
+
+  if (filteredGroups.length === 0) {
+    delete settings.hooks.SessionStart;
+  } else {
+    settings.hooks.SessionStart = filteredGroups;
+  }
+
+  if (settings.hooks && Object.keys(settings.hooks).length === 0) {
+    delete settings.hooks;
+  }
+
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
 export type Adapter = {
   name: string;
   install(cwd: string, manifest: SkillManifest, files: Map<string, string>): Promise<string[]>;
