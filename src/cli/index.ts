@@ -9,7 +9,7 @@ import { updateSkill, updateAllSkills } from "./commands/update";
 import { bumpSkill, bumpAllChanged } from "./commands/bump";
 import { checkForUpdates } from "./update-check";
 import { TOOL_NAMES, type ToolName, type ActivationMode } from "./types";
-import { promptSelect } from "./prompt";
+import { promptSelect, promptActivation } from "./prompt";
 import type { BumpLevel } from "./semver";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -171,7 +171,6 @@ async function main() {
           }
           activation = flags.activation as ActivationMode;
         } else if (process.stdin.isTTY) {
-          const { promptActivation } = await import("./prompt");
           activation = await promptActivation(manifest.name, validModes);
         } else {
           activation = manifest.activation.default;
