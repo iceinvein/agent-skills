@@ -15,7 +15,11 @@
   "scripts": {
     "build": "bun build src/cli/index.ts --outdir dist/cli --target bun",
     "test": "bun test",
-    "dev": "bun run src/cli/index.ts"
+    "dev": "bun run src/cli/index.ts",
+    "skill:bump": "bun run src/cli/index.ts bump",
+    "skill:bump:all": "bun run src/cli/index.ts bump --all",
+    "skill:bump:check": "bun run src/cli/index.ts bump --all --dry-run",
+    "release": "bash scripts/release.sh"
   },
   "keywords": [
     "ai",
