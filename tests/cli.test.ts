@@ -60,3 +60,28 @@ test("parseArgs parses update --all -g", () => {
   const result = parseArgs(["update", "--all", "-g"]);
   expect(result).toEqual({ command: "update", args: [], flags: { all: "true", global: "true" } });
 });
+
+test("parseArgs parses bump command with skill name", () => {
+  const result = parseArgs(["bump", "terse"]);
+  expect(result).toEqual({ command: "bump", args: ["terse"], flags: {} });
+});
+
+test("parseArgs parses bump with level arg", () => {
+  const result = parseArgs(["bump", "terse", "minor"]);
+  expect(result).toEqual({ command: "bump", args: ["terse", "minor"], flags: {} });
+});
+
+test("parseArgs parses bump --all", () => {
+  const result = parseArgs(["bump", "--all"]);
+  expect(result).toEqual({ command: "bump", args: [], flags: { all: "true" } });
+});
+
+test("parseArgs parses bump --all with level", () => {
+  const result = parseArgs(["bump", "--all", "minor"]);
+  expect(result).toEqual({ command: "bump", args: ["minor"], flags: { all: "true" } });
+});
+
+test("parseArgs parses bump --all --dry-run", () => {
+  const result = parseArgs(["bump", "--all", "--dry-run"]);
+  expect(result).toEqual({ command: "bump", args: [], flags: { all: "true", "dry-run": "true" } });
+});

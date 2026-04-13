@@ -6,9 +6,11 @@ import { removeSkill } from "./commands/remove";
 import { listSkills } from "./commands/list";
 import { infoSkill } from "./commands/info";
 import { updateSkill, updateAllSkills } from "./commands/update";
+import { bumpSkill, bumpAllChanged } from "./commands/bump";
 import { checkForUpdates } from "./update-check";
 import { TOOL_NAMES, type ToolName } from "./types";
 import { promptSelect } from "./prompt";
+import type { BumpLevel } from "./semver";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -26,7 +28,7 @@ type ParsedArgs = {
   flags: Record<string, string>;
 };
 
-const BOOLEAN_FLAGS = new Set(["global", "g", "all"]);
+const BOOLEAN_FLAGS = new Set(["global", "g", "all", "dry-run"]);
 
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) return { command: "help", args: [], flags: {} };
@@ -64,12 +66,15 @@ Usage:
   agent-skills remove  <skill>  [-g]                   Remove a skill
   agent-skills update  <skill>  [-g]                   Update a skill
   agent-skills update  --all    [-g]                   Update all installed skills
+  agent-skills bump   <skill>  [patch|minor|major]     Bump a skill's version
+  agent-skills bump   --all    [patch|minor|major]     Bump all changed skills
   agent-skills list                                    List available skills
   agent-skills info    <skill>                         Show skill details
 
 Flags:
   --tool <tool>   Install for a specific tool (${TOOL_NAMES.join(", ")})
   -g, --global    Install to home directory (available in all projects)
+  --dry-run       With bump --all: check without writing (exit 1 if unbumped)
 `);
 }
 
@@ -256,6 +261,62 @@ async function main() {
       console.log(`  Type:   ${m.type}`);
       console.log(`  Tools:  ${m.tools.join(", ")}`);
       if (m.mcp) console.log(`  Package: ${m.mcp.package}`);
+      break;
+    }
+
+    case "bump": {
+      const BUMP_LEVELS = ["patch", "minor", "major"] as const;
+
+      // Find repo root by looking for skills/ directory
+      const repoRoot = import.meta.dir.replace(/\/dist\/cli$|\/src\/cli$/, "");
+
+      if (flags.all !== undefined) {
+        const levelArg = args[0] ?? "patch";
+        if (!BUMP_LEVELS.includes(levelArg as BumpLevel)) {
+          console.error(`Error: invalid bump level '${levelArg}'. Must be one of: ${BUMP_LEVELS.join(", ")}`);
+          process.exit(1);
+        }
+        const dryRun = flags["dry-run"] !== undefined;
+        const results = await bumpAllChanged(repoRoot, levelArg as BumpLevel, dryRun);
+
+        if (results.length === 0) {
+          if (!dryRun) console.log("All skill versions are up to date.");
+          process.exit(0);
+        }
+
+        for (const r of results) {
+          if (!r.ok) {
+            console.error(`  ✗ ${r.name}: ${r.error}`);
+          } else if (dryRun) {
+            console.log(`  needs bump: ${r.name} ${r.from} → ${r.to}`);
+          } else {
+            console.log(`  ✓ ${r.name} ${r.from} → ${r.to}`);
+          }
+        }
+
+        if (dryRun) process.exit(1);
+        break;
+      }
+
+      const skillName = args[0];
+      if (!skillName) {
+        console.error("Error: skill name required. Usage: agent-skills bump <skill> [patch|minor|major]");
+        process.exit(1);
+      }
+
+      const level = (args[1] ?? "patch") as BumpLevel;
+      if (!BUMP_LEVELS.includes(level)) {
+        console.error(`Error: invalid bump level '${args[1]}'. Must be one of: ${BUMP_LEVELS.join(", ")}`);
+        process.exit(1);
+      }
+
+      const result = await bumpSkill(repoRoot, skillName, level);
+      if (!result.ok) {
+        console.error(`Error: ${result.error}`);
+        process.exit(1);
+      }
+
+      console.log(`✓ ${skillName} ${result.from} → ${result.to}`);
       break;
     }
 
