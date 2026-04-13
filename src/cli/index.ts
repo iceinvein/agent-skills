@@ -241,7 +241,11 @@ async function main() {
         process.exit(1);
       }
 
-      console.log(`✓ Updated '${skillName}' from v${result.from} to v${result.to}`);
+      if (result.from === result.to) {
+        console.log(`⊘ '${skillName}' is already up to date (v${result.to})`);
+      } else {
+        console.log(`✓ Updated '${skillName}' from v${result.from} to v${result.to}`);
+      }
       break;
     }
 

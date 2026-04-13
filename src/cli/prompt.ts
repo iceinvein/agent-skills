@@ -53,8 +53,8 @@ export async function promptActivation(
 ): Promise<ActivationMode> {
   console.log(`\nHow should ${skillName} activate in Claude Code?\n`);
   const labels: Record<ActivationMode, string> = {
-    session: `Per-session — invoke manually with /${skillName}`,
-    global: "Global — auto-activate every session (adds SessionStart hook)",
+    session: `Per-session - invoke manually with /${skillName}`,
+    global: "Global - auto-activate every session (adds SessionStart hook)",
   };
   for (let i = 0; i < modes.length; i++) {
     console.log(`  ${i + 1}) ${labels[modes[i]]}`);
