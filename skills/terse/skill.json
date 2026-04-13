@@ -1,6 +1,6 @@
 {
   "name": "terse",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Professional output compression — proper grammar, no fluff, ~50-60% fewer tokens. Three levels: clean, tight, sharp.",
   "author": "iceinvein",
   "type": "prompt",
@@ -27,5 +27,10 @@
     "gemini": {
       "prompt": ".gemini/skills/terse.md"
     }
+  },
+  "activation": {
+    "modes": ["session", "global"],
+    "default": "session",
+    "claudeHookDirective": "Activate terse skill at tight level for this session."
   }
 }

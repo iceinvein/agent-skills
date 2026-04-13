@@ -165,6 +165,6 @@
     "name": "terse",
     "description": "Professional output compression — proper grammar, no fluff, ~50-60% fewer tokens. Three levels: clean, tight, sharp.",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.1.0"
   }
 ]
