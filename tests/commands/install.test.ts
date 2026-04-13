@@ -84,3 +84,60 @@ test("installSkill returns error when no compatible tools", async () => {
 
   expect(result.ok).toBe(false);
 });
+
+test("installSkill persists activation mode in lockfile and wires hook", async () => {
+  const manifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "Terse",
+    author: "iceinvein",
+    type: "prompt" as const,
+    tools: ["claude" as const],
+    files: { prompt: "SKILL.md" },
+    install: {
+      claude: { prompt: ".claude/skills/terse/SKILL.md" },
+    },
+    activation: {
+      modes: ["session" as const, "global" as const],
+      default: "session" as const,
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  const files = new Map([["SKILL.md", "# Terse"]]);
+
+  const result = await installSkill(TMP, manifest, files, ["claude"], "global");
+  expect(result.ok).toBe(true);
+
+  const lock = await readLockfile(TMP);
+  expect(lock.skills["terse"].activation).toBe("global");
+
+  const settings = await Bun.file(join(TMP, ".claude/settings.json")).json();
+  expect(settings.hooks.SessionStart[0].hooks[0].command).toContain("Activate terse skill");
+});
+
+test("installSkill omits activation from lockfile when not specified", async () => {
+  const manifest = {
+    name: "terse",
+    version: "1.0.0",
+    description: "Terse",
+    author: "iceinvein",
+    type: "prompt" as const,
+    tools: ["claude" as const],
+    files: { prompt: "SKILL.md" },
+    install: {
+      claude: { prompt: ".claude/skills/terse/SKILL.md" },
+    },
+    activation: {
+      modes: ["session" as const, "global" as const],
+      default: "session" as const,
+      claudeHookDirective: "Activate terse skill at tight level for this session.",
+    },
+  };
+  const files = new Map([["SKILL.md", "# Terse"]]);
+
+  const result = await installSkill(TMP, manifest, files, ["claude"]);
+  expect(result.ok).toBe(true);
+
+  const lock = await readLockfile(TMP);
+  expect(lock.skills["terse"].activation).toBeUndefined();
+});

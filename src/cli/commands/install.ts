@@ -1,5 +1,5 @@
 // src/cli/commands/install.ts
-import type { SkillManifest, ToolName } from "../types";
+import type { SkillManifest, ToolName, ActivationMode } from "../types";
 import { getAdapter } from "../adapters";
 import { addSkillToLockfile } from "../lockfile";
 
@@ -11,7 +11,8 @@ export async function installSkill(
   cwd: string,
   manifest: SkillManifest,
   files: Map<string, string>,
-  targetTools: ToolName[]
+  targetTools: ToolName[],
+  activation?: ActivationMode
 ): Promise<InstallResult> {
   const compatibleTools = targetTools.filter((t) => manifest.tools.includes(t));
   const skipped = targetTools.filter((t) => !manifest.tools.includes(t));
@@ -28,7 +29,7 @@ export async function installSkill(
 
   for (const tool of compatibleTools) {
     const adapter = getAdapter(tool);
-    const toolFiles = await adapter.install(cwd, manifest, files);
+    const toolFiles = await adapter.install(cwd, manifest, files, activation);
     installed[tool] = toolFiles;
     allFiles.push(...toolFiles);
   }
@@ -38,6 +39,7 @@ export async function installSkill(
     tools: compatibleTools,
     installedAt: new Date().toISOString(),
     files: allFiles,
+    ...(activation !== undefined ? { activation } : {}),
   });
 
   return { ok: true, installed, skipped };
