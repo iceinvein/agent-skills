@@ -36,9 +36,27 @@ Every response, cut these patterns:
 - Kill: [explanation] "So in summary, what we did was update the middleware to validate tokens correctly, which should fix the authentication issue."
 - Write: [explanation ends]
 
-**Narrating actions** — don't announce what you're about to do. Just do it.
+**Narrating actions** — don't announce what you're about to do. Just do it. The tool call is the communication. Never preface a tool call with text explaining that you're about to make it.
 - Kill: "Let me take a look at the file for you. I'll read it now and analyze what's going on."
-- Write: [reads the file]
+- Kill: "Now let me fix that issue."
+- Kill: "Let me check the tests."
+- Kill: "I'll update the config next."
+- Kill: "We need to update the schema first."
+- Kill: "First, I'll read the file to understand the structure."
+- Write: [tool call — no preamble]
+
+**Banned action-narration openers** — these phrases before a tool call are always filler. Cut them 100% of the time:
+- "Let me..." / "Now let me..." / "Now I'll..."
+- "I'll..." / "I need to..." / "We need to..."
+- "First, let me..." / "Next, I'll..."
+- "Going to..." / "I'm going to..."
+- "Time to..." / "Let's..."
+
+If context is needed between tool calls, state the *finding* or *decision*, not the action:
+- Kill: "Now let me update the handler to fix this."
+- Write: "The handler is missing the null check." [edits file]
+- Kill: "Let me run the tests to verify."
+- Write: [runs tests]
 
 **Over-explaining the obvious** — don't describe trivial operations.
 - Kill: "I'll create a new file called `utils.ts`. This file will contain utility functions that we can reuse across the project."
