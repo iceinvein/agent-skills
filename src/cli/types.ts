@@ -4,6 +4,15 @@ export type ToolName = (typeof TOOL_NAMES)[number];
 export const SKILL_TYPES = ["prompt", "code", "hybrid"] as const;
 export type SkillType = (typeof SKILL_TYPES)[number];
 
+export const ACTIVATION_MODES = ["session", "global"] as const;
+export type ActivationMode = (typeof ACTIVATION_MODES)[number];
+
+export type ActivationConfig = {
+  modes: ActivationMode[];
+  default: ActivationMode;
+  claudeHookDirective?: string;
+};
+
 export type McpServerConfig = {
   command: string;
   args: string[];
@@ -33,6 +42,7 @@ export type SkillManifest = {
     args: string[];
   };
   install: Partial<Record<ToolName, ToolInstallConfig>>;
+  activation?: ActivationConfig;
 };
 
 export type LockfileEntry = {
@@ -40,6 +50,7 @@ export type LockfileEntry = {
   tools: ToolName[];
   installedAt: string;
   files: string[];
+  activation?: ActivationMode;
 };
 
 export type Lockfile = {
@@ -83,6 +94,30 @@ export function validateManifest(data: unknown): ValidationResult {
   }
   if (typeof d.install !== "object" || d.install === null) {
     return { ok: false, error: "Missing 'install' configuration" };
+  }
+
+  if (d.activation !== undefined) {
+    if (typeof d.activation !== "object" || d.activation === null) {
+      return { ok: false, error: "'activation' must be an object" };
+    }
+    const a = d.activation as Record<string, unknown>;
+    if (!Array.isArray(a.modes) || a.modes.length === 0) {
+      return { ok: false, error: "'activation.modes' must be a non-empty array" };
+    }
+    for (const m of a.modes) {
+      if (!ACTIVATION_MODES.includes(m as ActivationMode)) {
+        return { ok: false, error: `Invalid activation mode '${m}': must be one of ${ACTIVATION_MODES.join(", ")}` };
+      }
+    }
+    if (!ACTIVATION_MODES.includes(a.default as ActivationMode)) {
+      return { ok: false, error: `Invalid 'activation.default': must be one of ${ACTIVATION_MODES.join(", ")}` };
+    }
+    if (!(a.modes as ActivationMode[]).includes(a.default as ActivationMode)) {
+      return { ok: false, error: "'activation.default' must be one of 'activation.modes'" };
+    }
+    if (a.claudeHookDirective !== undefined && typeof a.claudeHookDirective !== "string") {
+      return { ok: false, error: "'activation.claudeHookDirective' must be a string" };
+    }
   }
 
   return { ok: true, manifest: d as unknown as SkillManifest };
