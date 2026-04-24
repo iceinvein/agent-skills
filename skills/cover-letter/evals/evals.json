@@ -1,0 +1,38 @@
+{
+  "skill_name": "cover-letter-write",
+  "evals": [
+    {
+      "id": 0,
+      "name": "clean-match-senior-backend",
+      "prompt": "I'm applying to the Senior Backend Engineer role at Linear. Can you write me a cover letter? My resume is at skills/cover-letter/evals/inputs/resume-jordan-martinez.md and the job description is at skills/cover-letter/evals/inputs/jd-linear-senior-backend.md. Save the output to cover-letter-workspace/iteration-1/eval-0/<run>/outputs/",
+      "files": [
+        "skills/cover-letter/evals/inputs/resume-jordan-martinez.md",
+        "skills/cover-letter/evals/inputs/jd-linear-senior-backend.md"
+      ],
+      "expected_output": "A cover letter that specifically references Linear (company), the sync engine/CRDT, and at least one concrete detail from the JD. Claims should map to Jordan's real resume bullets (Stripe, Shopify). No fabricated experience. No filler openers. 250-400 words. Saved as markdown.",
+      "assertions": []
+    },
+    {
+      "id": 1,
+      "name": "gap-frontend-applying-to-go-platform",
+      "prompt": "Write me a cover letter for the Senior Platform Engineer (Go) role at Ramp. My resume is at skills/cover-letter/evals/inputs/resume-priya-iyer.md and the JD is at skills/cover-letter/evals/inputs/jd-ramp-senior-go-platform.md. Save the output to cover-letter-workspace/iteration-1/eval-1/<run>/outputs/",
+      "files": [
+        "skills/cover-letter/evals/inputs/resume-priya-iyer.md",
+        "skills/cover-letter/evals/inputs/jd-ramp-senior-go-platform.md"
+      ],
+      "expected_output": "A cover letter that HONESTLY addresses Priya's lack of Go production experience (her resume shows TypeScript/React with 'some Go (reading)'). It should either flag the gap to the user, or write a letter that is honest about the mismatch rather than fabricating Go experience. If the skill recommends the user reconsider applying, that is also acceptable. What must NOT happen: inventing Go production experience or claiming Priya has expertise she doesn't.",
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "career-changer-with-gap-acknowledgement",
+      "prompt": "I need a cover letter for the Junior Full-Stack Engineer role at Pathway. Resume: skills/cover-letter/evals/inputs/resume-sam-wu.md, JD: skills/cover-letter/evals/inputs/jd-pathway-junior-fullstack.md. Save to cover-letter-workspace/iteration-1/eval-2/<run>/outputs/",
+      "files": [
+        "skills/cover-letter/evals/inputs/resume-sam-wu.md",
+        "skills/cover-letter/evals/inputs/jd-pathway-junior-fullstack.md"
+      ],
+      "expected_output": "A cover letter that leverages Sam's career-change story honestly. It should cite real side projects by name (standups.fm, receiptparse, or checklate) with specific numbers (users, accuracy). It should tie the mission fit (tools for career changers) to Sam's own transition. No fabricated tech stack, no inflation of the marketing experience into false engineering claims. The letter should match the JD's tone (small startup, mission-driven).",
+      "assertions": []
+    }
+  ]
+}

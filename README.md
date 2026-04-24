@@ -78,6 +78,18 @@ Skills that control how the agent communicates — output compression, token eff
 |-------|----------|--------------|
 | **terse** | Caveman (refined) | Professional output compression — cuts ~50-60% of tokens by eliminating LLM verbosity habits (preambles, hedging, trailing summaries) while keeping proper grammar. Three levels: clean, tight, sharp. |
 
+### Career & Writing
+
+Skills for producing job application materials that read like a human wrote them, match the role, and align with the resume.
+
+| Skill | Role | What it does |
+|-------|------|--------------|
+| **cover-letter** | Suite router | Dispatches to write, audit, rewrite, or persona subcommands. Shares conventions for file I/O (PDF, DOCX, MD/MDX, URL), output formats, and writing principles across the suite. |
+| **cover-letter-write** | Generator | Generates a cover letter from resume + job description. Outputs markdown, DOCX, and PDF. Enforces human prose (burstiness, concrete verbs, no filler openers), maps every claim to a resume bullet, and covers top JD requirements without keyword stuffing. |
+| **cover-letter-audit** | Scorer | Scores a letter on 100 points across content/fit, structure, voice/humanness, and correctness. Detects AI-generated-content signals (burstiness, 50+ AI phrases including sentimental cliches, TTR, em-dashes, passive voice) and produces prioritized fixes. |
+| **cover-letter-rewrite** | Reviser | Audit-driven targeted rewrite of an existing letter. Focus modes: humanize, align, tighten, structure, tone. Preserves voice where it already works. |
+| **cover-letter-persona** | Voice profile | Reusable writing personas using the NNGroup 4-dimension tone framework (funny-serious, formal-casual, respectful-irreverent, enthusiastic-matter-of-fact) adapted for professional correspondence. |
+
 ### Tooling
 
 | Skill | Type | What it does |

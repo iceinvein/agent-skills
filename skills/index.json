@@ -166,5 +166,35 @@
     "description": "Professional output compression — proper grammar, no fluff, ~50-60% fewer tokens. Three levels: clean, tight, sharp.",
     "type": "prompt",
     "version": "1.1.0"
+  },
+  {
+    "name": "cover-letter",
+    "description": "Cover letter suite router. Routes to write, audit, rewrite, or persona subcommands; shares conventions for file I/O, output formats, and writing principles.",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-write",
+    "description": "Generate a cover letter from resume + job description (PDF, DOCX, markdown, URL). Outputs markdown, DOCX, and PDF. Enforces human prose, evidence alignment, and JD coverage without keyword stuffing.",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-audit",
+    "description": "Score a cover letter on 100 points across content, structure, voice, and correctness. Detects AI-generated-content signals (burstiness, AI phrases, TTR, em-dashes) and produces prioritized fixes.",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-rewrite",
+    "description": "Revise an existing cover letter with audit-driven targeted fixes. Focus modes: humanize, align, tighten, structure, tone. Preserves voice where it already works.",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-persona",
+    "description": "Manage reusable writing personas for cover letters using the NNGroup 4-dimension tone framework. Locks in tone, sentence style, and vocabulary across applications.",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
