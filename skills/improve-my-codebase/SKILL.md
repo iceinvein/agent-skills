@@ -181,3 +181,73 @@ Choose which audits to dispatch.
 - Step 2: keep audits with `any`, `architecture`, or `integration`.
 - Step 3: `quick` mode keeps only `quick: true`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`, `temporal-coupling-detector`, plus any `any+quick` audits.
 - Step 4: `focus architecture` drops audits whose `applies` does not include `architecture`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`.
+
+## Phase 4: Dispatch subagents
+
+For each routed audit, spawn one parallel `Agent` call with `subagent_type: general-purpose`. All dispatches go in **a single message with multiple tool calls** so they execute concurrently.
+
+**Per-subagent prompt template:**
+
+````
+You are running the <audit-id> audit on a codebase.
+
+# Principles to apply
+
+<paste the full content of skills/<audit-id>/SKILL.md verbatim>
+
+# Scope
+
+<one of:>
+- Whole repo at <repo-root-absolute-path>.
+- Module: <module-path-absolute>.
+- Diff: only the following files changed vs. main: <newline-separated list>.
+
+# Method
+
+1. Read the principles above.
+2. Examine the in-scope files. Use Read, Grep, and Glob. Do not run commands that mutate state.
+3. Identify violations of the principles. For each, capture: file path, optional line and symbol, severity, the specific principle violated, evidence (a short quoted or paraphrased snippet), and a 1-2 sentence recommendation.
+4. Severity: high = a senior engineer would advocate fixing this in the next sprint; med = should be fixed during related work; low = nice to have.
+5. Be conservative. If you are not confident a violation is real, omit it.
+
+# Output contract
+
+Return ONLY a JSON array of Finding objects. No markdown fences. No commentary before or after. If you find nothing, return [].
+
+Schema:
+
+[
+  {
+    "audit": "<audit-id>",
+    "file": "<repo-relative path>",
+    "line": <int or null>,
+    "symbol": "<string or null>",
+    "severity": "high" | "med" | "low",
+    "principle": "<short principle name, e.g. 'control coupling'>",
+    "evidence": "<1-3 sentence quote or paraphrase>",
+    "recommendation": "<1-2 sentence fix>"
+  }
+]
+
+# Constraints
+
+- Do not exceed 25 findings. If more exist, emit the 25 highest severity.
+- Do not invent file paths or line numbers. Cite real locations.
+- Do not include findings outside the declared scope.
+````
+
+**Concurrency**: dispatch all subagents in a single tool-call batch. Subagents do not communicate with each other.
+
+**Soft cap**: if a subagent has not returned within 5 minutes, drop it. The orchestrator does not have a wall-clock timer; this cap is enforced by treating any subagent that fails to return cleanly as `status: failed` and continuing.
+
+**Retry policy:**
+- If a subagent returns prose, markdown fences, or text that does not parse as JSON, retry **once** with this follow-up prompt:
+  > Your previous response was not valid JSON. Return ONLY a JSON array conforming to the schema specified earlier. No prose, no markdown fences, no commentary. If you found nothing, return `[]`.
+- After the second failure, drop the audit and record `{audit, status: 'failed', reason: 'malformed JSON after 2 attempts'}`.
+- Do not retry on timeout or tool-call crash.
+
+**Per-finding validation:**
+- Required fields: `audit`, `file`, `severity`, `principle`, `evidence`, `recommendation`.
+- `severity` must be one of `"high"`, `"med"`, `"low"`.
+- `audit` must equal the dispatched audit ID.
+- A finding that fails validation is dropped; the count is added to that audit's metadata.
