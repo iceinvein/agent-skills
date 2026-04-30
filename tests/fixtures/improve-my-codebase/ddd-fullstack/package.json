@@ -1,0 +1,9 @@
+{
+  "name": "ddd-fullstack-fixture",
+  "version": "0.0.1",
+  "type": "module",
+  "dependencies": {
+    "react": "^18.0.0",
+    "kafkajs": "^2.0.0"
+  }
+}
