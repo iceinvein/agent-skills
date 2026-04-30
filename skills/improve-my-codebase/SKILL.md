@@ -115,7 +115,9 @@ Determine which audit categories apply to this repo. Use cheap signals only; do 
 }
 ```
 
-**Signals to gather (in this order, stop early if signals are sufficient):**
+**Defaults**: all booleans default to `false`; `languages` and `frameworks` default to `[]`. A signal flipping a field to `true` or appending an entry is the only way values get populated.
+
+**Signals to gather (run all four; the steps are cheap and orthogonal):**
 
 1. **`package.json` if present**: read `dependencies` and `devDependencies`.
    - Frameworks: any of `react`, `vue`, `@angular/core`, `svelte`, `solid-js`. Sets `frameworks` and `hasUI: true`.
