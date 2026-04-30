@@ -293,9 +293,11 @@ Merge all `Finding[]` arrays into a single `Report` object.
    - `symbol_boost`: if the finding has a non-null `symbol` AND at least one other finding on the same file shares that symbol AND comes from a different audit, multiply by `1.25`.
    - `weight = severity_weight * convergence_weight * symbol_boost`.
 4. **Per-file score**: sum of `weight` across all findings on that file.
-5. **Sort files** by per-file score descending. Take the top 10 (or all if fewer) for the "files most worth fixing" section.
-6. **Sort findings** flat by `weight` descending. Take the top 25 (or all if fewer) for the "top cross-cutting findings" section.
-7. **Build per-audit summaries**: for each audit ID present in the input map, compute `{finding_count: <int>, unique_file_count: <int>, findings_by_file: [{file, findings: [...sorted by weight desc]}, ...]}`. This feeds the per-axis template in Phase 6.
+5. **Sort files** by per-file score descending. For each file in the result, attach `top_issue` = the `principle` of the highest-weight finding on that file. Take the top N files (`N = 5` if `mode === "quick"`, else `10`; or all if fewer) for the "files most worth fixing" section.
+6. **Sort findings** flat by `weight` descending. For each finding in the result, attach `convergence` = `"<distinct_audits_on_file> audits on this file"` (e.g. "4 audits on this file"). Take the top M findings (`M = 5` if `mode === "quick"`, else `25`; or all if fewer) for the "top cross-cutting findings" section.
+7. **Build per-audit summaries**: for each audit ID present in the input map and with `findings.length > 0`, compute `{finding_count: <int>, unique_file_count: <int>, findings_by_file: [{file, findings: [...sorted by weight desc]}, ...]}`. Audits that returned `[]` are omitted from `by_audit_summary` (so Phase 6's per-axis index does not link to empty files).
+8. **Preserve raw findings**: copy the input `audit-id -> Finding[]` map to `Report.by_audit` verbatim (audits with empty arrays are still present here for completeness; the per-axis index in Phase 6 reads `by_audit_summary` instead, which omits empty audits).
+9. **Compute `audits_na`**: `audits_na = catalogue_audit_count - audits_dispatched_count` where `catalogue_audit_count` is the total number of audits in the catalogue with `applies` and `quick` fields, and `audits_dispatched_count` is the number routed by Phase 3 (regardless of pass/fail).
 
 **Output `Report` structure:**
 
