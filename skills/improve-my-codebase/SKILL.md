@@ -409,8 +409,8 @@ If `docs/improvements/YYYY-MM-DD/` already exists for today, append a numeric su
 
 ## Per-axis reports
 
-{{#each by_audit}}
-- [{{@key}}](audit/{{@key}}.md): {{this.length}} findings
+{{#each by_audit_summary}}
+- [{{@key}}](audit/{{@key}}.md): {{this.finding_count}} findings
 {{/each}}
 ````
 
