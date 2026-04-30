@@ -3,13 +3,17 @@
     "name": "design-review",
     "description": "Brooks-inspired design integrity review — tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "codebase-architecture",
     "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any", "architecture"],
+    "quick": false
   },
   {
     "name": "code-intelligence",
@@ -21,145 +25,193 @@
     "name": "contract-enforcer",
     "description": "Meyer-inspired Design by Contract — preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "complexity-accountant",
     "description": "Ousterhout-inspired complexity analysis — deep vs shallow modules, complexity budget, justified abstractions",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "module-secret-auditor",
     "description": "Parnas-inspired information hiding analysis — module boundaries drawn by change-reason, not by noun or technical layer",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "seam-finder",
     "description": "Feathers-inspired legacy code modification — find seams, make minimal incisions, preserve existing behavior",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["legacy"],
+    "quick": true
   },
   {
     "name": "simplicity-razor",
     "description": "Hickey-inspired simplicity analysis — simple vs easy, complecting detection, strand decomposition",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "coupling-auditor",
     "description": "Constantine & Yourdon-inspired coupling analysis — classify, measure, and reduce interdependence between modules",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "evolution-analyzer",
     "description": "Lehman-inspired software evolution analysis — trajectory assessment, debt visibility, and change impact on system health",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "error-strategist",
     "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["errors"],
+    "quick": false
   },
   {
     "name": "rams-design-audit",
     "description": "Dieter Rams-inspired design audit — every visual element must earn its presence, less but better, clarity through restraint",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["ui"],
+    "quick": true
   },
   {
     "name": "cognitive-load-auditor",
     "description": "Jeff Johnson-inspired cognitive load analysis — evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["ui"],
+    "quick": false
   },
   {
     "name": "gestalt-reviewer",
     "description": "Gestalt-inspired visual perception audit — proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["ui"],
+    "quick": true
   },
   {
     "name": "integration-pattern-auditor",
     "description": "Hohpe & Woolf-inspired messaging analysis — name the integration pattern, verify delivery guarantees, identify missing infrastructure",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["integration"],
+    "quick": false
   },
   {
     "name": "unidirectional-flow-enforcer",
     "description": "Elm Architecture-inspired data flow analysis — enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["ui"],
+    "quick": false
   },
   {
     "name": "event-design-reviewer",
     "description": "Evans/Vernon/Dahan-inspired event design — domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["integration", "domain"],
+    "quick": false
   },
   {
     "name": "dependency-direction-auditor",
     "description": "Martin-inspired dependency direction analysis — trace imports across layers, classify violations by severity, recommend inversion",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "cohesion-analyzer",
     "description": "Constantine & Yourdon-inspired cohesion analysis — classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "demeter-enforcer",
     "description": "Lieberherr-inspired Law of Demeter analysis — detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "bounded-context-auditor",
     "description": "Evans-inspired bounded context analysis — detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["domain"],
+    "quick": false
   },
   {
     "name": "port-adapter-auditor",
     "description": "Cockburn-inspired hexagonal architecture analysis — identify ports and adapters, classify boundary health, ensure core testability and swappability",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": false
   },
   {
     "name": "idempotency-guardian",
     "description": "Helland-inspired idempotency analysis — classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["integration"],
+    "quick": false
   },
   {
     "name": "type-driven-designer",
     "description": "Wlaschin & Minsky-inspired type design — make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "cqs-auditor",
     "description": "Meyer-inspired Command-Query Separation — classify functions as commands or queries, detect mixed violations, separate side effects from return values",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["architecture"],
+    "quick": true
   },
   {
     "name": "composability-auditor",
     "description": "Unix Philosophy-inspired composability analysis — identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": false
   },
   {
     "name": "temporal-coupling-detector",
     "description": "Hidden ordering dependency analysis — detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "applies": ["any"],
+    "quick": true
   },
   {
     "name": "terse",
