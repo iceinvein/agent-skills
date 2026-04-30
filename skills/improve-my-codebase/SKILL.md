@@ -153,7 +153,7 @@ Choose which audits to dispatch.
 
 **Algorithm:**
 
-1. Load catalogue. Filter to entries with both `applies` and `quick` fields (i.e. audit skills).
+1. Load catalogue from `skills/index.json`. If the file is missing, unreadable, or fails JSON parse, hard fail per the error table (the orchestrator cannot route without a catalogue). Filter to entries with both `applies` and `quick` fields (i.e. audit skills).
 2. **Apply detection filter:** keep an audit if any of its `applies` values matches an active signal:
    - `any` always matches.
    - `ui` matches if `hasUI`.
@@ -181,6 +181,15 @@ Choose which audits to dispatch.
 - Step 2: keep audits with `any`, `architecture`, or `integration`.
 - Step 3: `quick` mode keeps only `quick: true`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`, `temporal-coupling-detector`, plus any `any+quick` audits.
 - Step 4: `focus architecture` drops audits whose `applies` does not include `architecture`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`.
+
+### Diff mode file set
+
+When `mode === "diff"`, before dispatch the orchestrator computes the changed-file set:
+
+1. Run `git diff --name-only origin/main...HEAD` (fall back to `git diff --name-only main...HEAD` if no `origin` remote).
+2. Filter out paths that no longer exist (deleted files) and paths in the standard ignored set (`node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `tests/fixtures/`).
+3. If the resulting list is empty, emit "diff mode: no changed files vs. main; rerun without `diff` or specify a commit range" per the error table and exit before dispatch.
+4. Otherwise, this list is passed to each subagent as the `Scope` (the `Diff:` form of the prompt template in Phase 4).
 
 ## Phase 4: Dispatch subagents
 
@@ -252,6 +261,20 @@ Schema:
 - `audit` must equal the dispatched audit ID.
 - A finding that fails validation is dropped; the count is added to that audit's metadata.
 
+**Per-audit metadata produced** (consumed by Phase 5):
+
+```json
+{
+  "audit": "<audit-id>",
+  "status": "ok" | "failed",
+  "reason": "<string or null>",
+  "dropped_findings": <int, count of findings dropped at validation>,
+  "retried": <bool, true if recovered on attempt 2>
+}
+```
+
+One such record is emitted per dispatched audit. Successful runs use `status: "ok"`, `reason: null`. Failed runs use `status: "failed"` and a reason string (e.g. `"timeout"`, `"crashed"`, `"malformed JSON after 2 attempts"`).
+
 ## Phase 5: Synthesize
 
 Merge all `Finding[]` arrays into a single `Report` object.
@@ -272,6 +295,7 @@ Merge all `Finding[]` arrays into a single `Report` object.
 4. **Per-file score**: sum of `weight` across all findings on that file.
 5. **Sort files** by per-file score descending. Take the top 10 (or all if fewer) for the "files most worth fixing" section.
 6. **Sort findings** flat by `weight` descending. Take the top 25 (or all if fewer) for the "top cross-cutting findings" section.
+7. **Build per-audit summaries**: for each audit ID present in the input map, compute `{finding_count: <int>, unique_file_count: <int>, findings_by_file: [{file, findings: [...sorted by weight desc]}, ...]}`. This feeds the per-axis template in Phase 6.
 
 **Output `Report` structure:**
 
@@ -309,6 +333,18 @@ Merge all `Finding[]` arrays into a single `Report` object.
   "by_audit": {
     "coupling-auditor": [],
     "complexity-accountant": []
+  },
+  "by_audit_summary": {
+    "coupling-auditor": {
+      "finding_count": 12,
+      "unique_file_count": 7,
+      "findings_by_file": [
+        {
+          "file": "src/checkout/order.ts",
+          "findings": []
+        }
+      ]
+    }
   }
 }
 ```
@@ -378,10 +414,12 @@ If `docs/improvements/YYYY-MM-DD/` already exists for today, append a numeric su
 
 **Per-axis `audit/<audit-id>.md` template:**
 
+The template renders against `Report.by_audit_summary[<audit-id>]` (produced in Phase 5 step 7).
+
 ````markdown
 # {{audit-id}} findings
 
-{{audits_succeeded}} findings on {{unique_file_count}} files.
+{{finding_count}} findings on {{unique_file_count}} files.
 
 {{#each findings_by_file}}
 ## `{{file}}`
