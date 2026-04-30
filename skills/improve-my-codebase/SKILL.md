@@ -251,3 +251,79 @@ Schema:
 - `severity` must be one of `"high"`, `"med"`, `"low"`.
 - `audit` must equal the dispatched audit ID.
 - A finding that fails validation is dropped; the count is added to that audit's metadata.
+
+## Phase 5: Synthesize
+
+Merge all `Finding[]` arrays into a single `Report` object.
+
+**Inputs:**
+- Map of `audit-id -> Finding[]` (one entry per dispatched audit; failed audits omitted from this map).
+- Per-audit metadata: `{audit, status, dropped_findings, retried, reason}`.
+
+**Algorithm:**
+
+1. **Flatten** all findings into a single list, keeping `audit` on each.
+2. **Group by file**: for each unique `file`, collect every finding on that file across all audits.
+3. **Compute per-finding weight:**
+   - `severity_weight`: high = 3, med = 2, low = 1.
+   - `convergence_weight = min(3.0, 1 + 0.5 * (distinct_audits_on_file - 1))` where `distinct_audits_on_file` counts how many distinct audit IDs appear in the findings on this file.
+   - `symbol_boost`: if the finding has a non-null `symbol` AND at least one other finding on the same file shares that symbol AND comes from a different audit, multiply by `1.25`.
+   - `weight = severity_weight * convergence_weight * symbol_boost`.
+4. **Per-file score**: sum of `weight` across all findings on that file.
+5. **Sort files** by per-file score descending. Take the top 10 (or all if fewer) for the "files most worth fixing" section.
+6. **Sort findings** flat by `weight` descending. Take the top 25 (or all if fewer) for the "top cross-cutting findings" section.
+
+**Output `Report` structure:**
+
+```json
+{
+  "metadata": {
+    "date": "YYYY-MM-DD",
+    "mode": "full" | "quick" | "diff" | "interactive",
+    "scope": { "module": "...", "focus": "..." },
+    "audits_succeeded": 14,
+    "audits_failed": 2,
+    "audits_na": 4,
+    "audits_total": 30,
+    "failures": [{"audit": "event-design-reviewer", "reason": "malformed JSON after 2 attempts"}],
+    "retries": [{"audit": "rams-design-audit", "recovered_on_attempt": 2}],
+    "findings_high": 47,
+    "findings_med": 89,
+    "findings_low": 34
+  },
+  "top_files": [
+    {
+      "file": "src/checkout/order.ts",
+      "score": 31.0,
+      "audits_hit": ["coupling-auditor", "complexity-accountant", "cohesion-analyzer", "cqs-auditor"],
+      "top_issue": "<principle of highest-weight finding on this file>"
+    }
+  ],
+  "top_findings": [
+    {
+      "weight": 11.25,
+      "finding": { "<full Finding object>": "..." },
+      "convergence": "4 audits on this file"
+    }
+  ],
+  "by_audit": {
+    "coupling-auditor": [],
+    "complexity-accountant": []
+  }
+}
+```
+
+**Worked example (scoring):**
+
+Three findings on `src/checkout/order.ts`:
+- `coupling-auditor`, severity high, symbol `OrderService.applyDiscount`.
+- `cohesion-analyzer`, severity med, symbol `OrderService.applyDiscount`.
+- `complexity-accountant`, severity high, symbol `OrderService` (different).
+
+`distinct_audits_on_file = 3` so `convergence_weight = 1 + 0.5 * 2 = 2.0`.
+
+- Finding 1: `severity = 3`, `convergence = 2.0`, `symbol_boost = 1.25` (shares symbol with finding 2 from a different audit). `weight = 7.5`.
+- Finding 2: `severity = 2`, `convergence = 2.0`, `symbol_boost = 1.25`. `weight = 5.0`.
+- Finding 3: `severity = 3`, `convergence = 2.0`, `symbol_boost = 1.0` (its symbol is unique among the file's findings). `weight = 6.0`.
+
+Per-file score: `7.5 + 5.0 + 6.0 = 18.5`. Findings sorted by weight: 1, 3, 2.
