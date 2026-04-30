@@ -52,3 +52,48 @@ Six sequential phases. Each phase is described in its own section below.
 6. Write report.
 
 The orchestrator is read-only until phase 6.
+
+## Phase 1: Parse args
+
+The orchestrator receives a single string of positional args after the command. Tokenize on whitespace and classify each token.
+
+**Token classes:**
+- **Mode tokens**: `quick`, `diff`, `interactive`. The first one encountered wins; later mode tokens are warned and dropped.
+- **Scope tokens**: `focus`, `module`. Each consumes the next token as its value.
+- **Unknown tokens**: warn and drop.
+
+**Output structure:**
+
+```json
+{
+  "mode": "full" | "quick" | "diff" | "interactive",
+  "scope": {
+    "module": "<path>" | null,
+    "focus": "<area>" | null
+  },
+  "raw": "<original arg string>"
+}
+```
+
+**Rules:**
+- Empty args produce `{mode: "full", scope: {module: null, focus: null}}`.
+- `quick` or `interactive` with scope tokens present: keep mode, set scope to `{module: null, focus: null}`, emit warning "scope tokens ignored in <mode> mode".
+- `focus` without a value: emit error listing valid areas (from catalogue), exit before dispatch.
+- `module` without a value: emit error "module requires a path argument", exit before dispatch.
+- `module <path>` where path does not exist: emit error "no such module: <path>", exit before dispatch.
+
+**Valid focus areas** (derived from the `applies` vocabulary):
+`any`, `ui`, `domain`, `integration`, `architecture`, `errors`, `legacy`.
+
+**Worked examples:**
+
+| Input | Output |
+|-------|--------|
+| `""` | `{mode: "full", scope: {module: null, focus: null}}` |
+| `"quick"` | `{mode: "quick", scope: {module: null, focus: null}}` |
+| `"diff"` | `{mode: "diff", scope: {module: null, focus: null}}` |
+| `"focus architecture"` | `{mode: "full", scope: {module: null, focus: "architecture"}}` |
+| `"diff focus architecture"` | `{mode: "diff", scope: {module: null, focus: "architecture"}}` |
+| `"module src/auth focus architecture"` | `{mode: "full", scope: {module: "src/auth", focus: "architecture"}}` |
+| `"quick focus ui"` | `{mode: "quick", scope: {module: null, focus: null}}` plus warning |
+| `"banana"` | `{mode: "full", scope: {module: null, focus: null}}` plus warning |
