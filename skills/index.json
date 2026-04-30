@@ -248,5 +248,11 @@
     "description": "Manage reusable writing personas for cover letters using the NNGroup 4-dimension tone framework. Locks in tone, sentence style, and vocabulary across applications.",
     "type": "prompt",
     "version": "1.0.0"
+  },
+  {
+    "name": "improve-my-codebase",
+    "description": "Orchestrator skill that runs every applicable audit skill in parallel and produces a prioritized, convergence-ranked improvement report",
+    "type": "prompt",
+    "version": "1.0.0"
   }
 ]
