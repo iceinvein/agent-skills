@@ -327,3 +327,95 @@ Three findings on `src/checkout/order.ts`:
 - Finding 3: `severity = 3`, `convergence = 2.0`, `symbol_boost = 1.0` (its symbol is unique among the file's findings). `weight = 6.0`.
 
 Per-file score: `7.5 + 5.0 + 6.0 = 18.5`. Findings sorted by weight: 1, 3, 2.
+
+## Phase 6: Write report
+
+The only filesystem-mutating phase. Produces one top-level rollup and one per-axis file per fired audit.
+
+**Output paths:**
+- `docs/improvements/YYYY-MM-DD/audit.md` (top-level rollup).
+- `docs/improvements/YYYY-MM-DD/audit/<audit-id>.md` (one per audit that returned at least one finding).
+
+If `docs/improvements/YYYY-MM-DD/` already exists for today, append a numeric suffix: `audit-2.md`, `audit-3.md`, etc. Do not overwrite a previous run.
+
+**`audit.md` template:**
+
+````markdown
+# Codebase audit: {{date}}
+
+**Mode**: {{mode}}{{#if scope.focus}} focus {{scope.focus}}{{/if}}{{#if scope.module}} module {{scope.module}}{{/if}}
+**Audits run**: {{audits_succeeded}} succeeded / {{audits_failed}} failed / {{audits_na}} N/A / {{audits_total}} total
+**Findings**: {{findings_high}} high, {{findings_med}} med, {{findings_low}} low
+
+{{#if failures}}
+**Failed audits**: {{#each failures}}{{audit}} ({{reason}}){{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+{{#if retries}}
+**Retries recovered**: {{#each retries}}{{audit}}{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
+
+## Files most worth fixing
+
+| File | Score | Audits hit | Top issue |
+|------|-------|------------|-----------|
+{{#each top_files}}| {{file}} | {{score}} | {{audits_hit}} | {{top_issue}} |
+{{/each}}
+
+## Top cross-cutting findings
+
+{{#each top_findings}}
+{{@index}}. **{{convergence}}**: `{{finding.file}}{{#if finding.line}}:{{finding.line}}{{/if}}` flagged by {{finding.audit}}: {{finding.principle}}. [details](audit/{{finding.audit}}.md)
+   - Evidence: {{finding.evidence}}
+   - Recommendation: {{finding.recommendation}}
+{{/each}}
+
+## Per-axis reports
+
+{{#each by_audit}}
+- [{{@key}}](audit/{{@key}}.md): {{this.length}} findings
+{{/each}}
+````
+
+**Per-axis `audit/<audit-id>.md` template:**
+
+````markdown
+# {{audit-id}} findings
+
+{{audits_succeeded}} findings on {{unique_file_count}} files.
+
+{{#each findings_by_file}}
+## `{{file}}`
+
+{{#each findings}}
+### {{principle}} ({{severity}}){{#if line}} (line {{line}}){{/if}}{{#if symbol}} (`{{symbol}}`){{/if}}
+
+**Evidence:** {{evidence}}
+
+**Recommendation:** {{recommendation}}
+
+{{/each}}
+{{/each}}
+````
+
+**Terminal summary** (printed after writing files):
+
+```
+Codebase audit complete.
+
+Mode: <mode>
+Findings: <high>H / <med>M / <low>L  across <audits_succeeded> audits
+
+Top 5 files to fix:
+  1. <file>  (score <score>, hit by <audits_hit>)
+  2. ...
+
+Top 5 cross-cutting issues:
+  1. [<convergence>] <file>:<line> : <principle>
+  2. ...
+
+Full report: docs/improvements/<date>/audit.md
+```
+
+**Failure handling:**
+- If the target directory cannot be created or written to (permissions, disk full): fall back to printing the full `audit.md` content to the terminal, surface the write error, and do not write the per-axis files. The user can copy-paste the report.
+- If a per-axis file fails to write but `audit.md` succeeds: emit a warning with the audit ID, continue, and link in `audit.md` is left as a broken link with an explanatory note.
