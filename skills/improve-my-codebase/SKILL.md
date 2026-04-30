@@ -141,3 +141,43 @@ Determine which audit categories apply to this repo. Use cheap signals only; do 
 - Do not read source file contents for detection.
 - Do not run language-specific tooling (no `tsc`, no `eslint`).
 - Do not exceed two `find` invocations and one `package.json` read.
+
+## Phase 3: Route audits
+
+Choose which audits to dispatch.
+
+**Inputs:**
+- Detection result from Phase 2.
+- Parsed args from Phase 1.
+- Catalogue: `skills/index.json`.
+
+**Algorithm:**
+
+1. Load catalogue. Filter to entries with both `applies` and `quick` fields (i.e. audit skills).
+2. **Apply detection filter:** keep an audit if any of its `applies` values matches an active signal:
+   - `any` always matches.
+   - `ui` matches if `hasUI`.
+   - `domain` matches if `hasDomainLayer`.
+   - `integration` matches if `hasIntegration`.
+   - `architecture` matches if `hasArchitecture`.
+   - `errors` matches if `hasArchitecture` (proxy: any non-trivial codebase has error-handling concerns).
+   - `legacy` matches only if `mode === "diff"`.
+3. **Apply mode filter:**
+   - `quick` mode: keep only entries with `quick: true`.
+   - `diff` mode: no further filter (handled by `legacy` matching above).
+   - `interactive` and `full` modes: no further filter.
+4. **Apply focus filter:** if `scope.focus` is set, keep only entries whose `applies` array contains that focus area.
+5. If the resulting list is empty, abort dispatch and emit one of:
+   - "No audits applicable to detected stack: <signals>. Override with `focus <area>`."
+   - "No audits matched `focus <area>`. Valid areas: <list>."
+   - "No quick audits applicable; rerun without `quick`."
+
+**Module scope** is **not** applied here. It carries forward to Phase 4 as a per-subagent scope hint, because audit routing is the same regardless of whether the audit examines the whole repo or one path.
+
+**Worked example:**
+- Repo: Bun backend with `events/` directory.
+- Detection: `{hasUI: false, hasDomainLayer: false, hasIntegration: true, hasArchitecture: true}`.
+- Args: `quick focus architecture`.
+- Step 2: keep audits with `any`, `architecture`, or `integration`.
+- Step 3: `quick` mode keeps only `quick: true`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`, `temporal-coupling-detector`, plus any `any+quick` audits.
+- Step 4: `focus architecture` drops audits whose `applies` does not include `architecture`. Result: `module-secret-auditor`, `coupling-auditor`, `cohesion-analyzer`, `demeter-enforcer`, `dependency-direction-auditor`, `cqs-auditor`.
