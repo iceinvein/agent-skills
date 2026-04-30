@@ -97,3 +97,45 @@ The orchestrator receives a single string of positional args after the command. 
 | `"module src/auth focus architecture"` | `{mode: "full", scope: {module: "src/auth", focus: "architecture"}}` |
 | `"quick focus ui"` | `{mode: "quick", scope: {module: null, focus: null}}` plus warning |
 | `"banana"` | `{mode: "full", scope: {module: null, focus: null}}` plus warning |
+
+## Phase 2: Detect stack
+
+Determine which audit categories apply to this repo. Use cheap signals only; do not walk the full repo tree.
+
+**Detection output:**
+
+```json
+{
+  "languages": ["typescript", "..."],
+  "frameworks": ["react", "..."],
+  "hasUI": true,
+  "hasDomainLayer": false,
+  "hasIntegration": false,
+  "hasArchitecture": true
+}
+```
+
+**Signals to gather (in this order, stop early if signals are sufficient):**
+
+1. **`package.json` if present**: read `dependencies` and `devDependencies`.
+   - Frameworks: any of `react`, `vue`, `@angular/core`, `svelte`, `solid-js`. Sets `frameworks` and `hasUI: true`.
+   - Integration: any of `kafkajs`, `amqplib`, `bullmq`, `nats`, `mqtt`. Sets `hasIntegration: true`.
+2. **Top-level directory listing**: one `find . -maxdepth 3 -type d -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/dist/*" -not -path "*/build/*" -not -path "*/coverage/*" -not -path "*/tests/fixtures/*"`.
+   - `domain/`, `entities/`, `aggregates/`: sets `hasDomainLayer: true`.
+   - `events/`, `messaging/`, `queues/`, `consumers/`: sets `hasIntegration: true`.
+3. **File extension frequency**: one `find . -maxdepth 4 -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/dist/*" -not -path "*/build/*" -not -path "*/coverage/*" -not -path "*/tests/fixtures/*"`, count by extension.
+   - **Frequency threshold for UI**: at least 3 files matching `.tsx`/`.jsx`/`.vue`/`.svelte`/`.html`/`.css`/`.scss` sets `hasUI: true`. A single fixture file should not flip the signal.
+   - `.ts`/`.js`: adds `typescript`/`javascript` to `languages` (>= 1 file).
+   - `.py`: adds `python` (>= 1).
+   - `.rs`: adds `rust` (>= 1).
+   - `.go`: adds `go` (>= 1).
+4. **`hasArchitecture`**: true if total non-test source files >= 5 (excluding the same paths above).
+
+**Failure behavior:**
+- If no `package.json` and no source-file extensions are detected, treat as "no signal" and warn: "no recognizable codebase signals detected; running only `applies: any` audits".
+- Detection is best-effort. False positives (e.g. an empty `events/` directory) are acceptable; the per-audit applicability check upstream will already drop irrelevant ones.
+
+**What NOT to do:**
+- Do not read source file contents for detection.
+- Do not run language-specific tooling (no `tsc`, no `eslint`).
+- Do not exceed two `find` invocations and one `package.json` read.
