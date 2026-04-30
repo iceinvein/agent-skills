@@ -96,6 +96,14 @@ Skills for producing job application materials that read like a human wrote them
 |-------|------|--------------|
 | **code-intelligence** | MCP server | Semantic code search, call hierarchy, dependency graphs, and impact analysis. Powered by `@iceinvein/code-intelligence-mcp`. |
 
+### Orchestration
+
+Skills that compose the other audit skills into higher-level workflows.
+
+| Skill | What it does |
+|-------|--------------|
+| **improve-my-codebase** | Runs every applicable audit skill in parallel against your codebase, ranks findings by convergence (multiple audits agreeing) and per-file rollup, and writes a prioritized improvement report. Default sweeps everything; positional args switch modes (`quick`, `diff`, `interactive`) or narrow scope (`focus <area>`, `module <path>`). |
+
 ## Commands
 
 ```
