@@ -419,3 +419,58 @@ Full report: docs/improvements/<date>/audit.md
 **Failure handling:**
 - If the target directory cannot be created or written to (permissions, disk full): fall back to printing the full `audit.md` content to the terminal, surface the write error, and do not write the per-axis files. The user can copy-paste the report.
 - If a per-axis file fails to write but `audit.md` succeeds: emit a warning with the audit ID, continue, and link in `audit.md` is left as a broken link with an explanatory note.
+
+## Orchestration: putting it together
+
+When the user invokes `/improve-my-codebase [args]`, execute phases in order. Stop early on hard failures (per the error table). Soft failures (subagent issues) are recorded in metadata and do not stop the run.
+
+Pseudocode:
+
+```
+parsed = parseArgs(rawArgs)
+if parsed.errors: emit, exit
+
+detection = detectStack(repoRoot)
+if detection.noSignal: warn, continue with applies:any audits only
+
+audits = routeAudits(catalogue, detection, parsed)
+if audits.empty: emit specific message, exit
+
+if parsed.mode == "interactive":
+  invoke interactive interview (see Interactive Mode section); produces a refined `parsed`,
+  then re-run routeAudits.
+
+findings = dispatchSubagents(audits, parsed.scope, repoRoot)  // parallel
+report = synthesize(findings, audits, parsed)
+writeReport(report, todaysDateDir)
+printTerminalSummary(report)
+```
+
+## Interactive Mode
+
+When `parsed.mode === "interactive"`:
+
+1. Show the user the detected stack and the audit set the orchestrator would run by default.
+2. Ask, one at a time:
+   - "Anything you've been losing time on lately?" (free text, suggests a `focus` area)
+   - "Any directory you want to scope to?" (path or skip; sets `module`)
+   - "Quick scan or thorough?" (sets `quick` or full)
+3. Apply the answers as if they were args, re-route, then proceed to dispatch.
+4. Confirm the final audit list before dispatching: "Running these audits: <list>. OK?"
+
+Interactive mode is the only path that reroutes after Phase 3.
+
+## Error handling
+
+| Failure | Phase | Response |
+|---------|-------|----------|
+| No audits applicable | 3 | Skip dispatch. Emit message. Suggest `focus <area>` to override. |
+| `module <path>` does not exist | 1 | Hard fail. Print path + suggestion. |
+| `diff` mode with no changed files | 3 | Tell user, suggest `full` or commit-range. Do not run. |
+| `focus <area>` matches no audits | 3 | List valid areas. Exit. |
+| Subagent timeout | 4 | Drop. Record `{audit, status: 'failed', reason: 'timeout'}`. Continue. |
+| Subagent crash | 4 | Drop. Record. Continue. No retry. |
+| Subagent malformed JSON | 4 | Retry up to 1 time (2 attempts total). Then drop. |
+| Finding fails schema | 5 | Drop bad finding only. Note count in metadata. |
+| Cannot write report file | 6 | Fall back to terminal-only. Print full report. Surface write error. |
+| `index.json` missing/malformed | 3 | Hard fail. Suggest reinstalling. |
