@@ -9,7 +9,7 @@ import { updateSkill, updateAllSkills } from "./commands/update";
 import { bumpSkill, bumpAllChanged } from "./commands/bump";
 import { checkForUpdates } from "./update-check";
 import { TOOL_NAMES, type ToolName, type ActivationMode } from "./types";
-import { promptSelect, promptActivation } from "./prompt";
+import { browseAndSelect, pickActivation, pickTools } from "./tui";
 import type { BumpLevel } from "./semver";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -62,8 +62,9 @@ function printHelp() {
 @iceinvein/agent-skills — Install agent skills into AI coding tools
 
 Usage:
-  agent-skills install <skill>  [--tool <tool>] [--activation <session|global>] [-g]  Install a skill
-  agent-skills browse  [--tool <tool>] [--activation <mode>] [-g]   Interactive search + multi-install
+  agent-skills install <skill> [<skill> ...]  [--tool <tool>] [--activation <mode>] [-g]  Install one or more skills
+  agent-skills install                         [--tool <tool>] [-g]   No args: opens interactive picker
+  agent-skills browse                          [--tool <tool>] [-g]   Alias for 'install' with picker
   agent-skills remove  <skill>  [-g]                   Remove a skill
   agent-skills update  <skill>  [-g]                   Update a skill
   agent-skills update  --all    [-g]                   Update all installed skills
@@ -97,10 +98,56 @@ type InstallFlags = {
   activation?: string;
 };
 
+const TOOL_DIRS: Partial<Record<ToolName, string>> = {
+  claude: ".claude",
+  cursor: ".cursor",
+  gemini: ".gemini",
+};
+
+async function resolveTargetTools(
+  installDir: string,
+  isGlobal: boolean,
+  flags: InstallFlags,
+): Promise<ToolName[] | null> {
+  if (flags.tool) {
+    if (!TOOL_NAMES.includes(flags.tool as ToolName)) {
+      console.error(`Error: unknown tool '${flags.tool}'. Must be one of: ${TOOL_NAMES.join(", ")}`);
+      return null;
+    }
+    return [flags.tool as ToolName];
+  }
+
+  const detected = await detectTools(installDir);
+  if (detected.length > 0) {
+    console.log(`Detected tools: ${detected.join(", ")}`);
+    return detected;
+  }
+
+  if (!process.stdin.isTTY) {
+    console.error(
+      "Error: no tools detected and no TTY for prompting. Pass --tool <claude|cursor|codex|gemini>.",
+    );
+    return null;
+  }
+
+  const picked = await pickTools(
+    isGlobal
+      ? "Which tools do you use?"
+      : "No tools detected in this directory. Which tools do you use?",
+  );
+
+  for (const tool of picked) {
+    const dir = TOOL_DIRS[tool];
+    if (dir) mkdirSync(join(installDir, dir), { recursive: true });
+  }
+  return picked;
+}
+
 async function installOne(
   skillName: string,
   installDir: string,
   isGlobal: boolean,
+  targetTools: ToolName[],
   flags: InstallFlags,
 ): Promise<boolean> {
   console.log(`Fetching skill '${skillName}'...`);
@@ -116,68 +163,33 @@ async function installOne(
     return false;
   }
 
-  let tools: ToolName[];
-  if (flags.tool) {
-    if (!TOOL_NAMES.includes(flags.tool as ToolName)) {
-      console.error(`Error: unknown tool '${flags.tool}'. Must be one of: ${TOOL_NAMES.join(", ")}`);
-      return false;
-    }
-    tools = [flags.tool as ToolName];
-  } else {
-    tools = await detectTools(installDir);
-    if (tools.length === 0) {
-      const supportedTools = manifestResult.manifest.tools;
-      const selected = await promptSelect(
-        isGlobal
-          ? "Which tools do you use?"
-          : "No tools detected in this directory. Which tools do you use?",
-        supportedTools.map((t) => ({
-          label: { claude: "Claude Code", cursor: "Cursor", codex: "Codex", gemini: "Gemini CLI" }[t],
-          value: t,
-        }))
-      );
-      tools = selected as ToolName[];
-
-      for (const tool of tools) {
-        const dirs: Record<string, string> = {
-          claude: ".claude",
-          cursor: ".cursor",
-          gemini: ".gemini",
-        };
-        if (dirs[tool]) {
-          mkdirSync(join(installDir, dirs[tool]), { recursive: true });
-        }
-      }
-    } else {
-      console.log(`Detected tools: ${tools.join(", ")}`);
-    }
-  }
-
-  let activation: ActivationMode | undefined;
   const manifest = manifestResult.manifest;
-  if (manifest.activation && tools.includes("claude")) {
+  let activation: ActivationMode | undefined;
+  if (manifest.activation && targetTools.includes("claude")) {
     const validModes = manifest.activation.modes;
 
     if (flags.activation) {
       if (!validModes.includes(flags.activation as ActivationMode)) {
-        console.error(`Error: activation mode '${flags.activation}' not supported. Must be one of: ${validModes.join(", ")}`);
+        console.error(
+          `Error: activation mode '${flags.activation}' not supported. Must be one of: ${validModes.join(", ")}`,
+        );
         return false;
       }
       activation = flags.activation as ActivationMode;
     } else if (process.stdin.isTTY) {
-      activation = await promptActivation(manifest.name, validModes);
+      activation = await pickActivation(manifest.name, validModes);
     } else {
       activation = manifest.activation.default;
     }
   }
 
-  const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools, activation);
+  const result = await installSkill(installDir, manifest, filesResult, targetTools, activation);
   if (!result.ok) {
     console.error(`Error: ${result.error}`);
     return false;
   }
 
-  console.log(`\n✓ Installed '${skillName}' v${manifestResult.manifest.version}${isGlobal ? " (global)" : ""}:`);
+  console.log(`\n✓ Installed '${skillName}' v${manifest.version}${isGlobal ? " (global)" : ""}:`);
   printInstalled(result.installed, result.skipped);
   return true;
 }
@@ -186,45 +198,46 @@ async function main() {
   const { command, args, flags } = parseArgs(process.argv.slice(2));
 
   switch (command) {
-    case "install": {
-      const skillName = args[0];
-      if (!skillName) {
-        console.error("Error: skill name required. Usage: agent-skills install <skill>");
-        process.exit(1);
-      }
-
-      const installDir = resolveInstallDir(flags);
-      const isGlobal = installDir === homedir();
-      if (isGlobal) console.log(`Installing globally to ${installDir}`);
-
-      const ok = await installOne(skillName, installDir, isGlobal, flags);
-      if (!ok) process.exit(1);
-      break;
-    }
-
+    case "install":
     case "browse": {
       const installDir = resolveInstallDir(flags);
       const isGlobal = installDir === homedir();
-      if (isGlobal) console.log(`Browsing for global install (${installDir})`);
 
-      console.log("Fetching skill index...\n");
-      const indexResult = await listSkills();
-      if (!indexResult.ok) {
-        console.error(`Error: ${indexResult.error}`);
-        process.exit(1);
+      let names = args;
+      if (names.length === 0 || command === "browse") {
+        if (!process.stdin.isTTY) {
+          console.error(
+            "Error: skill name required. Usage: agent-skills install <skill> [<skill> ...]",
+          );
+          process.exit(1);
+        }
+        if (isGlobal) console.log(`Browsing for global install (${installDir})`);
+        console.log("Fetching skill index...\n");
+        const indexResult = await listSkills();
+        if (!indexResult.ok) {
+          console.error(`Error: ${indexResult.error}`);
+          process.exit(1);
+        }
+        const { picked } = await browseAndSelect(indexResult.skills);
+        if (picked.length === 0) {
+          console.log("\nNothing selected.");
+          break;
+        }
+        names = picked;
+      } else if (isGlobal) {
+        console.log(`Installing globally to ${installDir}`);
       }
 
-      const { browseAndSelect } = await import("./tui");
-      const { picked } = await browseAndSelect(indexResult.skills);
-      if (picked.length === 0) {
-        console.log("\nNothing selected.");
-        break;
+      const targetTools = await resolveTargetTools(installDir, isGlobal, flags);
+      if (!targetTools) process.exit(1);
+
+      if (names.length > 1) {
+        console.log(`\nInstalling ${names.length} skills...\n`);
       }
 
-      console.log(`\nInstalling ${picked.length} skill${picked.length === 1 ? "" : "s"}...\n`);
       let failures = 0;
-      for (const name of picked) {
-        const ok = await installOne(name, installDir, isGlobal, flags);
+      for (const name of names) {
+        const ok = await installOne(name, installDir, isGlobal, targetTools, flags);
         if (!ok) failures++;
       }
       if (failures > 0) process.exit(1);
@@ -405,7 +418,14 @@ async function main() {
   }
 }
 
+const CANCEL_ERRORS = new Set(["ExitPromptError", "AbortPromptError", "CancelPromptError"]);
+
 main().catch((err) => {
+  const name = err?.name ?? err?.constructor?.name;
+  if (CANCEL_ERRORS.has(name)) {
+    console.log("\nCancelled.");
+    process.exit(130);
+  }
   console.error("Fatal:", err.message);
   process.exit(1);
 });

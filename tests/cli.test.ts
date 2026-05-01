@@ -11,6 +11,19 @@ test("parseArgs parses install with --tool flag", () => {
   expect(result).toEqual({ command: "install", args: ["design-review"], flags: { tool: "claude" } });
 });
 
+test("parseArgs parses install with multiple skill names", () => {
+  const result = parseArgs(["install", "design-review", "terse", "code-intelligence"]);
+  expect(result.command).toBe("install");
+  expect(result.args).toEqual(["design-review", "terse", "code-intelligence"]);
+  expect(result.flags).toEqual({});
+});
+
+test("parseArgs parses install with multiple skills and trailing flag", () => {
+  const result = parseArgs(["install", "a", "b", "--tool", "claude", "-g"]);
+  expect(result.args).toEqual(["a", "b"]);
+  expect(result.flags).toEqual({ tool: "claude", global: "true" });
+});
+
 test("parseArgs parses list command", () => {
   const result = parseArgs(["list"]);
   expect(result).toEqual({ command: "list", args: [], flags: {} });

@@ -16,7 +16,8 @@ Each skill encodes a specific design methodology (Brooks, Parnas, Rams, Feathers
 Requires [Bun](https://bun.sh). Install it with `curl -fsSL https://bun.sh/install | bash`.
 
 ```bash
-bunx @iceinvein/agent-skills install <skill>
+bunx @iceinvein/agent-skills install <skill> [<skill> ...]   # one or more
+bunx @iceinvein/agent-skills install                         # no args: opens picker
 ```
 
 Auto-detects Claude Code, Cursor, Codex, or Gemini CLI. Use `--tool claude` to target one, `-g` to install globally.
@@ -107,15 +108,16 @@ Skills that compose the other audit skills into higher-level workflows.
 ## Commands
 
 ```
-bunx @iceinvein/agent-skills install <skill> [--tool <tool>] [--activation <mode>] [-g]
-bunx @iceinvein/agent-skills browse [--tool <tool>] [--activation <mode>] [-g]
+bunx @iceinvein/agent-skills install <skill> [<skill> ...] [--tool <tool>] [--activation <mode>] [-g]
+bunx @iceinvein/agent-skills install                                                          # picker
+bunx @iceinvein/agent-skills browse                                                           # alias
 bunx @iceinvein/agent-skills remove <skill> [-g]
 bunx @iceinvein/agent-skills update <skill> [-g]
 bunx @iceinvein/agent-skills list
 bunx @iceinvein/agent-skills info <skill>
 ```
 
-`browse` opens an interactive picker: type a substring to filter, then space-toggle multiple skills and press enter to install them all at once.
+`install` accepts multiple skill names and installs each in turn. Run `install` (or `browse`) with no args to open an interactive picker: arrow keys to navigate, space to toggle, enter to install all selected, Esc to cancel.
 
 | Flag | |
 |------|---|
