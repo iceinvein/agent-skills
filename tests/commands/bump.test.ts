@@ -164,7 +164,7 @@ test("bumpAllChanged dry-run does not write files", async () => {
   }
 });
 
-test("bumpAllChanged with no tags treats all skills as changed", async () => {
+test("bumpAllChanged with no tags skips new skills (their initial version is fine)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "bump-notag-test-"));
   try {
     git("init", dir);
@@ -181,9 +181,38 @@ test("bumpAllChanged with no tags treats all skills as changed", async () => {
     git("commit -m initial", dir);
 
     const results = await bumpAllChanged(dir, "patch", false);
-    expect(results).toEqual([
-      { name: "terse", ok: true, from: "1.0.0", to: "1.0.1" },
-    ]);
+    expect(results).toEqual([]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("bumpAllChanged skips skills added after the last tag", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bump-newskill-test-"));
+  try {
+    git("init", dir);
+    git("config user.email test@test.com", dir);
+    git("config user.name Test", dir);
+
+    mkdirSync(join(dir, "skills", "existing"), { recursive: true });
+    writeFileSync(
+      join(dir, "skills", "existing", "skill.json"),
+      JSON.stringify({ name: "existing", version: "1.0.0", description: "x", author: "x", type: "prompt", tools: ["claude"], install: {} }, null, 2)
+    );
+    git("add -A", dir);
+    git("commit -m initial", dir);
+    git("tag v0.0.1", dir);
+
+    mkdirSync(join(dir, "skills", "brand-new"), { recursive: true });
+    writeFileSync(
+      join(dir, "skills", "brand-new", "skill.json"),
+      JSON.stringify({ name: "brand-new", version: "1.0.0", description: "x", author: "x", type: "prompt", tools: ["claude"], install: {} }, null, 2)
+    );
+    git("add -A", dir);
+    git("commit -m add-brand-new", dir);
+
+    const results = await bumpAllChanged(dir, "patch", true);
+    expect(results).toEqual([]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

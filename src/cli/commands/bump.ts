@@ -81,6 +81,15 @@ function skillVersionChanged(repoRoot: string, skillName: string, sinceTag: stri
   return hasRemoved && hasAdded;
 }
 
+function manifestExistedAtTag(repoRoot: string, skillName: string, sinceTag: string | null): boolean {
+  if (!sinceTag) return false;
+  const result = Bun.spawnSync(
+    ["git", "cat-file", "-e", `${sinceTag}:skills/${skillName}/skill.json`],
+    { cwd: repoRoot, stderr: "pipe" },
+  );
+  return result.exitCode === 0;
+}
+
 export async function bumpAllChanged(
   repoRoot: string,
   level: BumpLevel,
@@ -91,6 +100,7 @@ export async function bumpAllChanged(
   const results: BumpAllResult = [];
 
   for (const skillName of changed) {
+    if (!manifestExistedAtTag(repoRoot, skillName, tag)) continue;
     if (skillVersionChanged(repoRoot, skillName, tag)) continue;
 
     if (dryRun) {
