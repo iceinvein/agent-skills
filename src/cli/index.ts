@@ -63,6 +63,7 @@ function printHelp() {
 
 Usage:
   agent-skills install <skill>  [--tool <tool>] [--activation <session|global>] [-g]  Install a skill
+  agent-skills browse  [--tool <tool>] [--activation <mode>] [-g]   Interactive search + multi-install
   agent-skills remove  <skill>  [-g]                   Remove a skill
   agent-skills update  <skill>  [-g]                   Update a skill
   agent-skills update  --all    [-g]                   Update all installed skills
@@ -91,6 +92,96 @@ function printInstalled(result: Record<string, string[]>, skipped: string[]) {
   }
 }
 
+type InstallFlags = {
+  tool?: string;
+  activation?: string;
+};
+
+async function installOne(
+  skillName: string,
+  installDir: string,
+  isGlobal: boolean,
+  flags: InstallFlags,
+): Promise<boolean> {
+  console.log(`Fetching skill '${skillName}'...`);
+  const manifestResult = await fetchSkillManifest(skillName);
+  if (!manifestResult.ok) {
+    console.error(`Error: ${manifestResult.error}`);
+    return false;
+  }
+
+  const filesResult = await fetchAllSkillFiles(skillName, manifestResult.manifest);
+  if ("error" in filesResult) {
+    console.error(`Error: ${filesResult.error}`);
+    return false;
+  }
+
+  let tools: ToolName[];
+  if (flags.tool) {
+    if (!TOOL_NAMES.includes(flags.tool as ToolName)) {
+      console.error(`Error: unknown tool '${flags.tool}'. Must be one of: ${TOOL_NAMES.join(", ")}`);
+      return false;
+    }
+    tools = [flags.tool as ToolName];
+  } else {
+    tools = await detectTools(installDir);
+    if (tools.length === 0) {
+      const supportedTools = manifestResult.manifest.tools;
+      const selected = await promptSelect(
+        isGlobal
+          ? "Which tools do you use?"
+          : "No tools detected in this directory. Which tools do you use?",
+        supportedTools.map((t) => ({
+          label: { claude: "Claude Code", cursor: "Cursor", codex: "Codex", gemini: "Gemini CLI" }[t],
+          value: t,
+        }))
+      );
+      tools = selected as ToolName[];
+
+      for (const tool of tools) {
+        const dirs: Record<string, string> = {
+          claude: ".claude",
+          cursor: ".cursor",
+          gemini: ".gemini",
+        };
+        if (dirs[tool]) {
+          mkdirSync(join(installDir, dirs[tool]), { recursive: true });
+        }
+      }
+    } else {
+      console.log(`Detected tools: ${tools.join(", ")}`);
+    }
+  }
+
+  let activation: ActivationMode | undefined;
+  const manifest = manifestResult.manifest;
+  if (manifest.activation && tools.includes("claude")) {
+    const validModes = manifest.activation.modes;
+
+    if (flags.activation) {
+      if (!validModes.includes(flags.activation as ActivationMode)) {
+        console.error(`Error: activation mode '${flags.activation}' not supported. Must be one of: ${validModes.join(", ")}`);
+        return false;
+      }
+      activation = flags.activation as ActivationMode;
+    } else if (process.stdin.isTTY) {
+      activation = await promptActivation(manifest.name, validModes);
+    } else {
+      activation = manifest.activation.default;
+    }
+  }
+
+  const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools, activation);
+  if (!result.ok) {
+    console.error(`Error: ${result.error}`);
+    return false;
+  }
+
+  console.log(`\n✓ Installed '${skillName}' v${manifestResult.manifest.version}${isGlobal ? " (global)" : ""}:`);
+  printInstalled(result.installed, result.skipped);
+  return true;
+}
+
 async function main() {
   const { command, args, flags } = parseArgs(process.argv.slice(2));
 
@@ -106,85 +197,37 @@ async function main() {
       const isGlobal = installDir === homedir();
       if (isGlobal) console.log(`Installing globally to ${installDir}`);
 
-      console.log(`Fetching skill '${skillName}'...`);
-      const manifestResult = await fetchSkillManifest(skillName);
-      if (!manifestResult.ok) {
-        console.error(`Error: ${manifestResult.error}`);
+      const ok = await installOne(skillName, installDir, isGlobal, flags);
+      if (!ok) process.exit(1);
+      break;
+    }
+
+    case "browse": {
+      const installDir = resolveInstallDir(flags);
+      const isGlobal = installDir === homedir();
+      if (isGlobal) console.log(`Browsing for global install (${installDir})`);
+
+      console.log("Fetching skill index...\n");
+      const indexResult = await listSkills();
+      if (!indexResult.ok) {
+        console.error(`Error: ${indexResult.error}`);
         process.exit(1);
       }
 
-      const filesResult = await fetchAllSkillFiles(skillName, manifestResult.manifest);
-      if ("error" in filesResult) {
-        console.error(`Error: ${filesResult.error}`);
-        process.exit(1);
+      const { browseAndSelect } = await import("./tui");
+      const { picked } = await browseAndSelect(indexResult.skills);
+      if (picked.length === 0) {
+        console.log("\nNothing selected.");
+        break;
       }
 
-      let tools: ToolName[];
-      if (flags.tool) {
-        if (!TOOL_NAMES.includes(flags.tool as ToolName)) {
-          console.error(`Error: unknown tool '${flags.tool}'. Must be one of: ${TOOL_NAMES.join(", ")}`);
-          process.exit(1);
-        }
-        tools = [flags.tool as ToolName];
-      } else {
-        tools = await detectTools(installDir);
-        if (tools.length === 0) {
-          // Filter to only tools the skill supports
-          const supportedTools = manifestResult.manifest.tools;
-          const selected = await promptSelect(
-            isGlobal
-              ? "Which tools do you use?"
-              : "No tools detected in this directory. Which tools do you use?",
-            supportedTools.map((t) => ({
-              label: { claude: "Claude Code", cursor: "Cursor", codex: "Codex", gemini: "Gemini CLI" }[t],
-              value: t,
-            }))
-          );
-          tools = selected as ToolName[];
-
-          // Create tool directories so future runs auto-detect
-          for (const tool of tools) {
-            const dirs: Record<string, string> = {
-              claude: ".claude",
-              cursor: ".cursor",
-              gemini: ".gemini",
-            };
-            if (dirs[tool]) {
-              mkdirSync(join(installDir, dirs[tool]), { recursive: true });
-            }
-          }
-        } else {
-          console.log(`Detected tools: ${tools.join(", ")}`);
-        }
+      console.log(`\nInstalling ${picked.length} skill${picked.length === 1 ? "" : "s"}...\n`);
+      let failures = 0;
+      for (const name of picked) {
+        const ok = await installOne(name, installDir, isGlobal, flags);
+        if (!ok) failures++;
       }
-
-      // Resolve activation mode
-      let activation: ActivationMode | undefined;
-      const manifest = manifestResult.manifest;
-      if (manifest.activation && tools.includes("claude")) {
-        const validModes = manifest.activation.modes;
-
-        if (flags.activation) {
-          if (!validModes.includes(flags.activation as ActivationMode)) {
-            console.error(`Error: activation mode '${flags.activation}' not supported. Must be one of: ${validModes.join(", ")}`);
-            process.exit(1);
-          }
-          activation = flags.activation as ActivationMode;
-        } else if (process.stdin.isTTY) {
-          activation = await promptActivation(manifest.name, validModes);
-        } else {
-          activation = manifest.activation.default;
-        }
-      }
-
-      const result = await installSkill(installDir, manifestResult.manifest, filesResult, tools, activation);
-      if (!result.ok) {
-        console.error(`Error: ${result.error}`);
-        process.exit(1);
-      }
-
-      console.log(`\n✓ Installed '${skillName}' v${manifestResult.manifest.version}${isGlobal ? " (global)" : ""}:`);
-      printInstalled(result.installed, result.skipped);
+      if (failures > 0) process.exit(1);
       break;
     }
 

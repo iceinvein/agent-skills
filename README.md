@@ -108,11 +108,14 @@ Skills that compose the other audit skills into higher-level workflows.
 
 ```
 bunx @iceinvein/agent-skills install <skill> [--tool <tool>] [--activation <mode>] [-g]
+bunx @iceinvein/agent-skills browse [--tool <tool>] [--activation <mode>] [-g]
 bunx @iceinvein/agent-skills remove <skill> [-g]
 bunx @iceinvein/agent-skills update <skill> [-g]
 bunx @iceinvein/agent-skills list
 bunx @iceinvein/agent-skills info <skill>
 ```
+
+`browse` opens an interactive picker: type a substring to filter, then space-toggle multiple skills and press enter to install them all at once.
 
 | Flag | |
 |------|---|
