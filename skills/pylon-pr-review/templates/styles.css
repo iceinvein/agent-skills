@@ -1,0 +1,36 @@
+:root {
+  --bg: #faf9f7;
+  --fg: #1f1d1c;
+  --muted: #6e6a64;
+  --line: #e7e3dc;
+  --accent: #1f1d1c;
+  --blocker: #c0392b;
+  --high: #d35400;
+  --medium: #b9a40b;
+  --low: #788078;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2rem; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+h1, h2, h3 { margin: 0 0 0.5rem; }
+.subtle { color: var(--muted); }
+.stage-strip { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0 2rem; }
+.stage { padding: 0.25rem 0.5rem; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+.stage.done { background: #eef6ee; border-color: #b8d6b8; }
+.stage.running { background: #fff4cf; border-color: #d6c98a; }
+.stage.error { background: #fde7e3; border-color: #d4948a; }
+.finding { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 0.75rem; padding: 0.75rem 1rem; background: white; }
+.finding-head { display: flex; align-items: center; gap: 0.75rem; }
+.finding-title { font-weight: 600; flex: 1; }
+.sev-chip { font-size: 11px; padding: 2px 6px; border-radius: 3px; color: white; }
+.sev-blocker { background: var(--blocker); }
+.sev-high { background: var(--high); }
+.sev-medium { background: var(--medium); }
+.sev-low { background: var(--low); color: white; }
+.finding-meta { font-size: 12px; color: var(--muted); margin-top: 0.25rem; }
+.finding-desc { margin-top: 0.5rem; white-space: pre-wrap; font-size: 13px; }
+.finding-diff, .finding-suggestion { margin-top: 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; background: #f4f1eb; padding: 0.5rem; border-radius: 4px; overflow-x: auto; }
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 3px; margin-left: 0.25rem; }
+.badge.posted { background: #d6ecd6; color: #2d6a2d; }
+.badge.failed { background: #f4cfcf; color: #802626; }
+.submit-bar { position: sticky; bottom: 0; background: var(--bg); padding: 1rem 0; border-top: 1px solid var(--line); }
+.submit-btn { padding: 0.5rem 1rem; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; }
