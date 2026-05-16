@@ -88,7 +88,32 @@ Working directory: $RUN_DIR/worktree
 Diff: $RUN_DIR/diff.patch
 Code context (if exists): $RUN_DIR/pr-context.json
 
-Output contract: write findings to $RUN_DIR/findings/<focus>.json before returning. Each entry must match the schema in scripts/types.ts (id, file, line, severity, risk, title, description, optional suggestion, domain="<focus>"). Return a one-line summary as your tool result.
+## Output Contract
+
+Write findings to $RUN_DIR/findings/<focus>.json before returning. The file MUST be a JSON array. Each entry MUST conform to this schema exactly (no extra top-level keys, no renamed keys):
+
+{
+  "id": string,                      // e.g. "<focus>-1", "<focus>-2"; unique per focus
+  "file": string,                    // path relative to worktree
+  "line": number | null,             // single integer; use null if not anchorable. NOT "lines", NOT a range string
+  "severity": "blocker" | "high" | "medium" | "low",
+  "risk": {                          // OBJECT, not a flat string
+    "impact":     "critical" | "high" | "medium" | "low",
+    "likelihood": "likely" | "possible" | "edge-case" | "unknown",
+    "confidence": "high" | "medium" | "low",
+    "action":     "must-fix" | "should-fix" | "consider" | "optional"
+  },
+  "title": string,                   // one line
+  "description": string,             // multi-paragraph; cite code with file:line
+  "suggestion": {                    // OPTIONAL; omit the key entirely if not applicable. NOT "recommendation"
+    "body": string,
+    "startLine": number,
+    "endLine": number
+  },
+  "domain": "<focus>"                // literal focus id, copied verbatim
+}
+
+If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<blocker>/<high>/<medium>/<low>)`. Do not include other prose.
 ```
 
 After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress. (Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry advances `pr-review status`.)
@@ -210,8 +235,7 @@ For each potential finding:
 
 Report only credible concerns grounded in code shown. If a concern depends on context you can't see, note it as "needs verification" in the description. Do not invent vulnerabilities without evidence.
 
-## Output Contract
-Output contract: write findings to <run-dir>/findings/security.json before returning. Each entry must match the schema in scripts/types.ts. Return a single-line summary as your tool result.
+Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
 ### bugs
@@ -272,8 +296,7 @@ For each potential bug:
 
 Prioritize bugs that cause silent wrong behavior over those that crash (crashes are at least visible). Flag "needs verification" when you can't determine reachability from the diff alone.
 
-## Output Contract
-Output contract: write findings to <run-dir>/findings/bugs.json before returning. Each entry must match the schema in scripts/types.ts. Return a single-line summary as your tool result.
+Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
 ### performance
@@ -330,8 +353,7 @@ For each potential issue:
 
 Only flag issues that would have noticeable impact at realistic scale. Don't suggest micro-optimizations on cold paths.
 
-## Output Contract
-Output contract: write findings to <run-dir>/findings/performance.json before returning. Each entry must match the schema in scripts/types.ts. Return a single-line summary as your tool result.
+Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
 ### code-smells
@@ -390,8 +412,7 @@ For each potential smell:
 
 Do not flag formatting, naming, or stylistic preference unless it is evidence of a deeper maintainability problem. Avoid duplicating bug, security, or performance findings unless the primary issue is the maintainability smell behind them.
 
-## Output Contract
-Output contract: write findings to <run-dir>/findings/code-smells.json before returning. Each entry must match the schema in scripts/types.ts. Return a single-line summary as your tool result.
+Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
 ### architecture
@@ -451,8 +472,7 @@ Boundary with Code Smells: focus on module boundaries, public contracts, ownersh
 
 Focus on design decisions introduced or materially worsened by this PR that affect the long-term health of the codebase. Don't flag things that are "technically impure" but work well in practice.
 
-## Output Contract
-Output contract: write findings to <run-dir>/findings/architecture.json before returning. Each entry must match the schema in scripts/types.ts. Return a single-line summary as your tool result.
+Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
 ## Critic rubric
