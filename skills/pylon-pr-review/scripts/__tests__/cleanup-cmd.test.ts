@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { runCleanup } from '../cleanup-cmd.ts'
+import { killServer, runCleanup } from '../cleanup-cmd.ts'
 
 let repo: string
 let runDir: string
@@ -42,4 +42,62 @@ test('cleanup removes worktree and archives run dir', async () => {
   const entries = await readdir(parent)
   const archived = entries.find((e) => e.startsWith(`${basename(runDir)}.archived-`))
   expect(archived).toBeDefined()
+})
+
+test('killServer reports no-server-info when state/server-info missing', async () => {
+  const result = await killServer(runDir, 100)
+  expect(result.outcome).toBe('no-server-info')
+})
+
+test('killServer reports already-dead for a recycled pid', async () => {
+  await writeFile(
+    join(runDir, 'state', 'server-info'),
+    JSON.stringify({ pid: 1, port: 12345, url: 'http://x' }),
+  )
+  // PID 1 on a sandbox is not signalable by us, so process.kill(1, 0) throws → treated as dead
+  const result = await killServer(runDir, 100)
+  expect(['already-dead', 'self']).toContain(result.outcome)
+})
+
+test('killServer escalates to SIGKILL when SIGTERM is ignored', async () => {
+  // Spawn a child that traps SIGTERM and keeps running. SIGKILL is uncatchable.
+  const child = Bun.spawn(
+    [
+      'node',
+      '-e',
+      "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); console.log('READY')",
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  )
+  // Wait for the READY marker so we know the trap is installed.
+  const reader = child.stdout.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  while (!buf.includes('READY')) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value)
+  }
+  reader.releaseLock()
+  await writeFile(
+    join(runDir, 'state', 'server-info'),
+    JSON.stringify({ pid: child.pid, port: 12345, url: 'http://x' }),
+  )
+  const result = await killServer(runDir, 200)
+  expect(result.outcome).toBe('sigkill')
+  expect(result.pid).toBe(child.pid)
+  await child.exited
+})
+
+test('runCleanup logs kill outcome to log.jsonl', async () => {
+  await writeFile(join(runDir, 'log.jsonl'), '')
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  expect(exit).toBe(0)
+  const parent = dirname(runDir)
+  const entries = await readdir(parent)
+  const archived = entries.find((e) => e.startsWith(`${basename(runDir)}.archived-`))
+  expect(archived).toBeDefined()
+  const log = await readFile(join(parent, archived as string, 'log.jsonl'), 'utf8')
+  expect(log).toContain('"stage":"cleanup"')
+  expect(log).toContain('"outcome":"no-server-info"')
 })

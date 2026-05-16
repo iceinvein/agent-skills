@@ -74,13 +74,25 @@ const HANDLERS: Record<string, Handler> = {
   cleanup: async (args) => {
     const runDir = args[0]
     const repoFlag = args.indexOf('--repo')
+    const graceFlag = args.indexOf('--kill-grace-ms')
     if (!runDir) {
-      process.stderr.write('cleanup: missing <run-dir> [--repo <path>]\n')
+      process.stderr.write('cleanup: missing <run-dir> [--repo <path>] [--kill-grace-ms <n>]\n')
       return 2
     }
     const repoPath = (repoFlag !== -1 ? args[repoFlag + 1] : undefined) ?? process.cwd()
+    const killGraceRaw = graceFlag !== -1 ? args[graceFlag + 1] : undefined
+    const killGraceMs = killGraceRaw !== undefined ? Number(killGraceRaw) : undefined
+    if (killGraceMs !== undefined && (!Number.isFinite(killGraceMs) || killGraceMs < 0)) {
+      process.stderr.write(`cleanup: invalid --kill-grace-ms ${killGraceRaw}\n`)
+      return 2
+    }
     const { runCleanup } = await import('../scripts/cleanup-cmd.ts')
-    return runCleanup({ runDir, repoPath, gitBin: process.env.PR_REVIEW_GIT_BIN || 'git' })
+    return runCleanup({
+      runDir,
+      repoPath,
+      gitBin: process.env.PR_REVIEW_GIT_BIN || 'git',
+      killGraceMs,
+    })
   },
   status: async (args) => {
     const runDir = args[0]

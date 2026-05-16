@@ -8,8 +8,9 @@ test('SKILL.md has a specialist block for every focus', async () => {
   const text = await readFile(SKILL, 'utf8')
   for (const focus of FOCUSES) {
     const tag = `pr-review-specialist-${focus}`
-    expect(text).toContain('```' + tag)
-    const start = text.indexOf('```' + tag)
+    const fence = `\`\`\`${tag}`
+    expect(text).toContain(fence)
+    const start = text.indexOf(fence)
     const end = text.indexOf('```', start + tag.length + 3)
     const block = text.slice(start, end)
     expect(block).toContain('write findings to')

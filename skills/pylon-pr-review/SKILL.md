@@ -30,7 +30,7 @@ RUN_DIR="$HOME/.pylon-review/$RUN_ID"
 pr-review setup "$RUN_DIR" --pr $PR_NUMBER --repo "$REPO"
 ```
 
-If exit is non-zero, surface stderr verbatim and stop. No partial state remains.
+If exit is non-zero, surface stderr verbatim and stop. The CLI removes the worktree and subdirs on failure; the run directory itself plus `log.jsonl` are kept for diagnostics.
 
 ### 2. Serve
 
@@ -50,7 +50,31 @@ pr-review render "$RUN_DIR" progress
 
 ### 3. Context (optional)
 
-If the `mcp__code-intelligence__search_code` tool is available in this conversation, build the context bundle by calling code-intelligence MCP tools for each changed file and writing the result to `$RUN_DIR/pr-context.json`. The file's shape matches Pylon's `pr-context.json` (changed symbols with definitions, references capped at 20 per symbol, tests for each symbol). If MCP is not available, log `{stage: context, status: skipped, reason: mcp-unavailable}` to `$RUN_DIR/log.jsonl` and continue. Re-render progress.
+If the `mcp__code-intelligence__search_code` tool is available in this conversation, build the context bundle by calling code-intelligence MCP tools for each changed file and writing the result to `$RUN_DIR/pr-context.json`. If MCP is not available, log `{stage: context, status: skipped, reason: mcp-unavailable}` to `$RUN_DIR/log.jsonl` and continue. Re-render progress.
+
+Expected shape of `pr-context.json`:
+
+```json
+{
+  "symbols": [
+    {
+      "name": "createProject",
+      "kind": "function",
+      "file": "apps/server/src/resolvers/Mutation/createProject.ts",
+      "line": 8,
+      "definition": "<source of the symbol, trimmed>",
+      "references": [
+        { "file": "apps/server/src/resolvers/Mutation/index.ts", "line": 5, "context": "<one-line snippet>" }
+      ],
+      "tests": [
+        { "file": "apps/server/src/resolvers/Mutation/__tests__/createProject.test.ts", "line": 12, "context": "<one-line snippet>" }
+      ]
+    }
+  ]
+}
+```
+
+Cap `references` at 20 per symbol; include only tests that import or call the symbol.
 
 ### 4. Specialists
 
@@ -67,7 +91,7 @@ Code context (if exists): $RUN_DIR/pr-context.json
 Output contract: write findings to $RUN_DIR/findings/<focus>.json before returning. Each entry must match the schema in scripts/types.ts (id, file, line, severity, risk, title, description, optional suggestion, domain="<focus>"). Return a one-line summary as your tool result.
 ```
 
-After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress.
+After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress. (Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry advances `pr-review status`.)
 
 If all five specialists fail (no findings files written), log `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
 
@@ -85,11 +109,13 @@ Read `$RUN_DIR/findings.deduped.json`. Apply the critic rubric from this SKILL.m
 
 ### 7. Peer review
 
-Write the peer-review prompt (from this SKILL.md) plus the contents of `findings.kept.json` to `$RUN_DIR/peer-prompt.md`. Then:
+Build the peer-review prompt by taking the `pr-review-peer-review` block from this SKILL.md and substituting the placeholders listed in its `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`. Then run codex with the prompt piped on stdin:
 
 ```
-codex exec --file "$RUN_DIR/peer-prompt.md" > "$RUN_DIR/peer.json"
+codex exec < "$RUN_DIR/peer-prompt.md" > "$RUN_DIR/peer.out"
 ```
+
+`peer.out` is codex's full transcript; extract the fenced JSON block tagged `review-peer-review` from it to get the verdicts array. Write that verdicts array to `$RUN_DIR/peer.json` for record-keeping.
 
 If codex returns non-zero, ask the user once: "Codex peer-review failed: <stderr>. Skip peer-review and proceed, or abort?". On "skip", copy `findings.kept.json` to `findings.final.json` and add `{stage: peer-review, status: skipped}`.
 
@@ -433,6 +459,15 @@ Output contract: write findings to <run-dir>/findings/architecture.json before r
 
 The main agent runs this in-conversation against `findings.deduped.json` and writes the kept subset to `findings.kept.json`.
 
+## Substitute before use
+
+The block below contains one placeholder. Replace it before running the rubric.
+
+- `<<DEDUPED_FINDINGS_COMPACT>>` — pretty-printed JSON array of the deduped candidates with only the fields the critic needs. Build with:
+  ```
+  jq '[.[] | {id, file, line, severity, risk, domain, title, description}]' "$RUN_DIR/findings.deduped.json"
+  ```
+
 ````pr-review-critic
 You are a senior code reviewer auditing a list of candidate review findings produced by other agents on a pull request. Your only job is to keep the findings that a busy reviewer would genuinely thank you for surfacing, and drop the rest. You do not see the diff itself; you only see what the candidate finding claims, its anchor, and its risk fields. Treat each candidate skeptically.
 
@@ -451,6 +486,8 @@ When in doubt, drop. The cost of a false positive is several minutes of reviewer
 
 For each candidate below, decide whether to keep it or drop it.
 
+## Output Contract
+
 Output a JSON array inside a fenced code block tagged `review-critic`. Each entry must be:
 - `id`: the candidate id (string, copied verbatim)
 - `verdict`: "keep" or "drop"
@@ -467,23 +504,39 @@ Output every candidate exactly once. Do not invent ids. Do not output anything o
 
 ## Candidates
 ```json
-${JSON.stringify(compact, null, 2)}
+<<DEDUPED_FINDINGS_COMPACT>>
 ```
-
-## Output Contract
-Return verdicts as a JSON array inside a fenced code block tagged "critic-verdicts". Each verdict: {"id": <finding-id>, "verdict": "keep" | "drop" | "downgrade", "newSeverity"?: "blocker"|"high"|"medium"|"low", "reason": <one-sentence>}.
 ````
 
 ## Peer-review prompt
 
-The agent writes the kept-findings list and this prompt to `<run-dir>/peer-prompt.md`, then runs:
+The agent substitutes the placeholders below, writes the result to `<run-dir>/peer-prompt.md`, then runs:
 
 ```
-codex exec --file <run-dir>/peer-prompt.md > <run-dir>/peer.json
+codex exec < <run-dir>/peer-prompt.md > <run-dir>/peer.out
 ```
+
+Then extract the fenced `review-peer-review` block from `peer.out` and save it to `<run-dir>/peer.json`.
+
+## Substitute before use
+
+Replace each `<<NAME>>` placeholder in the block below:
+
+- `<<PRIMARY_PROVIDER>>` — the agent that produced the findings (e.g. `claude`).
+- `<<PEER_PROVIDER>>` — the agent auditing the review (e.g. `codex`).
+- `<<PR_TITLE>>` — `jq -r .title < $RUN_DIR/pr.json`
+- `<<PR_AUTHOR>>` — `jq -r .author.login < $RUN_DIR/pr.json`
+- `<<PR_HEAD_BRANCH>>` — `jq -r .headRefName < $RUN_DIR/pr.json`
+- `<<PR_BASE_BRANCH>>` — `jq -r .baseRefName < $RUN_DIR/pr.json`
+- `<<PR_FILES_CHANGED>>` — `grep -c '^diff --git' $RUN_DIR/diff.patch`
+- `<<KEPT_FINDINGS_COMPACT>>` — pretty-printed JSON array of kept findings with the fields codex needs:
+  ```
+  jq '[.[] | {id, file, line, severity, risk, domain, title, description}]' "$RUN_DIR/findings.kept.json"
+  ```
+- `<<DIFF_EXCERPT>>` — the diff hunks containing the kept findings. For small PRs, the full `diff.patch` is fine. For larger PRs, narrow to the files referenced by `findings.kept.json`.
 
 ````pr-review-peer-review
-You are the second-opinion reviewer for a PR review. ${input.primaryProvider} produced the findings; ${input.peerProvider} is auditing that review.
+You are the second-opinion reviewer for a PR review. <<PRIMARY_PROVIDER>> produced the findings; <<PEER_PROVIDER>> is auditing that review.
 
 Do not run a broad PR review. Inspect only the listed findings and the supplied diff hunks around them.
 Return no changes unless a finding has a material issue or a directly adjacent issue is clearly visible while validating it.
@@ -495,20 +548,23 @@ Do not drop findings in this pass. If nothing needs changing, return an empty ar
 Review this review, not the full PR.
 
 ## PR
-- Title: ${input.detail.title}
-- Author: ${input.detail.author}
-- Branch: ${input.detail.headBranch} -> ${input.detail.baseBranch}
-- Files changed: ${input.detail.files.length}
+- Title: <<PR_TITLE>>
+- Author: <<PR_AUTHOR>>
+- Branch: <<PR_HEAD_BRANCH>> -> <<PR_BASE_BRANCH>>
+- Files changed: <<PR_FILES_CHANGED>>
 
 ## Current Findings
 ```json
-${JSON.stringify(compactFindings, null, 2)}
+<<KEPT_FINDINGS_COMPACT>>
 ```
 
 ## Diff Hunks For Those Findings
-${diffExcerpt}
+```diff
+<<DIFF_EXCERPT>>
+```
 
-## Output Format
+## Output Contract
+
 Output a JSON array inside a fenced code block tagged `review-peer-review`.
 
 Allowed entries:
@@ -526,9 +582,6 @@ Rules:
 ```review-peer-review
 []
 ```
-
-## Output Contract
-Return verdicts as a JSON array inside a fenced code block tagged "peer-review-verdicts". Each verdict: {"id": <finding-id>, "verdict": "keep" | "drop" | "downgrade", "newSeverity"?: "blocker"|"high"|"medium"|"low", "reason": <one-sentence>}.
 ````
 
 ## Resuming a crashed run
