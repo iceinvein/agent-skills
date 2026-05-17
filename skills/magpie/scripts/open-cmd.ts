@@ -51,9 +51,7 @@ export async function runOpen(input: OpenInput): Promise<number> {
   }
 
   const opener =
-    input.opener ??
-    process.env.PR_REVIEW_OPENER ??
-    defaultOpener(input.platform ?? process.platform)
+    input.opener ?? process.env.MAGPIE_OPENER ?? defaultOpener(input.platform ?? process.platform)
 
   if (input.dryRun) {
     process.stdout.write(`${opener} ${target}\n`)

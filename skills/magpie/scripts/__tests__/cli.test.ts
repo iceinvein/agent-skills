@@ -61,7 +61,7 @@ test('open --dry-run resolves latest run and prints opener + path', async () => 
     await writeFile(join(runPath, 'screen', 'findings.html'), '<html></html>')
 
     const proc = Bun.spawn(['bun', CLI, 'open', '--dry-run'], {
-      env: { ...process.env, PYLON_REVIEW_HOME: home, PR_REVIEW_OPENER: 'fakeopen' },
+      env: { ...process.env, MAGPIE_HOME: home, MAGPIE_OPENER: 'fakeopen' },
       stdout: 'pipe',
       stderr: 'pipe',
     })
@@ -73,4 +73,69 @@ test('open --dry-run resolves latest run and prints opener + path', async () => 
   } finally {
     await rm(home, { recursive: true, force: true })
   }
+})
+
+test('post --dry-run dispatches to runPost and prints the outcome JSON', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-cli-post-'))
+  try {
+    await writeFile(
+      join(runDir, 'pr.json'),
+      JSON.stringify({
+        number: 7,
+        headRefOid: 'deadbeefcafef00d',
+        url: 'https://github.com/iceinvein/pylon/pull/7',
+      }),
+    )
+    await writeFile(
+      join(runDir, 'findings.final.json'),
+      JSON.stringify([
+        {
+          id: 'sec-1',
+          file: 'src/a.ts',
+          line: 12,
+          severity: 'high',
+          risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+          title: 'oops',
+          description: 'Observation: a real defect.\n\nWhy it matters: it hurts.',
+          domain: 'security',
+        },
+      ]),
+    )
+    const proc = Bun.spawn(
+      ['bun', CLI, 'post', runDir, '--ids', 'sec-1', '--dry-run', '--include-summary', 'never'],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+    const stdout = await new Response(proc.stdout).text()
+    const exit = await proc.exited
+    expect(exit).toBe(0)
+    const outcome = JSON.parse(stdout.trim())
+    expect(outcome.ok).toBe(true)
+    expect(outcome.target).toEqual({ repo: 'iceinvein/pylon', number: 7 })
+    expect(outcome.results[0].status).toBe('posted')
+    expect(outcome.results[0].command?.[0]).toBe('api')
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
+})
+
+test('post rejects invalid --include-summary value', async () => {
+  const proc = Bun.spawn(
+    ['bun', CLI, 'post', '/tmp/anything', '--ids', 'x', '--include-summary', 'bogus'],
+    { stdout: 'pipe', stderr: 'pipe' },
+  )
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('post: invalid --include-summary bogus')
+})
+
+test('post rejects missing --ids', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'post', '/tmp/anything'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('post: missing --ids')
 })

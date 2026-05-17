@@ -167,12 +167,26 @@ End the turn.
 
 ### 9. Post
 
-On the user's next message, if they say `post` (or `post 1,3,7` for explicit indices), read `$RUN_DIR/state/events`. Compute the latest selection set (union of `select` events minus `deselect`, plus any explicit indices from the user message). For each selected finding, post via `gh`:
+Most users will tick the checkboxes in the served report and click "Post to PR"; the report server handles the rest. The agent only handles posts when the user explicitly types `post` (optionally `post 1,3,7` for indices) in the conversation.
 
-- If the finding has `line`: `gh api repos/<owner>/<repo>/pulls/<n>/comments -X POST -F body=<body> -F commit_id=<head_sha> -F path=<file> -F line=<line> -F side=RIGHT`
-- Otherwise: `gh pr comment <n> --body <body>`
+When that happens, read `$RUN_DIR/state/events`. Compute the selected finding ids as (union of `select` events minus `deselect`) merged with any explicit indices the user named (1-based, against `findings.final.json` in file order). Then post via the CLI:
 
-After each post, append `{stage: post, status: ok|failed, id: <finding-id>}` to `log.jsonl` and update `$RUN_DIR/post-status.json` ({"<finding-id>": "posted" | {"status": "failed", "message": "..."}}). When all selected findings are processed, re-render `findings.html`.
+```
+magpie post "$RUN_DIR" --ids id1,id2,id3
+```
+
+That delegates to `runPost`, which:
+
+- Picks `formatInlineBody` (severity heading, `<sub>` risk metaline, parsed `Observation`/`Why it matters`/`Suggested direction`/`Needs verification` sections, optional `` ```suggestion `` block, hidden `magpie:finding` marker) when the finding has a `line`, and uses `gh api repos/<owner>/<repo>/pulls/<n>/comments` to open an inline review thread.
+- Falls back to `formatConversationBody` (same shape plus a `Location · <file>:<line>` metaline) posted via `gh pr comment <n>` when there is no anchor, or when GitHub rejects the inline anchor with 422.
+- When two or more new findings are being posted in this batch, prepends one top-level summary comment (verdict line, "Needs Attention" top three, `<details>` risk breakdown) and persists the sentinel `__summary__` in `post-status.json` so re-runs don't duplicate it. Override with `--include-summary always|never` if you need to force or suppress it.
+- Appends `{stage: post, ...}` events to `log.jsonl` and updates `$RUN_DIR/post-status.json` per finding id.
+
+Pass `--dry-run` to record the would-be gh commands without invoking gh. After posting, re-render the report so the badges update:
+
+```
+magpie render "$RUN_DIR" findings
+```
 
 ### 10. Cleanup
 

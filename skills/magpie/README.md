@@ -15,23 +15,15 @@ Given a GitHub PR number, dispatches five specialist subagents in parallel (secu
 
 ## Install
 
-This skill ships in two parts: the prompt (SKILL.md) and a companion Bun CLI (bin + scripts). Both are needed.
-
-**1. Install the prompt via agent-skills:**
-
-```
-bunx @iceinvein/agent-skills install magpie
-```
-
-That copies SKILL.md to `.claude/skills/magpie/SKILL.md` (or `~/.claude/skills/...` with `-g`).
-
-**2. Install the CLI from this directory:**
+This skill ships in two parts: the prompt (SKILL.md) and a companion Bun CLI (bin + scripts). Both are needed, and `install.sh` handles both in one step.
 
 ```
 ./install.sh
 ```
 
-That symlinks the full skill source tree (bin/, scripts/, templates/, fixtures/) into `~/.claude/skills/magpie/`, so the prompt and the CLI live together. Run it from this directory (the source path the symlink points at). Re-running is safe; it updates the symlink.
+That symlinks the full skill source tree (bin/, scripts/, templates/, fixtures/, SKILL.md, skill.json) into `~/.claude/skills/magpie/`, then symlinks `bin/magpie` onto your PATH (preferring `/usr/local/bin`, falling back to `~/.local/bin`). Re-run any time to refresh the links.
+
+Once an agent-skills registry entry exists for `magpie`, the prompt half can also be installed via `bunx @iceinvein/agent-skills install magpie`, but the CLI still requires `./install.sh` (or an equivalent manual symlink) because the registry only ships SKILL.md.
 
 ## Use
 
@@ -41,7 +33,7 @@ Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads S
 
 ```
 bun install           # Installs @types/bun
-bun test              # Run all tests (62 tests, 19 files)
+bun test              # Run all tests (145 tests, 24 files)
 bun run lint          # Biome check
 bun run typecheck     # tsc --noEmit
 ```

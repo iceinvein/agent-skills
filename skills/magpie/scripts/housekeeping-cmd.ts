@@ -6,7 +6,7 @@ const ACTIVE_PATTERN = /^pr-\d+-\d+$/
 const ARCHIVED_PATTERN = /^pr-\d+-\d+\.archived-\d+$/
 
 export function reviewHome(): string {
-  return process.env.PYLON_REVIEW_HOME ?? join(homedir(), '.magpie')
+  return process.env.MAGPIE_HOME ?? join(homedir(), '.magpie')
 }
 
 export type RunInfo = { id: string; archived: boolean; path: string }

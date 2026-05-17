@@ -35,9 +35,9 @@ export function renderInstallHint(missing: string[]): string {
 
 export function defaultDeps(): Deps {
   return {
-    bun: process.env.PR_REVIEW_BUN_BIN || 'bun',
-    gh: process.env.PR_REVIEW_GH_BIN || 'gh',
-    codex: process.env.PR_REVIEW_CODEX_BIN || 'codex',
-    git: process.env.PR_REVIEW_GIT_BIN || 'git',
+    bun: process.env.MAGPIE_BUN_BIN || 'bun',
+    gh: process.env.MAGPIE_GH_BIN || 'gh',
+    codex: process.env.MAGPIE_CODEX_BIN || 'codex',
+    git: process.env.MAGPIE_GIT_BIN || 'git',
   }
 }

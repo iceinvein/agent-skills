@@ -359,7 +359,7 @@ function buildFallbackBody(f: ReviewFinding, reason: string): string {
 }
 
 export async function runPost(input: PostInput): Promise<PostOutcome> {
-  const ghBin = input.ghBin ?? process.env.PR_REVIEW_GH_BIN ?? 'gh'
+  const ghBin = input.ghBin ?? process.env.MAGPIE_GH_BIN ?? 'gh'
 
   // Read pr.json to learn the target PR/repo/head SHA.
   let prJson: Record<string, unknown>

@@ -10,6 +10,7 @@ Subcommands:
   cleanup <run-dir>          Remove worktree, stop server, archive run
   status <run-dir>           Print highest completed stage
   open [id]                  Open findings.html in your browser (defaults to latest run)
+  post <run-dir> --ids a,b   Post the given finding ids via gh (rich body + optional summary)
   --list-runs                List archived runs
   --cleanup-run <id>         Delete an archived run
   --help                     Show this message`
@@ -107,7 +108,7 @@ const HANDLERS: Record<string, Handler> = {
     return runCleanup({
       runDir,
       repoPath,
-      gitBin: process.env.PR_REVIEW_GIT_BIN || 'git',
+      gitBin: process.env.MAGPIE_GIT_BIN || 'git',
       killGraceMs,
     })
   },
@@ -128,6 +129,49 @@ const HANDLERS: Record<string, Handler> = {
     const idOrPath = positional[0]
     const { runOpen } = await import('../scripts/open-cmd.ts')
     return runOpen({ idOrPath, dryRun })
+  },
+  post: async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write(
+        'post: missing <run-dir> --ids <a,b,c> [--include-summary auto|always|never] [--dry-run]\n',
+      )
+      return 2
+    }
+    const idsFlag = args.indexOf('--ids')
+    const idsRaw = idsFlag !== -1 ? args[idsFlag + 1] : undefined
+    if (!idsRaw) {
+      process.stderr.write('post: missing --ids <a,b,c>\n')
+      return 2
+    }
+    const findingIds = idsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (findingIds.length === 0) {
+      process.stderr.write('post: --ids is empty\n')
+      return 2
+    }
+    const summaryFlag = args.indexOf('--include-summary')
+    const summaryRaw = summaryFlag !== -1 ? args[summaryFlag + 1] : undefined
+    const includeSummary =
+      summaryRaw === 'auto' || summaryRaw === 'always' || summaryRaw === 'never'
+        ? summaryRaw
+        : undefined
+    if (summaryRaw !== undefined && includeSummary === undefined) {
+      process.stderr.write(`post: invalid --include-summary ${summaryRaw}\n`)
+      return 2
+    }
+    const dryRun = args.includes('--dry-run')
+    const { runPost } = await import('../scripts/post-cmd.ts')
+    const outcome = await runPost({
+      runDir,
+      findingIds,
+      dryRun,
+      ...(includeSummary ? { includeSummary } : {}),
+    })
+    process.stdout.write(`${JSON.stringify(outcome)}\n`)
+    return outcome.ok ? 0 : 1
   },
   '--list-runs': async () => {
     const { listRuns } = await import('../scripts/housekeeping-cmd.ts')
