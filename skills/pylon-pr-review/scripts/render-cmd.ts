@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
 import { renderProgressToDisk } from './render-progress.ts'
 import { parseFinding } from './types.ts'
@@ -100,6 +100,6 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
   )
   const postStatus = await readJson<PostStatusMap>(join(runDir, 'post-status.json'), {})
   const outPath = await nextVersionedPath(screenDir, 'findings')
-  await renderFindingsToDisk({ findings, postStatus }, outPath)
+  await renderFindingsToDisk({ findings, postStatus, runId: basename(runDir) }, outPath)
   return 0
 }

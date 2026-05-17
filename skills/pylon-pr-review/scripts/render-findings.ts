@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import type { ReviewFinding, Severity } from './types.ts'
+import { basename } from 'node:path'
+import { type ReviewFinding, SEVERITIES, type Severity } from './types.ts'
 
 export type PostStatusEntry = 'posted' | { status: 'failed'; message: string }
 export type PostStatusMap = Record<string, PostStatusEntry>
@@ -7,6 +8,8 @@ export type PostStatusMap = Record<string, PostStatusEntry>
 export type RenderFindingsInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
+  /** Stable id used as the localStorage selection key. Defaults to "unknown" for tests. */
+  runId?: string
 }
 
 function escapeHtml(s: string): string {
@@ -29,13 +32,78 @@ function badge(status: PostStatusEntry | undefined): string {
 }
 
 function severityBreakdown(findings: ReviewFinding[]): string {
-  const order: Severity[] = ['blocker', 'high', 'medium', 'low']
   const counts: Record<Severity, number> = { blocker: 0, high: 0, medium: 0, low: 0 }
   for (const f of findings) counts[f.severity] += 1
-  return order
-    .filter((k) => counts[k] > 0)
+  return SEVERITIES.filter((k) => counts[k] > 0)
     .map((k) => `<span class="num">${counts[k]}</span>&nbsp;${k}`)
     .join(' &nbsp;·&nbsp; ')
+}
+
+function countBy<T extends string>(
+  findings: ReviewFinding[],
+  pick: (f: ReviewFinding) => T,
+): Map<T, number> {
+  const m = new Map<T, number>()
+  for (const f of findings) {
+    const k = pick(f)
+    m.set(k, (m.get(k) ?? 0) + 1)
+  }
+  return m
+}
+
+function filterChip(
+  group: 'sev' | 'domain',
+  value: string,
+  count: number,
+  label: string,
+  severity?: Severity,
+): string {
+  const sevAttr = severity ? ` data-severity="${severity}"` : ''
+  return `<button type="button" class="filter-chip" data-filter-group="${group}" data-filter-value="${escapeHtml(value)}"${sevAttr} aria-pressed="false">
+    <span class="filter-chip-label">${escapeHtml(label)}</span>
+    <span class="filter-chip-count">${count}</span>
+  </button>`
+}
+
+function filterBar(findings: ReviewFinding[]): string {
+  const sevCounts = countBy(findings, (f) => f.severity)
+  const domainCounts = countBy(findings, (f) => (f.domain as string) ?? 'unknown')
+  const sevChips = SEVERITIES.filter((s) => (sevCounts.get(s) ?? 0) > 0)
+    .map((s) => filterChip('sev', s, sevCounts.get(s) ?? 0, s, s))
+    .join('')
+  const domainChips = Array.from(domainCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([d, n]) => filterChip('domain', d, n, d))
+    .join('')
+
+  return `<section class="filter-bar" aria-label="filter and search">
+    <div class="search-row">
+      <label class="search-field">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          data-role="search"
+          placeholder="search title, file, or description"
+          aria-label="search findings"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <kbd class="search-hint">/</kbd>
+      </label>
+    </div>
+    <div class="chip-row" data-role="filter-row" data-group="sev">
+      <span class="chip-row-label">severity</span>
+      ${sevChips}
+    </div>
+    <div class="chip-row" data-role="filter-row" data-group="domain">
+      <span class="chip-row-label">domain</span>
+      ${domainChips}
+    </div>
+    <div class="filter-state">
+      <span data-role="filter-status">showing all <span class="num" data-role="visible-count">${findings.length}</span> of <span class="num">${findings.length}</span></span>
+      <button type="button" class="link-btn" data-action="clear-filters" hidden>clear filters</button>
+    </div>
+  </section>`
 }
 
 function findingCard(f: ReviewFinding, status: PostStatusEntry | undefined): string {
@@ -45,7 +113,11 @@ function findingCard(f: ReviewFinding, status: PostStatusEntry | undefined): str
     : ''
   const anchor = f.line != null ? `${escapeHtml(f.file)}:${f.line}` : escapeHtml(f.file)
   const domain = (f.domain as string) ?? 'unknown'
-  return `<article class="finding" id="finding-${escapeHtml(f.id)}">
+  return `<article class="finding" id="finding-${escapeHtml(f.id)}" tabindex="-1"
+  data-severity="${f.severity}"
+  data-domain="${escapeHtml(domain)}"
+  data-file="${escapeHtml(f.file)}"
+  data-search-text="${escapeHtml(`${f.title} ${f.description} ${f.file}`.toLowerCase())}">
   <header class="finding-head">
     <input type="checkbox" data-finding-id="${escapeHtml(f.id)}" ${checked} aria-label="select finding ${escapeHtml(f.id)}" />
     <span class="sev-chip sev-${f.severity}">${f.severity}</span>
@@ -60,8 +132,18 @@ function findingCard(f: ReviewFinding, status: PostStatusEntry | undefined): str
 
 const ARCHIVED_BANNER = `<div class="archived-banner" role="note"><strong>Archived view.</strong> The live server is gone; selections are read-only. Run <code>pr-review serve &lt;run-dir&gt;</code> to bring it back.</div>`
 
+const SHORTCUTS_HINT = `<aside class="kbd-hint" aria-label="keyboard shortcuts">
+  <kbd>j</kbd>/<kbd>k</kbd> navigate
+  <kbd>x</kbd> toggle
+  <kbd>a</kbd> all visible
+  <kbd>n</kbd> clear
+  <kbd>/</kbd> search
+  <kbd>Esc</kbd> reset
+</aside>`
+
 export function renderFindingsHtml(input: RenderFindingsInput): string {
   const { findings, postStatus } = input
+  const runId = input.runId ?? 'unknown'
 
   if (findings.length === 0) {
     return `<!DOCTYPE html>
@@ -72,7 +154,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
 <title>pr-review — no findings</title>
 <link rel="stylesheet" href="data:text/css;base64,STYLES_INLINE">
 </head>
-<body>
+<body data-run-id="${escapeHtml(runId)}">
 ${ARCHIVED_BANNER}
 <main class="page">
   <section class="empty-state">
@@ -96,7 +178,7 @@ ${ARCHIVED_BANNER}
 <title>pr-review — findings</title>
 <link rel="stylesheet" href="data:text/css;base64,STYLES_INLINE">
 </head>
-<body>
+<body data-run-id="${escapeHtml(runId)}">
 ${ARCHIVED_BANNER}
 <main class="page">
   <header class="page-header">
@@ -110,10 +192,22 @@ ${ARCHIVED_BANNER}
     <div class="breakdown">${breakdown}</div>
   </section>
 
-  ${cards}
+  ${filterBar(findings)}
+
+  <section class="findings-list" data-role="findings-list">
+    ${cards}
+    <div class="no-matches" data-role="no-matches" hidden>No findings match the current filters.</div>
+  </section>
+
+  ${SHORTCUTS_HINT}
 
   <div class="submit-bar">
     <span class="selected-count" data-role="selected-count"><span class="num">0</span> selected</span>
+    <div class="bulk-actions">
+      <button type="button" class="link-btn" data-action="select-visible">all visible</button>
+      <button type="button" class="link-btn" data-action="select-priority">blockers + highs</button>
+      <button type="button" class="link-btn" data-action="select-none">clear</button>
+    </div>
     <button class="submit-btn" data-action="submit" disabled>Post selected</button>
   </div>
 </main>
@@ -130,7 +224,10 @@ export async function renderFindingsToDisk(
   const helperPath = new URL('./helper.js', import.meta.url).pathname
   const css = await readFile(stylesPath, 'utf8')
   const helper = await readFile(helperPath, 'utf8')
-  const html = renderFindingsHtml(input)
+  // Derive runId from the screen output path when caller didn't supply one.
+  // out path is .../<runId>/screen/findings*.html — three segments up = runId.
+  const derived = basename(outPath.replace(/\/screen\/.+$/, ''))
+  const html = renderFindingsHtml({ ...input, runId: input.runId ?? derived })
     .replace(
       'data:text/css;base64,STYLES_INLINE',
       `data:text/css;base64,${Buffer.from(css).toString('base64')}`,

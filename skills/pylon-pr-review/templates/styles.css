@@ -266,9 +266,253 @@ h2 {
   display: flex;
   align-items: baseline;
   gap: 20px;
-  padding: 16px 0 24px;
+  padding: 16px 0 20px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 20px;
+  margin-bottom: 4px;
+}
+
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0 20px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 480px;
+}
+
+.search-field input[type="search"] {
+  width: 100%;
+  font: 14px/1.4 var(--font-sans);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 36px 8px 32px;
+  outline: none;
+  appearance: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.search-field input[type="search"]::placeholder {
+  color: var(--ink-faint);
+}
+
+.search-field input[type="search"]:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent), transparent 80%);
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  font: 16px/1 var(--font-sans);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+.search-hint {
+  position: absolute;
+  right: 8px;
+  font: 11px/1 var(--font-mono);
+  color: var(--ink-faint);
+  background: var(--card-inset);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.search-field input[type="search"]:focus-visible ~ .search-hint {
+  opacity: 0;
+}
+
+.chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-row-label {
+  font: 11px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin-right: 6px;
+  min-width: 64px;
+}
+
+.filter-chip {
+  font: 500 12px/1 var(--font-sans);
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.filter-chip:hover {
+  border-color: var(--ink-muted);
+  color: var(--ink);
+}
+
+.filter-chip-count {
+  font: 11px/1 var(--font-mono);
+  color: var(--ink-faint);
+  background: var(--card-inset);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+.filter-chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--ink-inverse);
+  border-color: var(--ink);
+}
+
+.filter-chip[aria-pressed="true"] .filter-chip-count {
+  background: color-mix(in oklch, var(--ink-inverse), transparent 80%);
+  color: var(--ink-inverse);
+}
+
+/* Severity-tinted active state: the chip carries its own sev color when pressed.
+   This lets a reviewer at a glance see which severities are gated in. */
+.filter-chip[data-severity="blocker"][aria-pressed="true"] {
+  background: var(--sev-blocker-bg);
+  color: var(--sev-blocker-ink);
+  border-color: var(--sev-blocker-bg);
+}
+
+.filter-chip[data-severity="high"][aria-pressed="true"] {
+  background: var(--sev-high-bg);
+  color: var(--sev-high-ink);
+  border-color: var(--sev-high-bg);
+}
+
+.filter-chip[data-severity="medium"][aria-pressed="true"] {
+  background: var(--sev-medium-bg);
+  color: var(--sev-medium-ink);
+  border-color: color-mix(in oklch, var(--sev-medium-bg), var(--ink) 12%);
+}
+
+.filter-chip[data-severity="low"][aria-pressed="true"] {
+  background: var(--sev-low-bg);
+  color: var(--sev-low-ink);
+  border-color: var(--line-strong);
+}
+
+.filter-state {
+  font: 12px/1.4 var(--font-mono);
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.filter-state .num {
+  color: var(--ink);
+}
+
+.link-btn {
+  font: 500 12px/1 var(--font-sans);
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.link-btn:hover {
+  color: var(--ink);
+  text-decoration-color: var(--ink);
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.no-matches {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.kbd-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 20px 0 0;
+  padding: 10px 14px;
+  font: 12px/1.6 var(--font-mono);
+  color: var(--ink-muted);
+  border-top: 1px dashed var(--line);
+}
+
+.kbd-hint kbd {
+  font: inherit;
+  background: var(--card-inset);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-right: 4px;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.bulk-actions .link-btn {
+  font-size: 12.5px;
+}
+
+.finding.is-hidden {
+  display: none;
+}
+
+.finding.is-focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Show keyboard-shortcut hint compactly on small viewports too. */
+@media (max-width: 720px) {
+  .chip-row-label {
+    min-width: 0;
+  }
+  .kbd-hint {
+    font-size: 11px;
+    gap: 10px;
+  }
 }
 
 .findings-summary .count {

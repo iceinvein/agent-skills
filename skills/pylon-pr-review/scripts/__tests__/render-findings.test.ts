@@ -99,3 +99,77 @@ test('submit button starts disabled (enabled by helper.js after first select)', 
   })
   expect(html).toMatch(/<button[^>]*data-action="submit"[^>]*disabled/)
 })
+
+test('renders a filter bar with severity and domain chips when findings exist', () => {
+  const html = renderFindingsHtml({
+    findings: [
+      f({ id: 'a', title: 't1', severity: 'high', domain: 'bugs' }),
+      f({ id: 'b', title: 't2', severity: 'high', domain: 'security' }),
+      f({ id: 'c', title: 't3', severity: 'low', domain: 'bugs' }),
+    ],
+    postStatus: {},
+  })
+  // The bar
+  expect(html).toContain('class="filter-bar"')
+  // Search input
+  expect(html).toMatch(/<input[^>]+type="search"[^>]+data-role="search"/)
+  // Severity chips with counts
+  expect(html).toMatch(/data-filter-group="sev"[^>]+data-filter-value="high"/)
+  expect(html).toMatch(/data-filter-group="sev"[^>]+data-filter-value="low"/)
+  // Domain chips
+  expect(html).toMatch(/data-filter-group="domain"[^>]+data-filter-value="bugs"/)
+  expect(html).toMatch(/data-filter-group="domain"[^>]+data-filter-value="security"/)
+  // Each chip carries its current count
+  expect(html).toMatch(/<span class="filter-chip-count">2<\/span>/) // high count
+  expect(html).toMatch(/<span class="filter-chip-count">1<\/span>/) // low count
+})
+
+test('exposes bulk select actions and a keyboard-shortcut hint', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/data-action="select-visible"/)
+  expect(html).toMatch(/data-action="select-priority"/)
+  expect(html).toMatch(/data-action="select-none"/)
+  expect(html).toContain('class="kbd-hint"')
+  expect(html).toContain('<kbd>j</kbd>')
+  expect(html).toContain('<kbd>/</kbd>')
+})
+
+test('threads runId into a data-run-id attribute on body', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+    runId: 'pr-42-1700000000',
+  })
+  expect(html).toMatch(/<body[^>]+data-run-id="pr-42-1700000000"/)
+})
+
+test('each finding card carries severity/domain/file/search-text data attrs for client-side filtering', () => {
+  const html = renderFindingsHtml({
+    findings: [
+      f({
+        id: 'a',
+        title: 'race in handler',
+        severity: 'high',
+        domain: 'bugs',
+        file: 'src/main.ts',
+        description: 'fire-and-forget promise',
+      }),
+    ],
+    postStatus: {},
+  })
+  expect(html).toMatch(/data-severity="high"/)
+  expect(html).toMatch(/data-domain="bugs"/)
+  expect(html).toMatch(/data-file="src\/main\.ts"/)
+  expect(html).toMatch(/data-search-text="[^"]*race in handler[^"]*fire-and-forget promise/)
+})
+
+test('renders a no-matches placeholder for the client-side filter to reveal', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/data-role="no-matches"[^>]+hidden/)
+})
