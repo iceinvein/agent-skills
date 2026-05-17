@@ -72,6 +72,7 @@ export function renderProgressHtml(input: RenderProgressInput): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
 <title>pr-review #${input.prNumber}</title>
 <link rel="stylesheet" href="data:text/css;base64,STYLES_INLINE">
 </head>
