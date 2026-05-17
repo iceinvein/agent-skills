@@ -184,7 +184,7 @@ ${ARCHIVED_BANNER}
   <header class="page-header">
     <p class="eyebrow">pr-review · findings</p>
     <h1>Review</h1>
-    <p class="lede">Select what to post, then reply <code>post</code> in the terminal.</p>
+    <p class="lede">Pick what's worth posting, queue it with the button, then reply <code>post</code> in the terminal. The agent runs <code>gh</code> for you.</p>
   </header>
 
   <section class="findings-summary" aria-label="summary">
@@ -208,8 +208,9 @@ ${ARCHIVED_BANNER}
       <button type="button" class="link-btn" data-action="select-priority">blockers + highs</button>
       <button type="button" class="link-btn" data-action="select-none">clear</button>
     </div>
-    <button class="submit-btn" data-action="submit" disabled>Post selected</button>
+    <button class="submit-btn" data-action="submit" disabled>Queue for posting</button>
   </div>
+  <p class="submit-status" data-role="submit-status" role="status" aria-live="polite" hidden></p>
 </main>
 <script>HELPER_INLINE</script>
 </body>

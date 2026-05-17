@@ -166,6 +166,33 @@ test('each finding card carries severity/domain/file/search-text data attrs for 
   expect(html).toMatch(/data-search-text="[^"]*race in handler[^"]*fire-and-forget promise/)
 })
 
+test('submit button label conveys queue-then-confirm semantics, not direct posting', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  // The button doesn't post directly; it queues an event for the terminal agent.
+  expect(html).toMatch(/<button[^>]*data-action="submit"[^>]*>Queue for posting<\/button>/)
+})
+
+test('lede instructs the user to reply `post` in the terminal', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/<code>post<\/code> in the terminal/)
+})
+
+test('renders a polite submit-status region for transient queue/error feedback', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(
+    /<p\s+class="submit-status"\s+data-role="submit-status"\s+role="status"\s+aria-live="polite"\s+hidden>/,
+  )
+})
+
 test('renders a no-matches placeholder for the client-side filter to reveal', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'x' })],

@@ -55,6 +55,20 @@
     }).catch(() => {})
   }
 
+  let statusTimer = null
+
+  function showStatus(message, tone) {
+    const el = document.querySelector('[data-role="submit-status"]')
+    if (!(el instanceof HTMLElement)) return
+    el.textContent = message
+    el.hidden = false
+    el.dataset.tone = tone || 'info'
+    if (statusTimer) clearTimeout(statusTimer)
+    statusTimer = setTimeout(() => {
+      el.hidden = true
+    }, 7000)
+  }
+
   function recountSelected() {
     const checked = allCheckboxes().filter((el) => el.checked)
     const n = checked.length
@@ -244,7 +258,23 @@
           const checked = allCheckboxes()
             .filter((el) => el.checked)
             .map((el) => el.dataset.findingId)
+          if (checked.length === 0) {
+            showStatus('Nothing selected yet. Tick a finding or use `all visible`.', 'info')
+            break
+          }
+          if (!isLive) {
+            showStatus(
+              `Cannot queue from an archived view. Run \`pr-review serve ${runId()}\` to make this live.`,
+              'warn',
+            )
+            break
+          }
           post({ type: 'submit', findingIds: checked, timestamp: Date.now() })
+          const noun = checked.length === 1 ? 'finding' : 'findings'
+          showStatus(
+            `Queued ${checked.length} ${noun}. Reply \`post\` in your terminal to post to the PR.`,
+            'ok',
+          )
           break
         }
         case 'select-visible':

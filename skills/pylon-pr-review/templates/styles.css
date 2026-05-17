@@ -495,6 +495,46 @@ h2 {
   font-size: 12.5px;
 }
 
+.submit-status {
+  position: sticky;
+  bottom: 0;
+  margin: 0;
+  padding: 0 0 14px;
+  font: 12.5px/1.5 var(--font-mono);
+  color: var(--ink-muted);
+  background: var(--surface);
+  letter-spacing: 0.01em;
+  animation: status-in 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.submit-status[data-tone="ok"] {
+  color: var(--ink);
+}
+
+.submit-status[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+
+.submit-status code {
+  font: inherit;
+  background: var(--card-inset);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+@keyframes status-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .finding.is-hidden {
   display: none;
 }
