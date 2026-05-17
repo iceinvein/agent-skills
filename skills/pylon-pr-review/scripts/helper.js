@@ -176,13 +176,16 @@
   }
 
   function recountSelected() {
-    const checked = allCheckboxes().filter((el) => el.checked)
-    const n = checked.length
+    // Posted findings are checked+disabled; they're permanent state, not an
+    // active selection. Exclude them so "clear" actually clears, the counter
+    // reflects only what's actionable, and localStorage doesn't pin them.
+    const activelyChecked = allCheckboxes().filter((el) => el.checked && !el.disabled)
+    const n = activelyChecked.length
     const node = document.querySelector('[data-role="selected-count"] .num')
     if (node) node.textContent = String(n)
     const btn = document.querySelector('[data-action="post"]')
     if (btn instanceof HTMLButtonElement) btn.disabled = n === 0
-    writePersistedSelection(checked.map((el) => el.dataset.findingId))
+    writePersistedSelection(activelyChecked.map((el) => el.dataset.findingId))
   }
 
   function restoreSelection() {

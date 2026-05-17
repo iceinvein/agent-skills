@@ -140,6 +140,57 @@ test('runPost surfaces gh failure per finding (here: gh binary missing)', async 
   expect((status['sec-1'] as { status: string }).status).toBe('failed')
 })
 
+test('runPost falls back to a top-level PR comment when GitHub rejects the inline line (422)', async () => {
+  await seedRunDir()
+  // Build a tiny fake `gh` that fails 422 on the inline POST and succeeds on
+  // the fallback `gh pr comment`.
+  const fakeGh = join(runDir, 'fake-gh.sh')
+  await writeFile(
+    fakeGh,
+    [
+      '#!/usr/bin/env bash',
+      '# args: "api repos/.../comments -X POST ..." -> fail 422',
+      '# args: "pr comment 42 --repo ... --body ..." -> succeed',
+      'if [[ "$1" == "api" ]]; then',
+      '  >&2 echo "gh: HTTP 422: pull_request_review_thread.line is not part of the diff"',
+      '  exit 1',
+      'elif [[ "$1" == "pr" && "$2" == "comment" ]]; then',
+      '  echo "https://github.com/iceinvein/pylon/pull/42#issuecomment-stub"',
+      '  exit 0',
+      'fi',
+      'exit 2',
+    ].join('\n'),
+  )
+  await Bun.spawn(['chmod', '+x', fakeGh]).exited
+
+  const outcome = await runPost({ runDir, findingIds: ['sec-1'], ghBin: fakeGh })
+  expect(outcome.ok).toBe(true)
+  expect(outcome.results[0]?.status).toBe('posted')
+  expect(outcome.results[0]?.message).toMatch(/posted as PR comment/i)
+  const status = JSON.parse(await readFile(join(runDir, 'post-status.json'), 'utf8'))
+  expect(status['sec-1']).toBe('posted')
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  expect(log).toContain('"status":"fallback-ok"')
+})
+
+test('runPost reports a combined failure when both inline and fallback gh calls fail', async () => {
+  await seedRunDir()
+  const fakeGh = join(runDir, 'fake-gh-doublefail.sh')
+  await writeFile(
+    fakeGh,
+    [
+      '#!/usr/bin/env bash',
+      'if [[ "$1" == "api" ]]; then >&2 echo "gh: HTTP 422 bad line"; exit 1; fi',
+      'if [[ "$1" == "pr" ]]; then >&2 echo "gh: HTTP 404 repo not found"; exit 1; fi',
+      'exit 2',
+    ].join('\n'),
+  )
+  await Bun.spawn(['chmod', '+x', fakeGh]).exited
+  const outcome = await runPost({ runDir, findingIds: ['sec-1'], ghBin: fakeGh })
+  expect(outcome.results[0]?.status).toBe('failed')
+  expect(outcome.results[0]?.message).toMatch(/inline.*fallback also failed/i)
+})
+
 test('runPost appends post stage events to log.jsonl', async () => {
   await seedRunDir()
   await runPost({ runDir, findingIds: ['sec-1', 'bug-1'], dryRun: true })

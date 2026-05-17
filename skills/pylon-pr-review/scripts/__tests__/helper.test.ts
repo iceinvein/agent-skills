@@ -44,6 +44,14 @@ test('confirm-post captures pending ids before closeConfirm clears them', async 
   expect(block).toMatch(/performPost\(\s*ids\s*\)/)
 })
 
+test('recountSelected ignores disabled checkboxes (posted findings)', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  // Posted findings get checked+disabled; they must not count as an active
+  // selection, otherwise "clear" cannot clear them and the counter stays
+  // pinned at the post-status total.
+  expect(src).toMatch(/allCheckboxes\(\)\.filter\(\(el\)\s*=>\s*el\.checked\s*&&\s*!el\.disabled\)/)
+})
+
 test('helper.js sends periodic heartbeats', async () => {
   const src = await readFile(HELPER, 'utf8')
   expect(src).toContain("fetch('/heartbeat'")

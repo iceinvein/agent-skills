@@ -80,34 +80,45 @@ async function runGh(
   }
 }
 
-function buildCommand(
+function buildInlineCommand(
   repo: string,
   prNumber: number,
   headSha: string,
   f: ReviewFinding,
   body: string,
 ): string[] {
-  if (f.line != null) {
-    // Inline review comment on the PR.
-    return [
-      'api',
-      `repos/${repo}/pulls/${prNumber}/comments`,
-      '-X',
-      'POST',
-      '-F',
-      `body=${body}`,
-      '-F',
-      `commit_id=${headSha}`,
-      '-F',
-      `path=${f.file}`,
-      '-F',
-      `line=${f.line}`,
-      '-F',
-      'side=RIGHT',
-    ]
-  }
-  // Top-level PR comment (no anchor).
+  return [
+    'api',
+    `repos/${repo}/pulls/${prNumber}/comments`,
+    '-X',
+    'POST',
+    '-F',
+    `body=${body}`,
+    '-F',
+    `commit_id=${headSha}`,
+    '-F',
+    `path=${f.file}`,
+    '-F',
+    `line=${f.line}`,
+    '-F',
+    'side=RIGHT',
+  ]
+}
+
+function buildPrCommentCommand(repo: string, prNumber: number, body: string): string[] {
   return ['pr', 'comment', String(prNumber), '--repo', repo, '--body', body]
+}
+
+function isLineNotInDiff(stderr: string): boolean {
+  // GitHub returns HTTP 422 when the inline-comment line isn't part of the
+  // PR diff (or the commit_id shifted). gh prints something like
+  // "gh: ... (HTTP 422)" with the GitHub error body.
+  return /\b422\b|Unprocessable|pull_request_review_thread|not part of the diff/i.test(stderr)
+}
+
+function buildFallbackBody(f: ReviewFinding, originalBody: string, reason: string): string {
+  const anchor = f.line != null ? `${f.file}:${f.line}` : f.file
+  return `> Note: ${anchor} is not commentable inline (${reason}); posted as a PR comment.\n\n${originalBody}`
 }
 
 export async function runPost(input: PostInput): Promise<PostOutcome> {
@@ -170,26 +181,60 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
     }
 
     const body = formatPostBody(f)
-    const cmd = buildCommand(repo, prNumber, headSha, f, body)
+    const inlineCmd =
+      f.line != null
+        ? buildInlineCommand(repo, prNumber, headSha, f, body)
+        : buildPrCommentCommand(repo, prNumber, body)
 
     if (input.dryRun) {
-      results.push({ id, status: 'posted', command: cmd })
+      results.push({ id, status: 'posted', command: inlineCmd })
       status[id] = 'posted'
-      await logEvent(input.runDir, { stage: 'post', status: 'dry-run', id, command: cmd })
+      await logEvent(input.runDir, { stage: 'post', status: 'dry-run', id, command: inlineCmd })
       continue
     }
 
-    const r = await runGh(ghBin, cmd)
-    if (r.exit !== 0) {
-      const msg = r.stderr.trim() || `gh exited ${r.exit}`
-      results.push({ id, status: 'failed', message: msg })
-      status[id] = { status: 'failed', message: msg }
-      await logEvent(input.runDir, { stage: 'post', status: 'failed', id, error: msg })
-    } else {
+    const r = await runGh(ghBin, inlineCmd)
+    if (r.exit === 0) {
       results.push({ id, status: 'posted' })
       status[id] = 'posted'
       await logEvent(input.runDir, { stage: 'post', status: 'ok', id })
+      continue
     }
+
+    // Inline post failed. If GitHub rejected the line (422 / not in diff),
+    // retry as a top-level PR comment with the anchor preserved in the body.
+    // The user still gets the feedback; just at the conversation level.
+    if (f.line != null && isLineNotInDiff(r.stderr)) {
+      const reason = 'line not in PR diff'
+      const fallbackBody = buildFallbackBody(f, body, reason)
+      const fallbackCmd = buildPrCommentCommand(repo, prNumber, fallbackBody)
+      const r2 = await runGh(ghBin, fallbackCmd)
+      if (r2.exit === 0) {
+        results.push({
+          id,
+          status: 'posted',
+          message: `posted as PR comment (${reason})`,
+        })
+        status[id] = 'posted'
+        await logEvent(input.runDir, {
+          stage: 'post',
+          status: 'fallback-ok',
+          id,
+          reason,
+        })
+        continue
+      }
+      const msg = `inline failed: ${r.stderr.trim() || `exit ${r.exit}`}; fallback also failed: ${r2.stderr.trim() || `exit ${r2.exit}`}`
+      results.push({ id, status: 'failed', message: msg })
+      status[id] = { status: 'failed', message: msg }
+      await logEvent(input.runDir, { stage: 'post', status: 'failed', id, error: msg })
+      continue
+    }
+
+    const msg = r.stderr.trim() || `gh exited ${r.exit}`
+    results.push({ id, status: 'failed', message: msg })
+    status[id] = { status: 'failed', message: msg }
+    await logEvent(input.runDir, { stage: 'post', status: 'failed', id, error: msg })
   }
 
   await writePostStatus(input.runDir, status)
