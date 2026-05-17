@@ -62,6 +62,10 @@ const HANDLERS: Record<string, Handler> = {
         return 2
       }
     }
+    // Auto-refresh: re-render findings.html with the currently-shipped CSS/JS
+    // so serving an old archive picks up new report features. Best-effort.
+    const { refreshFindings } = await import('../scripts/refresh.ts')
+    await refreshFindings(runDir).catch(() => {})
     const { runServe } = await import('../scripts/serve-cmd.ts')
     return runServe({ runDir, idleMs, host })
   },

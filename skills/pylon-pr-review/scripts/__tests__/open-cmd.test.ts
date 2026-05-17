@@ -96,6 +96,42 @@ test('returns non-zero when run id missing', async () => {
   expect(errs.join('')).toContain('not found')
 })
 
+test('runOpen auto-refreshes findings.html when findings.final.json is present', async () => {
+  // Set up a run dir with a *stale* findings.html and a fresh findings.final.json.
+  const runPath = join(home, 'pr-1-1000')
+  await mkdir(join(runPath, 'screen'), { recursive: true })
+  await writeFile(join(runPath, 'screen', 'findings.html'), '<html>STALE</html>')
+  await writeFile(join(runPath, 'screen', 'findings-v2.html'), '<html>STALE2</html>')
+  await writeFile(
+    join(runPath, 'findings.final.json'),
+    JSON.stringify([
+      {
+        id: 'a',
+        file: 'src/x.ts',
+        line: 1,
+        severity: 'high',
+        risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+        title: 'fresh title',
+        description: 'd',
+        domain: 'bugs',
+      },
+    ]),
+  )
+
+  const code = await runOpen({ home, dryRun: true, opener: 'fakeopen' })
+  expect(code).toBe(0)
+
+  // The stale files are gone; a fresh findings.html exists.
+  const entries = await (await import('node:fs/promises')).readdir(join(runPath, 'screen'))
+  expect(entries).toEqual(['findings.html'])
+  const fresh = await (await import('node:fs/promises')).readFile(
+    join(runPath, 'screen', 'findings.html'),
+    'utf8',
+  )
+  expect(fresh).not.toContain('STALE')
+  expect(fresh).toContain('fresh title')
+})
+
 test('returns 2 when run dir has no screen output', async () => {
   await mkdir(join(home, 'pr-1-1000', 'screen'), { recursive: true })
   const errs: string[] = []

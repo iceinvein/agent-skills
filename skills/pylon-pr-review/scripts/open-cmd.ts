@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { refreshFindings } from './refresh.ts'
 import { resolveRunDir } from './resolve-run.ts'
 
 export type OpenInput = {
@@ -34,6 +35,11 @@ export async function runOpen(input: OpenInput): Promise<number> {
     process.stderr.write(`open: ${err instanceof Error ? err.message : String(err)}\n`)
     return 1
   }
+
+  // Re-render findings.html from findings.final.json with the currently-shipped
+  // CSS/JS so old archives pick up new report features automatically. Best-effort:
+  // an early-stage run without findings.final.json simply no-ops.
+  await refreshFindings(resolved.path).catch(() => {})
 
   const target = await firstExisting([
     join(resolved.path, 'screen', 'findings.html'),
