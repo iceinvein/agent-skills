@@ -137,10 +137,12 @@
     }
   }
 
-  async function performPost() {
-    if (pendingPostIds.length === 0) return
-    const ids = pendingPostIds.slice()
+  async function performPost(idsArg) {
+    // Accept ids explicitly (preferred) but fall back to the global queue
+    // for any legacy caller.
+    const ids = Array.isArray(idsArg) && idsArg.length > 0 ? idsArg.slice() : pendingPostIds.slice()
     pendingPostIds = []
+    if (ids.length === 0) return
     showStatus(`Posting ${ids.length}...`, 'info', /*sticky*/ true)
     let response
     try {
@@ -389,10 +391,13 @@
         case 'cancel-post':
           closeConfirm()
           break
-        case 'confirm-post':
+        case 'confirm-post': {
+          // Capture ids BEFORE closeConfirm wipes the queue, then post.
+          const ids = pendingPostIds.slice()
           closeConfirm()
-          performPost()
+          performPost(ids)
           break
+        }
         case 'select-visible':
           selectMany((card) => !card.classList.contains('is-hidden'))
           break

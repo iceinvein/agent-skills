@@ -23,6 +23,27 @@ test('helper.js wires the /post endpoint with a confirm flow', async () => {
   expect(src).toContain('confirm-post')
 })
 
+test('confirm-post captures pending ids before closeConfirm clears them', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  // The slice() must happen before closeConfirm() and the slice must be
+  // what gets passed to performPost(). Regression for a bug where these
+  // two calls ran in the wrong order and performPost saw an empty queue.
+  const confirmIdx = src.indexOf("'confirm-post'")
+  expect(confirmIdx).toBeGreaterThan(-1)
+  // Inspect the lines following the case label.
+  const block = src.slice(confirmIdx, confirmIdx + 400)
+  const sliceIdx = block.indexOf('pendingPostIds.slice()')
+  const closeIdx = block.indexOf('closeConfirm()')
+  const performIdx = block.indexOf('performPost(')
+  expect(sliceIdx).toBeGreaterThan(-1)
+  expect(closeIdx).toBeGreaterThan(-1)
+  expect(performIdx).toBeGreaterThan(-1)
+  expect(sliceIdx).toBeLessThan(closeIdx)
+  expect(closeIdx).toBeLessThan(performIdx)
+  // performPost must be called with an argument (ids), not bare.
+  expect(block).toMatch(/performPost\(\s*ids\s*\)/)
+})
+
 test('helper.js sends periodic heartbeats', async () => {
   const src = await readFile(HELPER, 'utf8')
   expect(src).toContain("fetch('/heartbeat'")
