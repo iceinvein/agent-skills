@@ -1,5 +1,9 @@
 #!/usr/bin/env bun
 
+import pkg from '../package.json' with { type: 'json' }
+
+const VERSION = (pkg as { version: string }).version
+
 const USAGE = `Usage: magpie <subcommand> [args]
 
 Subcommands:
@@ -13,6 +17,7 @@ Subcommands:
   post <run-dir> --ids a,b   Post the given finding ids via gh (rich body + optional summary)
   --list-runs                List archived runs
   --cleanup-run <id>         Delete an archived run
+  --version                  Print the magpie version
   --help                     Show this message`
 
 type Handler = (args: string[]) => Promise<number> | number
@@ -196,6 +201,10 @@ async function main(argv: string[]): Promise<number> {
   const [sub, ...rest] = argv
   if (sub === '--help' || sub === '-h') {
     process.stdout.write(`${USAGE}\n`)
+    return 0
+  }
+  if (sub === '--version' || sub === '-V') {
+    process.stdout.write(`magpie ${VERSION}\n`)
     return 0
   }
   if (!sub) {

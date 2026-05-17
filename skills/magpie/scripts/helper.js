@@ -157,7 +157,7 @@
         return
       }
     } catch (err) {
-      showStatus(`Post failed: ${(err && err.message) || err}`, 'warn', true)
+      showStatus(`Post failed: ${err?.message || err}`, 'warn', true)
       return
     }
     let ok = 0

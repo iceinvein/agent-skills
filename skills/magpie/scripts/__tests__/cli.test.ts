@@ -23,6 +23,22 @@ test('no subcommand exits non-zero with usage', async () => {
   expect(stderr).toContain('Usage: magpie <subcommand>')
 })
 
+test('--version prints "magpie <semver>" and exits 0', async () => {
+  const proc = Bun.spawn(['bun', CLI, '--version'], { stdout: 'pipe' })
+  const exit = await proc.exited
+  const stdout = await new Response(proc.stdout).text()
+  expect(exit).toBe(0)
+  expect(stdout.trim()).toMatch(/^magpie \d+\.\d+\.\d+$/)
+})
+
+test('-V is an alias for --version', async () => {
+  const proc = Bun.spawn(['bun', CLI, '-V'], { stdout: 'pipe' })
+  const exit = await proc.exited
+  const stdout = await new Response(proc.stdout).text()
+  expect(exit).toBe(0)
+  expect(stdout.trim()).toMatch(/^magpie \d+\.\d+\.\d+$/)
+})
+
 test('--help prints usage and exits 0', async () => {
   const proc = Bun.spawn(['bun', CLI, '--help'], { stdout: 'pipe' })
   const exit = await proc.exited
