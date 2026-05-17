@@ -27,7 +27,7 @@ test('empty findings renders an explicit empty state', () => {
   expect(html).toContain('No findings')
 })
 
-test('renders one finding with severity chip and submit button', () => {
+test('renders one finding with severity chip and post button', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'null deref', severity: 'high' })],
     postStatus: {},
@@ -35,7 +35,7 @@ test('renders one finding with severity chip and submit button', () => {
   expect(html).toContain('null deref')
   expect(html).toContain('sev-high')
   expect(html).toContain('data-finding-id="a"')
-  expect(html).toContain('data-action="submit"')
+  expect(html).toContain('data-action="post"')
 })
 
 test('shows posted badge when present in postStatus', () => {
@@ -92,12 +92,12 @@ test('renders a severity-breakdown summary line', () => {
   expect(html).toContain('1</span>&nbsp;low')
 })
 
-test('submit button starts disabled (enabled by helper.js after first select)', () => {
+test('post button starts disabled (enabled by helper.js after first select)', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'x' })],
     postStatus: {},
   })
-  expect(html).toMatch(/<button[^>]*data-action="submit"[^>]*disabled/)
+  expect(html).toMatch(/<button[^>]*data-action="post"[^>]*disabled/)
 })
 
 test('renders a filter bar with severity and domain chips when findings exist', () => {
@@ -166,21 +166,31 @@ test('each finding card carries severity/domain/file/search-text data attrs for 
   expect(html).toMatch(/data-search-text="[^"]*race in handler[^"]*fire-and-forget promise/)
 })
 
-test('submit button label conveys queue-then-confirm semantics, not direct posting', () => {
+test('post button label is "Post to PR" and triggers the confirm flow', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'x' })],
     postStatus: {},
   })
-  // The button doesn't post directly; it queues an event for the terminal agent.
-  expect(html).toMatch(/<button[^>]*data-action="submit"[^>]*>Queue for posting<\/button>/)
+  expect(html).toMatch(/<button[^>]*data-action="post"[^>]*>Post to PR<\/button>/)
 })
 
-test('lede instructs the user to reply `post` in the terminal', () => {
+test('renders the inline confirm bar (hidden until user clicks Post to PR)', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'x' })],
     postStatus: {},
   })
-  expect(html).toMatch(/<code>post<\/code> in the terminal/)
+  expect(html).toContain('class="confirm-bar"')
+  expect(html).toContain('data-action="cancel-post"')
+  expect(html).toContain('data-action="confirm-post"')
+})
+
+test('lede explains the server-side post flow (not the terminal reply)', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/Post to PR/)
+  expect(html).toMatch(/<code>gh<\/code>/)
 })
 
 test('renders a polite submit-status region for transient queue/error feedback', () => {

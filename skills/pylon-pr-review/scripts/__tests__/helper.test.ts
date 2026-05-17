@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 
 const HELPER = new URL('../helper.js', import.meta.url).pathname
 
-test('helper.js posts to /events on change and click events', async () => {
+test('helper.js wires change + click + select/deselect events for the /events queue', async () => {
   const src = await readFile(HELPER, 'utf8')
   expect(src).toContain('addEventListener')
   expect(src).toContain("addEventListener('change'")
@@ -11,7 +11,16 @@ test('helper.js posts to /events on change and click events', async () => {
   expect(src).toContain("fetch('/events'")
   expect(src).toContain("'select'")
   expect(src).toContain("'deselect'")
-  expect(src).toContain("type: 'submit'")
+})
+
+test('helper.js wires the /post endpoint with a confirm flow', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain("fetch('/post'")
+  expect(src).toContain('openConfirm')
+  expect(src).toContain('performPost')
+  // Confirm bar action keys
+  expect(src).toContain('cancel-post')
+  expect(src).toContain('confirm-post')
 })
 
 test('helper.js sends periodic heartbeats', async () => {

@@ -67,6 +67,32 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
       if (req.method === 'POST' && url.pathname === '/heartbeat') {
         return new Response('ok')
       }
+      if (req.method === 'POST' && url.pathname === '/post') {
+        try {
+          const body = (await req.json()) as { findingIds?: unknown; dryRun?: unknown }
+          if (!Array.isArray(body?.findingIds) || body.findingIds.length === 0) {
+            return Response.json(
+              { ok: false, error: 'body.findingIds must be a non-empty array of strings' },
+              { status: 400 },
+            )
+          }
+          const ids = body.findingIds.filter((x): x is string => typeof x === 'string')
+          if (ids.length === 0) {
+            return Response.json(
+              { ok: false, error: 'no string ids in body.findingIds' },
+              { status: 400 },
+            )
+          }
+          const { runPost } = await import('./post-cmd.ts')
+          const outcome = await runPost({ runDir, findingIds: ids, dryRun: body.dryRun === true })
+          return Response.json(outcome, { status: outcome.ok ? 200 : 500 })
+        } catch (err) {
+          return Response.json(
+            { ok: false, error: (err as Error).message ?? String(err) },
+            { status: 400 },
+          )
+        }
+      }
       if (req.method === 'GET' && url.pathname === '/helper.js') {
         const src = await readFile(HELPER_PATH, 'utf8')
         return new Response(src, { headers: { 'Content-Type': 'application/javascript' } })

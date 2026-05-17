@@ -56,17 +56,116 @@
   }
 
   let statusTimer = null
+  let pendingPostIds = []
 
-  function showStatus(message, tone) {
+  function showStatus(message, tone, sticky) {
     const el = document.querySelector('[data-role="submit-status"]')
     if (!(el instanceof HTMLElement)) return
     el.textContent = message
     el.hidden = false
     el.dataset.tone = tone || 'info'
-    if (statusTimer) clearTimeout(statusTimer)
-    statusTimer = setTimeout(() => {
-      el.hidden = true
-    }, 7000)
+    if (statusTimer) {
+      clearTimeout(statusTimer)
+      statusTimer = null
+    }
+    if (!sticky) {
+      statusTimer = setTimeout(() => {
+        el.hidden = true
+      }, 7000)
+    }
+  }
+
+  function targetLabel() {
+    // Best-effort: derive from runId or fall back to "the PR".
+    const id = runId()
+    const m = id.match(/^pr-(\d+)-/)
+    return m ? `PR #${m[1]}` : 'the PR'
+  }
+
+  function openConfirm(ids) {
+    pendingPostIds = ids
+    const bar = document.querySelector('[data-role="confirm-bar"]')
+    const text = document.querySelector('[data-role="confirm-text"]')
+    const submit = document.querySelector('[data-action="post"]')
+    if (!(bar instanceof HTMLElement) || !(text instanceof HTMLElement)) return
+    const noun = ids.length === 1 ? 'comment' : 'comments'
+    text.textContent = `Post ${ids.length} ${noun} to ${targetLabel()}? Visible to the author.`
+    bar.hidden = false
+    if (submit instanceof HTMLButtonElement) submit.disabled = true
+  }
+
+  function closeConfirm() {
+    const bar = document.querySelector('[data-role="confirm-bar"]')
+    if (bar instanceof HTMLElement) bar.hidden = true
+    pendingPostIds = []
+    recountSelected() // re-enables the submit button if any selections remain
+  }
+
+  function badgeHtml(result) {
+    if (result.status === 'posted') return '<span class="badge posted">posted</span>'
+    if (result.status === 'already-posted')
+      return '<span class="badge posted">already posted</span>'
+    if (result.status === 'unknown-id')
+      return '<span class="badge failed">failed: unknown id</span>'
+    const msg = result.message || 'gh failed'
+    const span = document.createElement('span')
+    span.className = 'badge failed'
+    span.textContent = `failed: ${msg}`
+    return span.outerHTML
+  }
+
+  function applyResult(result) {
+    const card = document.getElementById(`finding-${result.id}`)
+    if (!(card instanceof HTMLElement)) return
+    const head = card.querySelector('.finding-head')
+    if (!head) return
+    // Remove any pre-existing badge in this head.
+    const existing = head.querySelector('.badge')
+    if (existing) existing.remove()
+    head.insertAdjacentHTML('beforeend', badgeHtml(result))
+    if (result.status === 'posted' || result.status === 'already-posted') {
+      const cb = card.querySelector('input[type="checkbox"][data-finding-id]')
+      if (cb instanceof HTMLInputElement) {
+        cb.checked = true
+        cb.disabled = true
+      }
+    }
+  }
+
+  async function performPost() {
+    if (pendingPostIds.length === 0) return
+    const ids = pendingPostIds.slice()
+    pendingPostIds = []
+    showStatus(`Posting ${ids.length}...`, 'info', /*sticky*/ true)
+    let response
+    try {
+      const r = await fetch('/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ findingIds: ids }),
+      })
+      response = await r.json()
+      if (!r.ok && !response.results) {
+        showStatus(`Post failed: ${response.error || `HTTP ${r.status}`}`, 'warn', /*sticky*/ true)
+        return
+      }
+    } catch (err) {
+      showStatus(`Post failed: ${(err && err.message) || err}`, 'warn', true)
+      return
+    }
+    let ok = 0
+    let failed = 0
+    for (const result of response.results || []) {
+      applyResult(result)
+      if (result.status === 'posted' || result.status === 'already-posted') ok++
+      else failed++
+    }
+    if (failed === 0) {
+      showStatus(`Posted ${ok}. Done.`, 'ok')
+    } else {
+      showStatus(`Posted ${ok}, failed ${failed}. See per-finding badges.`, 'warn', true)
+    }
+    recountSelected()
   }
 
   function recountSelected() {
@@ -74,7 +173,7 @@
     const n = checked.length
     const node = document.querySelector('[data-role="selected-count"] .num')
     if (node) node.textContent = String(n)
-    const btn = document.querySelector('[data-action="submit"]')
+    const btn = document.querySelector('[data-action="post"]')
     if (btn instanceof HTMLButtonElement) btn.disabled = n === 0
     writePersistedSelection(checked.map((el) => el.dataset.findingId))
   }
@@ -254,7 +353,7 @@
       const action = target.closest('[data-action]')
       if (!(action instanceof HTMLElement)) return
       switch (action.dataset.action) {
-        case 'submit': {
+        case 'post': {
           const checked = allCheckboxes()
             .filter((el) => el.checked)
             .map((el) => el.dataset.findingId)
@@ -264,19 +363,21 @@
           }
           if (!isLive) {
             showStatus(
-              `Cannot queue from an archived view. Run \`pr-review serve ${runId()}\` to make this live.`,
+              `Cannot post from an archived view. Run \`pr-review serve ${runId()}\` to make this live.`,
               'warn',
             )
             break
           }
-          post({ type: 'submit', findingIds: checked, timestamp: Date.now() })
-          const noun = checked.length === 1 ? 'finding' : 'findings'
-          showStatus(
-            `Queued ${checked.length} ${noun}. Reply \`post\` in your terminal to post to the PR.`,
-            'ok',
-          )
+          openConfirm(checked)
           break
         }
+        case 'cancel-post':
+          closeConfirm()
+          break
+        case 'confirm-post':
+          closeConfirm()
+          performPost()
+          break
         case 'select-visible':
           selectMany((card) => !card.classList.contains('is-hidden'))
           break

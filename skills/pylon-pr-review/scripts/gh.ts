@@ -20,6 +20,9 @@ const PR_VIEW_FIELDS = [
   'baseRefOid',
   'author',
   'body',
+  // `url` is included so server-side posting can parse owner/repo without
+  // depending on cwd (the worktree is gone after cleanup).
+  'url',
 ].join(',')
 
 export async function fetchPr(input: FetchPrInput): Promise<FetchPrResult> {

@@ -184,7 +184,7 @@ ${ARCHIVED_BANNER}
   <header class="page-header">
     <p class="eyebrow">pr-review · findings</p>
     <h1>Review</h1>
-    <p class="lede">Pick what's worth posting, queue it with the button, then reply <code>post</code> in the terminal. The agent runs <code>gh</code> for you.</p>
+    <p class="lede">Pick what's worth posting and click <strong>Post to PR</strong>. The server runs <code>gh</code> for each selected finding and updates the badges in place.</p>
   </header>
 
   <section class="findings-summary" aria-label="summary">
@@ -208,7 +208,14 @@ ${ARCHIVED_BANNER}
       <button type="button" class="link-btn" data-action="select-priority">blockers + highs</button>
       <button type="button" class="link-btn" data-action="select-none">clear</button>
     </div>
-    <button class="submit-btn" data-action="submit" disabled>Queue for posting</button>
+    <button class="submit-btn" data-action="post" disabled>Post to PR</button>
+  </div>
+  <div class="confirm-bar" data-role="confirm-bar" hidden>
+    <p class="confirm-text" data-role="confirm-text"></p>
+    <div class="confirm-actions">
+      <button type="button" class="link-btn" data-action="cancel-post">Cancel</button>
+      <button type="button" class="submit-btn confirm-btn" data-action="confirm-post">Confirm post</button>
+    </div>
   </div>
   <p class="submit-status" data-role="submit-status" role="status" aria-live="polite" hidden></p>
 </main>

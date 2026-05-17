@@ -495,11 +495,43 @@ h2 {
   font-size: 12.5px;
 }
 
+.confirm-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  margin: 4px 0 0;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  animation: status-in 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.confirm-text {
+  margin: 0;
+  flex: 1;
+  font: 13px/1.4 var(--font-sans);
+  color: var(--ink);
+}
+
+.confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirm-btn {
+  font-size: 12.5px;
+  padding: 8px 14px;
+}
+
 .submit-status {
   position: sticky;
   bottom: 0;
   margin: 0;
-  padding: 0 0 14px;
+  padding: 8px 0 14px;
   font: 12.5px/1.5 var(--font-mono);
   color: var(--ink-muted);
   background: var(--surface);

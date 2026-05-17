@@ -73,6 +73,62 @@ test('idle timeout causes server to exit and write server-stopped', async () => 
   server = null
 })
 
+test('POST /post returns 400 when findingIds is missing or empty', async () => {
+  await writeFile(join(runDir, 'screen', 'a.html'), '<h1>X</h1>')
+  server = await startServer({ runDir, idleMs: 60_000 })
+  const res = await fetch(`${server.url}/post`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  expect(res.status).toBe(400)
+  const body = (await res.json()) as { ok: boolean; error: string }
+  expect(body.ok).toBe(false)
+  expect(body.error).toMatch(/findingIds/)
+})
+
+test('POST /post wires through to runPost (dry-run) and returns results', async () => {
+  await writeFile(join(runDir, 'screen', 'a.html'), '<h1>X</h1>')
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({
+      number: 7,
+      headRefOid: 'abcdef00',
+      url: 'https://github.com/o/r/pull/7',
+    }),
+  )
+  await writeFile(
+    join(runDir, 'findings.final.json'),
+    JSON.stringify([
+      {
+        id: 'sec-1',
+        file: 'a.ts',
+        line: 1,
+        severity: 'blocker',
+        risk: { impact: 'critical', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+        title: 't',
+        description: 'd',
+        domain: 'security',
+      },
+    ]),
+  )
+  server = await startServer({ runDir, idleMs: 60_000 })
+  const res = await fetch(`${server.url}/post`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ findingIds: ['sec-1'], dryRun: true }),
+  })
+  expect(res.ok).toBe(true)
+  const body = (await res.json()) as {
+    ok: boolean
+    results: Array<{ id: string; status: string }>
+    target?: { repo: string; number: number }
+  }
+  expect(body.ok).toBe(true)
+  expect(body.target).toEqual({ repo: 'o/r', number: 7 })
+  expect(body.results[0]).toMatchObject({ id: 'sec-1', status: 'posted' })
+})
+
 test('writes server-info on start with url and port', async () => {
   await writeFile(join(runDir, 'screen', 'a.html'), '<h1>X</h1>')
   server = await startServer({ runDir, idleMs: 60_000 })
