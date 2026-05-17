@@ -4,11 +4,12 @@ const USAGE = `Usage: pr-review <subcommand> [args]
 
 Subcommands:
   setup <run-dir> --pr <n>   Pre-flight, fetch PR, create worktree
-  serve <run-dir>            Start the HTML server in the background
+  serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
   render <run-dir> <page>    Render progress.html or findings.html
   cleanup <run-dir>          Remove worktree, stop server, archive run
   status <run-dir>           Print highest completed stage
+  open [id]                  Open findings.html in your browser (defaults to latest run)
   --list-runs                List archived runs
   --cleanup-run <id>         Delete an archived run
   --help                     Show this message`
@@ -35,9 +36,9 @@ const HANDLERS: Record<string, Handler> = {
     return runSetup({ runDir, prNumber, repoPath })
   },
   serve: async (args) => {
-    const runDir = args[0]
-    if (!runDir) {
-      process.stderr.write('serve: missing <run-dir>\n')
+    const idOrPath = args[0]
+    if (!idOrPath) {
+      process.stderr.write('serve: missing <run-dir-or-id>\n')
       return 2
     }
     const idleFlag = args.indexOf('--idle-ms')
@@ -49,6 +50,18 @@ const HANDLERS: Record<string, Handler> = {
     }
     const hostFlag = args.indexOf('--host')
     const host = hostFlag !== -1 ? args[hostFlag + 1] : undefined
+    let runDir: string
+    if (idOrPath.includes('/') || idOrPath.startsWith('.')) {
+      runDir = idOrPath
+    } else {
+      const { resolveRunDir } = await import('../scripts/resolve-run.ts')
+      try {
+        runDir = (await resolveRunDir(idOrPath)).path
+      } catch (err) {
+        process.stderr.write(`serve: ${err instanceof Error ? err.message : String(err)}\n`)
+        return 2
+      }
+    }
     const { runServe } = await import('../scripts/serve-cmd.ts')
     return runServe({ runDir, idleMs, host })
   },
@@ -104,6 +117,13 @@ const HANDLERS: Record<string, Handler> = {
     const result = await runStatus(runDir)
     process.stdout.write(`${JSON.stringify(result)}\n`)
     return 0
+  },
+  open: async (args) => {
+    const dryRun = args.includes('--dry-run')
+    const positional = args.filter((a) => !a.startsWith('--'))
+    const idOrPath = positional[0]
+    const { runOpen } = await import('../scripts/open-cmd.ts')
+    return runOpen({ idOrPath, dryRun })
   },
   '--list-runs': async () => {
     const { listRuns } = await import('../scripts/housekeeping-cmd.ts')

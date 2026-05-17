@@ -88,6 +88,10 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
   const target = `${input.runDir}.archived-${Date.now()}`
   await rename(input.runDir, target)
   process.stdout.write(`archived to ${target}\n`)
+  const archivedId = target.split('/').filter(Boolean).pop()
+  if (archivedId) {
+    process.stdout.write(`view later: pr-review open ${archivedId}\n`)
+  }
   if (kill.outcome === 'failed') {
     process.stderr.write(
       `pr-review: warning: server process pid=${kill.pid} survived cleanup; kill it manually\n`,

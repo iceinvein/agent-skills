@@ -44,6 +44,24 @@ test('cleanup removes worktree and archives run dir', async () => {
   expect(archived).toBeDefined()
 })
 
+test('cleanup prints a view-later hint line with the archived id', async () => {
+  const out: string[] = []
+  const origWrite = process.stdout.write.bind(process.stdout)
+  process.stdout.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  } finally {
+    process.stdout.write = origWrite
+  }
+  const text = out.join('')
+  expect(text).toContain('archived to ')
+  expect(text).toContain('view later: pr-review open ')
+  expect(text).toMatch(/pr-review open \S+\.archived-\d+/)
+})
+
 test('killServer reports no-server-info when state/server-info missing', async () => {
   const result = await killServer(runDir, 100)
   expect(result.outcome).toBe('no-server-info')

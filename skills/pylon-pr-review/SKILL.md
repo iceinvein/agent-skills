@@ -171,7 +171,14 @@ After each post, append `{stage: post, status: ok|failed, id: <finding-id>}` to 
 pr-review cleanup "$RUN_DIR" --repo "$REPO"
 ```
 
-The run directory is renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed.
+The run directory is renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed. The CLI prints two lines on success: `archived to <path>` and `view later: pr-review open <archived-id>`. Surface that second line to the user verbatim so they have a one-command path back to the report.
+
+The archived `findings.html` is self-contained and auto-switches to read-only "archived" mode when opened, so:
+
+- `pr-review open` (no args) opens the latest run in the user's default browser via `open`/`xdg-open`. Add `--dry-run` to see the command without spawning.
+- `pr-review open <id>` opens a specific archived run.
+- `pr-review serve <id>` re-spins the Bun server against an archived run if the user wants the live interactive surface back (posts still work because `pr.json` retains the head SHA).
+- `pr-review --list-runs` enumerates all runs in `~/.pylon-review/`.
 
 ## Specialist prompts
 
