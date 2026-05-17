@@ -68,3 +68,34 @@ test('renders suggestion block when present', () => {
   })
   expect(html).toContain('if (!y) return')
 })
+
+test('includes the archived-mode banner element so file:// view can self-degrade', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toContain('archived-banner')
+  expect(html).toContain('Archived view')
+})
+
+test('renders a severity-breakdown summary line', () => {
+  const html = renderFindingsHtml({
+    findings: [
+      f({ id: 'a', title: 't1', severity: 'high' }),
+      f({ id: 'b', title: 't2', severity: 'high' }),
+      f({ id: 'c', title: 't3', severity: 'low' }),
+    ],
+    postStatus: {},
+  })
+  expect(html).toContain('findings-summary')
+  expect(html).toContain('2</span>&nbsp;high')
+  expect(html).toContain('1</span>&nbsp;low')
+})
+
+test('submit button starts disabled (enabled by helper.js after first select)', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/<button[^>]*data-action="submit"[^>]*disabled/)
+})

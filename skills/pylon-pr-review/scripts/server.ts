@@ -37,12 +37,10 @@ async function newestScreenPath(runDir: string): Promise<string | null> {
 
 const HELPER_PATH = new URL('./helper.js', import.meta.url).pathname
 
-async function htmlWithHelper(htmlPath: string): Promise<string> {
+async function readScreenHtml(htmlPath: string): Promise<string> {
   const body = await readFile(htmlPath, 'utf8')
-  const wrapped = body.includes('<html')
-    ? body
-    : `<!DOCTYPE html><html><head><meta charset="utf-8"><title>pr-review</title></head><body>${body}</body></html>`
-  return wrapped.replace('</body>', `<script src="/helper.js"></script></body>`)
+  if (body.includes('<html')) return body
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>pr-review</title></head><body>${body}</body></html>`
 }
 
 export async function startServer(input: StartServerInput): Promise<ServerHandle> {
@@ -84,7 +82,7 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
             headers: { 'Content-Type': 'text/html' },
           })
         }
-        const html = await htmlWithHelper(newest)
+        const html = await readScreenHtml(newest)
         return new Response(html, { headers: { 'Content-Type': 'text/html' } })
       }
       return new Response('not found', { status: 404 })

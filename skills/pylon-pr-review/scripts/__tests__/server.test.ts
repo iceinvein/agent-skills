@@ -24,14 +24,17 @@ async function fetchHtml(handle: ServerHandle): Promise<string> {
   return res.text()
 }
 
-test('serves the newest HTML file and injects the helper', async () => {
+test('serves the newest HTML file verbatim (HTML is self-contained at render time)', async () => {
   await writeFile(join(runDir, 'screen', 'a.html'), '<h1>One</h1>')
   await new Promise((r) => setTimeout(r, 5))
-  await writeFile(join(runDir, 'screen', 'b.html'), '<h1>Two</h1>')
+  await writeFile(
+    join(runDir, 'screen', 'b.html'),
+    '<!DOCTYPE html><html><body><h1>Two</h1><script>/*inline-helper*/</script></body></html>',
+  )
   server = await startServer({ runDir, idleMs: 60_000 })
   const html = await fetchHtml(server)
   expect(html).toContain('<h1>Two</h1>')
-  expect(html).toContain('helper.js')
+  expect(html).toContain('inline-helper')
 })
 
 test('POST /events appends a JSON line to state/events', async () => {
