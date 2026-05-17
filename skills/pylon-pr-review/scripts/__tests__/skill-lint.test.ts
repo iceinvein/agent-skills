@@ -74,6 +74,14 @@ test('rendered HTML opts into light/dark with a color-scheme meta tag', async ()
   }
 })
 
+test('styles.css honors the HTML `hidden` attribute even on flex/grid elements', async () => {
+  const STYLES = new URL('../../templates/styles.css', import.meta.url).pathname
+  const css = await readFile(STYLES, 'utf8')
+  // Specifically guards against the regression where .confirm-bar with
+  // display: flex stayed visible despite a `hidden` attribute on the element.
+  expect(css).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/)
+})
+
 test('severity chips and submit button no longer hardcode `color: white` (must flip with theme)', async () => {
   const STYLES = new URL('../../templates/styles.css', import.meta.url).pathname
   const css = await readFile(STYLES, 'utf8')

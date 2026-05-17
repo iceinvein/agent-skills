@@ -101,6 +101,11 @@
     recountSelected() // re-enables the submit button if any selections remain
   }
 
+  function isConfirmOpen() {
+    const bar = document.querySelector('[data-role="confirm-bar"]')
+    return bar instanceof HTMLElement && !bar.hidden
+  }
+
   function badgeHtml(result) {
     if (result.status === 'posted') return '<span class="badge posted">posted</span>'
     if (result.status === 'already-posted')
@@ -344,6 +349,16 @@
       const target = event.target
       if (!(target instanceof HTMLElement)) return
 
+      // Click outside the confirm popup (and not on the Post to PR trigger)
+      // dismisses the popup, matching GitHub's small-popup behavior.
+      if (isConfirmOpen()) {
+        const insidePopup = target.closest('[data-role="confirm-bar"]')
+        const onTrigger = target.closest('[data-action="post"]')
+        if (!insidePopup && !onTrigger) {
+          closeConfirm()
+        }
+      }
+
       const chip = target.closest('.filter-chip')
       if (chip instanceof HTMLElement) {
         toggleFilterChip(chip)
@@ -442,8 +457,12 @@
         }
         case 'Escape':
           event.preventDefault()
-          clearAllFilters()
-          setFocused(-1)
+          if (isConfirmOpen()) {
+            closeConfirm()
+          } else {
+            clearAllFilters()
+            setFocused(-1)
+          }
           break
       }
     })

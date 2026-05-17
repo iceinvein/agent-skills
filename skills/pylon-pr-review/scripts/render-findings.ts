@@ -208,13 +208,15 @@ ${ARCHIVED_BANNER}
       <button type="button" class="link-btn" data-action="select-priority">blockers + highs</button>
       <button type="button" class="link-btn" data-action="select-none">clear</button>
     </div>
-    <button class="submit-btn" data-action="post" disabled>Post to PR</button>
-  </div>
-  <div class="confirm-bar" data-role="confirm-bar" hidden>
-    <p class="confirm-text" data-role="confirm-text"></p>
-    <div class="confirm-actions">
-      <button type="button" class="link-btn" data-action="cancel-post">Cancel</button>
-      <button type="button" class="submit-btn confirm-btn" data-action="confirm-post">Confirm post</button>
+    <div class="post-button-group">
+      <button class="submit-btn" data-action="post" disabled>Post to PR</button>
+      <div class="confirm-popup" data-role="confirm-bar" role="dialog" aria-label="confirm post" hidden>
+        <p class="confirm-text" data-role="confirm-text"></p>
+        <div class="confirm-actions">
+          <button type="button" class="link-btn" data-action="cancel-post">Cancel</button>
+          <button type="button" class="submit-btn confirm-btn" data-action="confirm-post">Confirm post</button>
+        </div>
+      </div>
     </div>
   </div>
   <p class="submit-status" data-role="submit-status" role="status" aria-live="polite" hidden></p>

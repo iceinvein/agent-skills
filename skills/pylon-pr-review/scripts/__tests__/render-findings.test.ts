@@ -174,12 +174,14 @@ test('post button label is "Post to PR" and triggers the confirm flow', () => {
   expect(html).toMatch(/<button[^>]*data-action="post"[^>]*>Post to PR<\/button>/)
 })
 
-test('renders the inline confirm bar (hidden until user clicks Post to PR)', () => {
+test('renders the inline confirm popup (hidden until user clicks Post to PR)', () => {
   const html = renderFindingsHtml({
     findings: [f({ id: 'a', title: 'x' })],
     postStatus: {},
   })
-  expect(html).toContain('class="confirm-bar"')
+  // It is anchored to the Post to PR button, not a separate row.
+  expect(html).toContain('class="post-button-group"')
+  expect(html).toMatch(/<div\s+class="confirm-popup"\s+data-role="confirm-bar"[^>]*hidden[^>]*>/)
   expect(html).toContain('data-action="cancel-post"')
   expect(html).toContain('data-action="confirm-post"')
 })
