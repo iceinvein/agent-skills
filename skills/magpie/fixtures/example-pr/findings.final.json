@@ -1,0 +1,137 @@
+[
+  {
+    "id": "security-1",
+    "file": "src/api/session.ts",
+    "line": 87,
+    "severity": "blocker",
+    "risk": {
+      "impact": "critical",
+      "likelihood": "likely",
+      "confidence": "high",
+      "action": "must-fix"
+    },
+    "title": "Session token written to Redis with no TTL and no namespace, every tenant shares the same keyspace",
+    "description": "Observation: createSession() (src/api/session.ts:87) writes `session:${userId}` straight into the shared Redis instance with redis.set(key, token) and no SET EX argument. The same connection pool is shared with the marketing job runner introduced in #1102.\n\nWhy it matters: sessions never expire so a stolen token is valid forever, and the marketing runner can read every active session via SCAN. Two tenants on the same cluster will overwrite each other's sessions because user ids are not globally unique across tenants in this codebase (verified in `getUserById`).\n\nSuggested direction: namespace the key with tenant id (`t:${tenantId}:session:${userId}`), use SET ... EX <ttl>, and move sessions to a dedicated logical DB or a separate Redis with auth. Add an integration test that two tenants with the same numeric user id do not collide.\n\nNeeds verification: confirm whether the marketing job runner has SCAN access; if so, this is exploitable today.",
+    "suggestion": {
+      "body": "// src/api/session.ts\nconst SESSION_TTL_SECONDS = 60 * 60 * 8 // 8h\nconst sessionKey = (tenantId: string, userId: string) => `t:${tenantId}:session:${userId}`\n\nexport async function createSession(tenantId: string, userId: string, token: string) {\n  await redis.set(sessionKey(tenantId, userId), token, 'EX', SESSION_TTL_SECONDS)\n}",
+      "startLine": 80,
+      "endLine": 95
+    },
+    "domain": "security"
+  },
+  {
+    "id": "bugs-1",
+    "file": "src/cache/invalidation.ts",
+    "line": 142,
+    "severity": "high",
+    "risk": {
+      "impact": "high",
+      "likelihood": "likely",
+      "confidence": "high",
+      "action": "must-fix"
+    },
+    "title": "invalidate() reads the cache version then writes it back without atomicity, two concurrent invalidations drop the second one",
+    "description": "Observation: invalidate() reads cache.version (src/cache/invalidation.ts:142), increments it locally, then writes it back with cache.setVersion(v + 1). Two concurrent invalidations triggered by webhooks both read v=4, both write v=5, and the second invalidation is silently lost.\n\nWhy it matters: stale entries continue serving for the next read window (up to 30s), which the team has previously flagged as the root cause of two billing incidents this quarter. The pattern is easy to miss because it only fails under burst load.\n\nSuggested direction: replace the read-then-write with redis.incr on the version key (atomic at the Redis level), or wrap the read/write in WATCH/MULTI. Add a load test that fires 50 parallel invalidations and asserts the final version is exactly initial + 50.",
+    "suggestion": {
+      "body": "// src/cache/invalidation.ts\nconst newVersion = await redis.incr(versionKey)\nreturn newVersion",
+      "startLine": 140,
+      "endLine": 150
+    },
+    "domain": "bugs"
+  },
+  {
+    "id": "perf-1",
+    "file": "src/dashboard/recent-activity.tsx",
+    "line": 58,
+    "severity": "high",
+    "risk": {
+      "impact": "high",
+      "likelihood": "possible",
+      "confidence": "medium",
+      "action": "should-fix"
+    },
+    "title": "RecentActivity rebuilds the entire timeline on every keystroke in the unrelated search box",
+    "description": "Observation: RecentActivity (src/dashboard/recent-activity.tsx:58) recomputes `timeline = events.map(toTimelineEntry).sort(byRecency)` inline in the render, with `events` coming from the parent Dashboard component whose state includes the search box value.\n\nWhy it matters: with the production median of ~3200 events per workspace, every keystroke in the search box rebuilds the whole timeline and re-renders 200+ TimelineRow components. Lighthouse traces show 380ms of scripting per keystroke on a mid-tier laptop.\n\nSuggested direction: move the search input into its own component, memoize `timeline` with useMemo keyed on events, or hoist the timeline into a selector. The fix is small but the impact is felt on every dashboard interaction.",
+    "domain": "performance"
+  },
+  {
+    "id": "code-smells-1",
+    "file": "src/lib/parser.ts",
+    "line": 156,
+    "severity": "medium",
+    "risk": {
+      "impact": "medium",
+      "likelihood": "possible",
+      "confidence": "high",
+      "action": "should-fix"
+    },
+    "title": "Three near-identical parseX functions diverge in their error handling for the same edge case",
+    "description": "Observation: parseHeader (src/lib/parser.ts:156), parseFooter (line 198), and parseBody (line 240) all handle the empty-line case differently: parseHeader returns null, parseFooter throws, parseBody returns an empty object. All three are called from the same dispatch loop in normalize().\n\nWhy it matters: the dispatch loop swallows the parseFooter throw inside a try/catch added in this PR (line 88), so currently parseFooter silently becomes \"no result\". Future authors adding a fourth parser will have no obvious convention to follow and the loop's catch will hide whatever they pick.\n\nSuggested direction: extract a shared parseSection(label, lines) helper that returns Result<Section, ParseError>, replace the three functions with thin wrappers, and remove the swallowing catch from normalize(). This is one of those refactors that gets harder every release.",
+    "domain": "code-smells"
+  },
+  {
+    "id": "arch-1",
+    "file": "src/services/auth/index.ts",
+    "line": 24,
+    "severity": "medium",
+    "risk": {
+      "impact": "medium",
+      "likelihood": "likely",
+      "confidence": "high",
+      "action": "should-fix"
+    },
+    "title": "AuthService now imports from src/db/users directly, breaking the layered architecture set up last quarter",
+    "description": "Observation: AuthService.signIn (src/services/auth/index.ts:24) now imports `userRepo` from `src/db/users` directly to read the last-login column. Every other service goes through the `UserRepository` interface in `src/domain/user.ts` so that the storage layer can be swapped during tests.\n\nWhy it matters: this is the first service to skip the interface. Once one does it the others will follow within a few sprints, and the layering set up to make in-memory tests cheap erodes. Tests that depend on real Postgres are 20x slower than the in-memory ones.\n\nSuggested direction: route the last-login read through UserRepository.findById and add the column to the User domain type, or add a UserRepository.findLastLoginAt method to keep the projection narrow. Keep the storage import inside `src/db/`.",
+    "suggestion": {
+      "body": "// src/domain/user.ts\nexport interface UserRepository {\n  findById(id: UserId): Promise<User | null>\n  findLastLoginAt(id: UserId): Promise<Date | null>\n}\n\n// src/services/auth/index.ts\nconst lastLoginAt = await this.userRepo.findLastLoginAt(userId)",
+      "startLine": 20,
+      "endLine": 40
+    },
+    "domain": "architecture"
+  },
+  {
+    "id": "bugs-2",
+    "file": "src/utils/format-currency.ts",
+    "line": 8,
+    "severity": "medium",
+    "risk": {
+      "impact": "medium",
+      "likelihood": "edge-case",
+      "confidence": "medium",
+      "action": "should-fix"
+    },
+    "title": "formatCurrency uses toFixed(2) which loses precision on JPY, KRW, and other zero-decimal currencies",
+    "description": "formatCurrency in src/utils/format-currency.ts:8 hardcodes value.toFixed(2) and tacks on a currency symbol from a map. For JPY a payment of 1500 yen renders as ¥1500.00, which is technically wrong but harmless visually. For KRW the localization team flagged this as a translation bug in their style guide and asked us to use Intl.NumberFormat instead. The change is small and worth doing while the formatter is being touched anyway.",
+    "domain": "bugs"
+  },
+  {
+    "id": "code-smells-2",
+    "file": "src/components/Button.tsx",
+    "line": 12,
+    "severity": "low",
+    "risk": {
+      "impact": "low",
+      "likelihood": "possible",
+      "confidence": "high",
+      "action": "consider"
+    },
+    "title": "Button accepts a boolean `primary` and a boolean `danger` and a boolean `ghost`, three flags that should be one variant prop",
+    "description": "Observation: Button (src/components/Button.tsx:12) now accepts `primary`, `danger`, `ghost`, and the new `secondary` flag added in this PR. The render branches on them with a chain of ternaries and the four-flag combinatorics are not all valid (primary && danger renders as danger but consumers don't know).\n\nWhy it matters: the next variant added will make the ternary unreadable and the type system isn't preventing nonsense combinations. The fix is small now and gets worse with each addition.\n\nSuggested direction: collapse to `variant: 'primary' | 'danger' | 'ghost' | 'secondary'` (default 'primary'). Migrate callers in one sweep; the four flags only have ~40 call sites across the repo.",
+    "domain": "code-smells"
+  },
+  {
+    "id": "perf-2",
+    "file": "vendor/legacy/heavy-parser.js",
+    "line": 412,
+    "severity": "low",
+    "risk": {
+      "impact": "low",
+      "likelihood": "edge-case",
+      "confidence": "low",
+      "action": "optional"
+    },
+    "title": "Synchronous regex compilation in a hot loop, but only matters if the input crosses ~50k chars",
+    "description": "Observation: heavy-parser.js:412 compiles a regex inside the tokenize loop instead of hoisting it to module scope.\n\nWhy it matters: at the input sizes this repo actually parses today (<5k chars) the overhead is negligible (<1ms). It would matter if the parser were ever pointed at the new bulk-import payloads the team has been discussing.\n\nNeeds verification: confirm whether the bulk-import payloads actually flow through this parser; if not, this can be left alone.",
+    "domain": "performance"
+  }
+]

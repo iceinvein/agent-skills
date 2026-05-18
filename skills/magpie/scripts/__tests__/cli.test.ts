@@ -155,3 +155,122 @@ test('post rejects missing --ids', async () => {
   expect(exit).toBe(2)
   expect(stderr).toContain('post: missing --ids')
 })
+
+test('preview surfaces its own --help block with the stage preset list', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'preview', '--help'], { stdout: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  const exit = await proc.exited
+  expect(exit).toBe(0)
+  expect(stdout).toContain('Usage: magpie preview')
+  expect(stdout).toContain('--stage')
+  // Sanity-check that the preset list mentions both endpoints of the pipeline.
+  expect(stdout).toContain('fresh')
+  expect(stdout).toContain('post-done')
+})
+
+test('preview --list-stages prints every known preset, one per line', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'preview', '--list-stages'], { stdout: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  const exit = await proc.exited
+  expect(exit).toBe(0)
+  const presets = stdout.trim().split('\n')
+  expect(presets).toContain('fresh')
+  expect(presets).toContain('specialists-running')
+  expect(presets).toContain('peer-review-error')
+  expect(presets).toContain('report-done')
+  expect(presets).toContain('post-done')
+})
+
+test('preview --dry-run --no-open writes nothing and prints the planned paths', async () => {
+  const out = await mkdtemp(join(tmpdir(), 'magpie-cli-preview-'))
+  try {
+    // mkdtemp creates the directory; remove it so we can confirm the dry-run
+    // truly writes nothing on its own. The handler should still report it
+    // would have written here.
+    await rm(out, { recursive: true, force: true })
+    const proc = Bun.spawn(
+      ['bun', CLI, 'preview', '--dry-run', '--no-open', '--out', out, '--stage', 'critic-done'],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+    const stdout = await new Response(proc.stdout).text()
+    const exit = await proc.exited
+    expect(exit).toBe(0)
+    const result = JSON.parse(stdout.trim())
+    expect(result.dryRun).toBe(true)
+    expect(result.outDir).toBe(out)
+    expect(result.findingsHtml).toBe(join(out, 'findings.html'))
+    expect(result.progressHtml).toBe(join(out, 'progress.html'))
+    // Dry run must not create the directory or any files inside it.
+    const findingsFile = Bun.file(join(out, 'findings.html'))
+    expect(await findingsFile.exists()).toBe(false)
+  } finally {
+    await rm(out, { recursive: true, force: true })
+  }
+})
+
+test('preview --no-open renders the requested page to disk and returns its path', async () => {
+  const out = await mkdtemp(join(tmpdir(), 'magpie-cli-preview-render-'))
+  try {
+    const proc = Bun.spawn(
+      [
+        'bun',
+        CLI,
+        'preview',
+        '--no-open',
+        '--page',
+        'progress',
+        '--stage',
+        'specialists-running',
+        '--out',
+        out,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+    const stdout = await new Response(proc.stdout).text()
+    const exit = await proc.exited
+    expect(exit).toBe(0)
+    const result = JSON.parse(stdout.trim())
+    expect(result.progressHtml).toBe(join(out, 'progress.html'))
+    expect(result.findingsHtml).toBeUndefined()
+    const html = await Bun.file(join(out, 'progress.html')).text()
+    // The preset has setup + context done (2/7 segments filled) and
+    // specialists running.
+    expect(html).toContain('--done-count: 2')
+    expect(html).toContain('class="step running"')
+    expect(html).toContain('data-stage="specialists"')
+  } finally {
+    await rm(out, { recursive: true, force: true })
+  }
+})
+
+test('preview rejects an unknown --stage with exit 2 and a hint', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'preview', '--no-open', '--stage', 'bogus'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('preview: invalid --stage bogus')
+  expect(stderr).toContain('--list-stages')
+})
+
+test('preview rejects an unknown --page with exit 2', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'preview', '--no-open', '--page', 'sidebar'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('preview: invalid --page sidebar')
+})
+
+test('top-level --help surfaces the preview subcommand', async () => {
+  const proc = Bun.spawn(['bun', CLI, '--help'], { stdout: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  const exit = await proc.exited
+  expect(exit).toBe(0)
+  expect(stdout).toContain('preview')
+  expect(stdout).toContain('--help-preview')
+})

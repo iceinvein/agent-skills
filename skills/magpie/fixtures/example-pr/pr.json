@@ -1,0 +1,9 @@
+{
+  "number": 1337,
+  "title": "Migrate session store to Redis and introduce TextOnlyPrompt abstraction",
+  "author": { "login": "asha-platform" },
+  "headRefName": "feat/session-redis-and-prompts",
+  "baseRefName": "main",
+  "headRefOid": "9f3a8c0211dbb5fe7a82a2c1b08e0a45c2d1ee01",
+  "url": "https://github.com/example/repo/pull/1337"
+}

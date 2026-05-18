@@ -33,10 +33,25 @@ Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads S
 
 ```
 bun install           # Installs @types/bun
-bun test              # Run all tests (145 tests, 24 files)
+bun test              # Run all tests
 bun run lint          # Biome check
 bun run typecheck     # tsc --noEmit
 ```
+
+### Previewing the UI
+
+Use the bundled example PR fixture to render either page without a real review. Useful for design iteration.
+
+```
+magpie preview                                  # render both pages, open findings.html
+magpie preview --page progress --stage fresh    # progress page at "everything pending"
+magpie preview --page progress --stage specialists-running
+magpie preview --page progress --stage peer-review-error
+magpie preview --no-open --out /tmp/magpie-ui   # write files only
+magpie preview --list-stages                    # see all stage presets
+```
+
+The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + post-status.json) and covers all four severities, all five focus domains, every section combination (with/without suggestion code block, with/without verification, raw-prose fallback), and a mix of posted / failed / fresh badges.
 
 ## Layout
 

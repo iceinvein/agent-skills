@@ -15,10 +15,31 @@ Subcommands:
   status <run-dir>           Print highest completed stage
   open [id]                  Open findings.html in your browser (defaults to latest run)
   post <run-dir> --ids a,b   Post the given finding ids via gh (rich body + optional summary)
+  preview [opts]             Render the UI from a bundled fixture (no PR needed). See --help-preview.
   --list-runs                List archived runs
   --cleanup-run <id>         Delete an archived run
   --version                  Print the magpie version
   --help                     Show this message`
+
+const USAGE_PREVIEW = `Usage: magpie preview [options]
+
+Render the findings and/or progress pages from a bundled example PR fixture so
+you can iterate on the UI without running a real review.
+
+Options:
+  --page <findings|progress|both>   Which page to render (default: both)
+  --stage <preset>                  Pipeline state preset for the progress page
+                                    (default: report-done)
+  --fixture <dir>                   Override the fixture directory
+  --out <dir>                       Where to write the HTML (default: ~/.magpie/preview-<ts>)
+  --no-open                         Don't open the page in your browser
+  --dry-run                         Print the paths that would be written, write nothing
+  --list-stages                     List the known --stage presets and exit
+  --help                            Show this message
+
+Stage presets: fresh, setup-running, setup-done, context-skipped,
+specialists-running, specialists-done, dedupe-done, critic-done,
+peer-review-error, report-done, post-done.`
 
 type Handler = (args: string[]) => Promise<number> | number
 
@@ -178,6 +199,45 @@ const HANDLERS: Record<string, Handler> = {
     process.stdout.write(`${JSON.stringify(outcome)}\n`)
     return outcome.ok ? 0 : 1
   },
+  preview: async (args) => {
+    if (args.includes('--help') || args.includes('-h')) {
+      process.stdout.write(`${USAGE_PREVIEW}\n`)
+      return 0
+    }
+    const { KNOWN_STAGE_PRESETS, DEFAULT_STAGE, runPreview } = await import(
+      '../scripts/preview-cmd.ts'
+    )
+    if (args.includes('--list-stages')) {
+      for (const s of KNOWN_STAGE_PRESETS) process.stdout.write(`${s}\n`)
+      return 0
+    }
+    const pageFlag = args.indexOf('--page')
+    const pageRaw = pageFlag !== -1 ? args[pageFlag + 1] : 'both'
+    if (pageRaw !== 'findings' && pageRaw !== 'progress' && pageRaw !== 'both') {
+      process.stderr.write(`preview: invalid --page ${pageRaw} (want findings|progress|both)\n`)
+      return 2
+    }
+    const stageFlag = args.indexOf('--stage')
+    const stageRaw = stageFlag !== -1 ? args[stageFlag + 1] : DEFAULT_STAGE
+    if (!stageRaw || !KNOWN_STAGE_PRESETS.includes(stageRaw as never)) {
+      process.stderr.write(
+        `preview: invalid --stage ${stageRaw}. Use --list-stages to see available presets.\n`,
+      )
+      return 2
+    }
+    const fixtureFlag = args.indexOf('--fixture')
+    const outFlag = args.indexOf('--out')
+    const result = await runPreview({
+      page: pageRaw,
+      stage: stageRaw as never,
+      ...(fixtureFlag !== -1 && args[fixtureFlag + 1] ? { fixtureDir: args[fixtureFlag + 1] } : {}),
+      ...(outFlag !== -1 && args[outFlag + 1] ? { outDir: args[outFlag + 1] } : {}),
+      openInBrowser: !args.includes('--no-open') && !args.includes('--dry-run'),
+      dryRun: args.includes('--dry-run'),
+    })
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+    return 0
+  },
   '--list-runs': async () => {
     const { listRuns } = await import('../scripts/housekeeping-cmd.ts')
     const runs = await listRuns()
@@ -221,5 +281,3 @@ async function main(argv: string[]): Promise<number> {
 
 const code = await main(process.argv.slice(2))
 process.exit(code)
-
-export {}
