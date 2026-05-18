@@ -77,6 +77,16 @@ test('setup -> dedupe -> render(progress) -> render(findings) -> cleanup compose
   expect(screen).toContain('progress.html')
   expect(screen).toContain('findings.html')
 
+  // Verify Pylon-style DOM markers in findings.html
+  const findingsHtml = await Bun.file(join(runDir, 'screen', 'findings.html')).text()
+  expect(findingsHtml.includes('class="pr-header"')).toBe(true)
+  expect(findingsHtml.includes('data-finding-id')).toBe(true)
+  expect(findingsHtml.includes('data-file-pane')).toBe(true)
+  expect(findingsHtml.includes('data-role="action-bar"')).toBe(true)
+  expect(findingsHtml.includes('data-action="post-recommended"')).toBe(true)
+  expect(findingsHtml.includes('class="annot-body')).toBe(true)
+  expect(findingsHtml.includes('class="issue-card')).toBe(true)
+
   expect(await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })).toBe(0)
   const parent = dirname(runDir)
   const entries = await readdir(parent)
