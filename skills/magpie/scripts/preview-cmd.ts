@@ -85,7 +85,7 @@ export const STAGE_PRESETS = {
     counts: { security: 1, bugs: 2, performance: 1, 'code-smells': 3, architecture: 2 },
   },
   'report-done': {
-    // The default — what a reviewer sees when they open the page after the
+    // The default: what a reviewer sees when they open the page after the
     // pipeline finishes but before they post anything.
     stages: {
       ...pending(),

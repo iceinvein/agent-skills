@@ -346,6 +346,24 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
     // findings.json missing or unparseable; byId stays empty
   }
 
+  // Also load findings.final.json so we can use strict ReviewFinding formatters.
+  const strictById = new Map<string, ReviewFinding>()
+  try {
+    const raw = JSON.parse(await readFile(join(input.runDir, 'findings.final.json'), 'utf8'))
+    if (Array.isArray(raw)) {
+      for (const entry of raw) {
+        try {
+          const f = parseFinding(entry)
+          strictById.set(f.id, f)
+        } catch {
+          // entry doesn't pass strict validation; will fall back to LooseFinding path
+        }
+      }
+    }
+  } catch {
+    // findings.final.json missing or unparseable; strictById stays empty
+  }
+
   // Partition into inline (has file + line) and unplaced.
   type InlineComment = { path: string; line: number; side: 'RIGHT'; body: string }
   const inlineComments: InlineComment[] = []
@@ -354,16 +372,22 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   for (const id of input.findingIds) {
     const f = byId.get(id)
     if (!f) continue
+    const strict = strictById.get(id)
     if (f.line != null && f.file != null) {
+      const body = strict
+        ? formatInlineBody(strict)
+        : formatFindingDescriptionMarkdown(f.description)
       inlineComments.push({
         path: f.file,
         line: f.line,
         side: 'RIGHT',
-        body: formatFindingDescriptionMarkdown(f.description),
+        body,
       })
     } else {
-      const body = formatFindingDescriptionMarkdown(f.description)
-      unplacedBodies.push(`**${f.title}** (${f.file ?? 'general'})\n\n${body}`)
+      const body = strict
+        ? formatConversationBody(strict)
+        : `**${f.title}** (${f.file ?? 'general'})\n\n${formatFindingDescriptionMarkdown(f.description)}`
+      unplacedBodies.push(body)
     }
   }
 

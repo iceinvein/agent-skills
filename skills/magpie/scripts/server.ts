@@ -118,13 +118,22 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
               headers: { 'content-type': 'application/json' },
             })
           }
+          const ids = (body.findingIds as unknown[]).filter(
+            (x): x is string => typeof x === 'string',
+          )
+          if (ids.length === 0) {
+            return new Response(JSON.stringify({ error: 'no string ids in findingIds' }), {
+              status: 400,
+              headers: { 'content-type': 'application/json' },
+            })
+          }
           const prJson = JSON.parse(await readFile(join(runDir, 'pr.json'), 'utf8')) as {
             number: number
             headRefOid: string
           }
           const result = await postFindingsAsReview({
             runDir,
-            findingIds: body.findingIds,
+            findingIds: ids,
             prNumber: prJson.number,
             headSha: prJson.headRefOid,
             dryRun: process.env.MAGPIE_DRY_RUN_POST === '1',
