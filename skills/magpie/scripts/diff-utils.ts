@@ -83,7 +83,7 @@ export function splitDiffByFile(diff: string): Map<string, string> {
   for (const chunk of chunks) {
     if (!chunk.startsWith('diff --git ')) continue
     const headerMatch = chunk.match(FILE_HEADER)
-    if (!headerMatch) continue
+    if (!headerMatch || !headerMatch[2]) continue
     m.set(headerMatch[2], chunk)
   }
   return m
@@ -102,7 +102,11 @@ export function buildPairedLines(hunks: DiffHunk[]): PairedLine[] {
     let i = 0
     while (i < h.lines.length) {
       const cur = h.lines[i]
-      const next = h.lines[i + 1]
+      if (!cur) {
+        i += 1
+        continue
+      }
+      const next = h.lines[i + 1] ?? null
       if (cur.type === 'context') {
         rows.push({ left: cur, right: cur })
         i += 1

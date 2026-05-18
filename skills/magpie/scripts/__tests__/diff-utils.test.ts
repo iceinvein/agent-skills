@@ -22,36 +22,42 @@ new file mode 100644
 
 describe('parseUnifiedDiffToHunks', () => {
   test('parses a single-file two-hunk diff', () => {
-    const single = SAMPLE.split('diff --git a/src/b.ts')[0]
+    const single = SAMPLE.split('diff --git a/src/b.ts')[0] ?? ''
     const hunks = parseUnifiedDiffToHunks(single)
     expect(hunks).toHaveLength(1)
-    expect(hunks[0].oldStart).toBe(1)
-    expect(hunks[0].newStart).toBe(1)
-    expect(hunks[0].lines).toHaveLength(5)
-    const types = hunks[0].lines.map((l) => l.type)
+    const hunk = hunks[0]
+    if (!hunk) throw new Error('expected one hunk')
+    expect(hunk.oldStart).toBe(1)
+    expect(hunk.newStart).toBe(1)
+    expect(hunk.lines).toHaveLength(5)
+    const types = hunk.lines.map((l) => l.type)
     expect(types).toEqual(['context', 'removed', 'added', 'added', 'context'])
   })
 
   test('assigns new line numbers only to added and context lines', () => {
-    const single = SAMPLE.split('diff --git a/src/b.ts')[0]
+    const single = SAMPLE.split('diff --git a/src/b.ts')[0] ?? ''
     const hunks = parseUnifiedDiffToHunks(single)
-    const lines = hunks[0].lines
-    expect(lines[0].newLineNo).toBe(1)
-    expect(lines[1].newLineNo).toBeNull()
-    expect(lines[2].newLineNo).toBe(2)
-    expect(lines[3].newLineNo).toBe(3)
-    expect(lines[4].newLineNo).toBe(4)
+    const hunk = hunks[0]
+    if (!hunk) throw new Error('expected one hunk')
+    const lines = hunk.lines
+    expect(lines[0]?.newLineNo).toBe(1)
+    expect(lines[1]?.newLineNo).toBeNull()
+    expect(lines[2]?.newLineNo).toBe(2)
+    expect(lines[3]?.newLineNo).toBe(3)
+    expect(lines[4]?.newLineNo).toBe(4)
   })
 
   test('assigns old line numbers only to removed and context lines', () => {
-    const single = SAMPLE.split('diff --git a/src/b.ts')[0]
+    const single = SAMPLE.split('diff --git a/src/b.ts')[0] ?? ''
     const hunks = parseUnifiedDiffToHunks(single)
-    const lines = hunks[0].lines
-    expect(lines[0].oldLineNo).toBe(1)
-    expect(lines[1].oldLineNo).toBe(2)
-    expect(lines[2].oldLineNo).toBeNull()
-    expect(lines[3].oldLineNo).toBeNull()
-    expect(lines[4].oldLineNo).toBe(3)
+    const hunk = hunks[0]
+    if (!hunk) throw new Error('expected one hunk')
+    const lines = hunk.lines
+    expect(lines[0]?.oldLineNo).toBe(1)
+    expect(lines[1]?.oldLineNo).toBe(2)
+    expect(lines[2]?.oldLineNo).toBeNull()
+    expect(lines[3]?.oldLineNo).toBeNull()
+    expect(lines[4]?.oldLineNo).toBe(3)
   })
 
   test('returns empty array for empty input', () => {
@@ -68,7 +74,9 @@ describe('parseUnifiedDiffToHunks', () => {
 \\ No newline at end of file
 `
     const hunks = parseUnifiedDiffToHunks(diff)
-    expect(hunks[0].lines.map((l) => l.type)).toEqual(['removed', 'added'])
+    const hunk = hunks[0]
+    if (!hunk) throw new Error('expected one hunk')
+    expect(hunk.lines.map((l) => l.type)).toEqual(['removed', 'added'])
   })
 })
 
