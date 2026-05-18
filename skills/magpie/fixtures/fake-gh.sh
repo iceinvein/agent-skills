@@ -8,7 +8,7 @@ case "$1 $2" in
   "headRefName": "feature-x",
   "baseRefName": "main",
   "headRefOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-  "baseRefOid": "cafebabecafebabecafebabecafebabe",
+  "baseRefOid": "cafebabecafebabecafebabecafebabecafebabe",
   "author": { "login": "octocat" },
   "body": "Fake body",
   "url": "https://github.com/octocat/Hello-World/pull/1234",
