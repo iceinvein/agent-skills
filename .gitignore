@@ -12,3 +12,5 @@ cover-letter-workspace
 terse-workspace
 
 .remember
+.superpowers/
+.playwright-mcp/
