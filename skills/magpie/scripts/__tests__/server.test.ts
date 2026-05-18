@@ -137,3 +137,57 @@ test('writes server-info on start with url and port', async () => {
   expect(typeof info.port).toBe('number')
   expect(info.pid).toBe(process.pid)
 })
+
+test('POST /api/post-review returns reviewId under dry-run', async () => {
+  process.env.MAGPIE_DRY_RUN_POST = '1'
+  await writeFile(join(runDir, 'screen', 'a.html'), '<h1>X</h1>')
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({
+      number: 7,
+      headRefOid: 'abcdef00',
+      url: 'https://github.com/o/r/pull/7',
+    }),
+  )
+  await writeFile(
+    join(runDir, 'findings.json'),
+    JSON.stringify([
+      {
+        id: '1',
+        file: 'a.ts',
+        line: 1,
+        severity: 'blocker',
+        risk: { impact: 'critical', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+        title: 't1',
+        description: 'd1',
+        domain: 'security',
+      },
+      {
+        id: '2',
+        file: 'b.ts',
+        line: 2,
+        severity: 'warning',
+        risk: {
+          impact: 'medium',
+          likelihood: 'possible',
+          confidence: 'medium',
+          action: 'should-fix',
+        },
+        title: 't2',
+        description: 'd2',
+        domain: 'performance',
+      },
+    ]),
+  )
+  server = await startServer({ runDir, idleMs: 60_000 })
+  const res = await fetch(`${server.url}/api/post-review`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ findingIds: ['1', '2'] }),
+  })
+  expect(res.status).toBe(200)
+  const body = (await res.json()) as { comments: Array<{ id: string; status: string }> }
+  expect(Array.isArray(body.comments)).toBe(true)
+  expect(body.comments).toHaveLength(2)
+  delete process.env.MAGPIE_DRY_RUN_POST
+})

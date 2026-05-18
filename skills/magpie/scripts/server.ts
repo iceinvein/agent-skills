@@ -1,5 +1,6 @@
 import { appendFile, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { postFindingsAsReview } from './post-cmd.ts'
 
 export type ServerHandle = {
   url: string
@@ -106,6 +107,39 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
             { ok: false, error: (err as Error).message ?? String(err) },
             { status: 400 },
           )
+        }
+      }
+      if (req.method === 'POST' && url.pathname === '/api/post-review') {
+        try {
+          const body = (await req.json()) as { findingIds?: unknown }
+          if (!Array.isArray(body?.findingIds)) {
+            return new Response(JSON.stringify({ error: 'findingIds must be an array' }), {
+              status: 400,
+              headers: { 'content-type': 'application/json' },
+            })
+          }
+          const prJson = JSON.parse(await readFile(join(runDir, 'pr.json'), 'utf8')) as {
+            number: number
+            headRefOid: string
+          }
+          const result = await postFindingsAsReview({
+            runDir,
+            findingIds: body.findingIds,
+            prNumber: prJson.number,
+            headSha: prJson.headRefOid,
+            dryRun: process.env.MAGPIE_DRY_RUN_POST === '1',
+          })
+          const status =
+            result.reviewId == null && process.env.MAGPIE_DRY_RUN_POST !== '1' ? 502 : 200
+          return new Response(JSON.stringify(result), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        } catch (err) {
+          return new Response(JSON.stringify({ error: String(err) }), {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          })
         }
       }
       if (req.method === 'GET' && url.pathname === '/helper.js') {
