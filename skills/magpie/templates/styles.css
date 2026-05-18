@@ -1,35 +1,48 @@
-:root {
-  --surface: oklch(0.985 0.005 70);
-  --card: oklch(0.995 0.003 70);
-  --card-inset: oklch(0.97 0.006 70);
-  --ink: oklch(0.22 0.01 60);
-  --ink-inverse: oklch(0.99 0.003 70);
-  --ink-muted: oklch(0.5 0.012 60);
-  --ink-faint: oklch(0.68 0.01 60);
-  --ink-hover: oklch(0.32 0.012 60);
-  --line: oklch(0.9 0.008 60);
-  --line-strong: oklch(0.82 0.01 60);
-  --accent: oklch(0.5 0.13 245);
-  --accent-soft: oklch(0.95 0.03 245);
+/* magpie: curator-rail layout.
+ * Light primary. Dark via prefers-color-scheme. Restrained palette
+ * (tinted neutrals + one iridescent teal accent). Severity expressed
+ * through grouping + tinted card chrome + a leading sequence number;
+ * never via banned side-stripe accents.
+ */
 
-  /* CTA: the Post button. Light mode keeps it ink-dark; dark mode flips it
-     to accent rather than inheriting the inverted ink token. */
+:root {
+  /* Cool, near-neutral palette. Hue 235 (toward the accent's iridescent
+     teal family) with very low chroma so the page reads as a quiet
+     technical surface rather than warm paper. */
+  --surface: oklch(0.985 0.003 235);
+  --surface-rail: oklch(0.975 0.004 235);
+  --card: oklch(0.995 0.002 235);
+  --card-inset: oklch(0.97 0.004 235);
+  --ink: oklch(0.22 0.008 240);
+  --ink-inverse: oklch(0.99 0.002 235);
+  --ink-muted: oklch(0.5 0.009 240);
+  --ink-faint: oklch(0.68 0.007 240);
+  --ink-hover: oklch(0.32 0.01 240);
+  --line: oklch(0.91 0.005 235);
+  --line-strong: oklch(0.82 0.007 235);
+  --line-faint: oklch(0.95 0.004 235);
+
+  /* Magpie-wing iridescent teal. Single accent, reserved for the patch
+     label, the focus ring, and the dark-mode CTA. */
+  --accent: oklch(0.55 0.12 195);
+  --accent-soft: oklch(0.95 0.025 200);
+
   --cta-bg: var(--ink);
   --cta-bg-hover: var(--ink-hover);
   --cta-ink: var(--ink-inverse);
 
   --sev-blocker-ink: oklch(0.99 0.005 25);
   --sev-blocker-bg: oklch(0.58 0.22 25);
-  --sev-blocker-tint: oklch(0.97 0.025 25);
-  --sev-blocker-edge: oklch(0.58 0.22 25);
+  --sev-blocker-tint: oklch(0.975 0.018 25);
+  --sev-blocker-edge: oklch(0.86 0.06 25);
   --sev-high-ink: oklch(0.99 0.005 55);
   --sev-high-bg: oklch(0.66 0.17 55);
-  --sev-high-tint: oklch(0.97 0.03 65);
-  --sev-high-edge: oklch(0.78 0.13 60);
+  --sev-high-tint: oklch(0.98 0.022 65);
+  --sev-high-edge: oklch(0.88 0.05 60);
   --sev-medium-ink: oklch(0.4 0.08 85);
   --sev-medium-bg: oklch(0.9 0.05 90);
-  --sev-medium-tint: oklch(0.985 0.015 85);
-  --sev-medium-edge: oklch(0.85 0.04 90);
+  --sev-medium-tint: oklch(0.99 0.012 85);
+  --sev-medium-edge: oklch(0.9 0.03 90);
   --sev-low-ink: oklch(0.45 0.012 60);
   --sev-low-bg: oklch(0.94 0.006 60);
   --sev-low-tint: var(--card);
@@ -50,43 +63,46 @@
   --radius-md: 6px;
   --radius-lg: 10px;
 
-  --shadow-card: 0 1px 0 oklch(0.94 0.006 60), 0 1px 3px oklch(0.85 0.01 60 / 0.2);
+  --shadow-card: 0 1px 0 oklch(0.94 0.006 60), 0 1px 3px oklch(0.85 0.01 60 / 0.18);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: oklch(0.18 0.006 70);
-    --card: oklch(0.22 0.006 70);
-    --card-inset: oklch(0.16 0.006 70);
-    --ink: oklch(0.93 0.005 70);
-    --ink-inverse: oklch(0.16 0.006 70);
-    --ink-muted: oklch(0.72 0.012 60);
-    --ink-faint: oklch(0.55 0.012 60);
-    --ink-hover: oklch(0.82 0.008 60);
-    --line: oklch(0.32 0.008 60);
-    --line-strong: oklch(0.44 0.01 60);
-    --accent: oklch(0.72 0.16 245);
-    --accent-soft: oklch(0.3 0.07 245);
+    --surface: oklch(0.19 0.005 235);
+    --surface-rail: oklch(0.21 0.006 235);
+    --card: oklch(0.225 0.005 235);
+    --card-inset: oklch(0.165 0.005 235);
+    --ink: oklch(0.93 0.004 235);
+    --ink-inverse: oklch(0.16 0.005 235);
+    --ink-muted: oklch(0.72 0.01 240);
+    --ink-faint: oklch(0.55 0.01 240);
+    --ink-hover: oklch(0.82 0.006 235);
+    --line: oklch(0.3 0.006 240);
+    --line-strong: oklch(0.44 0.008 240);
+    --line-faint: oklch(0.24 0.005 240);
+    --accent: oklch(0.74 0.13 195);
+    --accent-soft: oklch(0.28 0.06 200);
 
-    /* Flip CTA to accent in dark mode so the Post button doesn't become a
-       near-white default-looking button on a dark surface. */
     --cta-bg: var(--accent);
-    --cta-bg-hover: oklch(0.78 0.16 245);
-    --cta-ink: oklch(0.16 0.04 245);
+    --cta-bg-hover: oklch(0.8 0.13 195);
+    --cta-ink: oklch(0.16 0.04 195);
 
     --sev-blocker-ink: oklch(0.97 0.04 25);
     --sev-blocker-bg: oklch(0.58 0.22 25);
     --sev-blocker-tint: oklch(0.28 0.08 25);
-    --sev-blocker-edge: oklch(0.6 0.22 25);
+    --sev-blocker-edge: oklch(0.5 0.12 25);
     --sev-high-ink: oklch(0.97 0.04 55);
     --sev-high-bg: oklch(0.6 0.17 55);
     --sev-high-tint: oklch(0.27 0.07 60);
-    --sev-high-edge: oklch(0.5 0.13 60);
+    --sev-high-edge: oklch(0.45 0.1 60);
     --sev-medium-ink: oklch(0.94 0.08 90);
     --sev-medium-bg: oklch(0.32 0.09 90);
     --sev-medium-tint: oklch(0.23 0.025 90);
-    --sev-medium-edge: oklch(0.38 0.08 90);
-    --sev-low-ink: oklch(0.78 0.01 60);
+    --sev-medium-edge: oklch(0.4 0.08 90);
+    --sev-low-ink: oklch(0.82 0.01 60);
     --sev-low-bg: oklch(0.27 0.006 60);
     --sev-low-tint: var(--card);
     --sev-low-edge: var(--line);
@@ -121,99 +137,181 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Wider on big screens. Keeps a comfortable reading column on laptops while
-   refusing to be a 960px stripe on a 32" monitor. */
-.page {
-  max-width: min(1180px, calc(100vw - 96px));
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* === Layout shell ======================================================= */
+
+/* Two-column "curator rail" on wide screens: main content + sticky rail.
+   Below 1024px the rail folds above the main column as a compact strip. */
+.curator-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 72px;
+  max-width: min(1280px, calc(100vw - 96px));
   margin: 0 auto;
   padding: 56px 0 96px;
+  align-items: start;
 }
+
+.page-main {
+  min-width: 0;
+}
+
+.page-rail {
+  position: sticky;
+  top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  background: var(--surface-rail);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px 22px;
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.page-rail::-webkit-scrollbar {
+  width: 6px;
+}
+
+.page-rail::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+
+.rail-section + .rail-section {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+}
+
+.rail-section-title {
+  font: 600 10px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  margin: 0 0 14px;
+}
+
+/* === Brand ============================================================== */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.brand-mark .magpie-eye {
+  fill: var(--accent);
+}
+
+.brand-text {
+  font: 600 15px/1 var(--font-sans);
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+/* === Page header ======================================================== */
 
 .page-header {
-  margin-bottom: 28px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 24px;
-}
-
-.page-header-main {
-  min-width: 0;
+  margin-bottom: 36px;
 }
 
 .eyebrow {
   font: 11px/1 var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--ink-muted);
-  margin: 0 0 12px;
+  margin: 0 0 16px;
 }
 
+h1.page-title,
 h1 {
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  margin: 0 0 8px;
+  font: 600 38px/1.1 var(--font-sans);
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin: 0 0 14px;
+  max-width: 22ch;
 }
 
-h2 {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  margin: 32px 0 12px;
-}
-
-.subtle {
-  color: var(--ink-muted);
+h1 .accent {
+  color: var(--accent);
 }
 
 .lede {
   color: var(--ink-muted);
-  font-size: 14.5px;
-  max-width: 68ch;
-  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 60ch;
+  margin: 0;
+}
+
+.lede strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .lede code,
 .pr-meta code {
   font: 12.5px/1 var(--font-mono);
   background: var(--card-inset);
+  border: 1px solid var(--line);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   color: var(--ink);
 }
 
-/* PR meta block on the findings page: gives a returning user (and especially
-   a first-timer) the PR identity in the page header instead of just the tab
-   title. Rendered as a compact stack to the right of the H1. */
+.subtle {
+  color: var(--ink-muted);
+}
+
+/* === PR meta in the rail ================================================ */
+
 .pr-meta {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  font: 12px/1.4 var(--font-mono);
+  gap: 6px;
+  font: 12.5px/1.4 var(--font-mono);
   color: var(--ink-muted);
-  text-align: right;
-  white-space: nowrap;
 }
 
 .pr-meta .pr-number {
-  font: 600 13px/1 var(--font-sans);
+  font: 600 16px/1 var(--font-sans);
+  letter-spacing: -0.008em;
   color: var(--ink);
-  letter-spacing: -0.005em;
 }
 
 .pr-meta .pr-branch {
   color: var(--ink);
+  word-break: break-all;
 }
+
+.pr-meta code {
+  align-self: flex-start;
+  font-size: 11.5px;
+}
+
+/* === Archived banner ==================================================== */
 
 .archived-banner {
   display: none;
   font-size: 12.5px;
   background: var(--warn-bg);
   color: var(--warn-ink);
-  padding: 10px 16px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--line-strong);
 }
 
@@ -225,7 +323,7 @@ h2 {
   display: block;
 }
 
-:root[data-mode="archived"] .submit-bar {
+:root[data-mode="archived"] .rail-submit {
   display: none;
 }
 
@@ -234,59 +332,67 @@ h2 {
   opacity: 0.4;
 }
 
-/* === Pipeline =========================================================== */
+/* === Pipeline (vertical, lives in the rail) ============================ */
 
 .pipeline {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 0;
-  margin: 28px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   --done-count: 0;
   --done-fraction: calc(var(--done-count) / 7);
 }
 
+/* Connector line: full muted, with a foreground span that grows
+   downward as more stages finish. */
 .pipeline::before,
 .pipeline::after {
   content: "";
   position: absolute;
+  left: 10px;
   top: 11px;
-  left: 6%;
-  right: 6%;
-  height: 1px;
+  bottom: 11px;
+  width: 1px;
   z-index: 0;
 }
 
 .pipeline::before {
-  background: var(--line);
+  background: var(--line-strong);
 }
 
 .pipeline::after {
   background: var(--ink);
-  width: calc((100% - 12%) * var(--done-fraction));
-  right: auto;
-  transition: width 360ms cubic-bezier(0.2, 0, 0, 1);
+  height: calc((100% - 22px) * var(--done-fraction));
+  bottom: auto;
+  transition: height 420ms var(--ease-out-quart);
 }
 
 .step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
   position: relative;
   z-index: 1;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  column-gap: 12px;
+  align-items: start;
 }
 
 .step .dot {
-  width: 22px;
-  height: 22px;
+  position: relative;
+  width: 21px;
+  height: 21px;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--surface-rail);
   border: 1px solid var(--line-strong);
   display: grid;
   place-items: center;
-  font: 12px/1 var(--font-mono);
+  font: 11px/1 var(--font-mono);
   color: var(--ink-muted);
+  transition: background 240ms var(--ease-out-quart),
+    border-color 240ms var(--ease-out-quart),
+    color 240ms var(--ease-out-quart);
 }
 
 .step.done .dot {
@@ -296,10 +402,21 @@ h2 {
 }
 
 .step.running .dot {
-  background: var(--surface);
+  background: var(--surface-rail);
   border-color: var(--ink);
   color: var(--ink);
-  box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--ink);
+}
+
+/* Concentric pulse: slower and softer than a spinner so it reads as
+   "in progress" rather than "loading bar." */
+.step.running .dot::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--ink);
+  opacity: 0.5;
+  animation: pulse 2.4s var(--ease-out-expo) infinite;
 }
 
 .step.error .dot {
@@ -309,85 +426,134 @@ h2 {
 }
 
 .step.skipped .dot {
-  color: var(--ink-faint);
   border-style: dashed;
+  color: var(--ink-faint);
 }
 
 .step .name {
-  font: 11px/1.2 var(--font-mono);
+  font: 12px/1.3 var(--font-sans);
   color: var(--ink-muted);
-  text-align: center;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.002em;
 }
 
 .step.done .name,
-.step.running .name {
+.step.running .name,
+.step.error .name {
   color: var(--ink);
+  font-weight: 500;
+}
+
+.step.running .name {
+  font-weight: 600;
 }
 
 .step .hint {
+  display: block;
   font: 11px/1.4 var(--font-sans);
   color: var(--ink-faint);
-  text-align: center;
-  max-width: 14ch;
-  margin-top: -2px;
+  margin-top: 2px;
 }
 
-.specialists-line {
-  font: 12.5px/1.6 var(--font-mono);
-  color: var(--ink-muted);
-  margin: 4px 0 0;
+@keyframes pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.6;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
 }
 
-.specialists-line .count {
+/* === Rail counts ========================================================= */
+
+.rail-counts-total {
+  font: 600 22px/1 var(--font-sans);
+  letter-spacing: -0.015em;
   color: var(--ink);
+  margin-bottom: 12px;
 }
 
-.specialists-line .sep {
-  margin: 0 8px;
-  color: var(--ink-faint);
-}
-
-/* === Summary + filter bar =============================================== */
-
-.findings-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 20px;
-  padding: 16px 0 20px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 4px;
-}
-
-.findings-summary .count {
-  font: 600 24px/1 var(--font-sans);
-  letter-spacing: -0.01em;
-}
-
-.findings-summary .breakdown {
-  font: 12.5px/1 var(--font-sans);
+.rail-counts-total .label {
+  font: 500 12.5px/1 var(--font-sans);
   color: var(--ink-muted);
+  margin-left: 8px;
   letter-spacing: 0;
 }
 
-.findings-summary .breakdown .num {
+.rail-counts-breakdown {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  font: 12.5px/1.3 var(--font-sans);
+  color: var(--ink-muted);
+}
+
+.count-row {
+  display: contents;
+}
+
+.count-row .count-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-row .count-num {
   color: var(--ink);
   font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  justify-self: end;
 }
+
+.sev-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--ink-muted);
+  display: inline-block;
+}
+
+.sev-dot.sev-blocker {
+  background: var(--sev-blocker-bg);
+}
+
+.sev-dot.sev-high {
+  background: var(--sev-high-bg);
+}
+
+.sev-dot.sev-medium {
+  background: var(--sev-medium-bg);
+  border: 1px solid color-mix(in oklch, var(--sev-medium-bg), var(--ink) 14%);
+}
+
+.sev-dot.sev-low {
+  background: var(--sev-low-bg);
+  border: 1px solid var(--line-strong);
+}
+
+/* Legacy class kept so the existing severityBreakdown still renders
+   somewhere if ever needed; in the new layout the rail covers it. */
+.findings-summary {
+  display: none;
+}
+
+/* === Filter bar (lives in the rail) ===================================== */
 
 .filter-bar {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 0 18px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--line);
 }
 
 .search-row {
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
 .search-field {
@@ -395,17 +561,17 @@ h2 {
   display: flex;
   align-items: center;
   flex: 1;
-  max-width: 520px;
+  width: 100%;
 }
 
 .search-field input[type="search"] {
   width: 100%;
-  font: 14px/1.4 var(--font-sans);
+  font: 13px/1.4 var(--font-sans);
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  padding: 8px 36px 8px 32px;
+  padding: 7px 32px 7px 30px;
   outline: none;
   appearance: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -422,18 +588,16 @@ h2 {
 
 .search-icon {
   position: absolute;
-  left: 10px;
-  font: 16px/1 var(--font-sans);
+  left: 9px;
+  font: 14px/1 var(--font-sans);
   color: var(--ink-faint);
   pointer-events: none;
 }
 
-/* The slash hint stays visible even on focus: hiding the affordance the
-   moment the user engages with the input is bad memory. Dim it instead. */
 .search-hint {
   position: absolute;
-  right: 8px;
-  font: 11px/1 var(--font-mono);
+  right: 7px;
+  font: 10.5px/1 var(--font-mono);
   color: var(--ink-faint);
   background: var(--card-inset);
   border: 1px solid var(--line);
@@ -450,20 +614,20 @@ h2 {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .filter-chip {
-  font: 500 12px/1 var(--font-sans);
+  font: 500 11.5px/1 var(--font-sans);
   background: transparent;
   color: var(--ink-muted);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  padding: 5px 11px;
+  padding: 4px 9px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
@@ -473,11 +637,11 @@ h2 {
 }
 
 .filter-chip-count {
-  font: 11px/1 var(--font-mono);
+  font: 10.5px/1 var(--font-mono);
   color: var(--ink-faint);
   background: var(--card-inset);
   border-radius: 999px;
-  padding: 2px 6px;
+  padding: 1px 5px;
 }
 
 .filter-chip[aria-pressed="true"] {
@@ -491,8 +655,6 @@ h2 {
   color: var(--ink-inverse);
 }
 
-/* Severity-tinted active state: pressed sev chips adopt their sev color so
-   a reviewer can see at a glance which severities are gated in. */
 .filter-chip[data-severity="blocker"][aria-pressed="true"] {
   background: var(--sev-blocker-bg);
   color: var(--sev-blocker-ink);
@@ -518,25 +680,27 @@ h2 {
 }
 
 .filter-state {
-  font: 12.5px/1.4 var(--font-sans);
+  font: 12px/1.4 var(--font-sans);
   color: var(--ink-muted);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   margin-top: 2px;
 }
 
 .filter-state .num {
   color: var(--ink);
   font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 .link-btn {
-  font: 500 12.5px/1 var(--font-sans);
+  font: 500 12px/1 var(--font-sans);
   color: var(--ink-muted);
   background: transparent;
   border: 0;
-  padding: 4px 0;
+  padding: 3px 0;
   cursor: pointer;
   letter-spacing: 0.01em;
   text-decoration: underline;
@@ -550,9 +714,12 @@ h2 {
   text-decoration-color: var(--ink);
 }
 
+/* === Findings list (groups + cards) ===================================== */
+
 .findings-list {
   display: flex;
   flex-direction: column;
+  gap: 38px;
 }
 
 .findings-list-heading {
@@ -566,6 +733,49 @@ h2 {
   border: 0;
 }
 
+.finding-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.finding-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.finding-group-title {
+  font: 600 18px/1.2 var(--font-sans);
+  color: var(--ink);
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-transform: none;
+}
+
+.finding-group[data-group="blocker"] .finding-group-title {
+  color: var(--sev-blocker-bg);
+}
+
+.finding-group-count {
+  font: 11.5px/1 var(--font-mono);
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+
+.finding-group-count strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The "blockers + highs" pair is what reviewers ship 90% of the time;
+   subtle visual lift to flag them as the priority groups. */
+.finding-group + .finding-group {
+  margin-top: 0;
+}
+
 .no-matches {
   padding: 32px 0;
   text-align: center;
@@ -573,134 +783,29 @@ h2 {
   font-size: 13.5px;
 }
 
-.kbd-hint {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin: 20px 0 0;
-  padding: 10px 14px;
-  font: 12px/1.6 var(--font-mono);
-  color: var(--ink-muted);
-  border-top: 1px dashed var(--line);
+/* === Finding card ======================================================= */
+
+.finding.is-hidden {
+  display: none;
 }
 
-.kbd-hint kbd {
-  font: inherit;
-  background: var(--card-inset);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-right: 4px;
+.finding.is-focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-}
-
-.bulk-actions .link-btn {
-  font-size: 12.5px;
-}
-
-/* Defensive: HTML `hidden` should always win. */
-[hidden] {
-  display: none !important;
-}
-
-/* === Post button + confirm popup ======================================== */
-
-.post-button-group {
+.finding {
   position: relative;
-}
-
-/* The popup uses a slightly lighter surface than the card so it lifts off the
-   page in both modes, and a stronger shadow than a typical card so it reads
-   as "above" instead of "next to" the cards behind it. */
-.confirm-popup {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  width: max-content;
-  max-width: min(400px, calc(100vw - 64px));
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px;
-  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
-  border: 1px solid var(--line-strong);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  box-shadow:
-    0 10px 28px oklch(0.1 0.01 60 / 0.32),
-    0 2px 6px oklch(0.1 0.01 60 / 0.2);
-  z-index: 5;
-  animation: popup-in 140ms cubic-bezier(0.2, 0, 0, 1);
+  padding: 20px 24px 18px 60px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-card);
+  animation: card-in 320ms var(--ease-out-quart) both;
 }
 
-.confirm-popup::after {
-  content: "";
-  position: absolute;
-  right: 18px;
-  top: 100%;
-  width: 10px;
-  height: 10px;
-  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
-  border-right: 1px solid var(--line-strong);
-  border-bottom: 1px solid var(--line-strong);
-  transform: translateY(-5px) rotate(45deg);
-}
-
-.confirm-text {
-  margin: 0;
-  font: 13.5px/1.45 var(--font-sans);
-  color: var(--ink);
-}
-
-.confirm-actions {
-  display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Cancel as a tonal secondary button: same height as Confirm so the two
-   actions read as a balanced pair, but no fill — Confirm stays the lead. */
-.confirm-actions .link-btn[data-action="cancel-post"] {
-  font: 600 12.5px/1 var(--font-sans);
-  color: var(--ink);
-  background: transparent;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  text-decoration: none;
-  letter-spacing: 0.01em;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.confirm-actions .link-btn[data-action="cancel-post"]:hover {
-  background: var(--card-inset);
-  border-color: var(--ink-muted);
-}
-
-.confirm-btn {
-  font-size: 12.5px;
-  padding: 8px 14px;
-}
-
-/* When the popup is open the Post button is disabled by helper.js to prevent
-   double-submit. Don't let it sit as a grey blob next to the live popup —
-   dim it to "out of the way" and signal the focus belongs above. Scoped
-   tightly to the trigger button so it doesn't also dim Confirm post (which
-   is also a .submit-btn living inside this same group). */
-.post-button-group:has(.confirm-popup:not([hidden])) > .submit-btn[data-action="post"] {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--ink-faint);
-}
-
-@keyframes popup-in {
+@keyframes card-in {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -711,82 +816,32 @@ h2 {
   }
 }
 
-.submit-status {
-  margin: 8px 0 0;
-  padding: 0;
-  font: 12.5px/1.5 var(--font-mono);
-  color: var(--ink-muted);
-  letter-spacing: 0.01em;
-  animation: status-in 200ms cubic-bezier(0.2, 0, 0, 1);
+/* Stagger entrance, capped so the page settles within ~200ms total. */
+.finding:nth-child(1) {
+  animation-delay: 0ms;
+}
+.finding:nth-child(2) {
+  animation-delay: 30ms;
+}
+.finding:nth-child(3) {
+  animation-delay: 60ms;
+}
+.finding:nth-child(4) {
+  animation-delay: 90ms;
+}
+.finding:nth-child(5) {
+  animation-delay: 120ms;
+}
+.finding:nth-child(n+6) {
+  animation-delay: 150ms;
 }
 
-.submit-status[data-tone="ok"] {
-  color: var(--ink);
-}
-
-.submit-status[data-tone="warn"] {
-  color: var(--warn-ink);
-}
-
-.submit-status code {
-  font: inherit;
-  background: var(--card-inset);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  color: var(--ink);
-}
-
-@keyframes status-in {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* === Finding cards ====================================================== */
-
-.finding.is-hidden {
-  display: none;
-}
-
-.finding.is-focused {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.finding {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 18px 22px 16px;
-  margin-bottom: 12px;
-  box-shadow: var(--shadow-card);
-  position: relative;
-}
-
-/* Severity-tinted card chrome. Severity is the entire emotional payload of
-   the review; the card itself should carry it, not just the chip. Blockers
-   get a left rule too because that's the only legit place a side accent
-   earns its keep on this product. */
+/* Severity-tinted card chrome at reduced intensity. The grouping
+   headers carry most of the work; tints exist so a filtered (ungrouped)
+   view still encodes severity at a glance. */
 .finding[data-severity="blocker"] {
   background: var(--sev-blocker-tint);
   border-color: var(--sev-blocker-edge);
-}
-
-.finding[data-severity="blocker"]::before {
-  content: "";
-  position: absolute;
-  left: -1px;
-  top: -1px;
-  bottom: -1px;
-  width: 3px;
-  background: var(--sev-blocker-bg);
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
 .finding[data-severity="high"] {
@@ -802,6 +857,24 @@ h2 {
 .finding[data-severity="low"] {
   background: var(--sev-low-tint);
   border-color: var(--sev-low-edge);
+}
+
+/* Sequence number in the gutter; replaces the banned colored side-stripe.
+   Each card carries an "01" / "02" / ... numbered like a register entry. */
+.finding-seq {
+  position: absolute;
+  top: 20px;
+  left: 22px;
+  width: 24px;
+  font: 500 12px/1 var(--font-mono);
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  text-align: right;
+  user-select: none;
+}
+
+.finding[data-severity="blocker"] .finding-seq {
+  color: var(--sev-blocker-bg);
 }
 
 .finding-head {
@@ -854,10 +927,10 @@ h2 {
 }
 
 .sev-chip {
-  font: 600 11px/1 var(--font-sans);
+  font: 600 10.5px/1 var(--font-sans);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 5px 9px;
+  letter-spacing: 0.07em;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
   display: inline-block;
@@ -889,16 +962,13 @@ h2 {
   font: 12.5px/1.5 var(--font-mono);
   color: var(--ink-muted);
   margin-left: 32px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .finding-anchor .path {
   color: var(--ink);
 }
 
-/* The card already carries domain via the filter chip; no need to repeat it
-   on every anchor line. We retain the span (for tests/markup stability) but
-   hide it visually. */
 .finding-anchor .domain {
   display: none;
 }
@@ -908,7 +978,7 @@ h2 {
   max-width: 72ch;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .finding-section {
@@ -916,25 +986,22 @@ h2 {
 }
 
 .finding-section-label {
-  margin: 0 0 4px;
-  font: 600 11px/1.2 var(--font-sans);
+  margin: 0 0 5px;
+  font: 600 10.5px/1.2 var(--font-sans);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--ink-muted);
 }
 
-/* Accent discipline: --accent is reserved for the *patch* (the one truly
-   actionable artifact on the page). Prose section labels stay neutral so
-   they don't compete with the patch and so "Suggested direction" and
-   "Suggested change" no longer carry identical visual weight while meaning
-   different things. */
+/* Patch label uses the accent; the patch is the only truly actionable
+   artifact on the page, so it earns the single accent color. */
 .finding-suggestion-wrap .finding-section-label {
   color: var(--accent);
 }
 
 .finding-section-body {
   margin: 0;
-  font-size: 14px;
+  font-size: 14.5px;
   line-height: 1.62;
   color: var(--ink);
   white-space: pre-wrap;
@@ -945,26 +1012,27 @@ h2 {
 }
 
 .finding-suggestion {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   background: var(--card-inset);
   border: 1px solid var(--line);
+  border-left: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font: 12.5px/1.55 var(--font-mono);
+  padding: 12px 16px;
+  font: 12.5px/1.6 var(--font-mono);
   color: var(--ink);
   overflow-x: auto;
   white-space: pre-wrap;
 }
 
-/* === Risk row (collapsed from a 4-line K:V wall to a single glyph row) === */
+/* === Risk row =========================================================== */
 
 .finding-risk {
-  margin: 14px 0 0 32px;
-  padding-top: 10px;
+  margin: 18px 0 0 32px;
+  padding-top: 12px;
   border-top: 1px dashed var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 16px;
   font: 11.5px/1.4 var(--font-mono);
   color: var(--ink-muted);
 }
@@ -992,7 +1060,7 @@ h2 {
   letter-spacing: 0.06em;
   padding: 4px 7px;
   border-radius: var(--radius-sm);
-  margin-left: 8px;
+  margin-left: 4px;
 }
 
 .badge.posted {
@@ -1005,45 +1073,210 @@ h2 {
   color: var(--badge-failed-ink);
 }
 
-/* === Sticky submit bar + Post button ==================================== */
+/* === Keyboard hint ====================================================== */
 
-.submit-bar {
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(
-    to top,
-    var(--surface) 62%,
-    color-mix(in oklch, var(--surface), transparent 100%)
-  );
-  padding: 24px 0 16px;
-  margin-top: 8px;
+.kbd-hint {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 0;
+  padding: 14px 0 0;
+  font: 12px/1.6 var(--font-mono);
+  color: var(--ink-muted);
+  border-top: 1px dashed var(--line);
 }
 
-.submit-bar .selected-count {
+.kbd-hint kbd {
+  font: inherit;
+  background: var(--card-inset);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-right: 4px;
+}
+
+/* Defensive: HTML hidden should always win. */
+[hidden] {
+  display: none !important;
+}
+
+/* === Rail submit block ================================================== */
+
+.rail-submit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rail-submit .selected-count {
   font: 13px/1 var(--font-sans);
   color: var(--ink-muted);
 }
 
-.submit-bar .selected-count .num {
+.rail-submit .selected-count .num {
   color: var(--ink);
   font-weight: 600;
   font-family: var(--font-mono);
   margin-right: 4px;
 }
 
+/* Bulk actions as a quiet indented list. Border-left is 1px on a neutral
+   line color, which is structural (a quote-style indent), not the banned
+   colored side-stripe accent. */
+.bulk-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border-left: 1px solid var(--line);
+  padding: 4px 0 4px 10px;
+  margin: 4px 0 8px;
+}
+
+.bulk-actions .link-btn {
+  font-size: 12.5px;
+  padding: 1px 0;
+}
+
+.post-button-group {
+  position: relative;
+  margin-top: 6px;
+}
+
+.confirm-popup {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: min(360px, calc(100vw - 64px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 10px 28px oklch(0.1 0.01 60 / 0.32),
+    0 2px 6px oklch(0.1 0.01 60 / 0.2);
+  z-index: 5;
+  animation: popup-in 140ms var(--ease-out-quart);
+}
+
+.confirm-popup::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 100%;
+  width: 10px;
+  height: 10px;
+  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  transform: translateY(-5px) rotate(45deg);
+}
+
+.confirm-text {
+  margin: 0;
+  font: 13.5px/1.45 var(--font-sans);
+  color: var(--ink);
+}
+
+.confirm-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-actions .link-btn[data-action="cancel-post"] {
+  font: 600 12.5px/1 var(--font-sans);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.confirm-actions .link-btn[data-action="cancel-post"]:hover {
+  background: var(--card-inset);
+  border-color: var(--ink-muted);
+}
+
+.confirm-btn {
+  font-size: 12.5px;
+  padding: 8px 14px;
+}
+
+.post-button-group:has(.confirm-popup:not([hidden])) > .submit-btn[data-action="post"] {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.submit-status {
+  margin: 4px 0 0;
+  padding: 0;
+  font: 12px/1.5 var(--font-mono);
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+  animation: status-in 200ms var(--ease-out-quart);
+}
+
+.submit-status[data-tone="ok"] {
+  color: var(--ink);
+}
+
+.submit-status[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+
+.submit-status code {
+  font: inherit;
+  background: var(--card-inset);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+@keyframes status-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .submit-btn {
-  font: 600 13px/1 var(--font-sans);
-  padding: 10px 18px;
+  font: 600 13.5px/1 var(--font-sans);
+  padding: 12px 18px;
   background: var(--cta-bg);
   color: var(--cta-ink);
   border: 1px solid var(--cta-bg);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  letter-spacing: 0.01em;
-  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1),
+  letter-spacing: 0.005em;
+  width: 100%;
+  transition: transform 120ms var(--ease-out-quart),
     background 120ms ease, border-color 120ms ease;
 }
 
@@ -1057,10 +1290,18 @@ h2 {
 }
 
 .submit-btn:disabled {
-  background: var(--ink-faint);
-  border-color: var(--ink-faint);
-  color: var(--ink-inverse);
+  background: var(--card-inset);
+  border-color: var(--line-strong);
+  color: var(--ink-faint);
   cursor: not-allowed;
+}
+
+/* Older selectors still used by the legacy structure but invisible in the
+   new rail layout. The actual sticky submit lives in .rail-submit; we keep
+   the .submit-bar element as a structural anchor for helper.js without
+   making it carry visual weight. */
+.submit-bar:not(.rail-submit) {
+  display: none;
 }
 
 .empty-state {
@@ -1073,34 +1314,151 @@ h2 {
   margin-bottom: 8px;
 }
 
-@media (max-width: 820px) {
-  .page {
-    padding: 28px 0 96px;
+/* === Rail provenance (findings page footer) ============================ */
+
+.rail-provenance .provenance-line {
+  margin: 0;
+  font: 12px/1.6 var(--font-sans);
+  color: var(--ink-faint);
+}
+
+/* === Progress page main column ========================================== */
+
+.run-statement {
+  margin: 12px 0 36px;
+  padding: 0;
+}
+
+.run-statement .now-doing {
+  font: 500 15px/1.55 var(--font-sans);
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+  max-width: 62ch;
+}
+
+.run-statement .now-doing strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-statement .now-doing .accent {
+  color: var(--accent);
+}
+
+.run-statement-hint {
+  font: 12.5px/1.5 var(--font-mono);
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.progress-specialists h2 {
+  font: 600 13px/1.2 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin: 36px 0 14px;
+}
+
+.specialists-line {
+  font: 13px/1.7 var(--font-mono);
+  color: var(--ink-muted);
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
+}
+
+.specialists-line .count {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.specialists-line .part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.specialists-line .sep {
+  margin: 0 6px;
+  color: var(--ink-faint);
+}
+
+/* === Responsive ========================================================= */
+
+@media (max-width: 1024px) {
+  .curator-shell {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 36px 0 96px;
     max-width: calc(100vw - 32px);
   }
 
-  .page-header {
-    grid-template-columns: 1fr;
-    align-items: start;
+  .page-rail {
+    order: -1;
+    position: static;
+    max-height: none;
+    padding: 18px 18px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 18px 28px;
   }
 
-  .pr-meta {
-    align-items: flex-start;
-    text-align: left;
+  .rail-section {
+    flex: 1 1 220px;
+    min-width: 200px;
   }
 
-  h1 {
-    font-size: 26px;
+  .rail-section + .rail-section {
+    border-top: 0;
+    padding-top: 0;
   }
 
+  .rail-pipeline {
+    flex: 1 1 100%;
+  }
+
+  /* Pipeline goes horizontal when in the top strip. */
   .pipeline {
-    grid-template-columns: repeat(4, 1fr);
-    row-gap: 22px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 14px 18px;
   }
 
   .pipeline::before,
   .pipeline::after {
     display: none;
+  }
+
+  .step {
+    grid-template-columns: 22px auto;
+    column-gap: 8px;
+  }
+
+  .step .hint {
+    display: none;
+  }
+
+  h1,
+  h1.page-title {
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 640px) {
+  .finding {
+    padding: 18px 18px 16px 50px;
+  }
+
+  .finding-seq {
+    left: 16px;
+  }
+
+  .finding-anchor,
+  .finding-body,
+  .finding-risk {
+    margin-left: 0;
   }
 
   .finding-head {
@@ -1115,5 +1473,10 @@ h2 {
   .kbd-hint {
     font-size: 11px;
     gap: 10px;
+  }
+
+  h1,
+  h1.page-title {
+    font-size: 26px;
   }
 }

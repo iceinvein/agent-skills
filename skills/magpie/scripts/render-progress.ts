@@ -24,6 +24,17 @@ const STAGE_HINT: Record<StageId, string> = {
   post: 'comment on the PR',
 }
 
+const STAGE_NOW_DOING: Record<StageId, string> = {
+  setup: 'Fetching the PR and diff',
+  context: 'Indexing repo symbols',
+  specialists: 'Five reviewers reading the diff in parallel',
+  dedupe: 'Merging overlapping findings',
+  critic: 'Keeping only the high-signal ones',
+  'peer-review': 'Asking a second opinion via codex',
+  report: 'Composing the report page',
+  post: 'Ready to post; open the findings tab',
+}
+
 export type RenderProgressInput = {
   prNumber: number
   headSha: string
@@ -53,19 +64,25 @@ const STEP_GLYPH: Record<StageStatus, string> = {
   skipped: '∅',
 }
 
-function pipelineHtml(stages: Record<StageId, StageStatus>): string {
+const BRAND_MARK_SVG = `<svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none">
+  <path d="M3 17.5 C 6.5 7.5, 13 6, 17.5 11 L 21 16.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M11.5 12.5 L 21 16.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+  <circle class="magpie-eye" cx="6.5" cy="13.5" r="1.1"/>
+</svg>`
+
+function pipelineMarkup(stages: Record<StageId, StageStatus>): string {
   const steps = STAGES.map((s) => {
     const status = stages[s] ?? 'pending'
-    return `<div class="step ${status}" data-stage="${s}">
+    return `<li class="step ${status}" data-stage="${s}">
       <span class="dot" aria-hidden="true">${STEP_GLYPH[status]}</span>
-      <span class="name">${s}</span>
-      <span class="hint">${escapeHtml(STAGE_HINT[s])}</span>
-    </div>`
+      <span class="name">${s}<span class="hint">${escapeHtml(STAGE_HINT[s])}</span></span>
+    </li>`
   }).join('')
-  // The fill on the connector line is driven by --done-count (count of done
-  // stages); CSS turns that into a width.
   const doneCount = STAGES.filter((s) => stages[s] === 'done').length
-  return `<div class="pipeline" role="list" style="--done-count: ${doneCount}">${steps}</div>`
+  return `<section class="rail-section rail-pipeline" aria-label="pipeline">
+    <h3 class="rail-section-title">Pipeline</h3>
+    <ol class="pipeline" style="--done-count: ${doneCount}">${steps}</ol>
+  </section>`
 }
 
 function specialistsLine(counts: Record<string, number>): string {
@@ -80,7 +97,67 @@ function specialistsLine(counts: Record<string, number>): string {
   return `<p class="specialists-line"><span class="count">${total}</span> finding${total === 1 ? '' : 's'} <span class="sep">·</span> ${parts}</p>`
 }
 
+function currentStage(stages: Record<StageId, StageStatus>): { id: StageId; status: StageStatus } {
+  // Prefer the running stage; otherwise the first error; otherwise the first
+  // pending; otherwise the last done. This drives the "now doing" headline.
+  const running = STAGES.find((s) => stages[s] === 'running')
+  if (running) return { id: running, status: 'running' }
+  const errored = STAGES.find((s) => stages[s] === 'error')
+  if (errored) return { id: errored, status: 'error' }
+  const pending = STAGES.find((s) => stages[s] === 'pending')
+  if (pending) return { id: pending, status: 'pending' }
+  return { id: 'post', status: stages.post ?? 'done' }
+}
+
+function runStatement(stages: Record<StageId, StageStatus>): string {
+  const cur = currentStage(stages)
+  const doneCount = STAGES.filter((s) => stages[s] === 'done').length
+  const totalSteps = STAGES.length
+  let lead: string
+  let hint: string
+  if (cur.status === 'running') {
+    lead = `<span class="accent">${escapeHtml(STAGE_NOW_DOING[cur.id])}</span>.`
+    hint = STAGE_HINT[cur.id]
+  } else if (cur.status === 'error') {
+    lead = `<strong>${escapeHtml(STAGE_NOW_DOING[cur.id])}</strong> stalled. The pipeline hit an error.`
+    hint = `check the run log for details`
+  } else if (cur.status === 'pending' && doneCount === 0) {
+    lead = `Warming up.`
+    hint = STAGE_HINT[cur.id]
+  } else if (cur.status === 'pending' && cur.id === 'post' && stages.report === 'done') {
+    // The report stage has produced findings; the page should encourage
+    // the reviewer to switch tabs rather than dwell here.
+    lead = `<strong>Findings are ready.</strong> Open the findings tab to pick what to post.`
+    hint = `report rendered; post is your call`
+  } else if (cur.status === 'pending') {
+    lead = `Paused before <strong>${escapeHtml(cur.id)}</strong>.`
+    hint = STAGE_HINT[cur.id]
+  } else {
+    lead = `<strong>All eight stages complete.</strong>`
+    hint = `findings posted to the PR`
+  }
+  const stepLabel = `step ${Math.min(doneCount + (cur.status === 'running' ? 1 : 0), totalSteps)} of ${totalSteps}`
+  return `<section class="run-statement">
+    <p class="now-doing">${lead}</p>
+    <p class="run-statement-hint">${stepLabel} · ${escapeHtml(hint)}</p>
+  </section>`
+}
+
+function railPrMeta(input: RenderProgressInput): string {
+  return `<section class="rail-section" aria-label="pull request">
+    <div class="pr-meta">
+      <span class="pr-number">PR #${input.prNumber}</span>
+      <span class="pr-branch">${escapeHtml(input.branch)}</span>
+      <code>${escapeHtml(input.headSha.slice(0, 12))}</code>
+    </div>
+  </section>`
+}
+
 const ARCHIVED_BANNER = `<div class="archived-banner" role="note"><strong>Archived view.</strong> Live server is gone; this is a snapshot.</div>`
+
+function brandBlock(): string {
+  return `<div class="brand">${BRAND_MARK_SVG}<span class="brand-text">magpie</span></div>`
+}
 
 export function renderProgressHtml(input: RenderProgressInput): string {
   return `<!DOCTYPE html>
@@ -91,22 +168,30 @@ export function renderProgressHtml(input: RenderProgressInput): string {
 <title>magpie #${input.prNumber}</title>
 <link rel="stylesheet" href="data:text/css;base64,STYLES_INLINE">
 </head>
-<body>
+<body data-page="progress">
 ${ARCHIVED_BANNER}
-<main class="page">
-  <header class="page-header">
-    <div class="page-header-main">
-      <p class="eyebrow">magpie · pipeline</p>
-      <h1>PR #${input.prNumber}</h1>
-      <p class="lede">${escapeHtml(input.branch)} <span class="subtle">at <code>${escapeHtml(input.headSha.slice(0, 12))}</code></span></p>
-    </div>
-  </header>
+<div class="curator-shell">
+  <main class="page-main">
+    <header class="page-header">
+      ${brandBlock()}
+      <p class="eyebrow">pipeline</p>
+      <h1 class="page-title">Reviewing <span class="accent">PR #${input.prNumber}</span>.</h1>
+      <p class="lede">Eight stages: five specialists, then dedupe, critic, and a peer review. Watch the rail; the findings page opens itself when the report is ready.</p>
+    </header>
 
-  ${pipelineHtml(input.stages)}
+    ${runStatement(input.stages)}
 
-  <h2>Specialists</h2>
-  ${specialistsLine(input.specialistCounts)}
-</main>
+    <section class="progress-specialists">
+      <h2>Specialists</h2>
+      ${specialistsLine(input.specialistCounts)}
+    </section>
+  </main>
+
+  <aside class="page-rail" aria-label="run details">
+    ${railPrMeta(input)}
+    ${pipelineMarkup(input.stages)}
+  </aside>
+</div>
 <script>HELPER_INLINE</script>
 </body>
 </html>`
