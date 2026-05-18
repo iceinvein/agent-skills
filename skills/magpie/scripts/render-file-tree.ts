@@ -23,11 +23,16 @@ function esc(s: string): string {
 function pipsHtml(findings: ReviewFinding[], path: string): string {
   const counts = findingCountsBySeverity(findings, path)
   if (counts.length === 0) return ''
-  return counts.map((c) => `<span class="sev-pip ${c.severity}">${c.count}</span>`).join('')
+  return counts
+    .map(
+      (c) =>
+        `<span class="sev-pip ${c.severity}" aria-label="${c.count} ${c.severity}">${c.count}</span>`,
+    )
+    .join('')
 }
 
 function deltaHtml(f: PrFileEntry): string {
-  return `<span class="delta"><span class="add">+${f.additions}</span> <span class="del">-${f.deletions}</span></span>`
+  return `<span class="delta" aria-label="${f.additions} additions, ${f.deletions} deletions"><span class="add">+${f.additions}</span> <span class="del">-${f.deletions}</span></span>`
 }
 
 function renderFiles(files: PrFileEntry[], findings: ReviewFinding[], depth: number): string {
