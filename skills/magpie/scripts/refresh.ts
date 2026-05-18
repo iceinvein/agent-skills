@@ -59,8 +59,23 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
     // optional file
   }
 
+  let pr: { number: number; branch: string; headSha: string } | undefined
+  try {
+    const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
+    const prNumber = Number(prJson.number ?? 0)
+    if (prNumber > 0) {
+      pr = {
+        number: prNumber,
+        branch: String(prJson.headRefName ?? '?'),
+        headSha: String(prJson.headRefOid ?? '?'),
+      }
+    }
+  } catch {
+    // optional file; archived runs may not include pr.json
+  }
+
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir) },
+    { findings, postStatus, runId: basename(runDir), pr },
     join(screenDir, 'findings.html'),
   )
 

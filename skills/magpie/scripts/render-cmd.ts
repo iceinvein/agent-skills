@@ -99,7 +99,17 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
     parseFinding(raw),
   )
   const postStatus = await readJson<PostStatusMap>(join(runDir, 'post-status.json'), {})
+  const prJson = await readJson<Record<string, unknown>>(join(runDir, 'pr.json'), {})
+  const prNumber = Number(prJson.number ?? 0)
+  const pr =
+    prNumber > 0
+      ? {
+          number: prNumber,
+          branch: String(prJson.headRefName ?? '?'),
+          headSha: String(prJson.headRefOid ?? '?'),
+        }
+      : undefined
   const outPath = await nextVersionedPath(screenDir, 'findings')
-  await renderFindingsToDisk({ findings, postStatus, runId: basename(runDir) }, outPath)
+  await renderFindingsToDisk({ findings, postStatus, runId: basename(runDir), pr }, outPath)
   return 0
 }

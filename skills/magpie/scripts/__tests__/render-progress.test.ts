@@ -52,6 +52,49 @@ test('renderProgressHtml renders empty specialists-line before any focus reports
   expect(html).toContain('awaiting specialist output')
 })
 
+test('pipeline carries a --done-count style for the filling connector line', () => {
+  const html = renderProgressHtml({
+    prNumber: 1,
+    headSha: 'abcd1234',
+    branch: 'main',
+    stages: {
+      setup: 'done',
+      context: 'done',
+      specialists: 'done',
+      dedupe: 'running',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: {},
+  })
+  // CSS uses --done-count / 7 to compute the connector fill width.
+  expect(html).toContain('--done-count: 3')
+})
+
+test('each pipeline stage exposes a short sublabel so first-timers can learn what it does', () => {
+  const html = renderProgressHtml({
+    prNumber: 1,
+    headSha: 'abcd1234',
+    branch: 'main',
+    stages: {
+      setup: 'done',
+      context: 'pending',
+      specialists: 'pending',
+      dedupe: 'pending',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: {},
+  })
+  expect(html).toContain('class="hint"')
+  expect(html).toContain('five reviewers in parallel')
+  expect(html).toContain('second opinion via codex')
+})
+
 test('renderProgressHtml includes the archived banner element', () => {
   const html = renderProgressHtml({
     prNumber: 1,

@@ -13,6 +13,17 @@ const STAGES = [
 export type StageId = (typeof STAGES)[number]
 export type StageStatus = 'pending' | 'running' | 'done' | 'error' | 'skipped'
 
+const STAGE_HINT: Record<StageId, string> = {
+  setup: 'fetch PR and diff',
+  context: 'index symbols',
+  specialists: 'five reviewers in parallel',
+  dedupe: 'merge overlaps',
+  critic: 'keep the high-signal ones',
+  'peer-review': 'second opinion via codex',
+  report: 'render this page',
+  post: 'comment on the PR',
+}
+
 export type RenderProgressInput = {
   prNumber: number
   headSha: string
@@ -48,9 +59,13 @@ function pipelineHtml(stages: Record<StageId, StageStatus>): string {
     return `<div class="step ${status}" data-stage="${s}">
       <span class="dot" aria-hidden="true">${STEP_GLYPH[status]}</span>
       <span class="name">${s}</span>
+      <span class="hint">${escapeHtml(STAGE_HINT[s])}</span>
     </div>`
   }).join('')
-  return `<div class="pipeline" role="list">${steps}</div>`
+  // The fill on the connector line is driven by --done-count (count of done
+  // stages); CSS turns that into a width.
+  const doneCount = STAGES.filter((s) => stages[s] === 'done').length
+  return `<div class="pipeline" role="list" style="--done-count: ${doneCount}">${steps}</div>`
 }
 
 function specialistsLine(counts: Record<string, number>): string {
@@ -80,9 +95,11 @@ export function renderProgressHtml(input: RenderProgressInput): string {
 ${ARCHIVED_BANNER}
 <main class="page">
   <header class="page-header">
-    <p class="eyebrow">magpie · pipeline</p>
-    <h1>PR #${input.prNumber}</h1>
-    <p class="lede">${escapeHtml(input.branch)} <span class="subtle">at <code>${escapeHtml(input.headSha.slice(0, 12))}</code></span></p>
+    <div class="page-header-main">
+      <p class="eyebrow">magpie · pipeline</p>
+      <h1>PR #${input.prNumber}</h1>
+      <p class="lede">${escapeHtml(input.branch)} <span class="subtle">at <code>${escapeHtml(input.headSha.slice(0, 12))}</code></span></p>
+    </div>
   </header>
 
   ${pipelineHtml(input.stages)}

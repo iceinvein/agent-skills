@@ -6,11 +6,19 @@ import { type ReviewFinding, SEVERITIES, type Severity } from './types.ts'
 export type PostStatusEntry = 'posted' | { status: 'failed'; message: string }
 export type PostStatusMap = Record<string, PostStatusEntry>
 
+export type FindingsPrMeta = {
+  number: number
+  branch: string
+  headSha: string
+}
+
 export type RenderFindingsInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   /** Stable id used as the localStorage selection key. Defaults to "unknown" for tests. */
   runId?: string
+  /** Optional PR identity. When present, the header shows PR #N, branch, sha. */
+  pr?: FindingsPrMeta
 }
 
 function escapeHtml(s: string): string {
@@ -93,11 +101,9 @@ function filterBar(findings: ReviewFinding[]): string {
       </label>
     </div>
     <div class="chip-row" data-role="filter-row" data-group="sev">
-      <span class="chip-row-label">severity</span>
       ${sevChips}
     </div>
     <div class="chip-row" data-role="filter-row" data-group="domain">
-      <span class="chip-row-label">domain</span>
       ${domainChips}
     </div>
     <div class="filter-state">
@@ -109,7 +115,14 @@ function filterBar(findings: ReviewFinding[]): string {
 
 function findingSections(description: string): string {
   const sections = parseFindingDescription(description)
-  if (sections.length === 0) return ''
+  if (sections.length === 0) {
+    // Fallback so the card never collapses to head + anchor + risk only,
+    // which previously looked like a parse error.
+    return `<section class="finding-section finding-section-observation">
+    <h4 class="finding-section-label">Observation</h4>
+    <p class="finding-section-body">${escapeHtml(description.trim())}</p>
+  </section>`
+  }
   return sections
     .map(
       (s) => `<section class="finding-section finding-section-${s.kind}">
@@ -120,13 +133,21 @@ function findingSections(description: string): string {
     .join('\n  ')
 }
 
+const RISK_ACTION_GLYPH: Record<string, string> = {
+  'must-fix': '✦',
+  'should-fix': '◆',
+  consider: '◇',
+  optional: '·',
+}
+
 function findingRiskFooter(f: ReviewFinding): string {
-  return `<footer class="finding-risk" aria-label="risk breakdown">
-    <span>Impact <strong>${escapeHtml(f.risk.impact)}</strong></span>
-    <span>Likelihood <strong>${escapeHtml(f.risk.likelihood)}</strong></span>
-    <span>Confidence <strong>${escapeHtml(f.risk.confidence)}</strong></span>
-    <span>Action <strong>${escapeHtml(f.risk.action)}</strong></span>
-  </footer>`
+  const actionGlyph = RISK_ACTION_GLYPH[f.risk.action] ?? '·'
+  return `<dl class="finding-risk" aria-label="risk breakdown">
+    <div class="risk-dim"><dt>Impact</dt> <strong>${escapeHtml(f.risk.impact)}</strong></div>
+    <div class="risk-dim"><dt>Likelihood</dt> <strong>${escapeHtml(f.risk.likelihood)}</strong></div>
+    <div class="risk-dim"><dt>Confidence</dt> <strong>${escapeHtml(f.risk.confidence)}</strong></div>
+    <div class="risk-dim" title="action: ${escapeHtml(f.risk.action)}"><dt>Action</dt> <strong>${actionGlyph} ${escapeHtml(f.risk.action)}</strong></div>
+  </dl>`
 }
 
 function findingSuggestion(f: ReviewFinding): string {
@@ -149,7 +170,7 @@ function findingCard(f: ReviewFinding, status: PostStatusEntry | undefined): str
   <header class="finding-head">
     <input type="checkbox" data-finding-id="${escapeHtml(f.id)}" ${checked} aria-label="select finding ${escapeHtml(f.id)}" />
     <span class="sev-chip sev-${f.severity}">${f.severity}</span>
-    <h3 class="finding-title">${escapeHtml(f.title)}</h3>
+    <h2 class="finding-title">${escapeHtml(f.title)}</h2>
     ${badge(status)}
   </header>
   <div class="finding-anchor"><span class="path">${anchor}</span><span class="domain">${escapeHtml(domain)}</span></div>
@@ -172,8 +193,33 @@ const SHORTCUTS_HINT = `<aside class="kbd-hint" aria-label="keyboard shortcuts">
   <kbd>Esc</kbd> reset
 </aside>`
 
+function pageHeader(pr: FindingsPrMeta | undefined): string {
+  const lede = `<p class="lede">Pick what's worth posting and click <strong>Post to PR</strong>. The server runs <code>gh</code> for each selected finding and updates the badges in place.</p>`
+  if (!pr) {
+    return `<header class="page-header">
+    <div class="page-header-main">
+      <p class="eyebrow">magpie · findings</p>
+      <h1>Review</h1>
+      ${lede}
+    </div>
+  </header>`
+  }
+  return `<header class="page-header">
+    <div class="page-header-main">
+      <p class="eyebrow">magpie · findings</p>
+      <h1>Review</h1>
+      ${lede}
+    </div>
+    <aside class="pr-meta" aria-label="pull request">
+      <span class="pr-number">PR #${pr.number}</span>
+      <span class="pr-branch">${escapeHtml(pr.branch)}</span>
+      <code>${escapeHtml(pr.headSha.slice(0, 12))}</code>
+    </aside>
+  </header>`
+}
+
 export function renderFindingsHtml(input: RenderFindingsInput): string {
-  const { findings, postStatus } = input
+  const { findings, postStatus, pr } = input
   const runId = input.runId ?? 'unknown'
 
   if (findings.length === 0) {
@@ -212,11 +258,7 @@ ${ARCHIVED_BANNER}
 <body data-run-id="${escapeHtml(runId)}">
 ${ARCHIVED_BANNER}
 <main class="page">
-  <header class="page-header">
-    <p class="eyebrow">magpie · findings</p>
-    <h1>Review</h1>
-    <p class="lede">Pick what's worth posting and click <strong>Post to PR</strong>. The server runs <code>gh</code> for each selected finding and updates the badges in place.</p>
-  </header>
+  ${pageHeader(pr)}
 
   <section class="findings-summary" aria-label="summary">
     <div><span class="count">${findings.length}</span> <span class="subtle">finding${findings.length === 1 ? '' : 's'}</span></div>
@@ -225,7 +267,8 @@ ${ARCHIVED_BANNER}
 
   ${filterBar(findings)}
 
-  <section class="findings-list" data-role="findings-list">
+  <section class="findings-list" data-role="findings-list" aria-labelledby="findings-list-heading">
+    <h2 id="findings-list-heading" class="findings-list-heading">Findings</h2>
     ${cards}
     <div class="no-matches" data-role="no-matches" hidden>No findings match the current filters.</div>
   </section>

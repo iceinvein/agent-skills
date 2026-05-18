@@ -4,30 +4,44 @@
   --card-inset: oklch(0.97 0.006 70);
   --ink: oklch(0.22 0.01 60);
   --ink-inverse: oklch(0.99 0.003 70);
-  --ink-muted: oklch(0.55 0.012 60);
-  --ink-faint: oklch(0.7 0.01 60);
+  --ink-muted: oklch(0.5 0.012 60);
+  --ink-faint: oklch(0.68 0.01 60);
   --ink-hover: oklch(0.32 0.012 60);
   --line: oklch(0.9 0.008 60);
   --line-strong: oklch(0.82 0.01 60);
   --accent: oklch(0.5 0.13 245);
   --accent-soft: oklch(0.95 0.03 245);
 
+  /* CTA: the Post button. Light mode keeps it ink-dark; dark mode flips it
+     to accent rather than inheriting the inverted ink token. */
+  --cta-bg: var(--ink);
+  --cta-bg-hover: var(--ink-hover);
+  --cta-ink: var(--ink-inverse);
+
   --sev-blocker-ink: oklch(0.99 0.005 25);
-  --sev-blocker-bg: oklch(0.6 0.22 25);
+  --sev-blocker-bg: oklch(0.58 0.22 25);
+  --sev-blocker-tint: oklch(0.97 0.025 25);
+  --sev-blocker-edge: oklch(0.58 0.22 25);
   --sev-high-ink: oklch(0.99 0.005 55);
-  --sev-high-bg: oklch(0.68 0.17 55);
-  --sev-medium-ink: oklch(0.45 0.07 85);
-  --sev-medium-bg: oklch(0.92 0.045 90);
-  --sev-low-ink: oklch(0.5 0.012 60);
+  --sev-high-bg: oklch(0.66 0.17 55);
+  --sev-high-tint: oklch(0.97 0.03 65);
+  --sev-high-edge: oklch(0.78 0.13 60);
+  --sev-medium-ink: oklch(0.4 0.08 85);
+  --sev-medium-bg: oklch(0.9 0.05 90);
+  --sev-medium-tint: oklch(0.985 0.015 85);
+  --sev-medium-edge: oklch(0.85 0.04 90);
+  --sev-low-ink: oklch(0.45 0.012 60);
   --sev-low-bg: oklch(0.94 0.006 60);
+  --sev-low-tint: var(--card);
+  --sev-low-edge: var(--line);
 
   --warn-bg: oklch(0.94 0.04 80);
   --warn-ink: oklch(0.42 0.08 70);
 
-  --badge-posted-ink: oklch(0.4 0.08 145);
-  --badge-posted-bg: oklch(0.94 0.04 145);
+  --badge-posted-ink: oklch(0.38 0.08 145);
+  --badge-posted-bg: oklch(0.93 0.04 145);
   --badge-failed-ink: oklch(0.99 0.005 25);
-  --badge-failed-bg: oklch(0.6 0.22 25);
+  --badge-failed-bg: oklch(0.58 0.22 25);
 
   --font-sans: ui-sans-serif, -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
@@ -36,7 +50,7 @@
   --radius-md: 6px;
   --radius-lg: 10px;
 
-  --shadow-card: 0 1px 0 oklch(0.94 0.006 60), 0 1px 3px oklch(0.85 0.01 60 / 0.18);
+  --shadow-card: 0 1px 0 oklch(0.94 0.006 60), 0 1px 3px oklch(0.85 0.01 60 / 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,29 +60,43 @@
     --card-inset: oklch(0.16 0.006 70);
     --ink: oklch(0.93 0.005 70);
     --ink-inverse: oklch(0.16 0.006 70);
-    --ink-muted: oklch(0.68 0.012 60);
-    --ink-faint: oklch(0.48 0.012 60);
+    --ink-muted: oklch(0.72 0.012 60);
+    --ink-faint: oklch(0.55 0.012 60);
     --ink-hover: oklch(0.82 0.008 60);
     --line: oklch(0.32 0.008 60);
-    --line-strong: oklch(0.42 0.01 60);
+    --line-strong: oklch(0.44 0.01 60);
     --accent: oklch(0.72 0.16 245);
     --accent-soft: oklch(0.3 0.07 245);
 
-    --sev-blocker-ink: oklch(0.96 0.04 25);
-    --sev-blocker-bg: oklch(0.55 0.22 25);
+    /* Flip CTA to accent in dark mode so the Post button doesn't become a
+       near-white default-looking button on a dark surface. */
+    --cta-bg: var(--accent);
+    --cta-bg-hover: oklch(0.78 0.16 245);
+    --cta-ink: oklch(0.16 0.04 245);
+
+    --sev-blocker-ink: oklch(0.97 0.04 25);
+    --sev-blocker-bg: oklch(0.58 0.22 25);
+    --sev-blocker-tint: oklch(0.28 0.08 25);
+    --sev-blocker-edge: oklch(0.6 0.22 25);
     --sev-high-ink: oklch(0.97 0.04 55);
     --sev-high-bg: oklch(0.6 0.17 55);
-    --sev-medium-ink: oklch(0.9 0.1 90);
-    --sev-medium-bg: oklch(0.3 0.07 90);
+    --sev-high-tint: oklch(0.27 0.07 60);
+    --sev-high-edge: oklch(0.5 0.13 60);
+    --sev-medium-ink: oklch(0.94 0.08 90);
+    --sev-medium-bg: oklch(0.32 0.09 90);
+    --sev-medium-tint: oklch(0.23 0.025 90);
+    --sev-medium-edge: oklch(0.38 0.08 90);
     --sev-low-ink: oklch(0.78 0.01 60);
-    --sev-low-bg: oklch(0.26 0.006 60);
+    --sev-low-bg: oklch(0.27 0.006 60);
+    --sev-low-tint: var(--card);
+    --sev-low-edge: var(--line);
 
     --warn-bg: oklch(0.3 0.06 80);
     --warn-ink: oklch(0.92 0.06 80);
 
     --badge-posted-ink: oklch(0.92 0.08 145);
     --badge-posted-bg: oklch(0.32 0.07 145);
-    --badge-failed-ink: oklch(0.96 0.04 25);
+    --badge-failed-ink: oklch(0.97 0.04 25);
     --badge-failed-bg: oklch(0.55 0.22 25);
 
     --shadow-card: none;
@@ -88,19 +116,29 @@ body {
 body {
   background: var(--surface);
   color: var(--ink);
-  font: 14px/1.55 var(--font-sans);
+  font: 14.5px/1.55 var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
 }
 
+/* Wider on big screens. Keeps a comfortable reading column on laptops while
+   refusing to be a 960px stripe on a 32" monitor. */
 .page {
-  max-width: 960px;
+  max-width: min(1180px, calc(100vw - 96px));
   margin: 0 auto;
-  padding: 48px 32px 96px;
+  padding: 56px 0 96px;
 }
 
 .page-header {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 24px;
+}
+
+.page-header-main {
+  min-width: 0;
 }
 
 .eyebrow {
@@ -108,11 +146,11 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-muted);
-  margin: 0 0 10px;
+  margin: 0 0 12px;
 }
 
 h1 {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.15;
@@ -132,16 +170,41 @@ h2 {
 
 .lede {
   color: var(--ink-muted);
-  font-size: 14px;
-  max-width: 72ch;
+  font-size: 14.5px;
+  max-width: 68ch;
   margin: 0 0 8px;
 }
 
-.lede code {
+.lede code,
+.pr-meta code {
   font: 12.5px/1 var(--font-mono);
   background: var(--card-inset);
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+
+/* PR meta block on the findings page: gives a returning user (and especially
+   a first-timer) the PR identity in the page header instead of just the tab
+   title. Rendered as a compact stack to the right of the H1. */
+.pr-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font: 12px/1.4 var(--font-mono);
+  color: var(--ink-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pr-meta .pr-number {
+  font: 600 13px/1 var(--font-sans);
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+.pr-meta .pr-branch {
   color: var(--ink);
 }
 
@@ -171,23 +234,38 @@ h2 {
   opacity: 0.4;
 }
 
+/* === Pipeline =========================================================== */
+
 .pipeline {
   position: relative;
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 0;
-  margin: 24px 0 8px;
+  margin: 28px 0 8px;
+  --done-count: 0;
+  --done-fraction: calc(var(--done-count) / 7);
 }
 
-.pipeline::before {
+.pipeline::before,
+.pipeline::after {
   content: "";
   position: absolute;
   top: 11px;
   left: 6%;
   right: 6%;
   height: 1px;
-  background: var(--line);
   z-index: 0;
+}
+
+.pipeline::before {
+  background: var(--line);
+}
+
+.pipeline::after {
+  background: var(--ink);
+  width: calc((100% - 12%) * var(--done-fraction));
+  right: auto;
+  transition: width 360ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .step {
@@ -247,6 +325,14 @@ h2 {
   color: var(--ink);
 }
 
+.step .hint {
+  font: 11px/1.4 var(--font-sans);
+  color: var(--ink-faint);
+  text-align: center;
+  max-width: 14ch;
+  margin-top: -2px;
+}
+
 .specialists-line {
   font: 12.5px/1.6 var(--font-mono);
   color: var(--ink-muted);
@@ -262,6 +348,8 @@ h2 {
   color: var(--ink-faint);
 }
 
+/* === Summary + filter bar =============================================== */
+
 .findings-summary {
   display: flex;
   align-items: baseline;
@@ -271,11 +359,27 @@ h2 {
   margin-bottom: 4px;
 }
 
+.findings-summary .count {
+  font: 600 24px/1 var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.findings-summary .breakdown {
+  font: 12.5px/1 var(--font-sans);
+  color: var(--ink-muted);
+  letter-spacing: 0;
+}
+
+.findings-summary .breakdown .num {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .filter-bar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 0 20px;
+  gap: 10px;
+  padding: 16px 0 18px;
   margin-bottom: 24px;
   border-bottom: 1px solid var(--line);
 }
@@ -291,7 +395,7 @@ h2 {
   display: flex;
   align-items: center;
   flex: 1;
-  max-width: 480px;
+  max-width: 520px;
 }
 
 .search-field input[type="search"] {
@@ -324,6 +428,8 @@ h2 {
   pointer-events: none;
 }
 
+/* The slash hint stays visible even on focus: hiding the affordance the
+   moment the user engages with the input is bad memory. Dim it instead. */
 .search-hint {
   position: absolute;
   right: 8px;
@@ -333,10 +439,11 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 2px 5px;
+  transition: opacity 120ms ease;
 }
 
 .search-field input[type="search"]:focus-visible ~ .search-hint {
-  opacity: 0;
+  opacity: 0.4;
 }
 
 .chip-row {
@@ -344,15 +451,6 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.chip-row-label {
-  font: 11px/1 var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-muted);
-  margin-right: 6px;
-  min-width: 64px;
 }
 
 .filter-chip {
@@ -393,8 +491,8 @@ h2 {
   color: var(--ink-inverse);
 }
 
-/* Severity-tinted active state: the chip carries its own sev color when pressed.
-   This lets a reviewer at a glance see which severities are gated in. */
+/* Severity-tinted active state: pressed sev chips adopt their sev color so
+   a reviewer can see at a glance which severities are gated in. */
 .filter-chip[data-severity="blocker"][aria-pressed="true"] {
   background: var(--sev-blocker-bg);
   color: var(--sev-blocker-ink);
@@ -420,7 +518,7 @@ h2 {
 }
 
 .filter-state {
-  font: 12px/1.4 var(--font-mono);
+  font: 12.5px/1.4 var(--font-sans);
   color: var(--ink-muted);
   display: flex;
   align-items: center;
@@ -430,10 +528,11 @@ h2 {
 
 .filter-state .num {
   color: var(--ink);
+  font-weight: 600;
 }
 
 .link-btn {
-  font: 500 12px/1 var(--font-sans);
+  font: 500 12.5px/1 var(--font-sans);
   color: var(--ink-muted);
   background: transparent;
   border: 0;
@@ -456,11 +555,22 @@ h2 {
   flex-direction: column;
 }
 
+.findings-list-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
 .no-matches {
   padding: 32px 0;
   text-align: center;
   color: var(--ink-muted);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .kbd-hint {
@@ -495,48 +605,48 @@ h2 {
   font-size: 12.5px;
 }
 
-/* Defensive: HTML `hidden` should always win, but any element here whose
-   shown-state uses `display: flex` would otherwise override the UA default. */
+/* Defensive: HTML `hidden` should always win. */
 [hidden] {
   display: none !important;
 }
 
-/* Post button + its inline confirm popup. The popup floats above the
-   button anchored to its right edge, matching GitHub's small-popup
-   confirmation pattern. */
+/* === Post button + confirm popup ======================================== */
+
 .post-button-group {
   position: relative;
 }
 
+/* The popup uses a slightly lighter surface than the card so it lifts off the
+   page in both modes, and a stronger shadow than a typical card so it reads
+   as "above" instead of "next to" the cards behind it. */
 .confirm-popup {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 10px);
   width: max-content;
-  max-width: min(380px, calc(100vw - 64px));
+  max-width: min(400px, calc(100vw - 64px));
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--card);
+  gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   box-shadow:
-    0 4px 16px oklch(0.2 0.01 60 / 0.18),
-    0 1px 0 oklch(0.94 0.006 60);
+    0 10px 28px oklch(0.1 0.01 60 / 0.32),
+    0 2px 6px oklch(0.1 0.01 60 / 0.2);
   z-index: 5;
   animation: popup-in 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .confirm-popup::after {
-  /* Small caret pointing down at the trigger button. */
   content: "";
   position: absolute;
   right: 18px;
   top: 100%;
   width: 10px;
   height: 10px;
-  background: var(--card);
+  background: color-mix(in oklch, var(--card), var(--ink-inverse) 6%);
   border-right: 1px solid var(--line-strong);
   border-bottom: 1px solid var(--line-strong);
   transform: translateY(-5px) rotate(45deg);
@@ -544,20 +654,50 @@ h2 {
 
 .confirm-text {
   margin: 0;
-  font: 13px/1.45 var(--font-sans);
+  font: 13.5px/1.45 var(--font-sans);
   color: var(--ink);
 }
 
 .confirm-actions {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 8px;
+}
+
+/* Cancel as a tonal secondary button: same height as Confirm so the two
+   actions read as a balanced pair, but no fill — Confirm stays the lead. */
+.confirm-actions .link-btn[data-action="cancel-post"] {
+  font: 600 12.5px/1 var(--font-sans);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.confirm-actions .link-btn[data-action="cancel-post"]:hover {
+  background: var(--card-inset);
+  border-color: var(--ink-muted);
 }
 
 .confirm-btn {
   font-size: 12.5px;
   padding: 8px 14px;
+}
+
+/* When the popup is open the Post button is disabled by helper.js to prevent
+   double-submit. Don't let it sit as a grey blob next to the live popup —
+   dim it to "out of the way" and signal the focus belongs above. Scoped
+   tightly to the trigger button so it doesn't also dim Confirm post (which
+   is also a .submit-btn living inside this same group). */
+.post-button-group:has(.confirm-popup:not([hidden])) > .submit-btn[data-action="post"] {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-faint);
 }
 
 @keyframes popup-in {
@@ -608,54 +748,66 @@ h2 {
   }
 }
 
+/* === Finding cards ====================================================== */
+
 .finding.is-hidden {
   display: none;
 }
 
 .finding.is-focused {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Show keyboard-shortcut hint compactly on small viewports too. */
-@media (max-width: 720px) {
-  .chip-row-label {
-    min-width: 0;
-  }
-  .kbd-hint {
-    font-size: 11px;
-    gap: 10px;
-  }
-}
-
-.findings-summary .count {
-  font: 600 24px/1 var(--font-sans);
-  letter-spacing: -0.01em;
-}
-
-.findings-summary .breakdown {
-  font: 12px/1 var(--font-mono);
-  color: var(--ink-muted);
-  letter-spacing: 0.02em;
-}
-
-.findings-summary .breakdown .num {
-  color: var(--ink);
+  outline-offset: 3px;
 }
 
 .finding {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 18px 20px 16px;
+  padding: 18px 22px 16px;
   margin-bottom: 12px;
   box-shadow: var(--shadow-card);
+  position: relative;
+}
+
+/* Severity-tinted card chrome. Severity is the entire emotional payload of
+   the review; the card itself should carry it, not just the chip. Blockers
+   get a left rule too because that's the only legit place a side accent
+   earns its keep on this product. */
+.finding[data-severity="blocker"] {
+  background: var(--sev-blocker-tint);
+  border-color: var(--sev-blocker-edge);
+}
+
+.finding[data-severity="blocker"]::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  background: var(--sev-blocker-bg);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.finding[data-severity="high"] {
+  background: var(--sev-high-tint);
+  border-color: var(--sev-high-edge);
+}
+
+.finding[data-severity="medium"] {
+  background: var(--sev-medium-tint);
+  border-color: var(--sev-medium-edge);
+}
+
+.finding[data-severity="low"] {
+  background: var(--sev-low-tint);
+  border-color: var(--sev-low-edge);
 }
 
 .finding-head {
   display: grid;
   grid-template-columns: 20px auto 1fr auto;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   margin-bottom: 6px;
 }
@@ -670,7 +822,6 @@ h2 {
   background: var(--surface);
   cursor: pointer;
   position: relative;
-  top: 2px;
   transition: border-color 120ms ease, background 120ms ease;
 }
 
@@ -696,17 +847,17 @@ h2 {
 }
 
 .finding-title {
-  font: 600 15px/1.4 var(--font-sans);
+  font: 600 15.5px/1.4 var(--font-sans);
   color: var(--ink);
   letter-spacing: -0.005em;
   margin: 0;
 }
 
 .sev-chip {
-  font: 600 10.5px/1 var(--font-sans);
+  font: 600 11px/1 var(--font-sans);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 3px 7px;
+  padding: 5px 9px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
   display: inline-block;
@@ -735,7 +886,7 @@ h2 {
 }
 
 .finding-anchor {
-  font: 12px/1.5 var(--font-mono);
+  font: 12.5px/1.5 var(--font-mono);
   color: var(--ink-muted);
   margin-left: 32px;
   margin-bottom: 10px;
@@ -745,15 +896,11 @@ h2 {
   color: var(--ink);
 }
 
+/* The card already carries domain via the filter chip; no need to repeat it
+   on every anchor line. We retain the span (for tests/markup stability) but
+   hide it visually. */
 .finding-anchor .domain {
-  color: var(--ink-faint);
-  margin-left: 8px;
-}
-
-.finding-anchor .domain::before {
-  content: "·";
-  margin-right: 8px;
-  color: var(--ink-faint);
+  display: none;
 }
 
 .finding-body {
@@ -770,28 +917,24 @@ h2 {
 
 .finding-section-label {
   margin: 0 0 4px;
-  font: 600 10.5px/1.2 var(--font-sans);
+  font: 600 11px/1.2 var(--font-sans);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
 }
 
-.finding-section-impact .finding-section-label {
-  color: var(--accent);
-}
-
-.finding-section-suggestion .finding-section-label,
+/* Accent discipline: --accent is reserved for the *patch* (the one truly
+   actionable artifact on the page). Prose section labels stay neutral so
+   they don't compete with the patch and so "Suggested direction" and
+   "Suggested change" no longer carry identical visual weight while meaning
+   different things. */
 .finding-suggestion-wrap .finding-section-label {
   color: var(--accent);
 }
 
-.finding-section-verification .finding-section-label {
-  color: var(--ink-muted);
-}
-
 .finding-section-body {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.62;
   color: var(--ink);
   white-space: pre-wrap;
@@ -813,28 +956,41 @@ h2 {
   white-space: pre-wrap;
 }
 
+/* === Risk row (collapsed from a 4-line K:V wall to a single glyph row) === */
+
 .finding-risk {
   margin: 14px 0 0 32px;
   padding-top: 10px;
   border-top: 1px dashed var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
-  font: 11px/1.4 var(--font-mono);
+  gap: 4px 12px;
+  font: 11.5px/1.4 var(--font-mono);
+  color: var(--ink-muted);
+}
+
+.finding-risk dt {
   color: var(--ink-faint);
 }
 
-.finding-risk strong {
-  font-weight: 600;
-  color: var(--ink-muted);
-  margin-left: 4px;
+.finding-risk .risk-dim {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
 }
+
+.finding-risk .risk-dim strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* === Badges ============================================================= */
 
 .badge {
   font: 600 10px/1 var(--font-sans);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 3px 6px;
+  padding: 4px 7px;
   border-radius: var(--radius-sm);
   margin-left: 8px;
 }
@@ -849,12 +1005,14 @@ h2 {
   color: var(--badge-failed-ink);
 }
 
+/* === Sticky submit bar + Post button ==================================== */
+
 .submit-bar {
   position: sticky;
   bottom: 0;
   background: linear-gradient(
     to top,
-    var(--surface) 60%,
+    var(--surface) 62%,
     color-mix(in oklch, var(--surface), transparent 100%)
   );
   padding: 24px 0 16px;
@@ -865,30 +1023,33 @@ h2 {
 }
 
 .submit-bar .selected-count {
-  font: 13px/1 var(--font-mono);
+  font: 13px/1 var(--font-sans);
   color: var(--ink-muted);
 }
 
 .submit-bar .selected-count .num {
   color: var(--ink);
   font-weight: 600;
+  font-family: var(--font-mono);
+  margin-right: 4px;
 }
 
 .submit-btn {
   font: 600 13px/1 var(--font-sans);
   padding: 10px 18px;
-  background: var(--ink);
-  color: var(--ink-inverse);
-  border: 1px solid var(--ink);
+  background: var(--cta-bg);
+  color: var(--cta-ink);
+  border: 1px solid var(--cta-bg);
   border-radius: var(--radius-sm);
   cursor: pointer;
   letter-spacing: 0.01em;
-  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1),
+    background 120ms ease, border-color 120ms ease;
 }
 
 .submit-btn:hover {
-  background: var(--ink-hover);
-  border-color: var(--ink-hover);
+  background: var(--cta-bg-hover);
+  border-color: var(--cta-bg-hover);
 }
 
 .submit-btn:active {
@@ -898,6 +1059,7 @@ h2 {
 .submit-btn:disabled {
   background: var(--ink-faint);
   border-color: var(--ink-faint);
+  color: var(--ink-inverse);
   cursor: not-allowed;
 }
 
@@ -911,9 +1073,20 @@ h2 {
   margin-bottom: 8px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
   .page {
-    padding: 24px 16px 96px;
+    padding: 28px 0 96px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .page-header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .pr-meta {
+    align-items: flex-start;
+    text-align: left;
   }
 
   h1 {
@@ -922,10 +1095,11 @@ h2 {
 
   .pipeline {
     grid-template-columns: repeat(4, 1fr);
-    row-gap: 20px;
+    row-gap: 22px;
   }
 
-  .pipeline::before {
+  .pipeline::before,
+  .pipeline::after {
     display: none;
   }
 
@@ -936,5 +1110,10 @@ h2 {
   .sev-chip {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .kbd-hint {
+    font-size: 11px;
+    gap: 10px;
   }
 }

@@ -103,11 +103,15 @@ test('renders the risk footer with Impact/Likelihood/Confidence/Action', () => {
     ],
     postStatus: {},
   })
+  // The row is a <dl> of risk-dim cells so screen readers can read it as
+  // term/definition pairs. Each cell carries the dimension as a <dt> and
+  // the value as a <strong>; action also picks up a leading glyph that
+  // signals must-fix vs should-fix vs consider at a glance.
   expect(html).toContain('class="finding-risk"')
-  expect(html).toContain('Impact <strong>high</strong>')
-  expect(html).toContain('Likelihood <strong>likely</strong>')
-  expect(html).toContain('Confidence <strong>high</strong>')
-  expect(html).toContain('Action <strong>should-fix</strong>')
+  expect(html).toMatch(/<dt>Impact<\/dt>\s*<strong>high<\/strong>/)
+  expect(html).toMatch(/<dt>Likelihood<\/dt>\s*<strong>likely<\/strong>/)
+  expect(html).toMatch(/<dt>Confidence<\/dt>\s*<strong>high<\/strong>/)
+  expect(html).toMatch(/<dt>Action<\/dt>\s*<strong>[^<]*should-fix<\/strong>/)
 })
 
 test('falls back to a single observation when description has no labels', () => {
@@ -261,4 +265,47 @@ test('renders a no-matches placeholder for the client-side filter to reveal', ()
     postStatus: {},
   })
   expect(html).toMatch(/data-role="no-matches"[^>]+hidden/)
+})
+
+test('renders PR meta in the page header when pr is provided', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+    pr: { number: 2048, branch: 'feature-x', headSha: '0123456789abdeadbeef' },
+  })
+  expect(html).toContain('class="pr-meta"')
+  expect(html).toContain('PR #2048')
+  expect(html).toContain('feature-x')
+  // sha is truncated to 12 chars to match the progress page
+  expect(html).toContain('0123456789ab')
+  expect(html).not.toContain('deadbeef')
+})
+
+test('omits the pr-meta block when no pr is provided', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x' })],
+    postStatus: {},
+  })
+  expect(html).not.toContain('class="pr-meta"')
+})
+
+test('finding titles render as h2 so the heading outline does not skip from h1', () => {
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'race in handler' })],
+    postStatus: {},
+  })
+  expect(html).toMatch(/<h2[^>]*class="finding-title"[^>]*>race in handler<\/h2>/)
+  // And the findings list has a visually-hidden h2 to bridge the outline.
+  expect(html).toContain('class="findings-list-heading"')
+})
+
+test('falls back to the raw description when no labelled paragraphs are detected and description is empty-ish', () => {
+  // parseFindingDescription returns [] only when the description is empty
+  // after normalization. The renderer wraps that in a fallback Observation
+  // section so the card never shows up with no prose between anchor and risk.
+  const html = renderFindingsHtml({
+    findings: [f({ id: 'a', title: 'x', description: '' })],
+    postStatus: {},
+  })
+  expect(html).toContain('finding-section-observation')
 })
