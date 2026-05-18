@@ -27,6 +27,13 @@ function isPosted(status: PostStatusEntry | undefined): boolean {
   return status === 'posted'
 }
 
+function failedFrom(status: PostStatusEntry | undefined): { message: string } | undefined {
+  if (status && typeof status === 'object' && status.status === 'failed') {
+    return { message: status.message }
+  }
+  return undefined
+}
+
 function lineRow(line: DiffLine): string {
   const cls = line.type === 'added' ? 'added' : line.type === 'removed' ? 'removed' : 'context'
   const lineNo = line.type === 'removed' ? line.oldLineNo : line.newLineNo
@@ -63,6 +70,7 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
               renderAnnotation(f, {
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
+                failed: failedFrom(postStatus[f.id]),
                 asCard: false,
               }),
             )
@@ -105,6 +113,7 @@ export function renderSplitDiff(input: RenderDiffInput): string {
               renderAnnotation(f, {
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
+                failed: failedFrom(postStatus[f.id]),
                 asCard: false,
               }),
             )

@@ -205,6 +205,6 @@ test('bundled fixture covers all five focus domains', async () => {
   })
   const html = await readFile(join(workDir, 'findings.html'), 'utf8')
   for (const domain of ['security', 'bugs', 'performance', 'code-smells', 'architecture']) {
-    expect(html).toContain(`data-filter-value="${domain}"`)
+    expect(html).toContain(`data-domain="${domain}"`)
   }
 })

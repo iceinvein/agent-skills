@@ -60,8 +60,8 @@ test('refreshFindings writes findings.html and prunes any older findings*.html',
   const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
   // The new file is rendered, not the stale OLD content.
   expect(fresh).not.toContain('OLD')
-  // Contains the new interactivity surface (filter bar, data-run-id).
-  expect(fresh).toContain('class="filter-bar"')
+  // Contains the new interactivity surface (segmented tabs, data-run-id).
+  expect(fresh).toContain('data-action="set-view"')
   expect(fresh).toMatch(/data-run-id="[^"]+"/)
   // And the rendered finding itself.
   expect(fresh).toContain('tsst')

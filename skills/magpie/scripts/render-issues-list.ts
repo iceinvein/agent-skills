@@ -50,13 +50,19 @@ export function renderIssuesList(input: RenderIssuesListInput): string {
       ? `<button type="button" class="show-suggestions-toggle" data-action="toggle-suggestions" aria-pressed="false">Show ${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'}</button>`
       : ''
   const cardsHtml = findings
-    .map((f) =>
-      renderAnnotation(f, {
+    .map((f) => {
+      const status = postStatus[f.id]
+      const failed =
+        status && typeof status === 'object' && status.status === 'failed'
+          ? { message: status.message }
+          : undefined
+      return renderAnnotation(f, {
         checked: selectedIds.has(f.id),
-        posted: postStatus[f.id] === 'posted',
+        posted: status === 'posted',
+        failed,
         asCard: true,
-      }),
-    )
+      })
+    })
     .join('\n')
   return `<section class="issues-pane" data-role="issues-list">
     <div class="issues-filter">

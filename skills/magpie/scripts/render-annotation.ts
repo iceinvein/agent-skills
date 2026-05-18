@@ -33,6 +33,8 @@ export type RenderAnnotationOptions = {
   checked: boolean
   posted: boolean
   asCard: boolean
+  /** When posting previously failed, surface the failure on the card. */
+  failed?: { message: string }
 }
 
 function renderSections(description: string): string {
@@ -65,7 +67,16 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
   const cbAttrs = opts.posted ? 'checked disabled' : opts.checked ? 'checked' : ''
   const suggestion = isSuggestion(f) ? 'true' : 'false'
   const postedAttr = opts.posted ? ' data-posted="true"' : ''
-  return `<div class="${containerClass}" data-finding-id="${esc(f.id)}" data-severity="${f.severity}" data-domain="${esc(domain)}" data-suggestion="${suggestion}"${postedAttr}>
+  const failedAttr = opts.failed ? ' data-failed="true"' : ''
+  let statusChip: string
+  if (opts.posted) {
+    statusChip = '<span class="status-chip posted">POSTED</span>'
+  } else if (opts.failed) {
+    statusChip = `<span class="status-chip failed" title="${esc(opts.failed.message)}">FAILED: ${esc(opts.failed.message)}</span>`
+  } else {
+    statusChip = '<span class="status-chip new">NEW</span>'
+  }
+  return `<div class="${containerClass}" data-finding-id="${esc(f.id)}" data-severity="${f.severity}" data-domain="${esc(domain)}" data-suggestion="${suggestion}"${postedAttr}${failedAttr}>
   <div class="annot-row">
     <input type="checkbox" data-finding-id="${esc(f.id)}" ${cbAttrs} aria-label="select ${esc(f.id)}" />
     <div class="annot-body">
@@ -73,7 +84,7 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
         <span class="sev-label sev-${f.severity}">${sevLabel}</span>
         <span class="annot-title">${esc(f.title)}</span>
         <span class="domain-chip">${esc(domainLabel)}</span>
-        ${opts.posted ? '<span class="status-chip posted">POSTED</span>' : '<span class="status-chip new">NEW</span>'}
+        ${statusChip}
       </div>
       ${renderSections(f.description)}
       ${renderSuggestion(f)}
