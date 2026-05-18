@@ -104,3 +104,13 @@ export function parseFinding(raw: unknown): ReviewFinding {
     mergedFrom: Array.isArray(r.mergedFrom) ? (r.mergedFrom as MergedFromEntry[]) : undefined,
   }
 }
+
+export type PrFileEntry = {
+  path: string
+  additions: number
+  deletions: number
+}
+
+export function isSuggestion(f: ReviewFinding): boolean {
+  return f.risk.action === 'consider' || f.risk.action === 'optional'
+}
