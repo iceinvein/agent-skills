@@ -93,6 +93,24 @@ function filePane(opts: {
     selectedIds: opts.selectedIds,
   })
   const findingsCount = opts.findings.length
+  // Findings can't be placed inline when (a) the file isn't in the diff at all
+  // (gh truncated, or the diff endpoint didn't include it), or (b) the
+  // finding's line doesn't fall inside any visible hunk. Surface them in a
+  // banner above the diff so they don't silently vanish.
+  const hunkNewLines = new Set<number>()
+  for (const h of hunks)
+    for (const l of h.lines) if (l.newLineNo != null) hunkNewLines.add(l.newLineNo)
+  const unplaced = opts.findings.filter((f) => f.line == null || !hunkNewLines.has(f.line))
+  const unplacedBanner =
+    unplaced.length > 0
+      ? `<div class="unplaced-banner" role="note">
+          <div class="unplaced-banner-head">
+            <span class="unplaced-banner-label">${unplaced.length} finding${unplaced.length === 1 ? '' : 's'} not anchored to the diff</span>
+            <span class="unplaced-banner-hint">${hunks.length === 0 ? 'this file is not in the PR diff snapshot' : 'line falls outside the visible hunks'}</span>
+          </div>
+          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds })}
+        </div>`
+      : ''
   return `<section class="file-pane" data-file-pane="${esc(opts.file.path)}" hidden>
     <div class="toolbar">
       <div class="crumb">${esc(opts.file.path)}</div>
@@ -107,6 +125,7 @@ function filePane(opts: {
         <button type="button" data-action="set-diff-mode" data-mode="split" aria-pressed="false">Split</button>
       </div>
     </div>
+    ${unplacedBanner}
     <div class="diff-unified" data-diff-mode="unified">${unified}</div>
     <div class="diff-split" data-diff-mode="split" hidden>${split}</div>
   </section>`

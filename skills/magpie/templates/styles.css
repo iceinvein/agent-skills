@@ -1485,6 +1485,59 @@ body.hide-sev-low [data-severity="low"] {
   }
 }
 
+/* === Unplaced findings banner =========================================== */
+/* Surface findings whose `line` doesn't intersect any visible hunk, or for
+   files that aren't in the diff snapshot at all. Keeps them visible instead
+   of letting them vanish silently. */
+.unplaced-banner {
+  border-top: 1px solid var(--line-faint);
+  border-bottom: 1px solid var(--line-faint);
+  background: var(--card-inset);
+}
+
+.unplaced-banner-head {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 16px 6px;
+}
+
+.unplaced-banner-label {
+  font: 600 11px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.unplaced-banner-hint {
+  font: 11px/1.4 var(--font-sans);
+  color: var(--ink-faint);
+}
+
+/* The banner reuses the issues-list pane; tone it down so it reads as
+   "supplementary to the diff" rather than competing with it. */
+.unplaced-banner .issues-pane {
+  height: auto;
+}
+
+.unplaced-banner .issues-filter {
+  display: none;
+}
+
+.unplaced-banner .issues-list {
+  padding: 4px 16px 12px;
+  overflow: visible;
+}
+
+/* The unplaced banner is the "where else did findings go?" surface, so the
+   global show-suggestions toggle should NOT silently hide them here.
+   Without this override, a file like Button.tsx (one suggestion-action
+   finding, no diff) would render the banner head with an invisible card. */
+body[data-show-suggestions="false"] .unplaced-banner [data-suggestion="true"] {
+  display: block;
+}
+
 /* === Focus rings ======================================================== */
 /* Keyboard users see a clear accent outline on every interactive surface.
    Mouse users keep the existing background-shift hover affordance. */
