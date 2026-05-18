@@ -57,3 +57,53 @@ test('helper.js sends periodic heartbeats', async () => {
   expect(src).toContain("fetch('/heartbeat'")
   expect(src).toMatch(/setInterval/)
 })
+
+test('helper.js dispatches set-view and toggles body.dataset.view', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleSetView')
+  expect(src).toMatch(/document\.body\.dataset\.view\s*=\s*view/)
+})
+
+test('helper.js handles select-file by toggling [data-file-pane] hidden', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleSelectFile')
+  expect(src).toContain('data-file-pane')
+})
+
+test('helper.js handles set-diff-mode by toggling .diff-unified / .diff-split', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleSetDiffMode')
+  expect(src).toContain('diff-unified')
+  expect(src).toContain('diff-split')
+})
+
+test('helper.js implements per-file finding navigation', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('navigateFinding')
+  expect(src).toContain('fileFindingIdx')
+  expect(src).toContain('is-focused')
+})
+
+test('helper.js toggles suggestions visibility via body.dataset.showSuggestions', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleToggleSuggestions')
+  expect(src).toContain('showSuggestions')
+})
+
+test('helper.js toggles severity filter via body.hide-sev-* classes', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleFilterSev')
+  expect(src).toContain('hide-sev-')
+})
+
+test('helper.js wires select-sev and select-recommended', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('handleSelectSev')
+  expect(src).toContain('handleSelectRecommended')
+})
+
+test('helper.js updates selected-count via [data-role="selected-count"]', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('updateSelectedCount')
+  expect(src).toContain('selected-count')
+})

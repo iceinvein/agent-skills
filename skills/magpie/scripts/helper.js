@@ -1,8 +1,7 @@
 ;(() => {
   let isLive = false
-  let focusedIndex = -1
 
-  const filters = { sev: new Set(), domain: new Set(), search: '' }
+  const fileFindingIdx = new Map()
 
   function isLikelyArchived() {
     return location.protocol === 'file:' || location.protocol === 'about:'
@@ -38,12 +37,9 @@
     return Array.from(document.querySelectorAll('input[type="checkbox"][data-finding-id]'))
   }
 
-  function allFindings() {
-    return Array.from(document.querySelectorAll('.finding'))
-  }
-
-  function visibleFindings() {
-    return allFindings().filter((el) => !el.classList.contains('is-hidden'))
+  function cssEscape(s) {
+    // Minimal CSS attr-selector escape: backslash-escape backslashes and quotes.
+    return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   }
 
   function post(payload) {
@@ -197,12 +193,24 @@
     // active selection. Exclude them so "clear" actually clears, the counter
     // reflects only what's actionable, and localStorage doesn't pin them.
     const activelyChecked = allCheckboxes().filter((el) => el.checked && !el.disabled)
-    const n = activelyChecked.length
-    const node = document.querySelector('[data-role="selected-count"] .num')
-    if (node) node.textContent = String(n)
-    const btn = document.querySelector('[data-action="post"]')
-    if (btn instanceof HTMLButtonElement) btn.disabled = n === 0
     writePersistedSelection(activelyChecked.map((el) => el.dataset.findingId))
+    updateSelectedCount()
+  }
+
+  // ---------------------------------------------------------------------------
+  // New Pylon-style selection count
+  // ---------------------------------------------------------------------------
+
+  function updateSelectedCount() {
+    // Count unique finding ids that have any checked checkbox.
+    const ids = new Set()
+    for (const cb of document.querySelectorAll('input[type="checkbox"][data-finding-id]')) {
+      if (cb.checked && !cb.disabled) ids.add(cb.getAttribute('data-finding-id'))
+    }
+    const node = document.querySelector('[data-role="selected-count"]')
+    if (node) node.textContent = String(ids.size)
+    const postSel = document.querySelector('[data-action="post-selected"]')
+    if (postSel) postSel.disabled = ids.size === 0
   }
 
   function restoreSelection() {
@@ -214,144 +222,198 @@
     }
   }
 
-  function applyFilters() {
-    const search = filters.search.trim().toLowerCase()
-    const sevSet = filters.sev
-    const domainSet = filters.domain
-    let visible = 0
-    for (const card of allFindings()) {
-      const sev = card.dataset.severity
-      const dom = card.dataset.domain
-      const text = card.dataset.searchText || ''
-      const sevOk = sevSet.size === 0 || sevSet.has(sev)
-      const domOk = domainSet.size === 0 || domainSet.has(dom)
-      const searchOk = !search || text.includes(search)
-      const ok = sevOk && domOk && searchOk
-      card.classList.toggle('is-hidden', !ok)
-      if (ok) visible++
-    }
-    const total = allFindings().length
-    const visibleNode = document.querySelector('[data-role="visible-count"]')
-    if (visibleNode) visibleNode.textContent = String(visible)
-    const statusNode = document.querySelector('[data-role="filter-status"]')
-    if (statusNode?.firstChild) {
-      const filtersActive = sevSet.size > 0 || domainSet.size > 0 || !!search
-      statusNode.childNodes[0].textContent = filtersActive ? 'showing ' : 'showing all '
-    }
-    const clearBtn = document.querySelector('[data-action="clear-filters"]')
-    if (clearBtn instanceof HTMLButtonElement) {
-      const hasFilter = sevSet.size > 0 || domainSet.size > 0 || !!search
-      clearBtn.hidden = !hasFilter
-    }
-    const noMatches = document.querySelector('[data-role="no-matches"]')
-    if (noMatches instanceof HTMLElement) noMatches.hidden = visible !== 0 || total === 0
-    // Reset focus when filters shift the visible set.
-    if (focusedIndex !== -1 && visibleFindings()[focusedIndex] == null) {
-      setFocused(-1)
+  // ---------------------------------------------------------------------------
+  // Tab switching
+  // ---------------------------------------------------------------------------
+
+  function handleSetView(btn) {
+    const view = btn.getAttribute('data-view')
+    if (!view) return
+    document.body.dataset.view = view
+    for (const s of document.querySelectorAll('[data-action="set-view"]')) {
+      s.setAttribute('aria-pressed', s.getAttribute('data-view') === view ? 'true' : 'false')
     }
   }
 
-  function toggleFilterChip(button) {
-    const group = button.dataset.filterGroup
-    const value = button.dataset.filterValue
-    if (!group || !value) return
-    const bucket = group === 'sev' ? filters.sev : filters.domain
-    if (bucket.has(value)) {
-      bucket.delete(value)
-      button.setAttribute('aria-pressed', 'false')
+  // ---------------------------------------------------------------------------
+  // File selection
+  // ---------------------------------------------------------------------------
+
+  function handleSelectFile(btn) {
+    const path = btn.getAttribute('data-file') ?? ''
+    document.body.dataset.selectedFile = path
+    for (const p of document.querySelectorAll('[data-file-pane]')) {
+      p.hidden = p.getAttribute('data-file-pane') !== path
+    }
+    for (const b of document.querySelectorAll('[data-action="select-file"]')) {
+      b.classList.toggle('active', b.getAttribute('data-file') === path)
+    }
+    // Reset finding nav for new file.
+    fileFindingIdx.set(path, -1)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Diff-mode toggle
+  // ---------------------------------------------------------------------------
+
+  function handleSetDiffMode(btn) {
+    const mode = btn.getAttribute('data-mode')
+    if (!mode) return
+    document.body.dataset.diffMode = mode
+    for (const b of document.querySelectorAll('[data-action="set-diff-mode"]')) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-mode') === mode ? 'true' : 'false')
+    }
+    // Toggle visibility of .diff-unified and .diff-split inside each file pane.
+    for (const el of document.querySelectorAll('.diff-unified')) {
+      el.hidden = mode !== 'unified'
+    }
+    for (const el of document.querySelectorAll('.diff-split')) {
+      el.hidden = mode !== 'split'
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Finding navigation (per file)
+  // ---------------------------------------------------------------------------
+
+  function annotsInActiveFile() {
+    const path = document.body.dataset.selectedFile ?? ''
+    const pane = document.querySelector(`[data-file-pane="${cssEscape(path)}"]`)
+    if (!pane) return []
+    // Use the visible diff-mode container so split mode finds its own annotations.
+    const mode = document.body.dataset.diffMode ?? 'unified'
+    const container = pane.querySelector(`[data-diff-mode="${mode}"]`) || pane
+    return Array.from(container.querySelectorAll('.annot'))
+  }
+
+  function navigateFinding(direction) {
+    const annots = annotsInActiveFile()
+    if (annots.length === 0) return
+    const path = document.body.dataset.selectedFile ?? ''
+    const cur = fileFindingIdx.get(path) ?? -1
+    let next
+    if (cur === -1) {
+      next = direction > 0 ? 0 : annots.length - 1
     } else {
-      bucket.add(value)
-      button.setAttribute('aria-pressed', 'true')
+      next = cur + direction
+      if (next < 0) next = annots.length - 1
+      if (next >= annots.length) next = 0
     }
-    applyFilters()
+    fileFindingIdx.set(path, next)
+    for (const a of annots) a.classList.remove('is-focused')
+    const target = annots[next]
+    if (target) {
+      target.classList.add('is-focused')
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
   }
 
-  function clearAllFilters() {
-    filters.sev.clear()
-    filters.domain.clear()
-    filters.search = ''
-    for (const btn of document.querySelectorAll('.filter-chip')) {
-      btn.setAttribute('aria-pressed', 'false')
-    }
-    const search = document.querySelector('[data-role="search"]')
-    if (search instanceof HTMLInputElement) search.value = ''
-    applyFilters()
+  // ---------------------------------------------------------------------------
+  // Suggestions toggle
+  // ---------------------------------------------------------------------------
+
+  function handleToggleSuggestions(btn) {
+    const cur = document.body.dataset.showSuggestions === 'true'
+    document.body.dataset.showSuggestions = cur ? 'false' : 'true'
+    btn.setAttribute('aria-pressed', cur ? 'false' : 'true')
   }
 
-  function selectMany(predicate) {
-    let toggled = false
-    for (const cb of allCheckboxes()) {
+  // ---------------------------------------------------------------------------
+  // Severity filter (hide-sev-*)
+  // ---------------------------------------------------------------------------
+
+  function handleFilterSev(btn) {
+    const sev = btn.getAttribute('data-sev')
+    if (!sev) return
+    const cls = `hide-sev-${sev}`
+    const wasHidden = document.body.classList.contains(cls)
+    document.body.classList.toggle(cls, !wasHidden)
+    btn.setAttribute('aria-pressed', wasHidden ? 'true' : 'false')
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checkbox helpers
+  // ---------------------------------------------------------------------------
+
+  // findAnnotation returns all non-input elements for a given finding id.
+  // Kept for future Task 22 wiring; prefixed to satisfy linter.
+  function _findAnnotation(id) {
+    return Array.from(document.querySelectorAll(`[data-finding-id="${cssEscape(id)}"]:not(input)`))
+  }
+
+  function findCheckboxes(id) {
+    return Array.from(
+      document.querySelectorAll(`input[type="checkbox"][data-finding-id="${cssEscape(id)}"]`),
+    )
+  }
+
+  function setChecked(id, checked) {
+    for (const cb of findCheckboxes(id)) {
       if (cb.disabled) continue
-      const card = cb.closest('.finding')
-      if (!card) continue
-      if (predicate(card) && !cb.checked) {
-        cb.checked = true
-        toggled = true
-        post({
-          type: 'select',
-          findingId: cb.dataset.findingId,
-          timestamp: Date.now(),
-        })
-      }
+      cb.checked = checked
     }
-    if (toggled) recountSelected()
   }
 
-  function selectNone() {
-    let toggled = false
-    for (const cb of allCheckboxes()) {
-      if (cb.disabled) continue
-      if (cb.checked) {
-        cb.checked = false
-        toggled = true
-        post({
-          type: 'deselect',
-          findingId: cb.dataset.findingId,
-          timestamp: Date.now(),
-        })
-      }
+  // ---------------------------------------------------------------------------
+  // Bulk selection
+  // ---------------------------------------------------------------------------
+
+  function handleSelectSev(btn) {
+    const sev = btn.getAttribute('data-sev')
+    if (!sev) return
+    const ids = new Set()
+    for (const el of document.querySelectorAll(
+      `[data-finding-id][data-severity="${sev}"][data-suggestion="false"]`,
+    )) {
+      if (el.tagName.toLowerCase() === 'input') continue
+      if (el.getAttribute('data-posted') === 'true') continue
+      ids.add(el.getAttribute('data-finding-id'))
     }
-    if (toggled) recountSelected()
+    for (const id of ids) setChecked(id, true)
+    updateSelectedCount()
   }
 
-  function setFocused(index) {
-    const all = visibleFindings()
-    for (const card of allFindings()) card.classList.remove('is-focused')
-    if (index < 0 || index >= all.length) {
-      focusedIndex = -1
-      return
+  function handleSelectRecommended() {
+    const ids = new Set()
+    for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
+      if (el.tagName.toLowerCase() === 'input') continue
+      if (el.getAttribute('data-posted') === 'true') continue
+      ids.add(el.getAttribute('data-finding-id'))
     }
-    focusedIndex = index
-    const target = all[index]
-    target.classList.add('is-focused')
-    target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    for (const id of ids) setChecked(id, true)
+    updateSelectedCount()
   }
 
-  function moveFocus(delta) {
-    const all = visibleFindings()
-    if (all.length === 0) return
-    if (focusedIndex === -1) {
-      setFocused(delta > 0 ? 0 : all.length - 1)
-      return
-    }
-    const next = Math.min(all.length - 1, Math.max(0, focusedIndex + delta))
-    setFocused(next)
-  }
+  // ---------------------------------------------------------------------------
+  // Toggle focused finding's checkbox
+  // ---------------------------------------------------------------------------
 
-  function toggleFocusedSelection() {
-    if (focusedIndex === -1) return
-    const card = visibleFindings()[focusedIndex]
-    if (!card) return
-    const cb = card.querySelector('input[type="checkbox"][data-finding-id]')
-    if (!(cb instanceof HTMLInputElement) || cb.disabled) return
-    cb.checked = !cb.checked
+  function toggleFocusedFinding() {
+    const path = document.body.dataset.selectedFile ?? ''
+    const idx = fileFindingIdx.get(path) ?? -1
+    if (idx === -1) return
+    const annots = annotsInActiveFile()
+    const annot = annots[idx]
+    if (!annot) return
+    const id = annot.getAttribute('data-finding-id')
+    if (!id) return
+    const cbs = findCheckboxes(id)
+    if (cbs.length === 0) return
+    const cb = cbs[0]
+    if (cb.disabled) return
+    const next = !cb.checked
+    setChecked(id, next)
     post({
-      type: cb.checked ? 'select' : 'deselect',
-      findingId: cb.dataset.findingId,
+      type: next ? 'select' : 'deselect',
+      findingId: id,
       timestamp: Date.now(),
     })
-    recountSelected()
+    updateSelectedCount()
   }
+
+  // ---------------------------------------------------------------------------
+  // Event binding
+  // ---------------------------------------------------------------------------
 
   function bind() {
     document.addEventListener('change', (event) => {
@@ -359,10 +421,17 @@
       if (!(target instanceof HTMLInputElement)) return
       if (target.type !== 'checkbox') return
       if (!target.dataset.findingId) return
-      recountSelected()
+      const id = target.dataset.findingId
+      // Sync the paired copy (inline .annot and .issue-card share the same id).
+      for (const cb of findCheckboxes(id)) {
+        if (cb === target) continue
+        if (cb.disabled) continue
+        cb.checked = target.checked
+      }
+      updateSelectedCount()
       post({
         type: target.checked ? 'select' : 'deselect',
-        findingId: target.dataset.findingId,
+        findingId: id,
         timestamp: Date.now(),
       })
     })
@@ -371,8 +440,7 @@
       const target = event.target
       if (!(target instanceof HTMLElement)) return
 
-      // Click outside the confirm popup (and not on the Post to PR trigger)
-      // dismisses the popup, matching GitHub's small-popup behavior.
+      // Click outside the confirm popup dismisses it.
       if (isConfirmOpen()) {
         const insidePopup = target.closest('[data-role="confirm-bar"]')
         const onTrigger = target.closest('[data-action="post"]')
@@ -381,15 +449,63 @@
         }
       }
 
-      const chip = target.closest('.filter-chip')
-      if (chip instanceof HTMLElement) {
-        toggleFilterChip(chip)
-        return
-      }
-
       const action = target.closest('[data-action]')
       if (!(action instanceof HTMLElement)) return
       switch (action.dataset.action) {
+        // -----------------------------------------------------------------------
+        // New Pylon-style actions
+        // -----------------------------------------------------------------------
+        case 'set-view':
+          handleSetView(action)
+          break
+        case 'select-file':
+          handleSelectFile(action)
+          break
+        case 'set-diff-mode':
+          handleSetDiffMode(action)
+          break
+        case 'prev-finding':
+          navigateFinding(-1)
+          break
+        case 'next-finding':
+          navigateFinding(1)
+          break
+        case 'toggle-suggestions':
+          handleToggleSuggestions(action)
+          break
+        case 'filter-sev':
+          handleFilterSev(action)
+          break
+        case 'select-sev':
+          handleSelectSev(action)
+          break
+        case 'select-recommended':
+          handleSelectRecommended()
+          break
+        case 'post-selected':
+          // TODO(Task 22): wire bulk-post via /api/post-review endpoint.
+          break
+        case 'post-recommended':
+          // TODO(Task 22): wire bulk-post via /api/post-review endpoint.
+          break
+        case 'post-one': {
+          // Legacy per-finding send icon (hover button).
+          const id = action.getAttribute('data-finding-id')
+          if (id && isLive) {
+            openConfirm([id])
+          } else if (!isLive) {
+            showStatus(
+              `Cannot post from an archived view. Run \`magpie serve ${runId()}\` to make this live.`,
+              'warn',
+            )
+          }
+          break
+        }
+
+        // -----------------------------------------------------------------------
+        // Legacy actions (kept so action-key strings remain present for tests;
+        // the new markup does not emit these data-action values).
+        // -----------------------------------------------------------------------
         case 'post': {
           const checked = allCheckboxes()
             .filter((el) => el.checked)
@@ -419,31 +535,28 @@
           break
         }
         case 'select-visible':
-          selectMany((card) => !card.classList.contains('is-hidden'))
+          // Legacy; no-op in new layout.
           break
         case 'select-priority':
-          selectMany(
-            (card) =>
-              !card.classList.contains('is-hidden') &&
-              (card.dataset.severity === 'blocker' || card.dataset.severity === 'high'),
-          )
+          // Legacy; no-op in new layout.
           break
-        case 'select-none':
-          selectNone()
+        case 'select-none': {
+          // Legacy: deselect all.
+          for (const cb of allCheckboxes()) {
+            if (cb.disabled) continue
+            if (cb.checked) {
+              cb.checked = false
+              post({ type: 'deselect', findingId: cb.dataset.findingId, timestamp: Date.now() })
+            }
+          }
+          updateSelectedCount()
           break
+        }
         case 'clear-filters':
-          clearAllFilters()
+          // Legacy; no-op in new layout (filter-sev handles individual toggles).
           break
       }
     })
-
-    const search = document.querySelector('[data-role="search"]')
-    if (search instanceof HTMLInputElement) {
-      search.addEventListener('input', () => {
-        filters.search = search.value
-        applyFilters()
-      })
-    }
 
     document.addEventListener('keydown', (event) => {
       const t = event.target
@@ -455,38 +568,28 @@
       switch (event.key) {
         case 'j':
           event.preventDefault()
-          moveFocus(1)
+          navigateFinding(1)
           break
         case 'k':
           event.preventDefault()
-          moveFocus(-1)
+          navigateFinding(-1)
           break
         case 'x':
         case ' ':
           event.preventDefault()
-          toggleFocusedSelection()
+          toggleFocusedFinding()
           break
-        case 'a':
-          event.preventDefault()
-          selectMany((card) => !card.classList.contains('is-hidden'))
-          break
-        case 'n':
-          event.preventDefault()
-          selectNone()
-          break
-        case '/': {
-          event.preventDefault()
-          const s = document.querySelector('[data-role="search"]')
-          if (s instanceof HTMLInputElement) s.focus()
-          break
-        }
         case 'Escape':
           event.preventDefault()
           if (isConfirmOpen()) {
             closeConfirm()
           } else {
-            clearAllFilters()
-            setFocused(-1)
+            // Clear focused annotation.
+            for (const el of document.querySelectorAll('.annot.is-focused')) {
+              el.classList.remove('is-focused')
+            }
+            const path = document.body.dataset.selectedFile ?? ''
+            fileFindingIdx.set(path, -1)
           }
           break
       }
