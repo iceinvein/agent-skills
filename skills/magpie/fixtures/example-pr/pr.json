@@ -5,5 +5,17 @@
   "headRefName": "feat/session-redis-and-prompts",
   "baseRefName": "main",
   "headRefOid": "9f3a8c0211dbb5fe7a82a2c1b08e0a45c2d1ee01",
-  "url": "https://github.com/example/repo/pull/1337"
+  "url": "https://github.com/example/repo/pull/1337",
+  "files": [
+    { "path": "src/api/session.ts", "additions": 42, "deletions": 18 },
+    { "path": "src/cache/invalidation.ts", "additions": 28, "deletions": 12 },
+    { "path": "src/dashboard/recent-activity.tsx", "additions": 35, "deletions": 8 },
+    { "path": "src/lib/parser.ts", "additions": 64, "deletions": 45 },
+    { "path": "src/services/auth/index.ts", "additions": 31, "deletions": 15 },
+    { "path": "src/utils/format-currency.ts", "additions": 16, "deletions": 9 },
+    { "path": "src/components/Button.tsx", "additions": 22, "deletions": 11 },
+    { "path": "vendor/legacy/heavy-parser.js", "additions": 8, "deletions": 3 },
+    { "path": "README.md", "additions": 5, "deletions": 2 },
+    { "path": "package.json", "additions": 1, "deletions": 1 }
+  ]
 }

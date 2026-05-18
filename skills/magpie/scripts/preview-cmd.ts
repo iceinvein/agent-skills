@@ -179,6 +179,8 @@ async function readFixture(fixtureDir: string): Promise<{
   pr: { number: number; branch: string; headSha: string }
   findings: ReturnType<typeof parseFinding>[]
   postStatus: PostStatusMap
+  files: Array<{ path: string; additions: number; deletions: number }>
+  diff: string
 }> {
   const prRaw = JSON.parse(await readFile(join(fixtureDir, 'pr.json'), 'utf8')) as Record<
     string,
@@ -195,6 +197,23 @@ async function readFixture(fixtureDir: string): Promise<{
   } catch {
     // optional file
   }
+  let filesArray: Array<{ path: string; additions: number; deletions: number }> = []
+  if (Array.isArray(prRaw.files)) {
+    filesArray = (prRaw.files as unknown[]).map((f) => {
+      const entry = f as Record<string, unknown>
+      return {
+        path: String(entry.path ?? ''),
+        additions: Number(entry.additions ?? 0),
+        deletions: Number(entry.deletions ?? 0),
+      }
+    })
+  }
+  let diff = ''
+  try {
+    diff = await readFile(join(fixtureDir, 'diff.patch'), 'utf8')
+  } catch {
+    // optional file
+  }
   return {
     pr: {
       number: Number(prRaw.number ?? 0),
@@ -203,6 +222,8 @@ async function readFixture(fixtureDir: string): Promise<{
     },
     findings: findingsRaw.map((raw) => parseFinding(raw)),
     postStatus: postStatusRaw as PostStatusMap,
+    files: filesArray,
+    diff,
   }
 }
 
@@ -247,6 +268,8 @@ export async function runPreview(opts: PreviewOptions): Promise<PreviewResult> {
         postStatus: fixture.postStatus,
         runId: `preview-${opts.stage}`,
         pr: fixture.pr,
+        files: fixture.files,
+        diff: fixture.diff,
       },
       findingsPath,
     )

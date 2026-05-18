@@ -1,0 +1,86 @@
+diff --git a/src/api/session.ts b/src/api/session.ts
+index abc1234..def5678 100644
+--- a/src/api/session.ts
++++ b/src/api/session.ts
+@@ -80,20 +80,35 @@ function validateToken(token: string): boolean {
+   return token.length > 16
+ }
+
+-export async function createSession(userId: string, token: string) {
+-  // Session key uses tenant id for isolation
+-  const key = `session:${userId}`
+-  await redis.set(key, token)
+-  return {
+-    userId,
+-    createdAt: new Date(),
+-  }
++const SESSION_TTL_SECONDS = 60 * 60 * 8 // 8h
++const sessionKey = (tenantId: string, userId: string) => `t:${tenantId}:session:${userId}`
++
++export async function createSession(tenantId: string, userId: string, token: string) {
++  const key = sessionKey(tenantId, userId)
++  await redis.set(key, token, 'EX', SESSION_TTL_SECONDS)
++  const sessionToken = await redis.get(key)
++  return {
++    tenantId,
++    userId,
++    token: sessionToken,
++    createdAt: new Date(),
++    expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
++  }
+ }
+
+diff --git a/src/cache/invalidation.ts b/src/cache/invalidation.ts
+index 1111111..2222222 100644
+--- a/src/cache/invalidation.ts
++++ b/src/cache/invalidation.ts
+@@ -138,10 +138,8 @@ export async function getCacheVersion(): Promise<number> {
+   return parseInt(version, 10)
+ }
+
+-export async function invalidate() {
+-  const version = await redis.get(versionKey)
+-  const newVersion = parseInt(version, 10) + 1
+-  await redis.set(versionKey, String(newVersion))
++export async function invalidate(): Promise<number> {
++  const newVersion = await redis.incr(versionKey)
+   return newVersion
+ }
+
+diff --git a/src/dashboard/recent-activity.tsx b/src/dashboard/recent-activity.tsx
+index 3333333..4444444 100644
+--- a/src/dashboard/recent-activity.tsx
++++ b/src/dashboard/recent-activity.tsx
+@@ -55,10 +55,13 @@ export interface RecentActivityProps {
+   onEventSelect?: (event: Event) => void
+ }
+
+-export function RecentActivity({ events, onEventSelect }: RecentActivityProps) {
+-  const timeline = events
+-    .map(toTimelineEntry)
+-    .sort(byRecency)
++import { useMemo } from 'react'
++
++export function RecentActivity({ events, onEventSelect }: RecentActivityProps) {
++  const timeline = useMemo(
++    () => events.map(toTimelineEntry).sort(byRecency),
++    [events]
++  )
+
+   return (
+     <div className="timeline-container">
+
+diff --git a/src/services/auth/index.ts b/src/services/auth/index.ts
+index 5555555..6666666 100644
+--- a/src/services/auth/index.ts
++++ b/src/services/auth/index.ts
+@@ -20,7 +20,8 @@ export class AuthService {
+   }
+
+   async signIn(email: string, password: string) {
+-    const user = await userDb.getUserById(email)
++    const user = await this.userRepo.findById(email)
++    const lastLoginAt = await this.userRepo.findLastLoginAt(email)
+     if (!user || !this.verifyPassword(password, user.passwordHash)) {
+       throw new Error('Invalid credentials')
+     }
