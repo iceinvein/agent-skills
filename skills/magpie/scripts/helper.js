@@ -336,8 +336,7 @@
   // ---------------------------------------------------------------------------
 
   // findAnnotation returns all non-input elements for a given finding id.
-  // Kept for future Task 22 wiring; prefixed to satisfy linter.
-  function _findAnnotation(id) {
+  function findAnnotation(id) {
     return Array.from(document.querySelectorAll(`[data-finding-id="${cssEscape(id)}"]:not(input)`))
   }
 
@@ -412,6 +411,105 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Pylon-style bulk post via /api/post-review
+  // ---------------------------------------------------------------------------
+
+  async function postToReview(findingIds) {
+    if (!isLive) {
+      showStatus(
+        'Cannot post from an archived view. Run `magpie serve <run-dir>` first.',
+        'warn',
+        true,
+      )
+      return null
+    }
+    showStatus(`Posting ${findingIds.length} as a single review...`, 'info', true)
+    try {
+      const r = await fetch('/api/post-review', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ findingIds }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        showStatus(`Post failed: ${data?.error || `HTTP ${r.status}`}`, 'warn', true)
+        return null
+      }
+      return data
+    } catch (err) {
+      showStatus(`Post failed: ${err?.message || err}`, 'warn', true)
+      return null
+    }
+  }
+
+  function applyReviewResult(result) {
+    if (!result) return
+    for (const c of result.comments || []) {
+      if (c.status === 'posted') {
+        for (const el of findAnnotation(c.id)) {
+          el.setAttribute('data-posted', 'true')
+        }
+        for (const cb of findCheckboxes(c.id)) {
+          cb.checked = false
+          cb.disabled = true
+        }
+      } else if (c.status === 'failed') {
+        for (const el of findAnnotation(c.id)) {
+          el.setAttribute('data-failed', 'true')
+        }
+      }
+    }
+    updateSelectedCount()
+    const okCount = (result.comments || []).filter((c) => c.status === 'posted').length
+    const failCount = (result.comments || []).filter((c) => c.status === 'failed').length
+    const reviewBit = result.reviewId ? ` (review ${result.reviewId})` : ''
+    if (failCount === 0) {
+      showStatus(`Posted ${okCount}${reviewBit}.`, 'ok')
+    } else {
+      showStatus(`Posted ${okCount}, ${failCount} failed${reviewBit}.`, 'warn', true)
+    }
+  }
+
+  async function handlePostSelected() {
+    const ids = []
+    const seen = new Set()
+    for (const cb of document.querySelectorAll('input[type="checkbox"][data-finding-id]')) {
+      if (!cb.checked || cb.disabled) continue
+      const id = cb.getAttribute('data-finding-id')
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        ids.push(id)
+      }
+    }
+    if (ids.length === 0) {
+      showStatus('Nothing selected yet.', 'info')
+      return
+    }
+    const result = await postToReview(ids)
+    applyReviewResult(result)
+  }
+
+  async function handlePostRecommended() {
+    const ids = []
+    const seen = new Set()
+    for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
+      if (el.tagName.toLowerCase() === 'input') continue
+      if (el.getAttribute('data-posted') === 'true') continue
+      const id = el.getAttribute('data-finding-id')
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        ids.push(id)
+      }
+    }
+    if (ids.length === 0) {
+      showStatus('Nothing to post.', 'info')
+      return
+    }
+    const result = await postToReview(ids)
+    applyReviewResult(result)
+  }
+
+  // ---------------------------------------------------------------------------
   // Event binding
   // ---------------------------------------------------------------------------
 
@@ -483,10 +581,10 @@
           handleSelectRecommended()
           break
         case 'post-selected':
-          // TODO(Task 22): wire bulk-post via /api/post-review endpoint.
+          void handlePostSelected()
           break
         case 'post-recommended':
-          // TODO(Task 22): wire bulk-post via /api/post-review endpoint.
+          void handlePostRecommended()
           break
         case 'post-one': {
           // Legacy per-finding send icon (hover button).

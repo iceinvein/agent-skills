@@ -107,3 +107,16 @@ test('helper.js updates selected-count via [data-role="selected-count"]', async 
   expect(src).toContain('updateSelectedCount')
   expect(src).toContain('selected-count')
 })
+
+test('helper.js POSTs to /api/post-review when Post Selected is wired', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('/api/post-review')
+  expect(src).toContain('handlePostSelected')
+  expect(src).toContain('handlePostRecommended')
+})
+
+test('helper.js applies review result to data-posted on matching annotations', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toContain('applyReviewResult')
+  expect(src).toContain("setAttribute('data-posted'")
+})
