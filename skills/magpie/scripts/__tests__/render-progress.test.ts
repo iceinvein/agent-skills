@@ -114,3 +114,46 @@ test('renderProgressHtml includes the archived banner element', () => {
   })
   expect(html).toContain('archived-banner')
 })
+
+test('emits the shared pr-header chrome', () => {
+  const html = renderProgressHtml({
+    prNumber: 1,
+    headSha: 'abc123def456789012345678',
+    branch: 'feat',
+    stages: {
+      setup: 'running',
+      context: 'pending',
+      specialists: 'pending',
+      dedupe: 'pending',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: {},
+  })
+  expect(html).toContain('class="pr-header"')
+  expect(html).toContain('data-page="progress"')
+  expect(html).toContain('class="segmented"')
+})
+
+test('progress-pane block replaces diff-pane on the progress page', () => {
+  const html = renderProgressHtml({
+    prNumber: 1,
+    headSha: 'abc123def456789012345678',
+    branch: 'feat',
+    stages: {
+      setup: 'done',
+      context: 'running',
+      specialists: 'pending',
+      dedupe: 'pending',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: { security: 0 },
+  })
+  expect(html).toContain('data-role="progress-pane"')
+  expect(html).toContain('Indexing repo symbols')
+})
