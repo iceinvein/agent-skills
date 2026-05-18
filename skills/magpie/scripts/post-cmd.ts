@@ -280,6 +280,184 @@ export function formatReviewSummaryBody(
   return lines.join('\n')
 }
 
+// ---------------------------------------------------------------------------
+// postFindingsAsReview
+// ---------------------------------------------------------------------------
+
+export type PostReviewInput = {
+  runDir: string
+  findingIds: string[]
+  prNumber: number
+  headSha: string
+  reviewBody?: string
+  ghBin?: string
+  dryRun?: boolean
+}
+
+export type PostReviewCommentResult = {
+  id: string
+  status: 'posted' | 'failed'
+  message?: string
+}
+
+export type PostReviewResult = {
+  reviewId: string | null
+  comments: PostReviewCommentResult[]
+  command?: string[]
+  payload?: string
+}
+
+// Looser finding shape used only inside postFindingsAsReview to accommodate
+// findings.json entries where `file` may be null (not yet anchored to a path).
+type LooseFinding = {
+  id: string
+  file: string | null
+  line: number | null
+  title: string
+  description: string
+}
+
+function parseLooseFinding(raw: unknown): LooseFinding | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.id !== 'string') return null
+  if (typeof r.title !== 'string') return null
+  if (typeof r.description !== 'string') return null
+  const file = typeof r.file === 'string' ? r.file : null
+  const line = typeof r.line === 'number' ? r.line : null
+  return { id: r.id, file, line, title: r.title, description: r.description }
+}
+
+export async function postFindingsAsReview(input: PostReviewInput): Promise<PostReviewResult> {
+  const bin = input.ghBin ?? process.env.MAGPIE_GH_BIN ?? 'gh'
+
+  // Load findings.json and index by id. Use a loose parser that tolerates
+  // null file/line fields which parseFinding (strict) would reject.
+  const byId = new Map<string, LooseFinding>()
+  try {
+    const raw = JSON.parse(await readFile(join(input.runDir, 'findings.json'), 'utf8'))
+    if (Array.isArray(raw)) {
+      for (const entry of raw) {
+        const f = parseLooseFinding(entry)
+        if (f) byId.set(f.id, f)
+      }
+    }
+  } catch {
+    // findings.json missing or unparseable; byId stays empty
+  }
+
+  // Partition into inline (has file + line) and unplaced.
+  type InlineComment = { path: string; line: number; side: 'RIGHT'; body: string }
+  const inlineComments: InlineComment[] = []
+  const unplacedBodies: string[] = []
+
+  for (const id of input.findingIds) {
+    const f = byId.get(id)
+    if (!f) continue
+    if (f.line != null && f.file != null) {
+      inlineComments.push({
+        path: f.file,
+        line: f.line,
+        side: 'RIGHT',
+        body: formatFindingDescriptionMarkdown(f.description),
+      })
+    } else {
+      const body = formatFindingDescriptionMarkdown(f.description)
+      unplacedBodies.push(`**${f.title}** (${f.file ?? 'general'})\n\n${body}`)
+    }
+  }
+
+  // Build review body.
+  const unplacedSection = unplacedBodies.join('\n\n---\n\n')
+  const reviewBodyParts = [input.reviewBody, unplacedSection].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0,
+  )
+  const reviewBody = reviewBodyParts.join('\n\n')
+
+  const payloadObj = {
+    commit_id: input.headSha,
+    event: 'COMMENT',
+    body: reviewBody,
+    comments: inlineComments,
+  }
+  const payload = JSON.stringify(payloadObj)
+
+  const command = [
+    bin,
+    'api',
+    `repos/{owner}/{repo}/pulls/${input.prNumber}/reviews`,
+    '--method',
+    'POST',
+    '--input',
+    '-',
+  ]
+
+  if (input.dryRun) {
+    return {
+      reviewId: null,
+      comments: input.findingIds.map((id) => ({ id, status: 'posted' as const })),
+      command,
+      payload,
+    }
+  }
+
+  // Execute.
+  let stdoutText: string
+  let stderrText: string
+  let exit: number
+  try {
+    const proc = Bun.spawn(command, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' })
+    const stdin = proc.stdin as import('bun').FileSink
+    stdin.write(payload)
+    await stdin.flush()
+    stdin.end()
+    ;[stdoutText, stderrText, exit] = await Promise.all([
+      new Response(proc.stdout as ReadableStream).text(),
+      new Response(proc.stderr as ReadableStream).text(),
+      proc.exited,
+    ])
+  } catch (err) {
+    const msg = (err as Error).message ?? `cannot spawn ${bin}`
+    return {
+      reviewId: null,
+      comments: input.findingIds.map((id) => ({ id, status: 'failed' as const, message: msg })),
+      command,
+      payload,
+    }
+  }
+
+  if (exit !== 0) {
+    return {
+      reviewId: null,
+      comments: input.findingIds.map((id) => ({
+        id,
+        status: 'failed' as const,
+        message: stderrText.trim(),
+      })),
+      command,
+      payload,
+    }
+  }
+
+  const review = JSON.parse(stdoutText) as { id: number }
+  const reviewId = String(review.id)
+
+  // Persist to post-status.json.
+  const existing = await readPostStatus(input.runDir)
+  for (const id of input.findingIds) {
+    existing[id] = 'posted'
+  }
+  existing.__lastReviewId = reviewId
+  await writePostStatus(input.runDir, existing)
+
+  return {
+    reviewId,
+    comments: input.findingIds.map((id) => ({ id, status: 'posted' as const })),
+    command,
+    payload,
+  }
+}
+
 async function readPostStatus(runDir: string): Promise<Record<string, unknown>> {
   try {
     return (await Bun.file(join(runDir, 'post-status.json')).json()) as Record<string, unknown>

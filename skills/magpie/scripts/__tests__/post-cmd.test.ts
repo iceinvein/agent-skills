@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +8,7 @@ import {
   formatPostBody,
   formatReviewSummaryBody,
   parseRepoFromUrl,
+  postFindingsAsReview,
   runPost,
 } from '../post-cmd.ts'
 
@@ -330,4 +331,92 @@ test('runPost appends post stage events to log.jsonl', async () => {
   expect(log).toContain('"stage":"post"')
   expect(log).toContain('"status":"start"')
   expect(log).toContain('"status":"dry-run"')
+})
+
+// ---------------------------------------------------------------------------
+// postFindingsAsReview
+// ---------------------------------------------------------------------------
+
+async function scaffoldRunDir(findings: unknown[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'magpie-post-review-'))
+  await writeFile(join(dir, 'findings.json'), JSON.stringify(findings))
+  return dir
+}
+
+const inlineFinding = (id: string, line: number) => ({
+  id,
+  file: 'src/a.ts',
+  line,
+  severity: 'high',
+  title: `Finding ${id}`,
+  description: 'd',
+  risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+  domain: 'security',
+})
+
+describe('postFindingsAsReview', () => {
+  test('builds a payload with N inline comments under dryRun', async () => {
+    const dir = await scaffoldRunDir([
+      inlineFinding('1', 10),
+      inlineFinding('2', 20),
+      inlineFinding('3', 30),
+    ])
+    const r = await postFindingsAsReview({
+      runDir: dir,
+      findingIds: ['1', '2', '3'],
+      prNumber: 42,
+      headSha: 'abc123',
+      dryRun: true,
+    })
+    expect(r.command?.[0]).toBe('gh')
+    expect(r.command?.[2]).toBe('repos/{owner}/{repo}/pulls/42/reviews')
+    expect(r.payload).toBeDefined()
+    const parsed = JSON.parse(r.payload as string) as {
+      comments: Array<{ path: string; line: number; side: string }>
+    }
+    expect(parsed.comments).toHaveLength(3)
+    expect(parsed.comments[0]).toMatchObject({ path: 'src/a.ts', line: 10, side: 'RIGHT' })
+    expect(parsed.comments[1]).toMatchObject({ path: 'src/a.ts', line: 20, side: 'RIGHT' })
+    expect(parsed.comments[2]).toMatchObject({ path: 'src/a.ts', line: 30, side: 'RIGHT' })
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  test('routes line-less findings into the review body', async () => {
+    const dir = await scaffoldRunDir([
+      {
+        id: '1',
+        file: null,
+        line: null,
+        severity: 'high',
+        title: 'general note',
+        description: 'd',
+        risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+        domain: 'architecture',
+      },
+    ])
+    const r = await postFindingsAsReview({
+      runDir: dir,
+      findingIds: ['1'],
+      prNumber: 42,
+      headSha: 'abc123',
+      dryRun: true,
+    })
+    const parsed = JSON.parse(r.payload as string) as { body: string; comments: unknown[] }
+    expect(parsed.comments).toHaveLength(0)
+    expect(parsed.body).toContain('general note')
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  test('returns comments for unknown ids under dryRun', async () => {
+    const dir = await scaffoldRunDir([])
+    const r = await postFindingsAsReview({
+      runDir: dir,
+      findingIds: ['missing'],
+      prNumber: 42,
+      headSha: 'abc123',
+      dryRun: true,
+    })
+    expect(r.comments.find((c) => c.id === 'missing')).toBeDefined()
+    await rm(dir, { recursive: true, force: true })
+  })
 })
