@@ -199,7 +199,7 @@ ${prHeader(input)}
       ${filePanesHtml}
     </div>
   </div>
-  <div class="view issues-view" hidden>
+  <div class="view issues-view">
     ${issues}
   </div>
 </main>
