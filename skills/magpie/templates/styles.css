@@ -1250,9 +1250,25 @@ body.hide-sev-low [data-severity="low"] {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 22px 1fr;
-  column-gap: 12px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 14px;
+  row-gap: 2px;
   align-items: start;
+}
+
+.step .dot {
+  grid-row: 1 / span 2;
+}
+
+.step .name {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.step .hint {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .step .dot {
