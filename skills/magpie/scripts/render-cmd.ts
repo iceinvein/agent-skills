@@ -109,7 +109,20 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
           headSha: String(prJson.headRefOid ?? '?'),
         }
       : undefined
+  const filesArray = Array.isArray(prJson.files) ? (prJson.files as unknown[]) : []
+  const files = filesArray.map((f) => {
+    const entry = f as Record<string, unknown>
+    return {
+      path: String(entry.path ?? ''),
+      additions: Number(entry.additions ?? 0),
+      deletions: Number(entry.deletions ?? 0),
+    }
+  })
+  const diff = await readFile(join(runDir, 'diff.patch'), 'utf8').catch(() => '')
   const outPath = await nextVersionedPath(screenDir, 'findings')
-  await renderFindingsToDisk({ findings, postStatus, runId: basename(runDir), pr }, outPath)
+  await renderFindingsToDisk(
+    { findings, postStatus, runId: basename(runDir), pr, files, diff },
+    outPath,
+  )
   return 0
 }
