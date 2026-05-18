@@ -5,10 +5,9 @@ import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
 import { renderIssuesList } from './render-issues-list.ts'
-import type { PrFileEntry, ReviewFinding } from './types.ts'
+import type { PostStatusMap, PrFileEntry, ReviewFinding } from './types.ts'
 
-export type PostStatusEntry = 'posted' | { status: 'failed'; message: string }
-export type PostStatusMap = Record<string, PostStatusEntry>
+export type { PostStatusEntry, PostStatusMap } from './types.ts'
 
 export type FindingsPrMeta = {
   number: number

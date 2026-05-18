@@ -105,6 +105,9 @@ export function parseFinding(raw: unknown): ReviewFinding {
   }
 }
 
+export type PostStatusEntry = 'posted' | { status: 'failed'; message: string }
+export type PostStatusMap = Record<string, PostStatusEntry>
+
 export type PrFileEntry = {
   path: string
   additions: number

@@ -1,5 +1,5 @@
 import { renderAnnotation } from './render-annotation.ts'
-import type { PostStatusMap } from './render-findings.ts'
+import type { PostStatusMap } from './types.ts'
 import { isSuggestion, type ReviewFinding, SEVERITIES, type Severity } from './types.ts'
 
 const SEVERITY_LABEL: Record<Severity, string> = {

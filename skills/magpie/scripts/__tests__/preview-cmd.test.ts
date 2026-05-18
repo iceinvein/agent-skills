@@ -190,8 +190,8 @@ test('mixed post-status in the fixture surfaces both posted and failed badges', 
     openInBrowser: false,
   })
   const html = await readFile(join(workDir, 'findings.html'), 'utf8')
-  expect(html).toContain('class="badge posted"')
-  expect(html).toContain('class="badge failed"')
+  expect(html).toContain('class="status-chip posted"')
+  expect(html).toContain('class="status-chip failed"')
   // The fixture's failed entry includes a 422 message; make sure it survives.
   expect(html).toContain('422')
 })

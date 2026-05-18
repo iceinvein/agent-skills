@@ -1,7 +1,6 @@
 import { buildPairedLines, type DiffHunk, type DiffLine, type PairedLine } from './diff-utils.ts'
 import { renderAnnotation } from './render-annotation.ts'
-import type { PostStatusEntry, PostStatusMap } from './render-findings.ts'
-import type { ReviewFinding } from './types.ts'
+import type { PostStatusEntry, PostStatusMap, ReviewFinding } from './types.ts'
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => {
