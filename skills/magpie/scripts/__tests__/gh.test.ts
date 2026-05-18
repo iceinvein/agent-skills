@@ -26,6 +26,14 @@ test('fetchPr writes pr.json and diff.patch', async () => {
   expect(diff).toContain('export const x = 2')
 })
 
+test('fetchPr includes files in pr.json', async () => {
+  const result = await fetchPr({ ghBin: FAKE_GH, prNumber: 1234, runDir })
+  expect(result.ok).toBe(true)
+  const pr = JSON.parse(await readFile(join(runDir, 'pr.json'), 'utf8'))
+  expect(Array.isArray(pr.files)).toBe(true)
+  expect(pr.files[0]).toMatchObject({ path: 'src/a.ts', additions: 1, deletions: 0 })
+})
+
 test('fetchPr returns ok=false when gh exits non-zero', async () => {
   const result = await fetchPr({
     ghBin: '/usr/bin/false',

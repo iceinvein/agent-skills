@@ -8,9 +8,18 @@ case "$1 $2" in
   "headRefName": "feature-x",
   "baseRefName": "main",
   "headRefOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-  "baseRefOid": "cafebabecafebabecafebabecafebabecafebabe",
+  "baseRefOid": "cafebabecafebabecafebabecafebabe",
   "author": { "login": "octocat" },
-  "body": "Fake body"
+  "body": "Fake body",
+  "url": "https://github.com/octocat/Hello-World/pull/1234",
+  "files": [
+    {
+      "path": "src/a.ts",
+      "additions": 1,
+      "deletions": 0,
+      "changeType": "modified"
+    }
+  ]
 }
 JSON
     ;;
