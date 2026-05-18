@@ -55,7 +55,7 @@
   let pendingPostIds = []
 
   function showStatus(message, tone, sticky) {
-    const el = document.querySelector('[data-role="submit-status"]')
+    const el = document.querySelector('[data-role="post-status"]')
     if (!(el instanceof HTMLElement)) return
     el.textContent = message
     el.hidden = false
@@ -102,33 +102,32 @@
     return bar instanceof HTMLElement && !bar.hidden
   }
 
-  function badgeHtml(result) {
-    if (result.status === 'posted') return '<span class="badge posted">posted</span>'
-    if (result.status === 'already-posted')
-      return '<span class="badge posted">already posted</span>'
-    if (result.status === 'unknown-id')
-      return '<span class="badge failed">failed: unknown id</span>'
-    const msg = result.message || 'gh failed'
-    const span = document.createElement('span')
-    span.className = 'badge failed'
-    span.textContent = `failed: ${msg}`
-    return span.outerHTML
-  }
-
   function applyResult(result) {
-    const card = document.getElementById(`finding-${result.id}`)
-    if (!(card instanceof HTMLElement)) return
-    const head = card.querySelector('.finding-head')
-    if (!head) return
-    // Remove any pre-existing badge in this head.
-    const existing = head.querySelector('.badge')
-    if (existing) existing.remove()
-    head.insertAdjacentHTML('beforeend', badgeHtml(result))
+    if (!result?.id) return
+    const containers = findAnnotation(result.id)
+    if (containers.length === 0) return
     if (result.status === 'posted' || result.status === 'already-posted') {
-      const cb = card.querySelector('input[type="checkbox"][data-finding-id]')
-      if (cb instanceof HTMLInputElement) {
+      for (const el of containers) {
+        el.setAttribute('data-posted', 'true')
+        const chip = el.querySelector('.status-chip')
+        if (chip) {
+          chip.className = 'status-chip posted'
+          chip.textContent = 'POSTED'
+        }
+      }
+      for (const cb of findCheckboxes(result.id)) {
         cb.checked = true
         cb.disabled = true
+      }
+    } else if (result.status === 'failed' || result.status === 'unknown-id') {
+      const msg = result.message || (result.status === 'unknown-id' ? 'unknown id' : 'gh failed')
+      for (const el of containers) {
+        el.setAttribute('data-failed', 'true')
+        const chip = el.querySelector('.status-chip')
+        if (chip) {
+          chip.className = 'status-chip failed'
+          chip.textContent = `FAILED: ${msg}`
+        }
       }
     }
   }
@@ -448,6 +447,11 @@
       if (c.status === 'posted') {
         for (const el of findAnnotation(c.id)) {
           el.setAttribute('data-posted', 'true')
+          const chip = el.querySelector('.status-chip')
+          if (chip) {
+            chip.className = 'status-chip posted'
+            chip.textContent = 'POSTED'
+          }
         }
         for (const cb of findCheckboxes(c.id)) {
           cb.checked = false
@@ -456,6 +460,11 @@
       } else if (c.status === 'failed') {
         for (const el of findAnnotation(c.id)) {
           el.setAttribute('data-failed', 'true')
+          const chip = el.querySelector('.status-chip')
+          if (chip) {
+            chip.className = 'status-chip failed'
+            chip.textContent = 'FAILED'
+          }
         }
       }
     }
