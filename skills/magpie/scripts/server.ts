@@ -1,6 +1,6 @@
 import { appendFile, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { postFindingsAsReview } from './post-cmd.ts'
+import { parseRepoFromUrl, postFindingsAsReview } from './post-cmd.ts'
 
 export type ServerHandle = {
   url: string
@@ -130,12 +130,23 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
           const prJson = JSON.parse(await readFile(join(runDir, 'pr.json'), 'utf8')) as {
             number: number
             headRefOid: string
+            url?: string
+          }
+          const repo = prJson.url ? parseRepoFromUrl(prJson.url) : null
+          if (!repo) {
+            return new Response(
+              JSON.stringify({
+                error: 'Cannot resolve target repo from pr.json (missing or unparseable url).',
+              }),
+              { status: 500, headers: { 'content-type': 'application/json' } },
+            )
           }
           const result = await postFindingsAsReview({
             runDir,
             findingIds: ids,
             prNumber: prJson.number,
             headSha: prJson.headRefOid,
+            repo,
             dryRun: process.env.MAGPIE_DRY_RUN_POST === '1',
           })
           const status =

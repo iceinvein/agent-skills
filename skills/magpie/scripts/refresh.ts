@@ -1,7 +1,7 @@
-import { readdir, unlink } from 'node:fs/promises'
+import { readdir, readFile, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
-import { parseFinding } from './types.ts'
+import { type PrFileEntry, parseFinding } from './types.ts'
 
 export type RefreshResult = {
   refreshed: boolean
@@ -60,6 +60,7 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
   }
 
   let pr: { number: number; branch: string; headSha: string } | undefined
+  let files: PrFileEntry[] = []
   try {
     const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
     const prNumber = Number(prJson.number ?? 0)
@@ -70,12 +71,23 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
         headSha: String(prJson.headRefOid ?? '?'),
       }
     }
+    const filesArray = Array.isArray(prJson.files) ? (prJson.files as unknown[]) : []
+    files = filesArray.map((f) => {
+      const entry = f as Record<string, unknown>
+      return {
+        path: String(entry.path ?? ''),
+        additions: Number(entry.additions ?? 0),
+        deletions: Number(entry.deletions ?? 0),
+      }
+    })
   } catch {
     // optional file; archived runs may not include pr.json
   }
 
+  const diff = await readFile(join(runDir, 'diff.patch'), 'utf8').catch(() => '')
+
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr },
+    { findings, postStatus, runId: basename(runDir), pr, files, diff },
     join(screenDir, 'findings.html'),
   )
 

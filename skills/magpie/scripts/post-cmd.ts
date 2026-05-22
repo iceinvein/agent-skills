@@ -1,8 +1,32 @@
 import { createHash } from 'node:crypto'
 import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { parseUnifiedDiffToHunks, splitDiffByFile } from './diff-utils.ts'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import { type FocusId, parseFinding, type ReviewFinding, type Severity } from './types.ts'
+
+/**
+ * Build a per-file set of RIGHT-side line numbers that GitHub's PR Reviews API
+ * will accept as inline-comment anchors (added or context lines within hunks).
+ * Returns an empty map when the diff is empty/unavailable.
+ */
+function buildValidRightLines(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>()
+  if (!diff) return result
+  for (const [file, chunk] of splitDiffByFile(diff)) {
+    const hunks = parseUnifiedDiffToHunks(chunk)
+    const set = new Set<number>()
+    for (const h of hunks) {
+      for (const l of h.lines) {
+        if (l.newLineNo != null && (l.type === 'added' || l.type === 'context')) {
+          set.add(l.newLineNo)
+        }
+      }
+    }
+    result.set(file, set)
+  }
+  return result
+}
 
 export type PostInput = {
   runDir: string
@@ -289,6 +313,12 @@ export type PostReviewInput = {
   findingIds: string[]
   prNumber: number
   headSha: string
+  /**
+   * Target repo as "owner/name". When omitted, the `{owner}/{repo}` gh
+   * placeholder is used, which resolves from the gh process's cwd. The server
+   * always passes this explicitly so the call does not depend on cwd.
+   */
+  repo?: string
   reviewBody?: string
   ghBin?: string
   dryRun?: boolean
@@ -364,25 +394,59 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
     // findings.final.json missing or unparseable; strictById stays empty
   }
 
-  // Partition into inline (has file + line) and unplaced.
+  // Build the set of (file, RIGHT-side line) pairs GitHub will accept as inline
+  // anchors. Inline comments on lines outside this set get 422'd and would
+  // poison the whole batch; instead we demote them to the review body.
+  let validRightLines: Map<string, Set<number>> | null = null
+  try {
+    const diff = await readFile(join(input.runDir, 'diff.patch'), 'utf8')
+    validRightLines = buildValidRightLines(diff)
+  } catch {
+    // diff.patch absent (archived/legacy runs); skip validation and trust caller.
+    validRightLines = null
+  }
+
+  // Partition into inline (has file + line in diff) and unplaced (everything else).
   type InlineComment = { path: string; line: number; side: 'RIGHT'; body: string }
   const inlineComments: InlineComment[] = []
   const unplacedBodies: string[] = []
+  const demotedIds: string[] = []
 
   for (const id of input.findingIds) {
-    const f = byId.get(id)
-    if (!f) continue
     const strict = strictById.get(id)
-    if (f.line != null && f.file != null) {
+    const f =
+      byId.get(id) ??
+      (strict
+        ? {
+            id: strict.id,
+            file: strict.file,
+            line: strict.line,
+            title: strict.title,
+            description: strict.description,
+          }
+        : null)
+    if (!f) continue
+    const lineInDiff =
+      f.line != null &&
+      f.file != null &&
+      (validRightLines == null || validRightLines.get(f.file)?.has(f.line) === true)
+    if (lineInDiff) {
       const body = strict
         ? formatInlineBody(strict)
         : formatFindingDescriptionMarkdown(f.description)
       inlineComments.push({
-        path: f.file,
-        line: f.line,
+        path: f.file as string,
+        line: f.line as number,
         side: 'RIGHT',
         body,
       })
+    } else if (f.line != null && f.file != null) {
+      demotedIds.push(id)
+      const anchor = `\`${f.file}:${f.line}\` (anchor not in PR diff, posted in review body)`
+      const inner = strict
+        ? formatConversationBody(strict)
+        : `**${f.title}**\n\n${formatFindingDescriptionMarkdown(f.description)}`
+      unplacedBodies.push(`${anchor}\n\n${inner}`)
     } else {
       const body = strict
         ? formatConversationBody(strict)
@@ -406,20 +470,30 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   }
   const payload = JSON.stringify(payloadObj)
 
+  const repoSlug = input.repo ?? '{owner}/{repo}'
   const command = [
     bin,
     'api',
-    `repos/{owner}/{repo}/pulls/${input.prNumber}/reviews`,
+    `repos/${repoSlug}/pulls/${input.prNumber}/reviews`,
     '--method',
     'POST',
     '--input',
     '-',
   ]
 
+  const demoted = new Set(demotedIds)
+  const buildCommentResults = (status: 'posted' | 'failed', message?: string) =>
+    input.findingIds.map((id) => {
+      const base: PostReviewCommentResult = { id, status }
+      const m =
+        message ?? (demoted.has(id) ? 'anchor not in PR diff, posted in review body' : undefined)
+      return m ? { ...base, message: m } : base
+    })
+
   if (input.dryRun) {
     return {
       reviewId: null,
-      comments: input.findingIds.map((id) => ({ id, status: 'posted' as const })),
+      comments: buildCommentResults('posted'),
       command,
       payload,
     }
@@ -444,7 +518,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
     const msg = (err as Error).message ?? `cannot spawn ${bin}`
     return {
       reviewId: null,
-      comments: input.findingIds.map((id) => ({ id, status: 'failed' as const, message: msg })),
+      comments: buildCommentResults('failed', msg),
       command,
       payload,
     }
@@ -453,11 +527,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   if (exit !== 0) {
     return {
       reviewId: null,
-      comments: input.findingIds.map((id) => ({
-        id,
-        status: 'failed' as const,
-        message: stderrText.trim(),
-      })),
+      comments: buildCommentResults('failed', stderrText.trim()),
       command,
       payload,
     }
@@ -476,7 +546,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
 
   return {
     reviewId,
-    comments: input.findingIds.map((id) => ({ id, status: 'posted' as const })),
+    comments: buildCommentResults('posted'),
     command,
     payload,
   }
