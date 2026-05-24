@@ -8,12 +8,24 @@ import { infoSkill } from "./commands/info";
 import { updateSkill, updateAllSkills } from "./commands/update";
 import { bumpSkill, bumpAllChanged } from "./commands/bump";
 import { checkForUpdates } from "./update-check";
+import { readLockfile } from "./lockfile";
 import { TOOL_NAMES, type ToolName, type ActivationMode } from "./types";
 import { browseAndSelect, pickActivation, pickTools } from "./tui";
 import type { BumpLevel } from "./semver";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+async function otherScopeSkillCount(currentDir: string): Promise<{ scope: "global" | "local"; count: number }> {
+  const home = homedir();
+  const otherDir = currentDir === home ? process.cwd() : home;
+  if (otherDir === currentDir) return { scope: "global", count: 0 };
+  const lockfile = await readLockfile(otherDir);
+  return {
+    scope: otherDir === home ? "global" : "local",
+    count: Object.keys(lockfile.skills).length,
+  };
+}
 
 function resolveInstallDir(flags: Record<string, string>): string {
   if (flags.global !== undefined || flags.g !== undefined) {
@@ -269,17 +281,26 @@ async function main() {
         console.log("Updating all installed skills...\n");
         const results = await updateAllSkills(updateDir);
         if (results.length === 0) {
-          console.log("No skills installed.");
-          break;
-        }
-        for (const r of results) {
-          if (!r.ok) {
-            console.error(`  ✗ ${r.name}: ${r.error}`);
-          } else if (r.from === r.to) {
-            console.log(`  ⊘ ${r.name} already up to date (v${r.to})`);
-          } else {
-            console.log(`  ✓ ${r.name} v${r.from} → v${r.to}`);
+          console.log("No skills installed in this scope.");
+        } else {
+          for (const r of results) {
+            if (!r.ok) {
+              console.error(`  ✗ ${r.name}: ${r.error}`);
+            } else if (r.from === r.to) {
+              console.log(`  ⊘ ${r.name} already up to date (v${r.to})`);
+            } else {
+              console.log(`  ✓ ${r.name} v${r.from} → v${r.to}`);
+            }
           }
+        }
+
+        const other = await otherScopeSkillCount(updateDir);
+        if (other.count > 0) {
+          const command = other.scope === "global"
+            ? "agent-skills update --all -g"
+            : "agent-skills update --all";
+          const noun = other.count === 1 ? "skill" : "skills";
+          console.log(`\nNote: ${other.count} ${noun} installed in the ${other.scope} scope. Run \`${command}\` to update those too.`);
         }
         break;
       }
