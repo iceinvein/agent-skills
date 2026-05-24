@@ -1,6 +1,23 @@
-import { existsSync, mkdirSync, rmSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ActivationMode, SkillManifest } from "../types";
+
+function shouldBeExecutable(relPath: string, content: string): boolean {
+  if (relPath.endsWith(".sh")) return true;
+  if (relPath.startsWith("bin/") || relPath.includes("/bin/")) return true;
+  if (content.startsWith("#!")) return true;
+  return false;
+}
+
+function runScript(scriptPath: string, cwd: string): { ok: boolean; code: number } {
+  if (!existsSync(scriptPath)) return { ok: true, code: 0 };
+  const result = Bun.spawnSync(["bash", scriptPath], {
+    cwd,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  return { ok: result.exitCode === 0, code: result.exitCode ?? 1 };
+}
 
 type HookEntry = { type: "command"; command: string };
 type HookGroup = { hooks: HookEntry[] };
@@ -107,6 +124,22 @@ export const claudeAdapter: Adapter = {
       }
     }
 
+    // Install bundle (directory tree) under bundleRoot
+    if (config.bundleRoot && manifest.bundle) {
+      const promptPath = manifest.files?.prompt;
+      for (const [relPath, content] of files) {
+        if (relPath === promptPath) continue; // prompt handled above
+        const targetRel = join(config.bundleRoot, relPath);
+        const targetPath = join(cwd, targetRel);
+        mkdirSync(dirname(targetPath), { recursive: true });
+        await Bun.write(targetPath, content);
+        if (shouldBeExecutable(relPath, content)) {
+          chmodSync(targetPath, 0o755);
+        }
+        installed.push(targetRel);
+      }
+    }
+
     // Install MCP servers
     if (config.mcpServers) {
       const settingsPath = join(cwd, ".claude/settings.json");
@@ -132,6 +165,14 @@ export const claudeAdapter: Adapter = {
       }
     }
 
+    if (config.postinstall && config.bundleRoot) {
+      const scriptPath = join(cwd, config.bundleRoot, config.postinstall);
+      const result = runScript(scriptPath, join(cwd, config.bundleRoot));
+      if (!result.ok) {
+        console.error(`postinstall script '${config.postinstall}' exited with code ${result.code}`);
+      }
+    }
+
     return installed;
   },
 
@@ -139,15 +180,35 @@ export const claudeAdapter: Adapter = {
     const config = manifest.install.claude;
     if (!config) return;
 
+    // Run postremove before deleting files (so the script is still on disk)
+    if (config.postremove && config.bundleRoot) {
+      const scriptPath = join(cwd, config.bundleRoot, config.postremove);
+      const result = runScript(scriptPath, join(cwd, config.bundleRoot));
+      if (!result.ok) {
+        console.error(`postremove script '${config.postremove}' exited with code ${result.code}`);
+      }
+    }
+
     // Remove prompt and supporting files
     for (const file of installedFiles) {
       if (file === ".claude/settings.json") continue;
       const fullPath = join(cwd, file);
       if (existsSync(fullPath)) {
-        unlinkSync(fullPath);
-        // Clean up empty parent directories
-        const dir = dirname(fullPath);
-        try { rmSync(dir, { recursive: false }); } catch {}
+        try {
+          const stat = statSync(fullPath);
+          if (stat.isDirectory()) {
+            rmSync(fullPath, { recursive: true, force: true });
+          } else {
+            unlinkSync(fullPath);
+          }
+        } catch {}
+        // Clean up empty parent directories walking up to bundleRoot
+        let dir = dirname(fullPath);
+        const stopAt = config.bundleRoot ? join(cwd, config.bundleRoot, "..") : cwd;
+        while (dir !== stopAt && dir !== "/" && dir.startsWith(cwd)) {
+          try { rmSync(dir, { recursive: false }); } catch { break; }
+          dir = dirname(dir);
+        }
       }
     }
 

@@ -126,6 +126,29 @@ bunx @iceinvein/agent-skills info <skill>
 | `--activation <mode>` | For skills that support it: `session` (manual `/skill`) or `global` (auto via `SessionStart` hook). Claude Code only. |
 | `-g, --global` | Install to home directory (available in all projects) |
 
+## Updating Skills
+
+Each skill is versioned independently (see `skill.json` inside each skill). The CLI tracks what you installed in `.agent-skills.lock` and can pull newer versions from GitHub.
+
+```bash
+bunx @iceinvein/agent-skills update <skill>     # update one skill
+bunx @iceinvein/agent-skills update --all       # update everything in the lockfile
+bunx @iceinvein/agent-skills list               # show installed versions
+```
+
+`update` re-fetches the latest manifest and files from this repo, removes the old install, and re-installs cleanly. Your chosen activation mode (session vs. global) is preserved across updates, as is the set of tools you installed for. Use `-g` to update globally-installed skills.
+
+After any command other than `update`, the CLI runs a background freshness check (at most once every 24 hours) and prints a one-line notice if anything is out of date:
+
+```
+some-skill (v0.2.0 → v0.3.0)
+  Run: agent-skills update --all
+```
+
+The check is best-effort: it silently skips on network failure and only hits GitHub once per day per project. To force a re-check sooner, delete the `lastUpdateCheck` field in `.agent-skills.lock` (or just run any command after 24 hours have elapsed).
+
+To pin to the current version, do nothing: skills are not auto-updated. `update` is opt-in.
+
 ## Activation Modes (Claude Code)
 
 Some skills — like `terse` — support activation modes. Pick one at install time:
@@ -159,7 +182,7 @@ Skills install to the **current project** by default. Use `-g` to install to you
 
 ## Contributing
 
-- [Releasing](docs/RELEASING.md) — how versions are bumped, tagged, and published to npm
+- [Releasing](docs/RELEASING.md): how versions are bumped, tagged, and published to npm
 
 ## License
 

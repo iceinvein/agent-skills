@@ -49,18 +49,33 @@ Pick the bump level by impact:
 | minor | New capability, new option, expanded scope, additive change |
 | major | Breaking change to skill behavior, removed capability, renamed activation hook |
 
+## The skill index
+
+`skills/index.json` is the registry the install picker reads (`bunx @iceinvein/agent-skills install` with no args). A skill is installable by name as soon as its `skill.json` exists on `master`, but it will not show up in the picker until it is listed in `index.json`.
+
+The index is generated from each skill's `skill.json` so it cannot drift:
+
+```bash
+bun run build:index                # regenerate skills/index.json
+```
+
+The generator (`scripts/build-index.ts`) walks `skills/*/skill.json` for the source-of-truth fields (`name`, `description`, `type`, `version`) and preserves `applies` / `quick` from the existing index (those fields are used by the `improve-my-codebase` orchestrator and do not live in `skill.json`).
+
+The release script runs the generator and aborts if it produces a diff, so a new skill cannot be released without being registered.
+
 ## Cutting a release
 
 `scripts/release.sh` (also `bun run release`) does the following:
 
 1. Verifies working tree is clean.
 2. Verifies branch is `master` (or `main`).
-3. Runs `bun test`.
-4. Runs `bun run skill:bump:check` and aborts if any skill is stale.
-5. `npm version <patch|minor|major> --no-git-tag-version` to bump `package.json`.
-6. Commits with message `release: vX.Y.Z`.
-7. Creates tag `vX.Y.Z`.
-8. Pushes the commit and the tag to `origin`.
+3. Regenerates `skills/index.json` and aborts if it changed (commit and re-run).
+4. Runs `bun test`.
+5. Runs `bun run skill:bump:check` and aborts if any skill is stale.
+6. `npm version <patch|minor|major> --no-git-tag-version` to bump `package.json`.
+7. Commits with message `release: vX.Y.Z`.
+8. Creates tag `vX.Y.Z`.
+9. Pushes the commit and the tag to `origin`.
 
 Usage:
 
@@ -120,6 +135,7 @@ The script will list the skills that need bumping. Run `bun run skill:bump:all`,
 ## Quick checklist
 
 - [ ] On `master`, clean tree, up to date with origin
+- [ ] `bun run build:index` clean (or regenerated and committed)
 - [ ] `bun test` green
 - [ ] `bun run skill:bump:check` clean (or bumps committed)
 - [ ] Decide patch / minor / major for the package

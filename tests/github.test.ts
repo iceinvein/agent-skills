@@ -1,5 +1,12 @@
 import { test, expect, mock } from "bun:test";
-import { buildRawUrl, fetchSkillManifest, fetchSkillFile } from "../src/cli/github";
+import {
+  buildRawUrl,
+  fetchSkillManifest,
+  fetchSkillFile,
+  fetchSkillTree,
+  resolveBundlePaths,
+  type TreeEntry,
+} from "../src/cli/github";
 
 const REPO = "iceinvein/agent-skills";
 const BRANCH = "master";
@@ -65,4 +72,78 @@ test("fetchSkillFile returns file content", async () => {
   if (result.ok) expect(result.content).toBe("# Skill content");
 
   globalThis.fetch = originalFetch;
+});
+
+test("fetchSkillTree returns entries scoped to the skill directory", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock(async () =>
+    new Response(
+      JSON.stringify({
+        tree: [
+          { path: "skills/magpie/SKILL.md", type: "blob" },
+          { path: "skills/magpie/bin", type: "tree" },
+          { path: "skills/magpie/bin/magpie", type: "blob" },
+          { path: "skills/other/SKILL.md", type: "blob" },
+          { path: "src/cli/index.ts", type: "blob" },
+        ],
+        truncated: false,
+      }),
+      { status: 200 }
+    )
+  ) as any;
+
+  const result = await fetchSkillTree("magpie");
+  expect(result.ok).toBe(true);
+  if (result.ok) {
+    const paths = result.entries.map((e) => e.path);
+    expect(paths).toContain("SKILL.md");
+    expect(paths).toContain("bin/magpie");
+    expect(paths).toContain("bin");
+    expect(paths).not.toContain("skills/other/SKILL.md");
+  }
+
+  globalThis.fetch = originalFetch;
+});
+
+test("fetchSkillTree fails when GitHub truncates the response", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock(async () =>
+    new Response(JSON.stringify({ tree: [], truncated: true }), { status: 200 })
+  ) as any;
+
+  const result = await fetchSkillTree("magpie");
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toContain("truncated");
+
+  globalThis.fetch = originalFetch;
+});
+
+test("resolveBundlePaths expands directories and respects excludes", () => {
+  const entries: TreeEntry[] = [
+    { path: "bin", type: "tree" },
+    { path: "bin/magpie", type: "blob" },
+    { path: "scripts", type: "tree" },
+    { path: "scripts/run.ts", type: "blob" },
+    { path: "scripts/__tests__", type: "tree" },
+    { path: "scripts/__tests__/run.test.ts", type: "blob" },
+    { path: "install.sh", type: "blob" },
+    { path: "README.md", type: "blob" },
+  ];
+
+  const paths = resolveBundlePaths(entries, {
+    include: ["bin", "scripts", "install.sh"],
+    exclude: ["scripts/__tests__/"],
+  });
+
+  expect(paths).toEqual(["bin/magpie", "install.sh", "scripts/run.ts"]);
+});
+
+test("resolveBundlePaths deduplicates overlapping includes", () => {
+  const entries: TreeEntry[] = [
+    { path: "bin", type: "tree" },
+    { path: "bin/magpie", type: "blob" },
+  ];
+
+  const paths = resolveBundlePaths(entries, { include: ["bin", "bin/magpie"] });
+  expect(paths).toEqual(["bin/magpie"]);
 });

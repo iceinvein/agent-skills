@@ -1,7 +1,7 @@
 {
   "name": "magpie",
-  "version": "0.2.1",
-  "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec, and serves an interactive HTML report for selecting findings to post via gh. Bundles a Bun CLI installed separately via the skill's install.sh. Use when the user asks to review a GitHub pull request.",
+  "version": "0.3.0",
+  "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec, and serves an interactive HTML report for selecting findings to post via gh. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request.",
   "author": "iceinvein",
   "type": "prompt",
   "tools": [
@@ -10,9 +10,28 @@
   "files": {
     "prompt": "SKILL.md"
   },
+  "bundle": {
+    "include": [
+      "bin",
+      "scripts",
+      "templates",
+      "install.sh",
+      "uninstall.sh",
+      "package.json",
+      "bun.lock",
+      "README.md",
+      "LICENSE"
+    ],
+    "exclude": [
+      "scripts/__tests__/"
+    ]
+  },
   "install": {
     "claude": {
-      "prompt": ".claude/skills/magpie/SKILL.md"
+      "prompt": ".claude/skills/magpie/SKILL.md",
+      "bundleRoot": ".claude/skills/magpie",
+      "postinstall": "install.sh",
+      "postremove": "uninstall.sh"
     }
   }
 }

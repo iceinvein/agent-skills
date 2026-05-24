@@ -15,15 +15,13 @@ Given a GitHub PR number, dispatches five specialist subagents in parallel (secu
 
 ## Install
 
-This skill ships in two parts: the prompt (SKILL.md) and a companion Bun CLI (bin + scripts). Both are needed, and `install.sh` handles both in one step.
-
 ```
-./install.sh
+bunx @iceinvein/agent-skills install magpie -g
 ```
 
-That symlinks the full skill source tree (bin/, scripts/, templates/, fixtures/, SKILL.md, skill.json) into `~/.claude/skills/magpie/`, then symlinks `bin/magpie` onto your PATH (preferring `/usr/local/bin`, falling back to `~/.local/bin`). Re-run any time to refresh the links.
+This skill ships in two parts: the prompt (SKILL.md) and a companion Bun CLI (bin + scripts). The agent-skills installer writes both into `~/.claude/skills/magpie/` and then runs the bundled `install.sh` as a postinstall step, which symlinks `bin/magpie` onto your PATH (preferring `/usr/local/bin`, falling back to `~/.local/bin`). Removing the skill with `agent-skills remove magpie -g` runs `uninstall.sh` first to undo the PATH symlink.
 
-Once an agent-skills registry entry exists for `magpie`, the prompt half can also be installed via `bunx @iceinvein/agent-skills install magpie`, but the CLI still requires `./install.sh` (or an equivalent manual symlink) because the registry only ships SKILL.md.
+If you cloned this repo and want to run from source, you can also invoke `./install.sh` directly: it does the PATH-link step against the local source tree.
 
 ## Use
 
@@ -57,11 +55,12 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 
 - `SKILL.md` is the agent-facing prompt; installed by the agent-skills CLI.
 - `skill.json` is the agent-skills manifest.
-- `bin/magpie` is the CLI invoked by the agent during stages; installed by `install.sh`.
+- `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).
 - `templates/styles.css` is the HTML report stylesheet.
-- `fixtures/` holds canned PR data for tests.
-- `install.sh` symlinks the skill directory into `~/.claude/skills/`.
+- `fixtures/` holds canned PR data for tests (not shipped to users via the registry).
+- `install.sh` is run as a postinstall step by the agent-skills installer; symlinks `bin/magpie` onto PATH and records the location.
+- `uninstall.sh` is run as a postremove step; removes the PATH symlink if it still points back into this bundle.
 
 ## Design docs
 

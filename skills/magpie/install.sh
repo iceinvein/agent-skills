@@ -1,25 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET="$HOME/.claude/skills/magpie"
+# This script is run by agent-skills as a postinstall step after the magpie
+# skill bundle has been written to disk. Its only job is to put the magpie
+# CLI on PATH and record where it linked, so uninstall.sh can clean up.
 
-if [ -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
-  echo "Refusing to overwrite non-symlink at $TARGET"
-  echo "Remove or move it manually, then re-run."
+SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN_SOURCE="$SOURCE_DIR/bin/magpie"
+STATE_FILE="$SOURCE_DIR/.installed-cli-path"
+
+if [ ! -f "$BIN_SOURCE" ]; then
+  echo "magpie postinstall: bin/magpie missing at $BIN_SOURCE" >&2
   exit 1
 fi
 
-mkdir -p "$HOME/.claude/skills"
-ln -snf "$SOURCE_DIR" "$TARGET"
-
-echo "Installed magpie skill at $TARGET"
-
-# Install the magpie CLI onto PATH. Try /usr/local/bin first (no sudo
-# needed if the user owns it, common on Homebrew Macs), fall back to
-# ~/.local/bin (which most modern shells already have on PATH; we print a
-# nudge if it isn't).
-BIN_SOURCE="$SOURCE_DIR/bin/magpie"
+chmod +x "$BIN_SOURCE" || true
 
 install_link() {
   local dest_dir="$1"
@@ -28,11 +23,9 @@ install_link() {
   if [ ! -d "$dest_dir" ]; then
     mkdir -p "$dest_dir" 2>/dev/null || return 1
   fi
-
   if [ ! -w "$dest_dir" ]; then
     return 1
   fi
-
   if [ -e "$dest" ] && [ ! -L "$dest" ]; then
     echo "  skipping $dest_dir (a non-symlink magpie already exists there)"
     return 2
@@ -40,23 +33,21 @@ install_link() {
 
   ln -snf "$BIN_SOURCE" "$dest"
   echo "  linked  $dest -> $BIN_SOURCE"
-  CLI_INSTALL_DIR="$dest_dir"
+  printf '%s\n' "$dest" > "$STATE_FILE"
   return 0
 }
 
-echo ""
 echo "Installing magpie CLI on PATH:"
 
 CLI_INSTALL_DIR=""
 if install_link "/usr/local/bin"; then
-  :
+  CLI_INSTALL_DIR="/usr/local/bin"
 elif install_link "$HOME/.local/bin"; then
-  :
+  CLI_INSTALL_DIR="$HOME/.local/bin"
 else
   echo "  Could not write to /usr/local/bin or ~/.local/bin."
-  echo "  Add this to your shell rc instead:"
+  echo "  Add this alias to your shell rc instead:"
   echo "    alias magpie='bun $BIN_SOURCE.ts'"
-  CLI_INSTALL_DIR=""
 fi
 
 if [ -n "$CLI_INSTALL_DIR" ]; then

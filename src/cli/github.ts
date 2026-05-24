@@ -63,5 +63,72 @@ export async function fetchAllSkillFiles(
     }
   }
 
+  if (manifest.bundle) {
+    const treeResult = await fetchSkillTree(skillName);
+    if (!treeResult.ok) return { error: treeResult.error };
+
+    const bundlePaths = resolveBundlePaths(treeResult.entries, manifest.bundle);
+    for (const relPath of bundlePaths) {
+      if (files.has(relPath)) continue;
+      const result = await fetchSkillFile(skillName, relPath);
+      if (!result.ok) return { error: result.error };
+      files.set(relPath, result.content);
+    }
+  }
+
   return files;
+}
+
+export type TreeEntry = { path: string; type: "blob" | "tree" };
+
+type FetchTreeResult =
+  | { ok: true; entries: TreeEntry[] }
+  | { ok: false; error: string };
+
+export async function fetchSkillTree(skillName: string): Promise<FetchTreeResult> {
+  const url = `https://api.github.com/repos/${REPO}/git/trees/${BRANCH}?recursive=1`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/vnd.github+json" },
+  });
+  if (!res.ok) {
+    return { ok: false, error: `Failed to fetch repo tree: HTTP ${res.status}` };
+  }
+  const data = (await res.json()) as { tree: Array<{ path: string; type: string }>; truncated?: boolean };
+  if (data.truncated) {
+    return { ok: false, error: "GitHub tree response was truncated; skill bundle too large to enumerate" };
+  }
+
+  const prefix = `skills/${skillName}/`;
+  const entries: TreeEntry[] = data.tree
+    .filter((e) => e.path.startsWith(prefix) && (e.type === "blob" || e.type === "tree"))
+    .map((e) => ({ path: e.path.slice(prefix.length), type: e.type as "blob" | "tree" }));
+
+  return { ok: true, entries };
+}
+
+export function resolveBundlePaths(entries: TreeEntry[], bundle: { include: string[]; exclude?: string[] }): string[] {
+  const excludes = bundle.exclude ?? [];
+  const isExcluded = (p: string) => excludes.some((ex) => p === ex || p.startsWith(ex));
+
+  const dirs = new Set<string>();
+  const files = new Set<string>();
+  for (const entry of entries) {
+    if (entry.type === "tree") dirs.add(entry.path);
+    else files.add(entry.path);
+  }
+
+  const result = new Set<string>();
+  for (const include of bundle.include) {
+    if (dirs.has(include)) {
+      const prefix = include.endsWith("/") ? include : include + "/";
+      for (const f of files) {
+        if (f.startsWith(prefix) && !isExcluded(f)) result.add(f);
+      }
+    } else if (files.has(include)) {
+      if (!isExcluded(include)) result.add(include);
+    }
+    // Silently skip entries that match nothing; install will surface missing files via fetch errors only if they were declared as prompt.
+  }
+
+  return [...result].sort();
 }

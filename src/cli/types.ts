@@ -23,6 +23,14 @@ export type ToolInstallConfig = {
   append?: boolean;
   supporting?: Record<string, string>;
   mcpServers?: Record<string, McpServerConfig>;
+  bundleRoot?: string;
+  postinstall?: string;
+  postremove?: string;
+};
+
+export type SkillBundle = {
+  include: string[];
+  exclude?: string[];
 };
 
 export type SkillManifest = {
@@ -36,6 +44,7 @@ export type SkillManifest = {
     prompt?: string;
     supporting?: string[];
   };
+  bundle?: SkillBundle;
   mcp?: {
     package: string;
     command: string;
@@ -94,6 +103,31 @@ export function validateManifest(data: unknown): ValidationResult {
   }
   if (typeof d.install !== "object" || d.install === null) {
     return { ok: false, error: "Missing 'install' configuration" };
+  }
+
+  if (d.bundle !== undefined) {
+    if (typeof d.bundle !== "object" || d.bundle === null) {
+      return { ok: false, error: "'bundle' must be an object" };
+    }
+    const b = d.bundle as Record<string, unknown>;
+    if (!Array.isArray(b.include) || b.include.length === 0) {
+      return { ok: false, error: "'bundle.include' must be a non-empty array" };
+    }
+    for (const p of b.include) {
+      if (typeof p !== "string") {
+        return { ok: false, error: "'bundle.include' entries must be strings" };
+      }
+    }
+    if (b.exclude !== undefined) {
+      if (!Array.isArray(b.exclude)) {
+        return { ok: false, error: "'bundle.exclude' must be an array" };
+      }
+      for (const p of b.exclude) {
+        if (typeof p !== "string") {
+          return { ok: false, error: "'bundle.exclude' entries must be strings" };
+        }
+      }
+    }
   }
 
   if (d.activation !== undefined) {

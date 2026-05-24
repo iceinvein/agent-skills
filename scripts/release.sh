@@ -24,6 +24,15 @@ if [[ "$BRANCH" != "master" && "$BRANCH" != "main" ]]; then
   exit 1
 fi
 
+# Ensure skills/index.json is in sync with each skill's skill.json
+echo "Rebuilding skill index..."
+bun run scripts/build-index.ts
+if ! git diff --quiet -- skills/index.json; then
+  echo "Error: skills/index.json was out of date. It has been regenerated."
+  echo "Commit the change and re-run release."
+  exit 1
+fi
+
 # Run tests
 echo "Running tests..."
 bun test

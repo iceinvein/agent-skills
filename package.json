@@ -19,6 +19,7 @@
     "skill:bump": "bun run src/cli/index.ts bump",
     "skill:bump:all": "bun run src/cli/index.ts bump --all",
     "skill:bump:check": "bun run src/cli/index.ts bump --all --dry-run",
+    "build:index": "bun run scripts/build-index.ts",
     "release": "bash scripts/release.sh"
   },
   "keywords": [
