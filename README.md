@@ -157,6 +157,10 @@ The CLI fetches skills from GitHub and installs them into the right locations fo
 
 Skills install to the **current project** by default. Use `-g` to install to your **home directory** so the skill is available everywhere. A `.agent-skills.lock` file tracks installations for update and remove.
 
+## Contributing
+
+- [Releasing](docs/RELEASING.md) — how versions are bumped, tagged, and published to npm
+
 ## License
 
 MIT
