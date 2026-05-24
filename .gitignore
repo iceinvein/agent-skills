@@ -14,3 +14,7 @@ terse-workspace
 .remember
 .superpowers/
 .playwright-mcp/
+
+# Skill install artifacts when dogfooding agent-skills in this repo
+.claude/
+AGENTS.md
