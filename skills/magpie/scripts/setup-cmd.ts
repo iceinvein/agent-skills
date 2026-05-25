@@ -1,7 +1,10 @@
-import { appendFile, mkdir, rm } from 'node:fs/promises'
+import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fetchPr } from './gh.ts'
+import { buildIncrementalContext, findPreviousRun } from './incremental.ts'
+import { filterDiff, loadPathFilterConfig } from './path-filter.ts'
 import { type Deps, defaultDeps, preflight, renderInstallHint } from './preflight.ts'
+import { detectMissingTests } from './tests-check.ts'
 import { createWorktree } from './worktree.ts'
 
 export type RunSetupInput = {
@@ -45,6 +48,12 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
   }
   await logLine(input.runDir, { stage: 'fetch-pr', status: 'done' })
 
+  await applyPathFilter(input.runDir, input.repoPath)
+
+  await runTestsCheck(input.runDir)
+
+  await detectIncrementalReview(input.runDir, input.prNumber)
+
   const prJson = (await Bun.file(join(input.runDir, 'pr.json')).json()) as { headRefName: string }
   const branch = prJson.headRefName
 
@@ -65,7 +74,69 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
 }
 
 async function cleanup(runDir: string): Promise<void> {
-  for (const name of ['worktree', 'pr.json', 'diff.patch', 'findings', 'screen', 'state']) {
+  for (const name of [
+    'worktree',
+    'pr.json',
+    'diff.patch',
+    'diff.full.patch',
+    'excluded-files.json',
+    'incremental.json',
+    'findings',
+    'screen',
+    'state',
+  ]) {
     await rm(join(runDir, name), { recursive: true, force: true }).catch(() => {})
   }
+}
+
+async function runTestsCheck(runDir: string): Promise<void> {
+  const diff = await Bun.file(join(runDir, 'diff.patch')).text()
+  const findings = detectMissingTests(diff)
+  if (findings.length === 0) {
+    await logLine(runDir, { stage: 'tests-check', status: 'done', findings: 0 })
+    return
+  }
+  await writeFile(join(runDir, 'findings', 'tests.json'), `${JSON.stringify(findings, null, 2)}\n`)
+  await logLine(runDir, { stage: 'tests-check', status: 'done', findings: findings.length })
+}
+
+async function detectIncrementalReview(runDir: string, prNumber: number): Promise<void> {
+  const previous = await findPreviousRun(prNumber, runDir)
+  if (!previous) {
+    await logLine(runDir, { stage: 'incremental', status: 'first-run' })
+    return
+  }
+  const currentPr = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
+  const context = buildIncrementalContext(currentPr, previous)
+  if (!context) {
+    await logLine(runDir, { stage: 'incremental', status: 'missing-sha' })
+    return
+  }
+  await writeFile(join(runDir, 'incremental.json'), `${JSON.stringify(context, null, 2)}\n`)
+  await logLine(runDir, {
+    stage: 'incremental',
+    status: 'done',
+    previousRunId: context.previousRunId,
+    sameSha: context.sameSha,
+  })
+}
+
+async function applyPathFilter(runDir: string, repoPath: string): Promise<void> {
+  const diffPath = join(runDir, 'diff.patch')
+  const rawDiff = await Bun.file(diffPath).text()
+  const config = await loadPathFilterConfig(repoPath)
+  const { filtered, excluded } = filterDiff(rawDiff, config)
+  if (excluded.length === 0) {
+    await logLine(runDir, { stage: 'filter', status: 'done', excluded: 0 })
+    return
+  }
+  await writeFile(join(runDir, 'diff.full.patch'), rawDiff)
+  await writeFile(diffPath, filtered)
+  await writeFile(join(runDir, 'excluded-files.json'), `${JSON.stringify(excluded, null, 2)}\n`)
+  await logLine(runDir, {
+    stage: 'filter',
+    status: 'done',
+    excluded: excluded.length,
+    patterns: Array.from(new Set(excluded.map((e) => e.pattern))),
+  })
 }

@@ -99,11 +99,22 @@ const HANDLERS: Record<string, Handler> = {
   dedupe: async (args) => {
     const runDir = args[0]
     if (!runDir) {
-      process.stderr.write('dedupe: missing <run-dir>\n')
+      process.stderr.write('dedupe: missing <run-dir> [--threshold <0-10>]\n')
       return 2
     }
+    const thresholdFlag = args.indexOf('--threshold')
+    const thresholdRaw = thresholdFlag !== -1 ? args[thresholdFlag + 1] : undefined
+    let threshold: number | undefined
+    if (thresholdRaw !== undefined) {
+      const n = Number(thresholdRaw)
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        process.stderr.write(`dedupe: invalid --threshold ${thresholdRaw} (want 0-10)\n`)
+        return 2
+      }
+      threshold = n
+    }
     const { runDedupe } = await import('../scripts/dedupe-cmd.ts')
-    return runDedupe(runDir)
+    return runDedupe(runDir, threshold !== undefined ? { threshold } : {})
   },
   render: async (args) => {
     const runDir = args[0]

@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  computeEffortScore,
   formatConversationBody,
   formatInlineBody,
   formatPostBody,
@@ -158,8 +159,8 @@ test('runPost skips ids already marked as posted', async () => {
   await seedRunDir()
   await writeFile(join(runDir, 'post-status.json'), JSON.stringify({ 'sec-1': 'posted' }))
   const outcome = await runPost({ runDir, findingIds: ['sec-1', 'bug-1'], dryRun: true })
-  expect(outcome.results[0]?.status).toBe('already-posted')
-  expect(outcome.results[1]?.status).toBe('posted')
+  expect(outcome.results.find((r) => r.id === 'sec-1')?.status).toBe('already-posted')
+  expect(outcome.results.find((r) => r.id === 'bug-1')?.status).toBe('posted')
 })
 
 test('runPost surfaces gh failure per finding (here: gh binary missing)', async () => {
@@ -169,6 +170,7 @@ test('runPost surfaces gh failure per finding (here: gh binary missing)', async 
     runDir,
     findingIds: ['sec-1'],
     ghBin: '/does/not/exist/gh-binary',
+    includeSummary: 'never',
   })
   expect(outcome.ok).toBe(true) // overall request succeeds; per-id reflects gh's failure
   expect(outcome.results[0]?.status).toBe('failed')
@@ -204,8 +206,9 @@ test('runPost falls back to a top-level PR comment when GitHub rejects the inlin
 
   const outcome = await runPost({ runDir, findingIds: ['sec-1'], ghBin: fakeGh })
   expect(outcome.ok).toBe(true)
-  expect(outcome.results[0]?.status).toBe('posted')
-  expect(outcome.results[0]?.message).toMatch(/posted as PR comment/i)
+  const sec1 = outcome.results.find((r) => r.id === 'sec-1')
+  expect(sec1?.status).toBe('posted')
+  expect(sec1?.message).toMatch(/posted as PR comment/i)
   const status = JSON.parse(await readFile(join(runDir, 'post-status.json'), 'utf8'))
   expect(status['sec-1']).toBe('posted')
   const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
@@ -226,8 +229,9 @@ test('runPost reports a combined failure when both inline and fallback gh calls 
   )
   await Bun.spawn(['chmod', '+x', fakeGh]).exited
   const outcome = await runPost({ runDir, findingIds: ['sec-1'], ghBin: fakeGh })
-  expect(outcome.results[0]?.status).toBe('failed')
-  expect(outcome.results[0]?.message).toMatch(/inline.*fallback also failed/i)
+  const sec1 = outcome.results.find((r) => r.id === 'sec-1')
+  expect(sec1?.status).toBe('failed')
+  expect(sec1?.message).toMatch(/inline.*fallback also failed/i)
 })
 
 test('formatReviewSummaryBody renders verdict, Needs Attention and Risk breakdown', () => {
@@ -265,7 +269,82 @@ test('formatReviewSummaryBody handles the empty case', () => {
   expect(body).not.toContain('Risk breakdown')
 })
 
-test('runPost auto-posts the review summary when batch has 2+ pending findings', async () => {
+test('formatReviewSummaryBody includes effort score when files are provided', () => {
+  const body = formatReviewSummaryBody([], {
+    files: [{ path: 'src/a.ts', additions: 5, deletions: 0 }],
+  })
+  expect(body).toContain('Review effort')
+  expect(body).toMatch(/\d\/5/)
+})
+
+test('formatReviewSummaryBody renders walkthrough table sorted by churn', () => {
+  const body = formatReviewSummaryBody([], {
+    files: [
+      { path: 'small.ts', additions: 1, deletions: 0 },
+      { path: 'big.ts', additions: 200, deletions: 100 },
+    ],
+  })
+  expect(body).toContain('Files changed')
+  expect(body).toContain('big.ts')
+  const bigIdx = body.indexOf('big.ts')
+  const smallIdx = body.indexOf('small.ts')
+  expect(bigIdx).toBeLessThan(smallIdx)
+})
+
+test('formatReviewSummaryBody surfaces risk hotspots when 2+ findings per file', () => {
+  const findings = [
+    {
+      ...findingA,
+      id: 'h1',
+      file: 'src/hot.ts',
+      line: 5,
+    },
+    {
+      ...findingA,
+      id: 'h2',
+      file: 'src/hot.ts',
+      line: 10,
+    },
+    {
+      ...findingA,
+      id: 'h3',
+      file: 'src/cool.ts',
+      line: 1,
+    },
+  ] as Parameters<typeof formatReviewSummaryBody>[0]
+  const body = formatReviewSummaryBody(findings)
+  expect(body).toContain('Risk hotspots')
+  expect(body).toContain('src/hot.ts')
+  expect(body).not.toContain('- `src/cool.ts`')
+})
+
+test('formatReviewSummaryBody renders incremental trailer with new commits', () => {
+  const body = formatReviewSummaryBody([], {
+    incremental: { previousSha: 'abcdef0123456', sameSha: false },
+  })
+  expect(body).toContain('Incremental review since')
+  expect(body).toContain('abcdef0')
+})
+
+test('formatReviewSummaryBody renders re-review trailer when sameSha', () => {
+  const body = formatReviewSummaryBody([], {
+    incremental: { previousSha: 'abcdef0123456', sameSha: true },
+  })
+  expect(body).toContain('Re-review')
+})
+
+test('computeEffortScore: small PR = 1, huge PR = 5', () => {
+  expect(computeEffortScore([])).toBe(1)
+  expect(computeEffortScore([{ path: 'a', additions: 5, deletions: 5 }])).toBe(1)
+  const huge = Array.from({ length: 25 }, (_, i) => ({
+    path: `f${i}.ts`,
+    additions: 100,
+    deletions: 0,
+  }))
+  expect(computeEffortScore(huge)).toBe(5)
+})
+
+test('runPost auto-posts the review summary on any non-empty batch', async () => {
   await seedRunDir()
   const outcome = await runPost({
     runDir,
@@ -280,14 +359,35 @@ test('runPost auto-posts the review summary when batch has 2+ pending findings',
   expect(status.__summary__).toBe('posted')
 })
 
-test('runPost skips the summary on single-finding batches in auto mode', async () => {
+test('runPost auto-posts the summary even on single-finding batches', async () => {
   await seedRunDir()
   const outcome = await runPost({
     runDir,
     findingIds: ['sec-1'],
     dryRun: true,
   })
+  expect(outcome.results.find((r) => r.id === '__summary__')?.status).toBe('posted')
+})
+
+test('runPost auto-skips the summary when the batch has zero findings', async () => {
+  await seedRunDir()
+  const outcome = await runPost({
+    runDir,
+    findingIds: ['nope-id'],
+    dryRun: true,
+  })
   expect(outcome.results.find((r) => r.id === '__summary__')).toBeUndefined()
+})
+
+test('runPost with includeSummary: always posts the summary even on empty batches', async () => {
+  await seedRunDir()
+  const outcome = await runPost({
+    runDir,
+    findingIds: [],
+    dryRun: true,
+    includeSummary: 'always',
+  })
+  expect(outcome.results.find((r) => r.id === '__summary__')?.status).toBe('posted')
 })
 
 test('runPost forces the summary when includeSummary: always', async () => {

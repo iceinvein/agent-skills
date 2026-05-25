@@ -1,4 +1,11 @@
-export const FOCUS_IDS = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
+export const FOCUS_IDS = [
+  'security',
+  'bugs',
+  'performance',
+  'code-smells',
+  'architecture',
+  'tests',
+] as const
 export type FocusId = (typeof FOCUS_IDS)[number]
 
 export const SEVERITIES = ['blocker', 'high', 'medium', 'low'] as const
@@ -45,6 +52,8 @@ export type ReviewFinding = {
   suggestion?: Suggestion
   domain: FocusId | string | null
   mergedFrom?: MergedFromEntry[]
+  /** Derived 0-10 importance score from risk fields. Populated during dedupe. */
+  score?: number
 }
 
 function assertOneOf<T extends string>(
@@ -102,6 +111,7 @@ export function parseFinding(raw: unknown): ReviewFinding {
     suggestion,
     domain: (r.domain as ReviewFinding['domain']) ?? null,
     mergedFrom: Array.isArray(r.mergedFrom) ? (r.mergedFrom as MergedFromEntry[]) : undefined,
+    ...(typeof r.score === 'number' && Number.isFinite(r.score) ? { score: r.score } : {}),
   }
 }
 

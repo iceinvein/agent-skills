@@ -1,6 +1,8 @@
 import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { deduplicateFindings } from './dedupe.ts'
+import { verifyEvidence } from './evidence-filter.ts'
+import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
 import { FOCUS_IDS, parseFinding, type ReviewFinding } from './types.ts'
 
 async function logLine(runDir: string, entry: Record<string, unknown>): Promise<void> {
@@ -8,7 +10,13 @@ async function logLine(runDir: string, entry: Record<string, unknown>): Promise<
   await appendFile(join(runDir, 'log.jsonl'), line)
 }
 
-export async function runDedupe(runDir: string): Promise<number> {
+export type RunDedupeOptions = {
+  /** 0-10 importance score below which findings are dropped pre-critic. */
+  threshold?: number
+}
+
+export async function runDedupe(runDir: string, options: RunDedupeOptions = {}): Promise<number> {
+  const threshold = options.threshold ?? DEFAULT_THRESHOLD
   const findingsDir = join(runDir, 'findings')
   const collected: ReviewFinding[] = []
   let files: string[]
@@ -67,12 +75,41 @@ export async function runDedupe(runDir: string): Promise<number> {
   }
 
   const deduped = deduplicateFindings(collected)
-  await writeFile(join(runDir, 'findings.deduped.json'), `${JSON.stringify(deduped, null, 2)}\n`)
+  const scored = deduped.map((f) => ({ ...f, score: scoreRisk(f.risk) }))
+  const evidence = await verifyEvidence(scored, join(runDir, 'worktree'))
+  const aboveThreshold = evidence.kept.filter((f) => (f.score ?? 0) >= threshold)
+  const belowThreshold = evidence.kept.filter((f) => (f.score ?? 0) < threshold)
+  await writeFile(
+    join(runDir, 'findings.deduped.json'),
+    `${JSON.stringify(aboveThreshold, null, 2)}\n`,
+  )
+  if (evidence.dropped.length > 0) {
+    await writeFile(
+      join(runDir, 'evidence-dropped.json'),
+      `${JSON.stringify(evidence.dropped, null, 2)}\n`,
+    )
+  }
+  if (belowThreshold.length > 0) {
+    await writeFile(
+      join(runDir, 'threshold-dropped.json'),
+      `${JSON.stringify(
+        belowThreshold.map((f) => ({ id: f.id, score: f.score, title: f.title })),
+        null,
+        2,
+      )}\n`,
+    )
+  }
   await logLine(runDir, {
     stage: 'dedupe',
     status: 'done',
     input: collected.length,
-    output: deduped.length,
+    output: aboveThreshold.length,
+    threshold,
+    threshold_dropped: belowThreshold.length,
+    evidence: {
+      skipped: evidence.skipped,
+      dropped: evidence.dropped.length,
+    },
   })
   return 0
 }

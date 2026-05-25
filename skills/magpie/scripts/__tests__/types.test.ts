@@ -2,8 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import type { FocusId, PrFileEntry, ReviewFinding } from '../types.ts'
 import { FOCUS_IDS, isSuggestion, parseFinding } from '../types.ts'
 
-test('FOCUS_IDS contains the five default focuses', () => {
-  expect(FOCUS_IDS).toEqual(['security', 'bugs', 'performance', 'code-smells', 'architecture'])
+test('FOCUS_IDS contains the LLM focuses plus the deterministic tests domain', () => {
+  expect(FOCUS_IDS).toEqual([
+    'security',
+    'bugs',
+    'performance',
+    'code-smells',
+    'architecture',
+    'tests',
+  ])
 })
 
 test('parseFinding accepts a minimal finding', () => {

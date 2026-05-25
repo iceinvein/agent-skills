@@ -32,6 +32,12 @@ magpie setup "$RUN_DIR" --pr $PR_NUMBER --repo "$REPO"
 
 If exit is non-zero, surface stderr verbatim and stop. The CLI removes the worktree and subdirs on failure; the run directory itself plus `log.jsonl` are kept for diagnostics.
 
+Setup automatically filters lockfiles, build output, generated source, and snapshot fixtures from `diff.patch` before specialists see it. Users can override by placing `.magpie.json` at the repo root: `{"exclude": [...glob], "include": [...glob], "useDefaults": true|false}`. When anything is filtered, the raw diff is preserved as `$RUN_DIR/diff.full.patch` and the exclusion list as `$RUN_DIR/excluded-files.json`.
+
+When a prior run exists for the same PR (active or archived under `~/.magpie/`), setup writes `$RUN_DIR/incremental.json` with `{previousRunId, previousSha, currentSha, sameSha}`. The post stage surfaces this as a "Incremental review since `<sha>`" trailer on the summary comment.
+
+Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding written to `$RUN_DIR/findings/tests.json`. This is a sixth domain that flows through dedupe/critic/peer-review alongside the five LLM specialists. No specialist subagent is dispatched for it.
+
 ### 2. Serve
 
 Start the HTML server in the background using the Bash tool with `run_in_background: true`:
@@ -48,35 +54,7 @@ Render the first progress paint:
 magpie render "$RUN_DIR" progress
 ```
 
-### 3. Context (optional)
-
-If the `mcp__code-intelligence__search_code` tool is available in this conversation, build the context bundle by calling code-intelligence MCP tools for each changed file and writing the result to `$RUN_DIR/pr-context.json`. If MCP is not available, log `{stage: context, status: skipped, reason: mcp-unavailable}` to `$RUN_DIR/log.jsonl` and continue. Re-render progress.
-
-Expected shape of `pr-context.json`:
-
-```json
-{
-  "symbols": [
-    {
-      "name": "createProject",
-      "kind": "function",
-      "file": "apps/server/src/resolvers/Mutation/createProject.ts",
-      "line": 8,
-      "definition": "<source of the symbol, trimmed>",
-      "references": [
-        { "file": "apps/server/src/resolvers/Mutation/index.ts", "line": 5, "context": "<one-line snippet>" }
-      ],
-      "tests": [
-        { "file": "apps/server/src/resolvers/Mutation/__tests__/createProject.test.ts", "line": 12, "context": "<one-line snippet>" }
-      ]
-    }
-  ]
-}
-```
-
-Cap `references` at 20 per symbol; include only tests that import or call the symbol.
-
-### 4. Specialists
+### 3. Specialists
 
 Dispatch the five specialist subagents in a single message using five Agent tool calls in parallel. For each focus in (security, bugs, performance, code-smells, architecture), the prompt is:
 
@@ -86,7 +64,6 @@ Dispatch the five specialist subagents in a single message using five Agent tool
 You are reviewing PR #<PR_NUMBER>.
 Working directory: $RUN_DIR/worktree
 Diff: $RUN_DIR/diff.patch
-Code context (if exists): $RUN_DIR/pr-context.json
 
 ## Output Contract
 
@@ -129,19 +106,23 @@ After each subagent returns, append `{stage: specialist, focus: <focus>, status:
 
 If all five specialists fail (no findings files written), log `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
 
-### 5. Dedupe
+### 4. Dedupe
 
 ```
-magpie dedupe "$RUN_DIR"
+magpie dedupe "$RUN_DIR" [--threshold <0-10>]
 ```
+
+`magpie dedupe` also runs a deterministic evidence check against the worktree: findings whose `file` is missing or whose `line` is out of range are dropped. Drops are logged and recorded to `$RUN_DIR/evidence-dropped.json`. The check is skipped if the worktree is no longer present (archived run replay).
+
+Each finding receives a derived 0-10 `score` from its risk fields. Findings below `--threshold` (default 3) are dropped before the critic LLM runs and recorded to `$RUN_DIR/threshold-dropped.json`. Pass `--threshold 0` to keep everything.
 
 Re-render progress.
 
-### 6. Critic
+### 5. Critic
 
 Read `$RUN_DIR/findings.deduped.json`. Apply the critic rubric from this SKILL.md verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
 
-### 7. Peer review
+### 6. Peer review
 
 Build the peer-review prompt by taking the `magpie-peer-review` block from this SKILL.md and substituting the placeholders listed in its `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`. Then run codex with the prompt piped on stdin:
 
@@ -155,7 +136,7 @@ If codex returns non-zero, ask the user once: "Codex peer-review failed: <stderr
 
 Otherwise parse the verdicts JSON, apply them (drop / downgrade), and write `findings.final.json`. Append `{stage: peer-review, status: done}` and re-render progress.
 
-### 8. Report
+### 7. Report
 
 ```
 magpie render "$RUN_DIR" findings
@@ -165,7 +146,7 @@ Print to the terminal: "Findings ready at <url>. Click checkboxes to select what
 
 End the turn.
 
-### 9. Post
+### 8. Post
 
 Most users will tick the checkboxes in the served report and click "Post to PR"; the report server handles the rest. The agent only handles posts when the user explicitly types `post` (optionally `post 1,3,7` for indices) in the conversation.
 
@@ -188,7 +169,7 @@ Pass `--dry-run` to record the would-be gh commands without invoking gh. After p
 magpie render "$RUN_DIR" findings
 ```
 
-### 10. Cleanup
+### 9. Cleanup
 
 ```
 magpie cleanup "$RUN_DIR" --repo "$REPO"

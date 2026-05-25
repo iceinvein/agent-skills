@@ -3,7 +3,13 @@ import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseUnifiedDiffToHunks, splitDiffByFile } from './diff-utils.ts'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
-import { type FocusId, parseFinding, type ReviewFinding, type Severity } from './types.ts'
+import {
+  type FocusId,
+  type PrFileEntry,
+  parseFinding,
+  type ReviewFinding,
+  type Severity,
+} from './types.ts'
 
 /**
  * Build a per-file set of RIGHT-side line numbers that GitHub's PR Reviews API
@@ -37,9 +43,9 @@ export type PostInput = {
   /**
    * Whether to also post a top-level review-summary comment before the
    * per-finding posts.
-   * - 'auto' (default): post when this batch will newly post 2+ findings and
-   *   no summary has been posted before.
-   * - 'always': post even for single-finding batches.
+   * - 'auto' (default): post when this batch has at least one finding and no
+   *   summary has been posted before. Always-on UX.
+   * - 'always': post even on empty batches (clean-review comment).
    * - 'never': skip the summary entirely.
    */
   includeSummary?: 'auto' | 'always' | 'never'
@@ -87,6 +93,7 @@ const FOCUS_LABEL: Record<FocusId, string> = {
   performance: 'Performance',
   'code-smells': 'Code Smells',
   architecture: 'Architecture',
+  tests: 'Tests',
 }
 
 function formatFocus(f: ReviewFinding): string | null {
@@ -213,6 +220,81 @@ function formatLocation(f: ReviewFinding): string {
 export type ReviewSummaryOptions = {
   /** Optional commit SHA. When present, surfaces a "Reviewed at <sha>" trailer. */
   commitId?: string
+  /** PR files changed (from pr.json). Used for the walkthrough table and effort score. */
+  files?: PrFileEntry[]
+  /** Incremental review context. When present, surfaces "since <prev-sha>" trailer. */
+  incremental?: { previousSha: string; sameSha: boolean }
+}
+
+/** Effort score 1 (trivial) to 5 (substantial), derived from changed files and lines. */
+export function computeEffortScore(files: PrFileEntry[]): number {
+  if (files.length === 0) return 1
+  const lines = files.reduce((acc, f) => acc + f.additions + f.deletions, 0)
+  if (files.length <= 2 && lines <= 50) return 1
+  if (files.length <= 5 && lines <= 200) return 2
+  if (files.length <= 10 && lines <= 500) return 3
+  if (files.length <= 20 && lines <= 1000) return 4
+  return 5
+}
+
+function renderEffortBar(score: number): string {
+  const filled = '●'.repeat(score)
+  const empty = '○'.repeat(Math.max(0, 5 - score))
+  return `${filled}${empty}`
+}
+
+function findingsByFile(findings: ReviewFinding[]): Map<string, ReviewFinding[]> {
+  const map = new Map<string, ReviewFinding[]>()
+  for (const f of findings) {
+    if (!f.file) continue
+    const list = map.get(f.file)
+    if (list) list.push(f)
+    else map.set(f.file, [f])
+  }
+  return map
+}
+
+function renderWalkthroughTable(
+  files: PrFileEntry[],
+  byFile: Map<string, ReviewFinding[]>,
+): string[] {
+  if (files.length === 0) return []
+  const sorted = [...files].sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions))
+  const top = sorted.slice(0, 20)
+  const lines = [
+    '',
+    `<details>`,
+    `<summary><b>Files changed</b> (${plural(files.length, 'file')}${files.length > top.length ? `, showing top ${top.length}` : ''})</summary>`,
+    '',
+    '| File | +/- | Findings |',
+    '|---|---|---|',
+  ]
+  for (const f of top) {
+    const finds = byFile.get(f.path)?.length ?? 0
+    const stats = `+${f.additions} / -${f.deletions}`
+    lines.push(`| \`${f.path}\` | ${stats} | ${finds || ''} |`)
+  }
+  lines.push('', '</details>')
+  return lines
+}
+
+function renderRiskHotspots(byFile: Map<string, ReviewFinding[]>): string[] {
+  const entries = [...byFile.entries()]
+    .map(([file, finds]) => ({ file, finds }))
+    .filter((e) => e.finds.length >= 2)
+    .sort((a, b) => b.finds.length - a.finds.length)
+    .slice(0, 3)
+  if (entries.length === 0) return []
+  const lines = ['', '### Risk hotspots', '']
+  for (const e of entries) {
+    const counts: Record<Severity, number> = { blocker: 0, high: 0, medium: 0, low: 0 }
+    for (const f of e.finds) counts[f.severity] += 1
+    const tally = SEVERITY_ORDER.filter((s) => counts[s] > 0)
+      .map((s) => `${SEVERITY_ICON[s]} ${counts[s]}`)
+      .join(' · ')
+    lines.push(`- \`${e.file}\` · ${plural(e.finds.length, 'finding')} · ${tally}`)
+  }
+  return lines
 }
 
 /**
@@ -233,6 +315,9 @@ export function formatReviewSummaryBody(
 
   const fileCount = new Set(inlineFindings.map((f) => f.file)).size
   const shortSha = options.commitId ? options.commitId.slice(0, 7) : ''
+  const files = options.files ?? []
+  const effort = computeEffortScore(files)
+  const byFile = findingsByFile(findings)
 
   let verdict: string
   if (counts.blocker > 0) {
@@ -250,6 +335,18 @@ export function formatReviewSummaryBody(
   const header = `${verdict}${scope}${sha}`.replace(/\s+$/, '')
 
   const lines: string[] = [header]
+
+  if (files.length > 0) {
+    lines.push('', `<sub>Review effort · ${renderEffortBar(effort)} (${effort}/5)</sub>`)
+  }
+
+  if (options.incremental) {
+    const prevShort = options.incremental.previousSha.slice(0, 7)
+    const msg = options.incremental.sameSha
+      ? `Re-review (no new commits since \`${prevShort}\`)`
+      : `Incremental review since \`${prevShort}\``
+    lines.push('', `<sub>${msg}</sub>`)
+  }
 
   if (findings.length > 0) {
     const inlineText =
@@ -281,6 +378,9 @@ export function formatReviewSummaryBody(
       lines.push(`- ${icon} **${label}: ${f.title}**${meta ? ` · ${meta}` : ''}`)
     }
   }
+
+  lines.push(...renderRiskHotspots(byFile))
+  lines.push(...renderWalkthroughTable(files, byFile))
 
   if (findings.length > 0) {
     lines.push(
@@ -680,20 +780,44 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
 
   // Decide whether to post the review summary up front. It is one extra
   // top-level PR comment that gives the conversation a coherent overview
-  // before the per-finding threads land.
+  // before the per-finding threads land. Default 'auto' fires for any
+  // non-empty batch; 'always' fires even on empty batches (clean-review).
   const summaryMode = input.includeSummary ?? 'auto'
   const selectedFindings = input.findingIds
     .map((id) => byId.get(id))
     .filter((f): f is ReviewFinding => Boolean(f))
-  const pendingCount = selectedFindings.filter((f) => status[f.id] !== 'posted').length
   const summaryAlreadyPosted = status.__summary__ === 'posted'
   const shouldPostSummary =
     !summaryAlreadyPosted &&
-    selectedFindings.length > 0 &&
-    (summaryMode === 'always' || (summaryMode === 'auto' && pendingCount >= 2))
+    summaryMode !== 'never' &&
+    (summaryMode === 'always' || selectedFindings.length >= 1)
+
+  const prFiles = Array.isArray(prJson.files)
+    ? (prJson.files as PrFileEntry[]).filter(
+        (f): f is PrFileEntry =>
+          typeof f?.path === 'string' &&
+          typeof f?.additions === 'number' &&
+          typeof f?.deletions === 'number',
+      )
+    : []
+
+  let incremental: ReviewSummaryOptions['incremental']
+  try {
+    const raw = await readFile(join(input.runDir, 'incremental.json'), 'utf8')
+    const parsed = JSON.parse(raw) as { previousSha?: string; sameSha?: boolean }
+    if (typeof parsed.previousSha === 'string') {
+      incremental = { previousSha: parsed.previousSha, sameSha: Boolean(parsed.sameSha) }
+    }
+  } catch {
+    // No incremental sidecar; first run for this PR.
+  }
 
   if (shouldPostSummary) {
-    const summaryBody = formatReviewSummaryBody(selectedFindings, { commitId: headSha })
+    const summaryBody = formatReviewSummaryBody(selectedFindings, {
+      commitId: headSha,
+      files: prFiles,
+      ...(incremental ? { incremental } : {}),
+    })
     const summaryCmd = buildPrCommentCommand(repo, prNumber, summaryBody)
     if (input.dryRun) {
       results.push({ id: '__summary__', status: 'posted', command: summaryCmd })

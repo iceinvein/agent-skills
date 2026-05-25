@@ -77,3 +77,48 @@ test('runDedupe with no findings files writes empty array', async () => {
   const out = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
   expect(out).toHaveLength(0)
 })
+
+test('runDedupe attaches score to each finding', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([f('1', 'a.ts', 10, 'mid title', 'bugs')]),
+  )
+  const exit = await runDedupe(runDir)
+  expect(exit).toBe(0)
+  const out = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(out[0]?.score).toBeGreaterThan(0)
+  expect(out[0]?.score).toBeLessThanOrEqual(10)
+})
+
+test('runDedupe drops findings below threshold and writes sidecar', async () => {
+  const low: ReviewFinding = {
+    ...f('low-1', 'a.ts', 10, 'tiny cleanup', 'code-smells'),
+    severity: 'low',
+    risk: { impact: 'low', likelihood: 'edge-case', confidence: 'low', action: 'optional' },
+  }
+  const high: ReviewFinding = {
+    ...f('high-1', 'b.ts', 10, 'serious bug', 'bugs'),
+    severity: 'blocker',
+    risk: { impact: 'critical', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+  }
+  await writeFile(join(runDir, 'findings', 'bugs.json'), JSON.stringify([low, high]))
+  const exit = await runDedupe(runDir, { threshold: 5 })
+  expect(exit).toBe(0)
+  const kept = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(kept.map((x: ReviewFinding) => x.id)).toEqual(['high-1'])
+  const dropped = JSON.parse(await readFile(join(runDir, 'threshold-dropped.json'), 'utf8'))
+  expect(dropped[0]?.id).toBe('low-1')
+})
+
+test('runDedupe with threshold 0 keeps everything', async () => {
+  const low: ReviewFinding = {
+    ...f('low-1', 'a.ts', 10, 'tiny cleanup', 'code-smells'),
+    severity: 'low',
+    risk: { impact: 'low', likelihood: 'edge-case', confidence: 'low', action: 'optional' },
+  }
+  await writeFile(join(runDir, 'findings', 'bugs.json'), JSON.stringify([low]))
+  const exit = await runDedupe(runDir, { threshold: 0 })
+  expect(exit).toBe(0)
+  const kept = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(kept).toHaveLength(1)
+})

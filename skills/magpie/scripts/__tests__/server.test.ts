@@ -126,7 +126,10 @@ test('POST /post wires through to runPost (dry-run) and returns results', async 
   }
   expect(body.ok).toBe(true)
   expect(body.target).toEqual({ repo: 'o/r', number: 7 })
-  expect(body.results[0]).toMatchObject({ id: 'sec-1', status: 'posted' })
+  expect(body.results.find((r) => r.id === 'sec-1')).toMatchObject({
+    id: 'sec-1',
+    status: 'posted',
+  })
 })
 
 test('writes server-info on start with url and port', async () => {
