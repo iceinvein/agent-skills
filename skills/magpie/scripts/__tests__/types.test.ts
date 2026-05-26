@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type { FocusId, PrFileEntry, ReviewFinding } from '../types.ts'
-import { coerceRisk, coerceSeverity, FOCUS_IDS, isSuggestion, parseFinding } from '../types.ts'
+import {
+  coerceRisk,
+  coerceSeverity,
+  FOCUS_IDS,
+  isSuggestion,
+  looksLikeProse,
+  parseFinding,
+} from '../types.ts'
 
 test('FOCUS_IDS contains the LLM focuses plus the deterministic tests domain', () => {
   expect(FOCUS_IDS).toEqual([
@@ -197,6 +204,80 @@ describe('PrFileEntry', () => {
     expect(f.path).toBe('src/a.ts')
     expect(f.additions).toBe(10)
     expect(f.deletions).toBe(2)
+  })
+})
+
+describe('looksLikeProse', () => {
+  test('returns true for multi-sentence prose with backticks', () => {
+    const body =
+      'Strip the delimiter from user-controlled fields. For example, inside `getX` apply a sanitiser that neutralises the tokens.'
+    expect(looksLikeProse(body)).toBe(true)
+  })
+  test('returns true for single-line sentence-shaped explanation', () => {
+    const body =
+      'Reject the literal delimiter token in any field that flows into the draft before invoking Bedrock.'
+    expect(looksLikeProse(body)).toBe(true)
+  })
+  test('returns false for multi-line replacement code', () => {
+    const body =
+      'if (input.includes("<<<END>>>")) {\n  throw new Error("delimiter token not allowed")\n}'
+    expect(looksLikeProse(body)).toBe(false)
+  })
+  test('returns false for short single-line code', () => {
+    expect(looksLikeProse('return null;')).toBe(false)
+    expect(looksLikeProse('const x = foo(bar);')).toBe(false)
+    expect(looksLikeProse('user?.id ?? "";')).toBe(false)
+  })
+  test('returns false for one-line code that happens to end with a period', () => {
+    // No prose connectives, just a method chain.
+    expect(looksLikeProse('foo.bar.baz();')).toBe(false)
+  })
+  test('returns false for empty body', () => {
+    expect(looksLikeProse('')).toBe(false)
+    expect(looksLikeProse('   ')).toBe(false)
+  })
+  test('returns false for fenced code block', () => {
+    const body = '```ts\nconst guarded = sanitize(input)\nreturn guarded\n```'
+    expect(looksLikeProse(body)).toBe(false)
+  })
+})
+
+describe('parseFinding suggestion validator', () => {
+  const base = {
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    severity: 'medium',
+    risk: { impact: 'medium', likelihood: 'possible', confidence: 'medium', action: 'should-fix' },
+    title: 't',
+    description: 'd',
+    domain: 'security',
+  }
+  test('drops suggestion when body is prose', () => {
+    const parsed = parseFinding({
+      ...base,
+      suggestion: {
+        body: 'Strip the delimiter tokens before they enter the draft. Add a regression test to confirm.',
+        startLine: 10,
+        endLine: 12,
+      },
+    })
+    expect(parsed.suggestion).toBeUndefined()
+  })
+  test('keeps suggestion when body is real replacement code', () => {
+    const parsed = parseFinding({
+      ...base,
+      suggestion: {
+        body: 'const guarded = sanitize(input)\nreturn guarded',
+        startLine: 10,
+        endLine: 11,
+      },
+    })
+    expect(parsed.suggestion).toEqual({
+      body: 'const guarded = sanitize(input)\nreturn guarded',
+      startLine: 10,
+      endLine: 11,
+    })
   })
 })
 

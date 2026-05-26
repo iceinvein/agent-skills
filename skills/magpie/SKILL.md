@@ -83,7 +83,7 @@ Write findings to $RUN_DIR/findings/<focus>.json before returning. The file MUST
   "title": string,                   // one line
   "description": string,             // 2-4 short labelled paragraphs (see below). Cite code with file:line.
   "suggestion": {                    // OPTIONAL; omit the key entirely if not applicable. NOT "recommendation"
-    "body": string,
+    "body": string,                  // LITERAL replacement source code for lines startLine..endLine. NOT prose. See rules below.
     "startLine": number,
     "endLine": number
   },
@@ -114,6 +114,13 @@ Good:
 - `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>`
 
 One idea per paragraph. Do not collapse them into a single wall of text. Do not invent extra labels. If a section doesn't apply, omit it. The interactive report and the GitHub comment both parse these labels and render them as section headers, so missing labels degrade the output.
+
+**`suggestion.body` rules.** When present, `body` MUST be the literal source code that should replace lines `startLine..endLine` verbatim. It is fenced as `` ```suggestion `` on GitHub and rendered as a one-click "Apply" button; the bytes you write here get committed as-is to the PR. Therefore:
+
+- Write code only. No leading "Strip the delimiter...", "Add a check that...", or other prose. The prose explanation belongs in `description` under `Suggested direction:`.
+- Match the file's existing indentation and language exactly. Include only the lines being replaced; do not include unchanged surrounding context.
+- If you cannot produce an exact, copy-pasteable replacement (you don't know the surrounding code, the fix spans multiple files, or the change is conceptual), OMIT the `suggestion` key entirely. A prose `Suggested direction:` in `description` is the right channel for that.
+- Wrapping the code in a `` ``` `` fence inside `body` is tolerated (the poster hoists the inner code out), but bare code is preferred.
 
 If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<blocker>/<high>/<medium>/<low>)`. Do not include other prose.
 ```

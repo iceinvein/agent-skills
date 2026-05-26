@@ -244,6 +244,32 @@ export function coerceRisk(raw: unknown): Risk {
   }
 }
 
+/**
+ * Detect when a `suggestion.body` string is prose ("Strip the delimiter and add
+ * a regression test.") instead of literal replacement source code. Prose bodies
+ * get fenced as ```suggestion on GitHub, which means clicking "Apply" would
+ * commit the sentence verbatim into the file. We drop these before they reach
+ * the renderer or the poster.
+ *
+ * Conservative: only flags clearly prose-shaped strings. Returns false for
+ * empty bodies and for anything ambiguous (let real code through).
+ */
+export function looksLikeProse(body: string): boolean {
+  const trimmed = body.trim()
+  if (!trimmed) return false
+  // Multi-sentence: "foo. Bar..." anywhere is unambiguous prose.
+  if (/[a-z]\.\s+[A-Z]/.test(trimmed)) return true
+  // Single-line, sentence-shaped (ends in period, has English connectives,
+  // long enough that short code like `return null.` won't false-positive).
+  if (!trimmed.includes('\n')) {
+    const endsInPeriod = /[a-z)\]`'"]\.$/i.test(trimmed)
+    const hasConnectives =
+      /(?:^|\s)(?:the|a|an|to|in|for|and|or|that|with|on|by|should|would)\s/i.test(trimmed)
+    if (endsInPeriod && hasConnectives && trimmed.length > 60) return true
+  }
+  return false
+}
+
 export function parseFinding(raw: unknown): ReviewFinding {
   if (!raw || typeof raw !== 'object') {
     throw new Error(`Finding must be an object, got ${typeof raw}`)
@@ -263,7 +289,12 @@ export function parseFinding(raw: unknown): ReviewFinding {
     if (typeof s.body !== 'string') throw new Error('suggestion.body must be string')
     if (typeof s.startLine !== 'number') throw new Error('suggestion.startLine must be number')
     if (typeof s.endLine !== 'number') throw new Error('suggestion.endLine must be number')
-    suggestion = { body: s.body, startLine: s.startLine, endLine: s.endLine }
+    // Drop prose bodies. They'd render as a non-applicable suggestion block and,
+    // worse, GitHub's "Apply" would commit the prose verbatim into the file.
+    // The fix prose already lives in `description` under `Suggested direction:`.
+    if (!looksLikeProse(s.body)) {
+      suggestion = { body: s.body, startLine: s.startLine, endLine: s.endLine }
+    }
   }
 
   return {
