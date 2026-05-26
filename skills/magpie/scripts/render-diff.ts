@@ -1,5 +1,6 @@
 import type { Highlighter } from 'shiki'
 import { buildPairedLines, type DiffHunk, type DiffLine, type PairedLine } from './diff-utils.ts'
+import { highlightDiffSide, languageFromPath } from './highlight.ts'
 import { renderAnnotation } from './render-annotation.ts'
 import type { PostStatusEntry, PostStatusMap, ReviewFinding } from './types.ts'
 
@@ -37,11 +38,11 @@ function failedFrom(status: PostStatusEntry | undefined): { message: string } | 
   return undefined
 }
 
-function lineRow(line: DiffLine): string {
+function coloredLineRow(line: DiffLine, coloredContent: string): string {
   const cls = line.type === 'added' ? 'added' : line.type === 'removed' ? 'removed' : 'context'
   const lineNo = line.type === 'removed' ? line.oldLineNo : line.newLineNo
   const sign = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '
-  return `<div class="diff-row ${cls}"><span class="gutter">${lineNo ?? ''}</span><span class="sign">${sign}</span><span class="content">${esc(line.content)}</span></div>`
+  return `<div class="diff-row ${cls}"><span class="gutter">${lineNo ?? ''}</span><span class="sign">${sign}</span><span class="content">${coloredContent}</span></div>`
 }
 
 function findingsByLine(findings: ReviewFinding[]): Map<number, ReviewFinding[]> {
@@ -56,14 +57,43 @@ function findingsByLine(findings: ReviewFinding[]): Map<number, ReviewFinding[]>
 }
 
 export function renderUnifiedDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds, highlighter } = input
+  const { hunks, findings, postStatus, selectedIds, highlighter, file } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
+  const lang = languageFromPath(file)
   const parts: string[] = []
   hunks.forEach((h, hi) => {
     if (hi > 0) parts.push(`<div class="diff-hunk-sep">⋯</div>`)
+
+    const oldLines: string[] = []
+    const newLines: string[] = []
+    const rowSide: Array<{ side: 'old' | 'new'; idx: number }> = []
     for (const line of h.lines) {
-      parts.push(lineRow(line))
+      if (line.type === 'removed') {
+        rowSide.push({ side: 'old', idx: oldLines.length })
+        oldLines.push(line.content)
+      } else if (line.type === 'added') {
+        rowSide.push({ side: 'new', idx: newLines.length })
+        newLines.push(line.content)
+      } else {
+        rowSide.push({ side: 'new', idx: newLines.length })
+        oldLines.push(line.content)
+        newLines.push(line.content)
+      }
+    }
+    const oldHighlighted = oldLines.length
+      ? highlightDiffSide(highlighter, oldLines.join('\n'), lang)
+      : []
+    const newHighlighted = newLines.length
+      ? highlightDiffSide(highlighter, newLines.join('\n'), lang)
+      : []
+
+    h.lines.forEach((line, i) => {
+      const ref = rowSide[i]
+      const colored =
+        (ref?.side === 'old' ? oldHighlighted[ref.idx] : newHighlighted[ref?.idx ?? 0]) ??
+        esc(line.content)
+      parts.push(coloredLineRow(line, colored))
       const targetLine = line.newLineNo ?? null
       if (targetLine != null) {
         const fs = byLine.get(targetLine)
@@ -71,17 +101,17 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
           for (const f of fs) {
             parts.push(
               renderAnnotation(f, {
+                highlighter,
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
                 asCard: false,
-                highlighter,
               }),
             )
           }
         }
       }
-    }
+    })
   })
   return parts.join('\n')
 }

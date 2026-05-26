@@ -85,6 +85,50 @@ describe('renderUnifiedDiff', () => {
   })
 })
 
+test('emits shiki-highlighted line content in unified mode', () => {
+  const diff = `--- a/x.ts
++++ b/x.ts
+@@ -1,3 +1,3 @@
+ const a = 1
+-const b = 2
++const b = 3
+`
+  const html = renderUnifiedDiff({
+    hunks: parseUnifiedDiffToHunks(diff),
+    findings: [],
+    postStatus: {},
+    selectedIds: new Set(),
+    highlighter: hl,
+    file: 'x.ts',
+  })
+  expect(html).toContain('const')
+  expect(html).toContain('<span style=')
+  expect(html).toContain('class="gutter"')
+  expect(html).toContain('class="sign"')
+})
+
+test('keeps multi-line tokens consistent across diff rows', () => {
+  const diff = `--- a/x.ts
++++ b/x.ts
+@@ -1,5 +1,5 @@
+ const x = \`first
+ second
+-third\`
++THIRD\`
+ const y = 1
+`
+  const html = renderUnifiedDiff({
+    hunks: parseUnifiedDiffToHunks(diff),
+    findings: [],
+    postStatus: {},
+    selectedIds: new Set(),
+    highlighter: hl,
+    file: 'x.ts',
+  })
+  const rowCount = (html.match(/class="diff-row /g) || []).length
+  expect(rowCount).toBe(5)
+})
+
 describe('renderSplitDiff', () => {
   test('emits left/right cells per row', () => {
     const html = renderSplitDiff({
