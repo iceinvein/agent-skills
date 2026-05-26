@@ -56,13 +56,191 @@ export type ReviewFinding = {
   score?: number
 }
 
-function assertOneOf<T extends string>(
+const SEVERITY_SYNONYMS: Record<string, Severity> = {
+  blocker: 'blocker',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  critical: 'blocker',
+  severe: 'blocker',
+  catastrophic: 'blocker',
+  fatal: 'blocker',
+  major: 'high',
+  significant: 'high',
+  moderate: 'medium',
+  mid: 'medium',
+  minor: 'low',
+  trivial: 'low',
+  negligible: 'low',
+  info: 'low',
+  informational: 'low',
+}
+
+const IMPACT_SYNONYMS: Record<string, Impact> = {
+  critical: 'critical',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  blocker: 'critical',
+  severe: 'critical',
+  catastrophic: 'critical',
+  fatal: 'critical',
+  major: 'high',
+  significant: 'high',
+  moderate: 'medium',
+  mid: 'medium',
+  minor: 'low',
+  trivial: 'low',
+  negligible: 'low',
+}
+
+const LIKELIHOOD_SYNONYMS: Record<string, Likelihood> = {
+  likely: 'likely',
+  possible: 'possible',
+  'edge-case': 'edge-case',
+  unknown: 'unknown',
+  'edge case': 'edge-case',
+  edge_case: 'edge-case',
+  edgecase: 'edge-case',
+  certain: 'likely',
+  probable: 'likely',
+  high: 'likely',
+  frequent: 'likely',
+  often: 'likely',
+  common: 'likely',
+  medium: 'possible',
+  moderate: 'possible',
+  occasional: 'possible',
+  sometimes: 'possible',
+  rare: 'edge-case',
+  unlikely: 'edge-case',
+  low: 'edge-case',
+  improbable: 'edge-case',
+  'n/a': 'unknown',
+  na: 'unknown',
+  unclear: 'unknown',
+  uncertain: 'unknown',
+}
+
+const CONFIDENCE_SYNONYMS: Record<string, Confidence> = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  'very high': 'high',
+  'very-high': 'high',
+  confident: 'high',
+  certain: 'high',
+  strong: 'high',
+  moderate: 'medium',
+  mid: 'medium',
+  weak: 'low',
+  uncertain: 'low',
+  unsure: 'low',
+  speculative: 'low',
+}
+
+const ACTION_SYNONYMS: Record<string, Action> = {
+  'must-fix': 'must-fix',
+  'should-fix': 'should-fix',
+  consider: 'consider',
+  optional: 'optional',
+  must_fix: 'must-fix',
+  'must fix': 'must-fix',
+  mustfix: 'must-fix',
+  should_fix: 'should-fix',
+  'should fix': 'should-fix',
+  shouldfix: 'should-fix',
+  block: 'must-fix',
+  blocker: 'must-fix',
+  blocking: 'must-fix',
+  required: 'must-fix',
+  critical: 'must-fix',
+  fix: 'should-fix',
+  recommended: 'should-fix',
+  recommend: 'should-fix',
+  suggestion: 'consider',
+  suggest: 'consider',
+  consideration: 'consider',
+  improve: 'consider',
+  nit: 'optional',
+  'nice-to-have': 'optional',
+  'nice to have': 'optional',
+  maybe: 'optional',
+}
+
+const SEVERITY_KEYWORDS: ReadonlyArray<readonly [RegExp, Severity]> = [
+  [/\b(block(?:er|ing)?|critical|severe|catastrophic|fatal)\b/, 'blocker'],
+  [/\b(high|major|significant)\b/, 'high'],
+  [/\b(medium|moderate|mid)\b/, 'medium'],
+  [/\b(low|minor|trivial|negligible|info(?:rmational)?)\b/, 'low'],
+]
+
+const IMPACT_KEYWORDS: ReadonlyArray<readonly [RegExp, Impact]> = [
+  [/\b(critical|blocker|severe|catastrophic|fatal)\b/, 'critical'],
+  [/\b(high|major|significant)\b/, 'high'],
+  [/\b(medium|moderate|mid)\b/, 'medium'],
+  [/\b(low|minor|trivial|negligible)\b/, 'low'],
+]
+
+const LIKELIHOOD_KEYWORDS: ReadonlyArray<readonly [RegExp, Likelihood]> = [
+  [/\b(likely|certain|probable|frequent|often|common)\b/, 'likely'],
+  [/\b(possible|sometimes|occasional|moderate)\b/, 'possible'],
+  [/\b(edge[- _]?case|rare|unlikely|improbable)\b/, 'edge-case'],
+  [/\b(unknown|unclear|uncertain|n\/a)\b/, 'unknown'],
+]
+
+const ACTION_KEYWORDS: ReadonlyArray<readonly [RegExp, Action]> = [
+  [
+    /\b(must[- _]?fix|must be fixed|required|critical|block(?:er|ing)?|fix immediately|fix now)\b/,
+    'must-fix',
+  ],
+  [
+    /\b(should[- _]?fix|should be fixed|recommend(?:ed)?|fix before merge|address before merge)\b/,
+    'should-fix',
+  ],
+  [/\b(nit|optional|nice to have|may)\b/, 'optional'],
+  [/\b(consider|suggest(?:ion)?|improvement|polish)\b/, 'consider'],
+]
+
+function normalizeKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  return value.trim().toLowerCase()
+}
+
+function coerceField<T extends string>(
   value: unknown,
-  allowed: readonly T[],
-  field: string,
-): asserts value is T {
-  if (typeof value !== 'string' || !allowed.includes(value as T)) {
-    throw new Error(`Invalid ${field}: ${JSON.stringify(value)} (allowed: ${allowed.join(', ')})`)
+  table: Record<string, T>,
+  keywords: ReadonlyArray<readonly [RegExp, T]> | null,
+  fallback: T,
+): T {
+  const key = normalizeKey(value)
+  if (key === null || key === '') return fallback
+  const direct = table[key]
+  if (direct) return direct
+  const cleaned = key.replace(/[^a-z0-9 _-]/g, '').trim()
+  if (cleaned && cleaned !== key) {
+    const cleanedHit = table[cleaned]
+    if (cleanedHit) return cleanedHit
+  }
+  if (keywords) {
+    for (const [pattern, mapped] of keywords) {
+      if (pattern.test(key)) return mapped
+    }
+  }
+  return fallback
+}
+
+export function coerceSeverity(value: unknown): Severity {
+  return coerceField(value, SEVERITY_SYNONYMS, SEVERITY_KEYWORDS, 'medium')
+}
+
+export function coerceRisk(raw: unknown): Risk {
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    impact: coerceField(r.impact, IMPACT_SYNONYMS, IMPACT_KEYWORDS, 'medium'),
+    likelihood: coerceField(r.likelihood, LIKELIHOOD_SYNONYMS, LIKELIHOOD_KEYWORDS, 'unknown'),
+    confidence: coerceField(r.confidence, CONFIDENCE_SYNONYMS, null, 'medium'),
+    action: coerceField(r.action, ACTION_SYNONYMS, ACTION_KEYWORDS, 'consider'),
   }
 }
 
@@ -73,16 +251,9 @@ export function parseFinding(raw: unknown): ReviewFinding {
   const r = raw as Record<string, unknown>
   if (typeof r.id !== 'string') throw new Error('Finding.id must be string')
   if (typeof r.file !== 'string') throw new Error('Finding.file must be string')
-  if (r.line !== null && typeof r.line !== 'number') {
+  if (r.line !== null && typeof r.line !== 'number' && r.line !== undefined) {
     throw new Error('Finding.line must be number or null')
   }
-  assertOneOf(r.severity, SEVERITIES, 'severity')
-  if (!r.risk || typeof r.risk !== 'object') throw new Error('Finding.risk must be object')
-  const risk = r.risk as Record<string, unknown>
-  assertOneOf(risk.impact, IMPACTS, 'risk.impact')
-  assertOneOf(risk.likelihood, LIKELIHOODS, 'risk.likelihood')
-  assertOneOf(risk.confidence, CONFIDENCES, 'risk.confidence')
-  assertOneOf(risk.action, ACTIONS, 'risk.action')
   if (typeof r.title !== 'string') throw new Error('Finding.title must be string')
   if (typeof r.description !== 'string') throw new Error('Finding.description must be string')
 
@@ -99,13 +270,8 @@ export function parseFinding(raw: unknown): ReviewFinding {
     id: r.id,
     file: r.file,
     line: (r.line as number | null) ?? null,
-    severity: r.severity as Severity,
-    risk: {
-      impact: risk.impact as Impact,
-      likelihood: risk.likelihood as Likelihood,
-      confidence: risk.confidence as Confidence,
-      action: risk.action as Action,
-    },
+    severity: coerceSeverity(r.severity),
+    risk: coerceRisk(r.risk),
     title: r.title,
     description: r.description,
     suggestion,

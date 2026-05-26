@@ -90,6 +90,22 @@ Write findings to $RUN_DIR/findings/<focus>.json before returning. The file MUST
   "domain": "<focus>"                // literal focus id, copied verbatim
 }
 
+**Enum values are exact strings, not free-form prose.** Every value above between `"..."` and `|` markers is a literal token. Copy them verbatim. Specifically:
+
+- `severity`, `risk.impact`, `risk.confidence` use category names (e.g. `high`, `low`), not sentences.
+- `risk.likelihood` describes frequency, not impact. Valid values are exactly `likely`, `possible`, `edge-case`, `unknown`. NEVER use `high`/`medium`/`low` here (those are likelihood-as-impact and will be auto-corrected, but pick the right axis).
+- `risk.action` is the disposition tag, not the recommendation text. Valid values are exactly `must-fix`, `should-fix`, `consider`, `optional`. The recommendation prose belongs in `description` under `Suggested direction:`, never in `risk.action`.
+
+Bad (will be silently coerced, do not rely on this):
+```
+"risk": { "impact": "blocker", "likelihood": "high", "confidence": "very high", "action": "Fix this immediately before merging." }
+```
+
+Good:
+```
+"risk": { "impact": "critical", "likelihood": "likely", "confidence": "high", "action": "must-fix" }
+```
+
 `description` MUST be a sequence of short labelled paragraphs separated by blank lines, using these exact prefixes when they apply:
 
 - `Observation: <one idea, what the diff actually does and where>`

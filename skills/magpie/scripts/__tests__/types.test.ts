@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { FocusId, PrFileEntry, ReviewFinding } from '../types.ts'
-import { FOCUS_IDS, isSuggestion, parseFinding } from '../types.ts'
+import { coerceRisk, coerceSeverity, FOCUS_IDS, isSuggestion, parseFinding } from '../types.ts'
 
 test('FOCUS_IDS contains the LLM focuses plus the deterministic tests domain', () => {
   expect(FOCUS_IDS).toEqual([
@@ -30,19 +30,151 @@ test('parseFinding accepts a minimal finding', () => {
   expect(parsed.domain).toBe('bugs')
 })
 
-test('parseFinding rejects an unknown severity', () => {
-  expect(() =>
-    parseFinding({
-      id: 'f1',
-      file: 'src/x.ts',
-      line: 10,
-      severity: 'panic',
-      risk: { impact: 'high', likelihood: 'possible', confidence: 'medium', action: 'should-fix' },
-      title: 't',
-      description: 'd',
-      domain: 'bugs',
-    }),
-  ).toThrow(/severity/)
+test('parseFinding coerces an unknown severity to medium', () => {
+  const parsed = parseFinding({
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    severity: 'panic',
+    risk: { impact: 'high', likelihood: 'possible', confidence: 'medium', action: 'should-fix' },
+    title: 't',
+    description: 'd',
+    domain: 'bugs',
+  })
+  expect(parsed.severity).toBe('medium')
+})
+
+test('parseFinding coerces sentence-form action to canonical enum', () => {
+  const parsed = parseFinding({
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    severity: 'high',
+    risk: {
+      impact: 'high',
+      likelihood: 'possible',
+      confidence: 'medium',
+      action: 'Should be fixed before merge',
+    },
+    title: 't',
+    description: 'd',
+    domain: 'bugs',
+  })
+  expect(parsed.risk.action).toBe('should-fix')
+})
+
+test('parseFinding coerces wrong-axis likelihood values', () => {
+  const parsed = parseFinding({
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    severity: 'high',
+    risk: { impact: 'high', likelihood: 'high', confidence: 'medium', action: 'should-fix' },
+    title: 't',
+    description: 'd',
+    domain: 'bugs',
+  })
+  expect(parsed.risk.likelihood).toBe('likely')
+})
+
+describe('coerceSeverity', () => {
+  test('passes through canonical values', () => {
+    for (const v of ['blocker', 'high', 'medium', 'low'] as const) {
+      expect(coerceSeverity(v)).toBe(v)
+    }
+  })
+  test('maps synonyms', () => {
+    expect(coerceSeverity('critical')).toBe('blocker')
+    expect(coerceSeverity('major')).toBe('high')
+    expect(coerceSeverity('moderate')).toBe('medium')
+    expect(coerceSeverity('minor')).toBe('low')
+  })
+  test('handles casing and whitespace', () => {
+    expect(coerceSeverity('  HIGH ')).toBe('high')
+  })
+  test('falls back to medium for garbage', () => {
+    expect(coerceSeverity('panic')).toBe('medium')
+    expect(coerceSeverity('')).toBe('medium')
+    expect(coerceSeverity(null)).toBe('medium')
+    expect(coerceSeverity(undefined)).toBe('medium')
+    expect(coerceSeverity(42)).toBe('medium')
+  })
+})
+
+describe('coerceRisk', () => {
+  test('passes through canonical risk object', () => {
+    expect(
+      coerceRisk({
+        impact: 'critical',
+        likelihood: 'likely',
+        confidence: 'high',
+        action: 'must-fix',
+      }),
+    ).toEqual({
+      impact: 'critical',
+      likelihood: 'likely',
+      confidence: 'high',
+      action: 'must-fix',
+    })
+  })
+  test('maps action synonyms and underscore/space variants', () => {
+    expect(coerceRisk({ action: 'must_fix' }).action).toBe('must-fix')
+    expect(coerceRisk({ action: 'should fix' }).action).toBe('should-fix')
+    expect(coerceRisk({ action: 'blocker' }).action).toBe('must-fix')
+    expect(coerceRisk({ action: 'nit' }).action).toBe('optional')
+    expect(coerceRisk({ action: 'recommend' }).action).toBe('should-fix')
+  })
+  test('extracts action from full sentences', () => {
+    expect(coerceRisk({ action: 'This must be fixed immediately.' }).action).toBe('must-fix')
+    expect(coerceRisk({ action: 'Should fix before merging the PR' }).action).toBe('should-fix')
+    expect(coerceRisk({ action: 'Consider refactoring this' }).action).toBe('consider')
+    expect(coerceRisk({ action: 'Nice to have' }).action).toBe('optional')
+  })
+  test('maps likelihood wrong-axis values', () => {
+    expect(coerceRisk({ likelihood: 'high' }).likelihood).toBe('likely')
+    expect(coerceRisk({ likelihood: 'medium' }).likelihood).toBe('possible')
+    expect(coerceRisk({ likelihood: 'low' }).likelihood).toBe('edge-case')
+    expect(coerceRisk({ likelihood: 'edge case' }).likelihood).toBe('edge-case')
+    expect(coerceRisk({ likelihood: 'n/a' }).likelihood).toBe('unknown')
+  })
+  test('maps impact synonyms', () => {
+    expect(coerceRisk({ impact: 'blocker' }).impact).toBe('critical')
+    expect(coerceRisk({ impact: 'major' }).impact).toBe('high')
+    expect(coerceRisk({ impact: 'moderate' }).impact).toBe('medium')
+    expect(coerceRisk({ impact: 'minor' }).impact).toBe('low')
+  })
+  test('maps confidence synonyms', () => {
+    expect(coerceRisk({ confidence: 'certain' }).confidence).toBe('high')
+    expect(coerceRisk({ confidence: 'moderate' }).confidence).toBe('medium')
+    expect(coerceRisk({ confidence: 'speculative' }).confidence).toBe('low')
+  })
+  test('falls back to safe defaults for garbage / missing', () => {
+    expect(coerceRisk({})).toEqual({
+      impact: 'medium',
+      likelihood: 'unknown',
+      confidence: 'medium',
+      action: 'consider',
+    })
+    expect(coerceRisk(null)).toEqual({
+      impact: 'medium',
+      likelihood: 'unknown',
+      confidence: 'medium',
+      action: 'consider',
+    })
+    expect(
+      coerceRisk({
+        impact: 'whatever',
+        likelihood: 42,
+        confidence: '',
+        action: 'do the thing',
+      }),
+    ).toEqual({
+      impact: 'medium',
+      likelihood: 'unknown',
+      confidence: 'medium',
+      action: 'consider',
+    })
+  })
 })
 
 test('parseFinding accepts null line', () => {
