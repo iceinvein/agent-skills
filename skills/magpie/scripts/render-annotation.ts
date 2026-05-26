@@ -1,5 +1,6 @@
 import type { Highlighter } from 'shiki'
 import { parseFindingDescription } from './finding-description.ts'
+import { highlightCodeBlock, languageFromPath } from './highlight.ts'
 import { isSuggestion, type ReviewFinding } from './types.ts'
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -52,9 +53,15 @@ function renderSections(description: string): string {
     .join('')
 }
 
-function renderSuggestion(f: ReviewFinding): string {
+function renderSuggestion(f: ReviewFinding, highlighter: Highlighter): string {
   if (!f.suggestion) return ''
-  return `<section class="section"><div class="section-label">Suggested change</div><pre class="suggestion">${esc(f.suggestion.body)}</pre></section>`
+  const lang = languageFromPath(f.file)
+  const shiki = highlightCodeBlock(highlighter, f.suggestion.body, lang)
+  // Shiki emits `<pre class="shiki ..."><code>...</code></pre>`. Layer our
+  // existing `.suggestion` class on top so the border/padding/font-size
+  // styling continues to apply.
+  const withClass = shiki.replace('class="shiki', 'class="suggestion shiki')
+  return `<section class="section"><div class="section-label">Suggested change</div>${withClass}</section>`
 }
 
 function renderRisk(f: ReviewFinding): string {
@@ -89,7 +96,7 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
         ${statusChip}
       </div>
       ${renderSections(f.description)}
-      ${renderSuggestion(f)}
+      ${renderSuggestion(f, opts.highlighter)}
       ${renderRisk(f)}
     </div>
     <button type="button" class="send-btn" data-action="post-one" data-finding-id="${esc(f.id)}" title="Post this finding" aria-label="post">▸</button>

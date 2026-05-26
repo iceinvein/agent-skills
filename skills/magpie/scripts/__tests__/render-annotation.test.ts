@@ -66,7 +66,8 @@ describe('renderAnnotation', () => {
       highlighter: hl,
     })
     expect(html).toContain('<pre')
-    expect(html).toContain('await lock.acquire()')
+    // Shiki tokenizes identifiers into separate spans; check for a known token
+    expect(html).toContain('acquire')
   })
 
   test('renders risk dimensions footer', () => {
@@ -110,5 +111,33 @@ describe('renderAnnotation', () => {
       highlighter: hl,
     })
     expect(html).toContain('class="issue-card')
+  })
+
+  test('renders suggestion body with shiki highlighting', () => {
+    const f: ReviewFinding = {
+      id: 'f-1',
+      file: 'scheduler.ts',
+      line: 12,
+      severity: 'high',
+      title: 'unhandled rejection',
+      description: 'Observation: scheduler drops errors.',
+      risk: { impact: 'high', likelihood: 'possible', confidence: 'high', action: 'should-fix' },
+      domain: 'bugs',
+      suggestion: {
+        body: 'const x: number = 1\nconsole.log(x)',
+        startLine: 1,
+        endLine: 2,
+      },
+    }
+    const html = renderAnnotation(f, {
+      highlighter: hl,
+      checked: false,
+      posted: false,
+      asCard: true,
+    })
+    expect(html).toContain('class="suggestion shiki')
+    expect(html).toContain('<span class="line">')
+    // Shiki tokenizes identifiers separately, so check for the token text
+    expect(html).toContain('console')
   })
 })
