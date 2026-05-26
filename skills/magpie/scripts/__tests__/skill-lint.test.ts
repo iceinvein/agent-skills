@@ -52,7 +52,9 @@ test('styles.css declares a prefers-color-scheme:dark block that overrides core 
 test('rendered HTML opts into light/dark with a color-scheme meta tag', async () => {
   const { renderFindingsHtml } = await import('../render-findings.ts')
   const { renderProgressHtml } = await import('../render-progress.ts')
-  const findings = renderFindingsHtml({ findings: [], postStatus: {} })
+  const { getHighlighter } = await import('../highlight.ts')
+  const highlighter = await getHighlighter()
+  const findings = renderFindingsHtml({ findings: [], postStatus: {}, highlighter })
   const progress = renderProgressHtml({
     prNumber: 1,
     headSha: 'deadbeef0011',
