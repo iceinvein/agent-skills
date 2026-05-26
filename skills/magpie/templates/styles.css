@@ -863,7 +863,8 @@ body[data-diff-mode="split"] .diff-unified {
   margin: 0;
 }
 
-pre.suggestion {
+pre.suggestion,
+pre.shiki {
   margin-top: 4px;
   background: var(--card-inset);
   border: 1px solid var(--line);
@@ -874,8 +875,21 @@ pre.suggestion {
   line-height: 1.5;
   color: var(--ink);
   overflow-x: auto;
-  white-space: pre-wrap;
   border-radius: var(--radius-sm);
+}
+
+pre.suggestion code,
+pre.shiki code {
+  display: block;
+  white-space: pre;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+pre.suggestion .line,
+pre.shiki .line {
+  display: block;
+  min-height: 1.5em;
 }
 
 .risk {
@@ -1458,6 +1472,15 @@ body.hide-sev-low [data-severity="low"] {
   .btn.primary:hover {
     background: var(--cta-bg-hover);
   }
+
+  .shiki,
+  .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+    font-style: var(--shiki-dark-font-style) !important;
+    font-weight: var(--shiki-dark-font-weight) !important;
+    text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
 }
 
 /* === Responsive === */
@@ -1595,5 +1618,23 @@ input[type="checkbox"]:focus-visible {
 
   .step.running .dot::before {
     animation: none;
+  }
+}
+
+/* === Inline code spans ================================================== */
+code.inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--card-inset);
+  color: var(--ink);
+  border: 1px solid var(--line-faint);
+}
+
+@media (prefers-color-scheme: dark) {
+  code.inline-code {
+    background: var(--card-inset);
+    border-color: var(--line);
   }
 }
