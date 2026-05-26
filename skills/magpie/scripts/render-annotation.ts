@@ -1,3 +1,4 @@
+import type { Highlighter } from 'shiki'
 import { parseFindingDescription } from './finding-description.ts'
 import { isSuggestion, type ReviewFinding } from './types.ts'
 
@@ -35,6 +36,7 @@ export type RenderAnnotationOptions = {
   asCard: boolean
   /** When posting previously failed, surface the failure on the card. */
   failed?: { message: string }
+  highlighter: Highlighter
 }
 
 function renderSections(description: string): string {

@@ -1,3 +1,4 @@
+import type { Highlighter } from 'shiki'
 import { buildPairedLines, type DiffHunk, type DiffLine, type PairedLine } from './diff-utils.ts'
 import { renderAnnotation } from './render-annotation.ts'
 import type { PostStatusEntry, PostStatusMap, ReviewFinding } from './types.ts'
@@ -20,6 +21,9 @@ export type RenderDiffInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  highlighter: Highlighter
+  /** File path used to detect language for highlighting. */
+  file: string
 }
 
 function isPosted(status: PostStatusEntry | undefined): boolean {
@@ -52,7 +56,7 @@ function findingsByLine(findings: ReviewFinding[]): Map<number, ReviewFinding[]>
 }
 
 export function renderUnifiedDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds } = input
+  const { hunks, findings, postStatus, selectedIds, highlighter } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
   const parts: string[] = []
@@ -71,6 +75,7 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
                 asCard: false,
+                highlighter,
               }),
             )
           }
@@ -94,7 +99,7 @@ function pairedRow(pair: PairedLine): string {
 }
 
 export function renderSplitDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds } = input
+  const { hunks, findings, postStatus, selectedIds, highlighter } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
   const parts: string[] = []
@@ -114,6 +119,7 @@ export function renderSplitDiff(input: RenderDiffInput): string {
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
                 asCard: false,
+                highlighter,
               }),
             )
           }

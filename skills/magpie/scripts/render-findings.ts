@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
+import type { Highlighter } from 'shiki'
 import { parseUnifiedDiffToHunks, splitDiffByFile } from './diff-utils.ts'
+import { getHighlighter } from './highlight.ts'
 import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
@@ -26,6 +28,8 @@ export type RenderFindingsInput = {
   files?: PrFileEntry[]
   /** Raw unified diff text for the PR. */
   diff?: string
+  /** Shiki highlighter, prepared by the caller. */
+  highlighter: Highlighter
 }
 
 function esc(s: string): string {
@@ -78,6 +82,7 @@ function filePane(opts: {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  highlighter: Highlighter
 }): string {
   const hunks = parseUnifiedDiffToHunks(opts.fileDiff)
   const unified = renderUnifiedDiff({
@@ -85,12 +90,16 @@ function filePane(opts: {
     findings: opts.findings,
     postStatus: opts.postStatus,
     selectedIds: opts.selectedIds,
+    highlighter: opts.highlighter,
+    file: opts.file.path,
   })
   const split = renderSplitDiff({
     hunks,
     findings: opts.findings,
     postStatus: opts.postStatus,
     selectedIds: opts.selectedIds,
+    highlighter: opts.highlighter,
+    file: opts.file.path,
   })
   const findingsCount = opts.findings.length
   // Findings can't be placed inline when (a) the file isn't in the diff at all
@@ -108,7 +117,7 @@ function filePane(opts: {
             <span class="unplaced-banner-label">${unplaced.length} finding${unplaced.length === 1 ? '' : 's'} not anchored to the diff</span>
             <span class="unplaced-banner-hint">${hunks.length === 0 ? 'this file is not in the PR diff snapshot' : 'line falls outside the visible hunks'}</span>
           </div>
-          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds })}
+          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds, highlighter: opts.highlighter })}
         </div>`
       : ''
   return `<section class="file-pane" data-file-pane="${esc(opts.file.path)}" hidden>
@@ -135,6 +144,7 @@ function overviewPane(opts: {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  highlighter: Highlighter
 }): string {
   const general = opts.findings.filter((f) => !f.file)
   if (general.length === 0) {
@@ -143,7 +153,7 @@ function overviewPane(opts: {
     </section>`
   }
   return `<section class="overview-pane" data-file-pane="">
-    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds })}
+    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds, highlighter: opts.highlighter })}
   </section>`
 }
 
@@ -183,6 +193,7 @@ ${prHeader(input)}
         findings: findingsInFile,
         postStatus: input.postStatus,
         selectedIds,
+        highlighter: input.highlighter,
       })
     })
     .join('\n')
@@ -191,12 +202,14 @@ ${prHeader(input)}
     findings: input.findings,
     postStatus: input.postStatus,
     selectedIds,
+    highlighter: input.highlighter,
   })
   const tree = renderFileTree({ files, findings: input.findings })
   const issues = renderIssuesList({
     findings: input.findings,
     postStatus: input.postStatus,
     selectedIds,
+    highlighter: input.highlighter,
   })
   const actionBar = renderActionBar({ findings: input.findings })
 
@@ -229,15 +242,16 @@ ${actionBar}
 }
 
 export async function renderFindingsToDisk(
-  input: RenderFindingsInput,
+  input: Omit<RenderFindingsInput, 'highlighter'>,
   outPath: string,
 ): Promise<void> {
   const stylesPath = new URL('../templates/styles.css', import.meta.url).pathname
   const helperPath = new URL('./helper.js', import.meta.url).pathname
   const css = await readFile(stylesPath, 'utf8')
   const helper = await readFile(helperPath, 'utf8')
+  const highlighter = await getHighlighter()
   const derived = basename(outPath.replace(/\/screen\/.+$/, ''))
-  const html = renderFindingsHtml({ ...input, runId: input.runId ?? derived })
+  const html = renderFindingsHtml({ ...input, runId: input.runId ?? derived, highlighter })
     .replace(
       'data:text/css;base64,STYLES_INLINE',
       `data:text/css;base64,${Buffer.from(css).toString('base64')}`,

@@ -1,5 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
+import type { Highlighter } from 'shiki'
 import { parseUnifiedDiffToHunks } from '../diff-utils.ts'
+import { getHighlighter } from '../highlight.ts'
 import { renderSplitDiff, renderUnifiedDiff } from '../render-diff.ts'
 import type { ReviewFinding } from '../types.ts'
 
@@ -24,6 +26,11 @@ const finding: ReviewFinding = {
   domain: 'bugs',
 }
 
+let hl: Highlighter
+beforeAll(async () => {
+  hl = await getHighlighter()
+})
+
 describe('renderUnifiedDiff', () => {
   test('emits one row per diff line', () => {
     const html = renderUnifiedDiff({
@@ -31,6 +38,8 @@ describe('renderUnifiedDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      highlighter: hl,
+      file: 'x.ts',
     })
     expect((html.match(/class="diff-row/g) ?? []).length).toBe(5)
   })
@@ -42,6 +51,8 @@ describe('renderUnifiedDiff', () => {
       findings: [finding],
       postStatus: {},
       selectedIds: new Set(),
+      highlighter: hl,
+      file: 'x.ts',
     })
     const idx = html.indexOf('data-finding-id="f-1"')
     const before = html.lastIndexOf('class="diff-row', idx)
@@ -55,6 +66,8 @@ describe('renderUnifiedDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      highlighter: hl,
+      file: 'x.ts',
     })
     expect(html).toContain('No changes')
   })
@@ -65,6 +78,8 @@ describe('renderUnifiedDiff', () => {
       findings: [finding],
       postStatus: { 'f-1': 'posted' },
       selectedIds: new Set(),
+      highlighter: hl,
+      file: 'x.ts',
     })
     expect(html).toContain('data-posted="true"')
   })
@@ -77,6 +92,8 @@ describe('renderSplitDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      highlighter: hl,
+      file: 'x.ts',
     })
     expect((html.match(/diff-row split/g) ?? []).length).toBeGreaterThan(0)
     expect(html).toContain('diff-cell')

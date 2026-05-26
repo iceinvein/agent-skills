@@ -1,3 +1,4 @@
+import type { Highlighter } from 'shiki'
 import { renderAnnotation } from './render-annotation.ts'
 import type { PostStatusMap } from './types.ts'
 import { isSuggestion, type ReviewFinding, SEVERITIES, type Severity } from './types.ts'
@@ -26,6 +27,7 @@ export type RenderIssuesListInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  highlighter: Highlighter
 }
 
 function severityCounts(findings: ReviewFinding[]): Map<Severity, number> {
@@ -35,7 +37,7 @@ function severityCounts(findings: ReviewFinding[]): Map<Severity, number> {
 }
 
 export function renderIssuesList(input: RenderIssuesListInput): string {
-  const { findings, postStatus, selectedIds } = input
+  const { findings, postStatus, selectedIds, highlighter } = input
   const actionable = findings.filter((f) => !isSuggestion(f))
   const suggestions = findings.filter((f) => isSuggestion(f))
   const counts = severityCounts(findings)
@@ -61,6 +63,7 @@ export function renderIssuesList(input: RenderIssuesListInput): string {
         posted: status === 'posted',
         failed,
         asCard: true,
+        highlighter,
       })
     })
     .join('\n')
