@@ -10,16 +10,10 @@
     "quick": false
   },
   {
-    "name": "code-intelligence",
-    "description": "Semantic code search, call hierarchy, dependency graphs, and impact analysis via MCP",
-    "type": "code",
-    "version": "1.0.0"
-  },
-  {
     "name": "codebase-architecture",
     "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
     "type": "prompt",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "applies": [
       "any",
       "architecture"

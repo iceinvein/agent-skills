@@ -106,7 +106,7 @@ Scan-first, dialogue-second. **Read code before forming opinions.**
 
 ### Phase 1: Codebase Scan
 
-Use available tools (code-intelligence MCP, grep, glob, file reads):
+Use available tools (grep, glob, file reads):
 - **Dependency mapping** — trace imports/requires to build module dependency graph. Note direction and cycles.
 - **Structure mapping** — directory layout, module boundaries, entry points
 - **Size analysis** — identify oversized files/modules (signal of unclear responsibilities)
@@ -158,7 +158,7 @@ Present prescriptions and ask:
 
 ## Guard Rails
 
-**Evidence before opinion.** Read code before diagnosing. Use code-intelligence MCP tools, grep, glob — whatever is available.
+**Evidence before opinion.** Read code before diagnosing. Use grep, glob, and file reads; whatever is available.
 
 **Name the pattern, cite the location.** "Strategy pattern in `src/providers/types.ts:24`" — not "you seem to use a strategy-like approach."
 

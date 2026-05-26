@@ -91,12 +91,6 @@ Skills for producing job application materials that read like a human wrote them
 | **cover-letter-rewrite** | Reviser | Audit-driven targeted rewrite of an existing letter. Focus modes: humanize, align, tighten, structure, tone. Preserves voice where it already works. |
 | **cover-letter-persona** | Voice profile | Reusable writing personas using the NNGroup 4-dimension tone framework (funny-serious, formal-casual, respectful-irreverent, enthusiastic-matter-of-fact) adapted for professional correspondence. |
 
-### Tooling
-
-| Skill | Type | What it does |
-|-------|------|--------------|
-| **code-intelligence** | MCP server | Semantic code search, call hierarchy, dependency graphs, and impact analysis. Powered by `@iceinvein/code-intelligence-mcp`. |
-
 ### Orchestration
 
 Skills that compose the other audit skills into higher-level workflows.
