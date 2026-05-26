@@ -40,15 +40,28 @@ export type RenderAnnotationOptions = {
   highlighter: Highlighter
 }
 
+function renderInline(body: string): string {
+  // Backtick-delimited spans become inline <code> elements; everything else
+  // remains escaped text. Splitting on `([^`]+)` puts plain text at even
+  // indices and backtick contents at odd indices.
+  const parts = body.split(/`([^`]+)`/g)
+  return parts
+    .map((part, i) => {
+      const escaped = esc(part)
+      return i % 2 === 1 ? `<code class="inline-code">${escaped}</code>` : escaped
+    })
+    .join('')
+}
+
 function renderSections(description: string): string {
   const sections = parseFindingDescription(description)
   if (sections.length === 0) {
-    return `<section class="section"><div class="section-label">Observation</div><div class="section-body">${esc(description.trim())}</div></section>`
+    return `<section class="section"><div class="section-label">Observation</div><div class="section-body">${renderInline(description.trim())}</div></section>`
   }
   return sections
     .map(
       (s) =>
-        `<section class="section"><div class="section-label">${esc(s.label)}</div><div class="section-body">${esc(s.body)}</div></section>`,
+        `<section class="section"><div class="section-label">${esc(s.label)}</div><div class="section-body">${renderInline(s.body)}</div></section>`,
     )
     .join('')
 }

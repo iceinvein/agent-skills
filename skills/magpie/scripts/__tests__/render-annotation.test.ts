@@ -113,6 +113,49 @@ describe('renderAnnotation', () => {
     expect(html).toContain('class="issue-card')
   })
 
+  test('renders backtick spans in description as <code class="inline-code">', () => {
+    const f: ReviewFinding = {
+      id: 'f-2',
+      file: 'a.ts',
+      line: 1,
+      severity: 'high',
+      title: 't',
+      description: 'Observation: `scheduler.ts` wires `.finally(...)` only; no `.catch(...)`.',
+      risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+      domain: 'bugs',
+    }
+    const html = renderAnnotation(f, {
+      highlighter: hl,
+      checked: false,
+      posted: false,
+      asCard: true,
+    })
+    expect(html).toContain('<code class="inline-code">scheduler.ts</code>')
+    expect(html).toContain('<code class="inline-code">.finally(...)</code>')
+    expect(html).toContain('<code class="inline-code">.catch(...)</code>')
+    expect(html).not.toContain('<scheduler.ts')
+  })
+
+  test('escapes HTML inside backtick spans', () => {
+    const f: ReviewFinding = {
+      id: 'f-3',
+      file: 'a.ts',
+      line: 1,
+      severity: 'low',
+      title: 't',
+      description: 'Observation: `<Foo & Bar>` should not break out.',
+      risk: { impact: 'low', likelihood: 'edge-case', confidence: 'low', action: 'consider' },
+      domain: 'code-smells',
+    }
+    const html = renderAnnotation(f, {
+      highlighter: hl,
+      checked: false,
+      posted: false,
+      asCard: true,
+    })
+    expect(html).toContain('<code class="inline-code">&lt;Foo &amp; Bar&gt;</code>')
+  })
+
   test('renders suggestion body with shiki highlighting', () => {
     const f: ReviewFinding = {
       id: 'f-1',
