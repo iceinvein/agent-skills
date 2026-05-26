@@ -143,3 +143,24 @@ describe('renderSplitDiff', () => {
     expect(html).toContain('diff-cell')
   })
 })
+
+test('emits shiki-highlighted line content in split mode', () => {
+  const diff = `--- a/x.ts
++++ b/x.ts
+@@ -1,3 +1,3 @@
+ const a = 1
+-const b = 2
++const b = 3
+`
+  const html = renderSplitDiff({
+    hunks: parseUnifiedDiffToHunks(diff),
+    findings: [],
+    postStatus: {},
+    selectedIds: new Set(),
+    highlighter: hl,
+    file: 'x.ts',
+  })
+  expect(html).toContain('class="diff-row split"')
+  expect(html).toContain('<span style=')
+  expect(html).toContain('class="gutter"')
+})

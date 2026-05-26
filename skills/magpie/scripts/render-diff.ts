@@ -116,28 +116,39 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
   return parts.join('\n')
 }
 
-function pairedRow(pair: PairedLine): string {
-  const cellL =
-    pair.left == null
-      ? `<div class="diff-cell empty"></div>`
-      : `<div class="diff-cell ${pair.left.type}"><span class="gutter">${pair.left.oldLineNo ?? pair.left.newLineNo ?? ''}</span><span class="sign">${pair.left.type === 'removed' ? '-' : ' '}</span><span class="content">${esc(pair.left.content)}</span></div>`
-  const cellR =
-    pair.right == null
-      ? `<div class="diff-cell empty"></div>`
-      : `<div class="diff-cell ${pair.right.type}"><span class="gutter">${pair.right.newLineNo ?? pair.right.oldLineNo ?? ''}</span><span class="sign">${pair.right.type === 'added' ? '+' : ' '}</span><span class="content">${esc(pair.right.content)}</span></div>`
-  return `<div class="diff-row split">${cellL}${cellR}</div>`
-}
-
 export function renderSplitDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds, highlighter } = input
+  const { hunks, findings, postStatus, selectedIds, highlighter, file } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
+  const lang = languageFromPath(file)
   const parts: string[] = []
   hunks.forEach((h, hi) => {
     if (hi > 0) parts.push(`<div class="diff-hunk-sep">⋯</div>`)
+
+    const leftLines: string[] = []
+    const rightLines: string[] = []
+    for (const line of h.lines) {
+      if (line.type === 'removed') leftLines.push(line.content)
+      else if (line.type === 'added') rightLines.push(line.content)
+      else {
+        leftLines.push(line.content)
+        rightLines.push(line.content)
+      }
+    }
+    const leftHighlighted = leftLines.length
+      ? highlightDiffSide(highlighter, leftLines.join('\n'), lang)
+      : []
+    const rightHighlighted = rightLines.length
+      ? highlightDiffSide(highlighter, rightLines.join('\n'), lang)
+      : []
+
     const pairs = buildPairedLines([h])
+    let li = 0
+    let ri = 0
     for (const pair of pairs) {
-      parts.push(pairedRow(pair))
+      const leftColored = pair.left ? (leftHighlighted[li++] ?? esc(pair.left.content)) : null
+      const rightColored = pair.right ? (rightHighlighted[ri++] ?? esc(pair.right.content)) : null
+      parts.push(coloredPairedRow(pair, leftColored, rightColored))
       const target = pair.right?.newLineNo ?? null
       if (target != null) {
         const fs = byLine.get(target)
@@ -145,11 +156,11 @@ export function renderSplitDiff(input: RenderDiffInput): string {
           for (const f of fs) {
             parts.push(
               renderAnnotation(f, {
+                highlighter,
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
                 asCard: false,
-                highlighter,
               }),
             )
           }
@@ -158,4 +169,20 @@ export function renderSplitDiff(input: RenderDiffInput): string {
     }
   })
   return parts.join('\n')
+}
+
+function coloredPairedRow(
+  pair: PairedLine,
+  leftColored: string | null,
+  rightColored: string | null,
+): string {
+  const cellL =
+    pair.left == null || leftColored == null
+      ? `<div class="diff-cell empty"></div>`
+      : `<div class="diff-cell ${pair.left.type}"><span class="gutter">${pair.left.oldLineNo ?? pair.left.newLineNo ?? ''}</span><span class="sign">${pair.left.type === 'removed' ? '-' : ' '}</span><span class="content">${leftColored}</span></div>`
+  const cellR =
+    pair.right == null || rightColored == null
+      ? `<div class="diff-cell empty"></div>`
+      : `<div class="diff-cell ${pair.right.type}"><span class="gutter">${pair.right.newLineNo ?? pair.right.oldLineNo ?? ''}</span><span class="sign">${pair.right.type === 'added' ? '+' : ' '}</span><span class="content">${rightColored}</span></div>`
+  return `<div class="diff-row split">${cellL}${cellR}</div>`
 }
