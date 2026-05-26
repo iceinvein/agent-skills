@@ -16,6 +16,22 @@ fi
 
 chmod +x "$BIN_SOURCE" || true
 
+# Magpie has runtime dependencies (shiki, etc.) declared in package.json.
+# node_modules is not shipped via npm, so we populate it here. Use bun if
+# available; fall back to a clear error otherwise.
+if [ -f "$SOURCE_DIR/package.json" ] && [ ! -d "$SOURCE_DIR/node_modules" ]; then
+  if command -v bun >/dev/null 2>&1; then
+    echo "Installing magpie runtime dependencies..."
+    (cd "$SOURCE_DIR" && bun install --production --silent) || {
+      echo "magpie postinstall: bun install failed in $SOURCE_DIR" >&2
+      exit 1
+    }
+  else
+    echo "magpie postinstall: bun not found on PATH; install Bun (https://bun.sh) and rerun this script." >&2
+    exit 1
+  fi
+fi
+
 install_link() {
   local dest_dir="$1"
   local dest="$dest_dir/magpie"
