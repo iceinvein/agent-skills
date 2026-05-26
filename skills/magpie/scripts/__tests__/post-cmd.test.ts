@@ -109,6 +109,61 @@ test('formatPostBody omits the suggestion block when no suggestion is set', () =
   expect(body).not.toContain('```suggestion')
 })
 
+test('formatInlineBody extracts an embedded fenced code block out of the suggestion body', () => {
+  const body = formatInlineBody({
+    ...findingA,
+    line: 12,
+    suggestion: {
+      body: 'Switch to the inference profile and widen IAM:\n\n```hcl\nstatement {\n  effect = "Allow"\n}\n```\n\nAt minimum, log the failure.',
+      startLine: 12,
+      endLine: 12,
+    },
+  } as never)
+  // Prose appears as ordinary markdown, not inside the suggestion fence.
+  expect(body).toContain('Switch to the inference profile and widen IAM:')
+  expect(body).toContain('At minimum, log the failure.')
+  // The suggestion body contains only the extracted code, not the prose.
+  expect(body).toContain('```suggestion\nstatement {\n  effect = "Allow"\n}\n```')
+  // The hidden finding marker stays inside an HTML comment, not a code block.
+  const markerIdx = body.indexOf('<!-- magpie:finding')
+  expect(markerIdx).toBeGreaterThan(-1)
+  // After the marker the body must be balanced; no dangling open fence above it.
+  const beforeMarker = body.slice(0, markerIdx)
+  const fenceCount = (beforeMarker.match(/```/g) ?? []).length
+  expect(fenceCount % 2).toBe(0)
+})
+
+test('formatInlineBody handles a fenced suggestion that contains no surrounding prose', () => {
+  const body = formatInlineBody({
+    ...findingA,
+    line: 12,
+    suggestion: {
+      body: '```ts\nconst safe = true;\n```',
+      startLine: 12,
+      endLine: 12,
+    },
+  } as never)
+  expect(body).toContain('```suggestion\nconst safe = true;\n```')
+  // No stray, unterminated fence above the magpie marker.
+  const markerIdx = body.indexOf('<!-- magpie:finding')
+  const beforeMarker = body.slice(0, markerIdx)
+  expect((beforeMarker.match(/```/g) ?? []).length % 2).toBe(0)
+})
+
+test('buildSuggestion uses a longer outer fence when the code body contains triple backticks', () => {
+  const body = formatInlineBody({
+    ...findingA,
+    line: 12,
+    suggestion: {
+      body: 'const md = "```inline```"',
+      startLine: 12,
+      endLine: 12,
+    },
+  } as never)
+  // 3 backticks in body → outer fence must be at least 4 to avoid premature close.
+  expect(body).toContain('````suggestion\nconst md = "```inline```"\n````')
+})
+
 test('runPost rejects when pr.json is missing', async () => {
   const outcome = await runPost({ runDir, findingIds: ['anything'] })
   expect(outcome.ok).toBe(false)

@@ -116,10 +116,57 @@ function buildRiskParts(f: ReviewFinding): string[] {
   ]
 }
 
-function buildSuggestionBlock(f: ReviewFinding): string | null {
-  const body = f.suggestion?.body.trim()
-  if (!body) return null
-  return ['```suggestion', body, '```'].join('\n')
+function maxBacktickRun(s: string): number {
+  let max = 0
+  for (const m of s.matchAll(/`+/g)) {
+    if (m[0].length > max) max = m[0].length
+  }
+  return max
+}
+
+/**
+ * Pull a single fenced code block out of a suggestion body, returning its code
+ * plus any surrounding prose. LLMs sometimes wrap the real replacement in
+ * ```lang ... ``` with explanatory text around it; if that nested fence leaks
+ * into the outer ```suggestion``` wrapper it breaks GitHub's renderer and
+ * causes downstream markdown (e.g. the magpie:finding HTML marker) to spill
+ * into a stray code block. We hoist the inner code out so the suggestion body
+ * contains only what should be committed.
+ */
+function splitEmbeddedFence(
+  body: string,
+): { code: string; preamble: string; postamble: string } | null {
+  const re = /(?:^|\n)(`{3,})[^\n`]*\n([\s\S]*?)\n\1(?=\n|$)/
+  const match = body.match(re)
+  if (match?.index === undefined) return null
+  const code = match[2] ?? ''
+  const matchStart = match.index + (body[match.index] === '\n' ? 1 : 0)
+  const matchEnd = matchStart + match[0].length - (body[match.index] === '\n' ? 1 : 0)
+  return {
+    code,
+    preamble: body.slice(0, matchStart).trim(),
+    postamble: body.slice(matchEnd).trim(),
+  }
+}
+
+type SuggestionParts = {
+  block: string | null
+  preamble: string | null
+  postamble: string | null
+}
+
+function buildSuggestion(f: ReviewFinding): SuggestionParts {
+  const raw = f.suggestion?.body.trim()
+  if (!raw) return { block: null, preamble: null, postamble: null }
+  const split = splitEmbeddedFence(raw)
+  const code = split?.code ?? raw
+  const fenceLen = Math.max(3, maxBacktickRun(code) + 1)
+  const fence = '`'.repeat(fenceLen)
+  return {
+    block: `${fence}suggestion\n${code}\n${fence}`,
+    preamble: split?.preamble || null,
+    postamble: split?.postamble || null,
+  }
 }
 
 function buildFindingMarker(f: ReviewFinding): string {
@@ -150,7 +197,7 @@ export function formatInlineBody(f: ReviewFinding): string {
   const label = SEVERITY_LABEL[f.severity]
   const focus = formatFocus(f)
   const metaLine = buildMetaLine([...buildRiskParts(f), focus ? `Focus · ${focus}` : null])
-  const suggestion = buildSuggestionBlock(f)
+  const { block: suggestion, preamble: sugPre, postamble: sugPost } = buildSuggestion(f)
   const sections = formatFindingDescriptionMarkdown(f.description)
 
   return joinBlock([
@@ -159,8 +206,12 @@ export function formatInlineBody(f: ReviewFinding): string {
     metaLine,
     '',
     sections,
+    sugPre ? '' : null,
+    sugPre,
     suggestion ? '' : null,
     suggestion,
+    sugPost ? '' : null,
+    sugPost,
     '',
     buildFindingMarker(f),
   ])
@@ -181,7 +232,7 @@ export function formatConversationBody(f: ReviewFinding): string {
     ...buildRiskParts(f),
   ])
   const sections = formatFindingDescriptionMarkdown(f.description)
-  const suggestion = buildSuggestionBlock(f)
+  const { block: suggestion, preamble: sugPre, postamble: sugPost } = buildSuggestion(f)
 
   return joinBlock([
     `### ${icon} ${label}: ${f.title}`,
@@ -189,8 +240,12 @@ export function formatConversationBody(f: ReviewFinding): string {
     metaLine,
     '',
     sections,
+    sugPre ? '' : null,
+    sugPre,
     suggestion ? '' : null,
     suggestion,
+    sugPost ? '' : null,
+    sugPost,
     '',
     buildFindingMarker(f),
   ])
