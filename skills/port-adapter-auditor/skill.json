@@ -1,7 +1,7 @@
 {
   "name": "port-adapter-auditor",
   "version": "1.0.0",
-  "description": "Cockburn-inspired hexagonal architecture analysis — identify ports and adapters, classify boundary health, ensure core testability and swappability",
+  "description": "Cockburn-inspired hexagonal architecture analysis: identify ports and adapters, classify boundary health, ensure core testability and swappability",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

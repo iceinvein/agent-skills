@@ -1,7 +1,7 @@
 {
   "name": "cognitive-load-auditor",
   "version": "1.0.0",
-  "description": "Jeff Johnson-inspired cognitive load analysis — evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
+  "description": "Jeff Johnson-inspired cognitive load analysis: evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

@@ -1,7 +1,7 @@
 [
   {
     "name": "bounded-context-auditor",
-    "description": "Evans-inspired bounded context analysis — detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
+    "description": "Evans-inspired bounded context analysis: detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -22,7 +22,7 @@
   },
   {
     "name": "cognitive-load-auditor",
-    "description": "Jeff Johnson-inspired cognitive load analysis — evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
+    "description": "Jeff Johnson-inspired cognitive load analysis: evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -32,7 +32,7 @@
   },
   {
     "name": "cohesion-analyzer",
-    "description": "Constantine & Yourdon-inspired cohesion analysis — classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
+    "description": "Constantine & Yourdon-inspired cohesion analysis: classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -42,7 +42,7 @@
   },
   {
     "name": "complexity-accountant",
-    "description": "Ousterhout-inspired complexity analysis — deep vs shallow modules, complexity budget, justified abstractions",
+    "description": "Ousterhout-inspired complexity analysis: deep vs shallow modules, complexity budget, justified abstractions",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -52,7 +52,7 @@
   },
   {
     "name": "composability-auditor",
-    "description": "Unix Philosophy-inspired composability analysis — identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
+    "description": "Unix Philosophy-inspired composability analysis: identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -62,7 +62,7 @@
   },
   {
     "name": "contract-enforcer",
-    "description": "Meyer-inspired Design by Contract — preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
+    "description": "Meyer-inspired Design by Contract: preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -72,7 +72,7 @@
   },
   {
     "name": "coupling-auditor",
-    "description": "Constantine & Yourdon-inspired coupling analysis — classify, measure, and reduce interdependence between modules",
+    "description": "Constantine & Yourdon-inspired coupling analysis: classify, measure, and reduce interdependence between modules",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -81,8 +81,38 @@
     "quick": true
   },
   {
+    "name": "cover-letter",
+    "description": "Cover letter suite router. Dispatches to write, audit, rewrite, or persona subcommands and shares file I/O (PDF, DOCX, MD/MDX, URL), output formats, and writing conventions across the suite",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-audit",
+    "description": "Scores a cover letter on 100 points across content/fit, structure, voice/humanness, and correctness; detects AI-generated-content signals and produces a prioritized fix list",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-persona",
+    "description": "Reusable writing personas built on the NNGroup 4-dimension tone framework, adapted for professional correspondence and used by cover-letter-write and cover-letter-rewrite",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-rewrite",
+    "description": "Audit-driven targeted rewrite of an existing cover letter. Focus modes: humanize, align, tighten, structure, tone; preserves voice where it already works",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
+    "name": "cover-letter-write",
+    "description": "Generates a cover letter from a resume and job description. Outputs markdown, DOCX, and PDF; enforces human prose, maps every claim to a resume bullet, and covers top JD requirements without keyword stuffing",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
     "name": "cqs-auditor",
-    "description": "Meyer-inspired Command-Query Separation — classify functions as commands or queries, detect mixed violations, separate side effects from return values",
+    "description": "Meyer-inspired Command-Query Separation: classify functions as commands or queries, detect mixed violations, separate side effects from return values",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -92,7 +122,7 @@
   },
   {
     "name": "demeter-enforcer",
-    "description": "Lieberherr-inspired Law of Demeter analysis — detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
+    "description": "Lieberherr-inspired Law of Demeter analysis: detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -102,7 +132,7 @@
   },
   {
     "name": "dependency-direction-auditor",
-    "description": "Martin-inspired dependency direction analysis — trace imports across layers, classify violations by severity, recommend inversion",
+    "description": "Martin-inspired dependency direction analysis: trace imports across layers, classify violations by severity, recommend inversion",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -112,7 +142,7 @@
   },
   {
     "name": "design-review",
-    "description": "Brooks-inspired design integrity review — tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
+    "description": "Brooks-inspired design integrity review: tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -122,7 +152,7 @@
   },
   {
     "name": "error-strategist",
-    "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
+    "description": "Duffy & Abrahams-inspired error handling: classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -132,7 +162,7 @@
   },
   {
     "name": "event-design-reviewer",
-    "description": "Evans/Vernon/Dahan-inspired event design — domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
+    "description": "Evans/Vernon/Dahan-inspired event design: domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -143,7 +173,7 @@
   },
   {
     "name": "evolution-analyzer",
-    "description": "Lehman-inspired software evolution analysis — trajectory assessment, debt visibility, and change impact on system health",
+    "description": "Lehman-inspired software evolution analysis: trajectory assessment, debt visibility, and change impact on system health",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -153,7 +183,7 @@
   },
   {
     "name": "gestalt-reviewer",
-    "description": "Gestalt-inspired visual perception audit — proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
+    "description": "Gestalt-inspired visual perception audit: proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -163,7 +193,7 @@
   },
   {
     "name": "idempotency-guardian",
-    "description": "Helland-inspired idempotency analysis — classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
+    "description": "Helland-inspired idempotency analysis: classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -179,7 +209,7 @@
   },
   {
     "name": "integration-pattern-auditor",
-    "description": "Hohpe & Woolf-inspired messaging analysis — name the integration pattern, verify delivery guarantees, identify missing infrastructure",
+    "description": "Hohpe & Woolf-inspired messaging analysis: name the integration pattern, verify delivery guarantees, identify missing infrastructure",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -195,7 +225,7 @@
   },
   {
     "name": "module-secret-auditor",
-    "description": "Parnas-inspired information hiding analysis — module boundaries drawn by change-reason, not by noun or technical layer",
+    "description": "Parnas-inspired information hiding analysis: module boundaries drawn by change-reason, not by noun or technical layer",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -205,7 +235,7 @@
   },
   {
     "name": "port-adapter-auditor",
-    "description": "Cockburn-inspired hexagonal architecture analysis — identify ports and adapters, classify boundary health, ensure core testability and swappability",
+    "description": "Cockburn-inspired hexagonal architecture analysis: identify ports and adapters, classify boundary health, ensure core testability and swappability",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -215,7 +245,7 @@
   },
   {
     "name": "rams-design-audit",
-    "description": "Dieter Rams-inspired design audit — every visual element must earn its presence, less but better, clarity through restraint",
+    "description": "Dieter Rams-inspired design audit: every visual element must earn its presence, less but better, clarity through restraint",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -225,7 +255,7 @@
   },
   {
     "name": "seam-finder",
-    "description": "Feathers-inspired legacy code modification — find seams, make minimal incisions, preserve existing behavior",
+    "description": "Feathers-inspired legacy code modification: find seams, make minimal incisions, preserve existing behavior",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -235,7 +265,7 @@
   },
   {
     "name": "simplicity-razor",
-    "description": "Hickey-inspired simplicity analysis — simple vs easy, complecting detection, strand decomposition",
+    "description": "Hickey-inspired simplicity analysis: simple vs easy, complecting detection, strand decomposition",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -245,7 +275,7 @@
   },
   {
     "name": "temporal-coupling-detector",
-    "description": "Hidden ordering dependency analysis — detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
+    "description": "Hidden ordering dependency analysis: detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -261,7 +291,7 @@
   },
   {
     "name": "type-driven-designer",
-    "description": "Wlaschin & Minsky-inspired type design — make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
+    "description": "Wlaschin & Minsky-inspired type design: make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [
@@ -271,7 +301,7 @@
   },
   {
     "name": "unidirectional-flow-enforcer",
-    "description": "Elm Architecture-inspired data flow analysis — enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
+    "description": "Elm Architecture-inspired data flow analysis: enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
     "type": "prompt",
     "version": "1.0.0",
     "applies": [

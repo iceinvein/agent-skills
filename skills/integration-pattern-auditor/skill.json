@@ -1,7 +1,7 @@
 {
   "name": "integration-pattern-auditor",
   "version": "1.0.0",
-  "description": "Hohpe & Woolf-inspired messaging analysis — name the integration pattern, verify delivery guarantees, identify missing infrastructure",
+  "description": "Hohpe & Woolf-inspired messaging analysis: name the integration pattern, verify delivery guarantees, identify missing infrastructure",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

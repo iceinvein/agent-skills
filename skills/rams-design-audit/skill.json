@@ -1,7 +1,7 @@
 {
   "name": "rams-design-audit",
   "version": "1.0.0",
-  "description": "Dieter Rams-inspired design audit — every visual element must earn its presence, less but better, clarity through restraint",
+  "description": "Dieter Rams-inspired design audit: every visual element must earn its presence, less but better, clarity through restraint",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

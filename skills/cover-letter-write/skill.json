@@ -1,0 +1,26 @@
+{
+  "name": "cover-letter-write",
+  "version": "1.0.0",
+  "description": "Generates a cover letter from a resume and job description. Outputs markdown, DOCX, and PDF; enforces human prose, maps every claim to a resume bullet, and covers top JD requirements without keyword stuffing",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/cover-letter-write/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/cover-letter-write.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/cover-letter-write.md"
+    }
+  }
+}

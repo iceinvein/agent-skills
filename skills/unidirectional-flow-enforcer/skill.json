@@ -1,7 +1,7 @@
 {
   "name": "unidirectional-flow-enforcer",
   "version": "1.0.0",
-  "description": "Elm Architecture-inspired data flow analysis — enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
+  "description": "Elm Architecture-inspired data flow analysis: enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

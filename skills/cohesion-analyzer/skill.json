@@ -1,7 +1,7 @@
 {
   "name": "cohesion-analyzer",
   "version": "1.0.0",
-  "description": "Constantine & Yourdon-inspired cohesion analysis — classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
+  "description": "Constantine & Yourdon-inspired cohesion analysis: classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

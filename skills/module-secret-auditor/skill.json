@@ -1,7 +1,7 @@
 {
   "name": "module-secret-auditor",
   "version": "1.0.0",
-  "description": "Parnas-inspired information hiding analysis — module boundaries drawn by change-reason, not by noun or technical layer",
+  "description": "Parnas-inspired information hiding analysis: module boundaries drawn by change-reason, not by noun or technical layer",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

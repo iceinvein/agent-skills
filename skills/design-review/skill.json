@@ -1,7 +1,7 @@
 {
   "name": "design-review",
   "version": "1.0.0",
-  "description": "Brooks-inspired design integrity review — tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
+  "description": "Brooks-inspired design integrity review: tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

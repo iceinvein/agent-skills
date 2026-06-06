@@ -1,7 +1,7 @@
 {
   "name": "cqs-auditor",
   "version": "1.0.0",
-  "description": "Meyer-inspired Command-Query Separation — classify functions as commands or queries, detect mixed violations, separate side effects from return values",
+  "description": "Meyer-inspired Command-Query Separation: classify functions as commands or queries, detect mixed violations, separate side effects from return values",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

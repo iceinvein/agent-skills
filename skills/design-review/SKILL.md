@@ -1,5 +1,5 @@
 ---
-name: design-integrity-review
+name: design-review
 description: Use when reviewing, evaluating, or giving feedback on a design document, technical spec, architecture doc, system design, product spec, API design, or database schema — especially after AI helped write or brainstorm it. Always use this skill when the user shares a design and asks you to review it, check if it holds together, or help scope it down. Trigger on phrases like "review my design", "does this design make sense", "can you look at this spec", "not sure what to cut", "scope this down", "feels like too much", "check if this holds together", "design review", or any request to evaluate a design document. Also trigger when the user describes a design that sounds like a feature list without a unifying idea, mentions AI helped create it, or expresses uncertainty about whether the design is coherent.
 ---
 

@@ -1,7 +1,7 @@
 {
   "name": "error-strategist",
   "version": "1.0.0",
-  "description": "Duffy & Abrahams-inspired error handling — classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
+  "description": "Duffy & Abrahams-inspired error handling: classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

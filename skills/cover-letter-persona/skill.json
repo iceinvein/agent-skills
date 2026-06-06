@@ -1,0 +1,26 @@
+{
+  "name": "cover-letter-persona",
+  "version": "1.0.0",
+  "description": "Reusable writing personas built on the NNGroup 4-dimension tone framework, adapted for professional correspondence and used by cover-letter-write and cover-letter-rewrite",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude", "cursor", "codex", "gemini"],
+  "files": {
+    "prompt": "SKILL.md"
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/cover-letter-persona/SKILL.md"
+    },
+    "cursor": {
+      "prompt": ".cursor/rules/cover-letter-persona.mdc"
+    },
+    "codex": {
+      "prompt": "AGENTS.md",
+      "append": true
+    },
+    "gemini": {
+      "prompt": ".gemini/skills/cover-letter-persona.md"
+    }
+  }
+}

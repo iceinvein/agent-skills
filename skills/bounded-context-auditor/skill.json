@@ -1,7 +1,7 @@
 {
   "name": "bounded-context-auditor",
   "version": "1.0.0",
-  "description": "Evans-inspired bounded context analysis — detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
+  "description": "Evans-inspired bounded context analysis: detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],

@@ -1,7 +1,7 @@
 {
   "name": "complexity-accountant",
   "version": "1.0.0",
-  "description": "Ousterhout-inspired complexity analysis — deep vs shallow modules, complexity budget, justified abstractions",
+  "description": "Ousterhout-inspired complexity analysis: deep vs shallow modules, complexity budget, justified abstractions",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude", "cursor", "codex", "gemini"],
