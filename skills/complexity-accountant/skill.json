@@ -1,10 +1,15 @@
 {
   "name": "complexity-accountant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ousterhout-inspired complexity analysis: deep vs shallow modules, complexity budget, justified abstractions",
   "author": "iceinvein",
   "type": "prompt",
-  "tools": ["claude", "cursor", "codex", "gemini"],
+  "tools": [
+    "claude",
+    "cursor",
+    "codex",
+    "gemini"
+  ],
   "files": {
     "prompt": "SKILL.md"
   },

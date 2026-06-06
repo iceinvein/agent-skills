@@ -1,10 +1,15 @@
 {
   "name": "seam-finder",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Feathers-inspired legacy code modification: find seams, make minimal incisions, preserve existing behavior",
   "author": "iceinvein",
   "type": "prompt",
-  "tools": ["claude", "cursor", "codex", "gemini"],
+  "tools": [
+    "claude",
+    "cursor",
+    "codex",
+    "gemini"
+  ],
   "files": {
     "prompt": "SKILL.md"
   },
