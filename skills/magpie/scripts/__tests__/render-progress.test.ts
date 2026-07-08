@@ -92,7 +92,7 @@ test('each pipeline stage exposes a short sublabel so first-timers can learn wha
   })
   expect(html).toContain('class="hint"')
   expect(html).toContain('five reviewers in parallel')
-  expect(html).toContain('second opinion via codex')
+  expect(html).toContain('independent second opinion')
 })
 
 test('renderProgressHtml includes the archived banner element', () => {

@@ -19,7 +19,7 @@ const STAGE_HINT: Record<StageId, string> = {
   specialists: 'five reviewers in parallel',
   dedupe: 'merge overlaps',
   critic: 'keep the high-signal ones',
-  'peer-review': 'second opinion via codex',
+  'peer-review': 'independent second opinion',
   report: 'render this page',
   post: 'comment on the PR',
 }
@@ -30,7 +30,7 @@ const STAGE_NOW_DOING: Record<StageId, string> = {
   specialists: 'Five reviewers reading the diff in parallel',
   dedupe: 'Merging overlapping findings',
   critic: 'Keeping only the high-signal ones',
-  'peer-review': 'Asking a second opinion via codex',
+  'peer-review': 'Getting an independent second opinion',
   report: 'Composing the report page',
   post: 'Ready to post; switch tabs to pick findings',
 }

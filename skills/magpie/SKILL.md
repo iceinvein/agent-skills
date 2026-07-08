@@ -1,13 +1,13 @@
 ---
 name: magpie
-description: Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec, and serves an interactive HTML report for selecting findings to post via gh. Use when the user asks to review a GitHub pull request.
+description: Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting findings to post via gh. Use when the user asks to review a GitHub pull request.
 ---
 
 # Magpie
 
 ## Prerequisites
 
-The skill pre-flights `bun`, `gh`, `codex`, `git`. If any are missing the run aborts with a single install hint line.
+The skill pre-flights `bun`, `gh`, `git` (required) and `codex` (optional). If a required binary is missing the run aborts with a single install hint line. `codex` is the preferred peer reviewer, but it is optional: if it is missing the run continues and the peer-review stage falls back to a Claude second-opinion subagent (setup prints a one-line notice and logs `{stage: preflight, status: done, missingOptional: ["codex"]}`).
 
 ## Stage walkthrough
 
@@ -147,17 +147,23 @@ Read `$RUN_DIR/findings.deduped.json`. Apply the critic rubric from this SKILL.m
 
 ### 6. Peer review
 
-Build the peer-review prompt by taking the `magpie-peer-review` block from this SKILL.md and substituting the placeholders listed in its `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`. Then run codex with the prompt piped on stdin:
+This stage always runs. `codex` is the preferred reviewer because it is a different model from the Claude agents that produced the findings; when `codex` is unavailable, a Claude second-opinion subagent stands in.
+
+Build the peer-review prompt first: take the `magpie-peer-review` block from this SKILL.md and substitute the placeholders listed in its `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`.
+
+**Codex path (preferred).** If `codex` is available (setup did not log `missingOptional: ["codex"]` and `command -v codex` succeeds), set `<<PEER_PROVIDER>>` to `codex` and run codex with the prompt piped on stdin:
 
 ```
 codex exec < "$RUN_DIR/peer-prompt.md" > "$RUN_DIR/peer.out"
 ```
 
-`peer.out` is codex's full transcript; extract the fenced JSON block tagged `review-peer-review` from it to get the verdicts array. Write that verdicts array to `$RUN_DIR/peer.json` for record-keeping.
+`peer.out` is codex's full transcript; extract the fenced JSON block tagged `review-peer-review` from it to get the verdicts array. Write that verdicts array to `$RUN_DIR/peer.json`, append `{stage: peer-review, status: done, provider: codex}`, then apply the verdicts as described below.
 
-If codex returns non-zero, ask the user once: "Codex peer-review failed: <stderr>. Skip peer-review and proceed, or abort?". On "skip", copy `findings.kept.json` to `findings.final.json` and add `{stage: peer-review, status: skipped}`.
+If codex returns non-zero, do not abort: fall through to the Claude path and record `{stage: peer-review, provider: codex, status: error}` first.
 
-Otherwise parse the verdicts JSON, apply them (drop / downgrade), and write `findings.final.json`. Append `{stage: peer-review, status: done}` and re-render progress.
+**Claude path (fallback).** When `codex` is unavailable or failed, get the second opinion from a Claude subagent instead. Set `<<PEER_PROVIDER>>` to `claude`, then prepend the `magpie-peer-review-claude-preamble` block from this SKILL.md to the substituted peer-review prompt (the preamble forces genuine independence, since the reviewer shares a model family with the primary reviewers). Dispatch one subagent (Agent tool, `general-purpose`) whose entire task is that combined prompt, and instruct it to return only the fenced `review-peer-review` JSON block. Write its output to `$RUN_DIR/peer.out`, extract the `review-peer-review` block to `$RUN_DIR/peer.json`, and append `{stage: peer-review, status: done, provider: claude}`.
+
+**Apply the verdicts (both paths).** Parse the verdicts JSON and apply the `update` / `add` entries (an empty array means no change), then write `findings.final.json`. Re-render progress.
 
 ### 7. Report
 
@@ -564,13 +570,9 @@ Output every candidate exactly once. Do not invent ids. Do not output anything o
 
 ## Peer-review prompt
 
-The agent substitutes the placeholders below, writes the result to `<run-dir>/peer-prompt.md`, then runs:
+The agent substitutes the placeholders below and writes the result to `<run-dir>/peer-prompt.md`. Step 6 then feeds that prompt to the peer reviewer: `codex exec < <run-dir>/peer-prompt.md > <run-dir>/peer.out` when codex is available, or a Claude `general-purpose` subagent (with the `magpie-peer-review-claude-preamble` prepended) writing to `<run-dir>/peer.out` when it is not.
 
-```
-codex exec < <run-dir>/peer-prompt.md > <run-dir>/peer.out
-```
-
-Then extract the fenced `review-peer-review` block from `peer.out` and save it to `<run-dir>/peer.json`.
+Either way, extract the fenced `review-peer-review` block from `peer.out` and save it to `<run-dir>/peer.json`.
 
 ## Substitute before use
 
@@ -636,6 +638,18 @@ Rules:
 ```review-peer-review
 []
 ```
+````
+
+## Claude peer-review preamble
+
+Used only by the Claude fallback path in step 6. Prepend this block verbatim (no substitutions) to the substituted `magpie-peer-review` prompt before dispatching the subagent. Its job is to buy back the independence you lose by using the same model family that produced the findings: the reviewer must re-derive each verdict from the diff rather than trusting the finding text, and must actively resist rubber-stamping.
+
+````magpie-peer-review-claude-preamble
+You are a fresh, independent second-opinion reviewer. You have no memory of, and no stake in, how the findings below were produced. They were generated by other agents that share your model family, so they may carry the same blind spots you would: do not defer to them, and do not assume they are correct because they sound confident.
+
+Ground every verdict in the diff hunks provided, not in the prose of the finding. For each finding, independently re-derive whether the described problem is actually present on the cited line before you accept it. If a finding's reasoning does not hold against the hunk, or the anchor is wrong, or the severity is off, say so with "update"; if you can see a clearly actionable adjacent issue in the same hunks that was missed, add it. When the existing finding survives your own check unchanged, leave it alone.
+
+Hold yourself to the exact same output contract and constraints described below. Return [] when the review is already sound.
 ````
 
 ## Resuming a crashed run

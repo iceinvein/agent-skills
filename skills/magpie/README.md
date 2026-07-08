@@ -4,14 +4,14 @@ Interactive Claude Code skill that runs a multi-stage PR review pipeline inside 
 
 ## What it does
 
-Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), dedupes their findings, applies a critic rubric, peer-reviews via `codex exec`, serves an interactive HTML report, and posts the findings the user selects via `gh`.
+Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), dedupes their findings, applies a critic rubric, peer-reviews via `codex exec` (falling back to a Claude second-opinion subagent when codex is unavailable), serves an interactive HTML report, and posts the findings the user selects via `gh`.
 
 ## Requirements
 
 - `bun` on PATH (https://bun.sh)
 - `gh` on PATH, authenticated (`gh auth status`)
-- `codex` on PATH, authenticated
 - `git` on PATH
+- `codex` on PATH, authenticated (optional; if absent the peer-review stage falls back to a Claude second-opinion subagent)
 
 ## Install
 

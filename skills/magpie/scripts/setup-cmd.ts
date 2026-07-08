@@ -32,7 +32,18 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(input.runDir)
     return 3
   }
-  await logLine(input.runDir, { stage: 'preflight', status: 'done' })
+  if (preResult.missingOptional.length > 0) {
+    await logLine(input.runDir, {
+      stage: 'preflight',
+      status: 'done',
+      missingOptional: preResult.missingOptional,
+    })
+    process.stderr.write(
+      `magpie: optional dependency unavailable, some stages will be skipped:\n${renderInstallHint(preResult.missingOptional)}\n`,
+    )
+  } else {
+    await logLine(input.runDir, { stage: 'preflight', status: 'done' })
+  }
 
   const fetched = await fetchPr({
     ghBin: deps.gh,
