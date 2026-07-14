@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { filePathMatches, parseUnifiedDiffToHunks, splitDiffByFile } from '../diff-utils.ts'
+import {
+  buildNewSideLineIndex,
+  filePathMatches,
+  parseUnifiedDiffToHunks,
+  splitDiffByFile,
+} from '../diff-utils.ts'
 
 const SAMPLE = `diff --git a/src/a.ts b/src/a.ts
 index abc..def 100644
@@ -90,6 +95,20 @@ describe('splitDiffByFile', () => {
 
   test('returns empty map for empty input', () => {
     expect(splitDiffByFile('').size).toBe(0)
+  })
+})
+
+describe('buildNewSideLineIndex', () => {
+  test('collects added and context new-side line numbers per file', () => {
+    const index = buildNewSideLineIndex(SAMPLE)
+    // src/a.ts: context(1), added(2), added(3), context(4). Removed line has no new-side number.
+    expect([...(index.get('src/a.ts') ?? [])].sort((a, b) => a - b)).toEqual([1, 2, 3, 4])
+    // src/b.ts: two added lines.
+    expect([...(index.get('src/b.ts') ?? [])].sort((a, b) => a - b)).toEqual([1, 2])
+  })
+
+  test('returns empty map for empty input', () => {
+    expect(buildNewSideLineIndex('').size).toBe(0)
   })
 })
 

@@ -58,7 +58,7 @@ magpie render "$RUN_DIR" progress
 
 Dispatch the five specialist subagents in a single message using five Agent tool calls in parallel. For each focus in (security, bugs, performance, code-smells, architecture), the prompt is:
 
-```
+````
 <specialist block for focus from this SKILL.md>
 
 You are reviewing PR #<PR_NUMBER>.
@@ -95,6 +95,7 @@ Write findings to $RUN_DIR/findings/<focus>.json before returning. The file MUST
 - `severity`, `risk.impact`, `risk.confidence` use category names (e.g. `high`, `low`), not sentences.
 - `risk.likelihood` describes frequency, not impact. Valid values are exactly `likely`, `possible`, `edge-case`, `unknown`. NEVER use `high`/`medium`/`low` here (those are likelihood-as-impact and will be auto-corrected, but pick the right axis).
 - `risk.action` is the disposition tag, not the recommendation text. Valid values are exactly `must-fix`, `should-fix`, `consider`, `optional`. The recommendation prose belongs in `description` under `Suggested direction:`, never in `risk.action`.
+- Keep `severity` coherent with `risk`. `severity` is the headline label: use `blocker`/`high` only with `risk.impact` of `critical`/`high` and `risk.action` of `must-fix`/`should-fix`. A `low` severity paired with `must-fix`, or a `blocker` paired with `optional`, is contradictory. The 0-10 score that gates the drop threshold is derived from `risk`, not from `severity`, so an inflated `severity` on a weak `risk` is still dropped. Set `risk` accurately rather than leaning on `severity`.
 
 Bad (will be silently coerced, do not rely on this):
 ```
@@ -111,7 +112,7 @@ Good:
 - `Observation: <one idea, what the diff actually does and where>`
 - `Why it matters: <impact at realistic scale or on a real user path>`
 - `Suggested direction: <one concrete next step, optional if the fix isn't obvious>`
-- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>`
+- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing.
 
 One idea per paragraph. Do not collapse them into a single wall of text. Do not invent extra labels. If a section doesn't apply, omit it. The interactive report and the GitHub comment both parse these labels and render them as section headers, so missing labels degrade the output.
 
@@ -123,7 +124,7 @@ One idea per paragraph. Do not collapse them into a single wall of text. Do not 
 - Wrapping the code in a `` ``` `` fence inside `body` is tolerated (the poster hoists the inner code out), but bare code is preferred.
 
 If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<blocker>/<high>/<medium>/<low>)`. Do not include other prose.
-```
+````
 
 After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress. (Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry advances `magpie status`.)
 
@@ -143,7 +144,7 @@ Re-render progress.
 
 ### 5. Critic
 
-Read `$RUN_DIR/findings.deduped.json`. Apply the critic rubric from this SKILL.md verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
+Read `$RUN_DIR/findings.deduped.json`. Substitute both placeholders in the critic rubric (the compact candidate list including each finding's `onChangedLine`, and the `<<DIFF_EXCERPT>>` hunks for the referenced files), then apply the rubric verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
 
 ### 6. Peer review
 
@@ -273,7 +274,9 @@ For each potential finding:
 - medium: Defense-in-depth concern or validation gap with limited or uncertain exploitability
 - low: Minor hardening opportunity with low impact
 
-Report only credible concerns grounded in code shown. If a concern depends on context you can't see, note it as "needs verification" in the description. Do not invent vulnerabilities without evidence.
+Report only credible concerns grounded in code shown. If a concern depends on context you can't see, surface it in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating severity to compensate. Do not invent vulnerabilities without evidence.
+
+Boundary with Architecture: report missing input validation here when it enables an attack (injection, path traversal, SSRF, auth bypass). Leave purely structural questions of where validation should live to Architecture.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
@@ -334,7 +337,9 @@ For each potential bug:
 - medium: Edge-case bug or missing guard with limited blast radius
 - low: Very small correctness cleanup with low user impact
 
-Prioritize bugs that cause silent wrong behavior over those that crash (crashes are at least visible). Flag "needs verification" when you can't determine reachability from the diff alone.
+Prioritize bugs that cause silent wrong behavior over those that crash (crashes are at least visible). When you can't determine reachability from the diff alone, say so in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating severity.
+
+Boundary with Performance: report leaks, unbounded growth, and missing cleanup here only when the primary consequence is incorrect behavior, a crash, or resource exhaustion that breaks a workflow. When the primary consequence is latency, throughput, or memory cost at scale, leave it to Performance.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
@@ -392,6 +397,8 @@ For each potential issue:
 - low: Tiny cleanup only when it removes clear waste without added complexity
 
 Only flag issues that would have noticeable impact at realistic scale. Don't suggest micro-optimizations on cold paths.
+
+Boundary with Bugs: focus on cost at realistic scale. Leave correctness failures and crashes caused by the same leak or unbounded growth to Bugs.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
@@ -510,6 +517,8 @@ For each potential issue:
 
 Boundary with Code Smells: focus on module boundaries, public contracts, ownership, and system-level data flow. Leave local implementation smells such as duplicate branches, long functions, and primitive obsession to Code Smells.
 
+Boundary with Security: flag validation gaps as design/contract issues (where validation belongs, which boundary should enforce it). Leave exploitability assessment to Security.
+
 Focus on design decisions introduced or materially worsened by this PR that affect the long-term health of the codebase. Don't flag things that are "technically impure" but work well in practice.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
@@ -521,24 +530,24 @@ The main agent runs this in-conversation against `findings.deduped.json` and wri
 
 ## Substitute before use
 
-The block below contains one placeholder. Replace it before running the rubric.
+The block below contains two placeholders. Replace both before running the rubric.
 
-- `<<DEDUPED_FINDINGS_COMPACT>>` — pretty-printed JSON array of the deduped candidates with only the fields the critic needs. Build with:
+- `<<DEDUPED_FINDINGS_COMPACT>>` — pretty-printed JSON array of the deduped candidates with only the fields the critic needs. Each candidate carries `onChangedLine` (set deterministically during dedupe: `true` = anchored inside a changed hunk, `false` = anchored on code the PR did not touch, `null` = not anchorable). Build with:
   ```
-  jq '[.[] | {id, file, line, severity, risk, domain, title, description}]' "$RUN_DIR/findings.deduped.json"
+  jq '[.[] | {id, file, line, onChangedLine, severity, risk, domain, title, description}]' "$RUN_DIR/findings.deduped.json"
   ```
+- `<<DIFF_EXCERPT>>` — the diff hunks for the files referenced by the candidates. For small PRs the full `diff.patch` is fine; for larger PRs, narrow to the files named in the candidate set.
 
 ````magpie-critic
-You are a senior code reviewer auditing a list of candidate review findings produced by other agents on a pull request. Your only job is to keep the findings that a busy reviewer would genuinely thank you for surfacing, and drop the rest. You do not see the diff itself; you only see what the candidate finding claims, its anchor, and its risk fields. Treat each candidate skeptically.
+You are a senior code reviewer auditing a list of candidate review findings produced by other agents on a pull request. Your only job is to keep the findings that a busy reviewer would genuinely thank you for surfacing, and drop the rest. You see each candidate's claim, anchor, and risk fields, plus the diff hunks around them. Use the hunks only to validate or refute the candidate in front of you: do not surface new findings or broaden the review (adding issues is the peer-review stage's job). Treat each candidate skeptically.
 
 Drop a finding if any of the following hold:
 - The description sounds speculative, hedged, or "needs verification" without strong evidence in the title or anchor.
 - The finding is a stylistic preference, micro-optimization, or "nice to have" cleanup with no concrete user or maintenance impact.
-- The finding is a pre-existing concern not introduced by the PR.
-- The finding is a theoretical risk that requires unlikely preconditions, or defense-in-depth on already-defended code.
+- Its `onChangedLine` is `false` and the description does not explain why the PR newly triggers a pre-existing concern (i.e. it is anchored on code this PR did not change).
+- The finding is a theoretical risk that requires unlikely preconditions, or defense-in-depth on code the supplied hunks show is already guarded.
 - The finding belongs to a category the repository's linter already enforces (naming, formatting, unused imports).
 - The finding is on a test file or a generated/vendored file unless it materially affects test correctness.
-- The finding duplicates another candidate at a similar anchor and is the weaker version.
 
 Keep a finding if it points to a concrete defect on a changed line, with enough specificity that a reviewer could decide to act on it without re-reading the entire PR.
 
@@ -565,6 +574,11 @@ Output every candidate exactly once. Do not invent ids. Do not output anything o
 ## Candidates
 ```json
 <<DEDUPED_FINDINGS_COMPACT>>
+```
+
+## Diff Hunks For Those Candidates
+```diff
+<<DIFF_EXCERPT>>
 ```
 ````
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { parseUnifiedDiffToHunks, splitDiffByFile } from './diff-utils.ts'
+import { buildNewSideLineIndex } from './diff-utils.ts'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import {
   type FocusId,
@@ -10,29 +10,6 @@ import {
   type ReviewFinding,
   type Severity,
 } from './types.ts'
-
-/**
- * Build a per-file set of RIGHT-side line numbers that GitHub's PR Reviews API
- * will accept as inline-comment anchors (added or context lines within hunks).
- * Returns an empty map when the diff is empty/unavailable.
- */
-function buildValidRightLines(diff: string): Map<string, Set<number>> {
-  const result = new Map<string, Set<number>>()
-  if (!diff) return result
-  for (const [file, chunk] of splitDiffByFile(diff)) {
-    const hunks = parseUnifiedDiffToHunks(chunk)
-    const set = new Set<number>()
-    for (const h of hunks) {
-      for (const l of h.lines) {
-        if (l.newLineNo != null && (l.type === 'added' || l.type === 'context')) {
-          set.add(l.newLineNo)
-        }
-      }
-    }
-    result.set(file, set)
-  }
-  return result
-}
 
 export type PostInput = {
   runDir: string
@@ -555,7 +532,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   let validRightLines: Map<string, Set<number>> | null = null
   try {
     const diff = await readFile(join(input.runDir, 'diff.patch'), 'utf8')
-    validRightLines = buildValidRightLines(diff)
+    validRightLines = buildNewSideLineIndex(diff)
   } catch {
     // diff.patch absent (archived/legacy runs); skip validation and trust caller.
     validRightLines = null

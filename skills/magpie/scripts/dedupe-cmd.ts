@@ -1,5 +1,6 @@
 import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { annotateChangedLines } from './changed-lines.ts'
 import { deduplicateFindings } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
@@ -77,8 +78,15 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
   const deduped = deduplicateFindings(collected)
   const scored = deduped.map((f) => ({ ...f, score: scoreRisk(f.risk) }))
   const evidence = await verifyEvidence(scored, join(runDir, 'worktree'))
-  const aboveThreshold = evidence.kept.filter((f) => (f.score ?? 0) >= threshold)
-  const belowThreshold = evidence.kept.filter((f) => (f.score ?? 0) < threshold)
+  let diff = ''
+  try {
+    diff = await readFile(join(runDir, 'diff.patch'), 'utf8')
+  } catch {
+    diff = ''
+  }
+  const annotated = annotateChangedLines(evidence.kept, diff)
+  const aboveThreshold = annotated.filter((f) => (f.score ?? 0) >= threshold)
+  const belowThreshold = annotated.filter((f) => (f.score ?? 0) < threshold)
   await writeFile(
     join(runDir, 'findings.deduped.json'),
     `${JSON.stringify(aboveThreshold, null, 2)}\n`,

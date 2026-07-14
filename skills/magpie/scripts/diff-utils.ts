@@ -76,6 +76,31 @@ export function parseUnifiedDiffToHunks(diff: string): DiffHunk[] {
   return hunks
 }
 
+/**
+ * Per-file set of new-side (RIGHT) line numbers that fall within a changed hunk
+ * (added or context lines). These are the lines GitHub accepts as inline-comment
+ * anchors, and also the lines we treat as "within the PR's diff" when deciding
+ * whether a finding is anchored on changed code vs pre-existing/unrelated code.
+ * Keyed by the post-image (`b/`) file path.
+ */
+export function buildNewSideLineIndex(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>()
+  if (!diff) return result
+  for (const [file, chunk] of splitDiffByFile(diff)) {
+    const hunks = parseUnifiedDiffToHunks(chunk)
+    const set = new Set<number>()
+    for (const h of hunks) {
+      for (const l of h.lines) {
+        if (l.newLineNo != null && (l.type === 'added' || l.type === 'context')) {
+          set.add(l.newLineNo)
+        }
+      }
+    }
+    result.set(file, set)
+  }
+  return result
+}
+
 export function splitDiffByFile(diff: string): Map<string, string> {
   const m = new Map<string, string>()
   if (!diff) return m
@@ -83,7 +108,7 @@ export function splitDiffByFile(diff: string): Map<string, string> {
   for (const chunk of chunks) {
     if (!chunk.startsWith('diff --git ')) continue
     const headerMatch = chunk.match(FILE_HEADER)
-    if (!headerMatch || !headerMatch[2]) continue
+    if (!headerMatch?.[2]) continue
     m.set(headerMatch[2], chunk)
   }
   return m

@@ -54,6 +54,11 @@ export type ReviewFinding = {
   mergedFrom?: MergedFromEntry[]
   /** Derived 0-10 importance score from risk fields. Populated during dedupe. */
   score?: number
+  /**
+   * Whether the anchor sits on a line this PR changed. Populated during dedupe
+   * from the diff; `null` when not anchorable or the diff is unavailable.
+   */
+  onChangedLine?: boolean | null
 }
 
 const SEVERITY_SYNONYMS: Record<string, Severity> = {
@@ -309,6 +314,9 @@ export function parseFinding(raw: unknown): ReviewFinding {
     domain: (r.domain as ReviewFinding['domain']) ?? null,
     mergedFrom: Array.isArray(r.mergedFrom) ? (r.mergedFrom as MergedFromEntry[]) : undefined,
     ...(typeof r.score === 'number' && Number.isFinite(r.score) ? { score: r.score } : {}),
+    ...(typeof r.onChangedLine === 'boolean' || r.onChangedLine === null
+      ? { onChangedLine: r.onChangedLine as boolean | null }
+      : {}),
   }
 }
 
