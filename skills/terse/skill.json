@@ -1,6 +1,6 @@
 {
   "name": "terse",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar and semantic accuracy. Three levels: clean, tight, sharp.",
   "author": "iceinvein",
   "type": "prompt",

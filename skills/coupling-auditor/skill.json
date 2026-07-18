@@ -1,6 +1,6 @@
 {
   "name": "coupling-auditor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Constantine & Yourdon-inspired coupling analysis: classify, measure, and reduce interdependence between modules",
   "author": "iceinvein",
   "type": "prompt",

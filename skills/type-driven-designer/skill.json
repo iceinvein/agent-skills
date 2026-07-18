@@ -1,6 +1,6 @@
 {
   "name": "type-driven-designer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Wlaschin & Minsky-inspired type design: make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
   "author": "iceinvein",
   "type": "prompt",

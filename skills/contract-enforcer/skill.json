@@ -1,6 +1,6 @@
 {
   "name": "contract-enforcer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Meyer-inspired Design by Contract: preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
   "author": "iceinvein",
   "type": "prompt",

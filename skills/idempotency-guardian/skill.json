@@ -1,6 +1,6 @@
 {
   "name": "idempotency-guardian",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Helland-inspired idempotency analysis: classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
   "author": "iceinvein",
   "type": "prompt",

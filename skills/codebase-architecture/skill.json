@@ -1,6 +1,6 @@
 {
   "name": "codebase-architecture",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
   "author": "iceinvein",
   "type": "prompt",

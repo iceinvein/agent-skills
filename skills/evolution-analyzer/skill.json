@@ -1,6 +1,6 @@
 {
   "name": "evolution-analyzer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lehman-inspired software evolution analysis: trajectory assessment, debt visibility, and change impact on system health",
   "author": "iceinvein",
   "type": "prompt",

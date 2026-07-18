@@ -1,6 +1,6 @@
 {
   "name": "demeter-enforcer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lieberherr-inspired Law of Demeter analysis: detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
   "author": "iceinvein",
   "type": "prompt",

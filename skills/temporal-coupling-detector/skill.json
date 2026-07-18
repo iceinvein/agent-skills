@@ -1,6 +1,6 @@
 {
   "name": "temporal-coupling-detector",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Hidden ordering dependency analysis: detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
   "author": "iceinvein",
   "type": "prompt",

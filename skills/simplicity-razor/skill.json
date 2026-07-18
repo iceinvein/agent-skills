@@ -1,6 +1,6 @@
 {
   "name": "simplicity-razor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Hickey-inspired simplicity analysis: simple vs easy, complecting detection, strand decomposition",
   "author": "iceinvein",
   "type": "prompt",

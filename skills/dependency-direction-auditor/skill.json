@@ -1,6 +1,6 @@
 {
   "name": "dependency-direction-auditor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Martin-inspired dependency direction analysis: trace imports across layers, classify violations by severity, recommend inversion",
   "author": "iceinvein",
   "type": "prompt",

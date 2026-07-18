@@ -1,6 +1,6 @@
 {
   "name": "gestalt-reviewer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Gestalt-inspired visual perception audit: proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
   "author": "iceinvein",
   "type": "prompt",

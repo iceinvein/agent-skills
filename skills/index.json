@@ -3,7 +3,7 @@
     "name": "bounded-context-auditor",
     "description": "Evans-inspired bounded context analysis: detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "domain"
     ],
@@ -13,7 +13,7 @@
     "name": "codebase-architecture",
     "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any",
       "architecture"
@@ -24,7 +24,7 @@
     "name": "cognitive-load-auditor",
     "description": "Jeff Johnson-inspired cognitive load analysis: evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "ui"
     ],
@@ -34,7 +34,7 @@
     "name": "cohesion-analyzer",
     "description": "Constantine & Yourdon-inspired cohesion analysis: classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -54,7 +54,7 @@
     "name": "composability-auditor",
     "description": "Unix Philosophy-inspired composability analysis: identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -64,7 +64,7 @@
     "name": "contract-enforcer",
     "description": "Meyer-inspired Design by Contract: preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -74,7 +74,7 @@
     "name": "coupling-auditor",
     "description": "Constantine & Yourdon-inspired coupling analysis: classify, measure, and reduce interdependence between modules",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -84,37 +84,37 @@
     "name": "cover-letter",
     "description": "Cover letter suite router. Dispatches to write, audit, rewrite, or persona subcommands and shares file I/O (PDF, DOCX, MD/MDX, URL), output formats, and writing conventions across the suite",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   {
     "name": "cover-letter-audit",
     "description": "Scores a cover letter on 100 points across content/fit, structure, voice/humanness, and correctness; detects AI-generated-content signals and produces a prioritized fix list",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   {
     "name": "cover-letter-persona",
     "description": "Reusable writing personas built on the NNGroup 4-dimension tone framework, adapted for professional correspondence and used by cover-letter-write and cover-letter-rewrite",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   {
     "name": "cover-letter-rewrite",
     "description": "Audit-driven targeted rewrite of an existing cover letter. Focus modes: humanize, align, tighten, structure, tone; preserves voice where it already works",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   {
     "name": "cover-letter-write",
     "description": "Generates a cover letter from a resume and job description. Outputs markdown, DOCX, and PDF; enforces human prose, maps every claim to a resume bullet, and covers top JD requirements without keyword stuffing",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   {
     "name": "cqs-auditor",
     "description": "Meyer-inspired Command-Query Separation: classify functions as commands or queries, detect mixed violations, separate side effects from return values",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -124,7 +124,7 @@
     "name": "demeter-enforcer",
     "description": "Lieberherr-inspired Law of Demeter analysis: detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -134,7 +134,7 @@
     "name": "dependency-direction-auditor",
     "description": "Martin-inspired dependency direction analysis: trace imports across layers, classify violations by severity, recommend inversion",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -144,7 +144,7 @@
     "name": "design-review",
     "description": "Brooks-inspired design integrity review: tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -154,7 +154,7 @@
     "name": "error-strategist",
     "description": "Duffy & Abrahams-inspired error handling: classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "errors"
     ],
@@ -164,7 +164,7 @@
     "name": "event-design-reviewer",
     "description": "Evans/Vernon/Dahan-inspired event design: domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "integration",
       "domain"
@@ -175,7 +175,7 @@
     "name": "evolution-analyzer",
     "description": "Lehman-inspired software evolution analysis: trajectory assessment, debt visibility, and change impact on system health",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -185,7 +185,7 @@
     "name": "gestalt-reviewer",
     "description": "Gestalt-inspired visual perception audit: proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "ui"
     ],
@@ -195,7 +195,7 @@
     "name": "idempotency-guardian",
     "description": "Helland-inspired idempotency analysis: classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "integration"
     ],
@@ -205,13 +205,13 @@
     "name": "improve-my-codebase",
     "description": "Orchestrator skill that runs every applicable audit skill in parallel and produces a prioritized, convergence-ranked improvement report",
     "type": "prompt",
-    "version": "1.0.1"
+    "version": "1.1.0"
   },
   {
     "name": "integration-pattern-auditor",
     "description": "Hohpe & Woolf-inspired messaging analysis: name the integration pattern, verify delivery guarantees, identify missing infrastructure",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "integration"
     ],
@@ -221,13 +221,13 @@
     "name": "magpie",
     "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting findings to post via gh. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request.",
     "type": "prompt",
-    "version": "0.7.0"
+    "version": "0.7.1"
   },
   {
     "name": "module-secret-auditor",
     "description": "Parnas-inspired information hiding analysis: module boundaries drawn by change-reason, not by noun or technical layer",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -237,7 +237,7 @@
     "name": "port-adapter-auditor",
     "description": "Cockburn-inspired hexagonal architecture analysis: identify ports and adapters, classify boundary health, ensure core testability and swappability",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "architecture"
     ],
@@ -247,7 +247,7 @@
     "name": "rams-design-audit",
     "description": "Dieter Rams-inspired design audit: every visual element must earn its presence, less but better, clarity through restraint",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "ui"
     ],
@@ -257,7 +257,7 @@
     "name": "seam-finder",
     "description": "Feathers-inspired legacy code modification: find seams, make minimal incisions, preserve existing behavior",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "legacy"
     ],
@@ -267,7 +267,7 @@
     "name": "simplicity-razor",
     "description": "Hickey-inspired simplicity analysis: simple vs easy, complecting detection, strand decomposition",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -277,7 +277,7 @@
     "name": "temporal-coupling-detector",
     "description": "Hidden ordering dependency analysis: detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -287,13 +287,13 @@
     "name": "terse",
     "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar and semantic accuracy. Three levels: clean, tight, sharp.",
     "type": "prompt",
-    "version": "1.2.0"
+    "version": "1.2.1"
   },
   {
     "name": "type-driven-designer",
     "description": "Wlaschin & Minsky-inspired type design: make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "any"
     ],
@@ -303,7 +303,7 @@
     "name": "unidirectional-flow-enforcer",
     "description": "Elm Architecture-inspired data flow analysis: enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
     "type": "prompt",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "applies": [
       "ui"
     ],

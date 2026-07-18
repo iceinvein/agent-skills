@@ -1,6 +1,6 @@
 {
   "name": "event-design-reviewer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Evans/Vernon/Dahan-inspired event design: domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
   "author": "iceinvein",
   "type": "prompt",

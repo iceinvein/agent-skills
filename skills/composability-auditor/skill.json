@@ -1,6 +1,6 @@
 {
   "name": "composability-auditor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Unix Philosophy-inspired composability analysis: identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
   "author": "iceinvein",
   "type": "prompt",
