@@ -1,6 +1,6 @@
 ---
 name: cqs-auditor
-description: Use when functions both mutate state and return values, when calling a "getter" has hidden side effects, when it's unclear whether calling a function is safe to retry or cache, or when testing requires complex setup to verify both return value and state change. Trigger on "is it safe to call this twice?", "why does reading this value change the system?", or when designing read/write boundaries. NOT for stack/queue pop() where mutation+return is inherent, iterator next(), or builder methods that return this.
+description: Use when functions both mutate state and return values, when calling a "getter" has hidden side effects, when it's unclear whether a call is safe to retry or cache, or when tests must verify both a return value and a state change. Trigger on "is it safe to call this twice?", "why does reading this value change the system?", or when designing read/write boundaries. NOT for stack/queue pop(), iterator next(), or builder methods returning this.
 ---
 
 # CQS Auditor
@@ -72,7 +72,7 @@ function logMetric(name: string, value: number): void {
 - Unsafe to retry (second call will have different effect)
 - Unsafe to cache (what changes between calls?)
 - Testing must verify both aspects, making tests complex
-- Examples: `getOrCreateUser(email)`, `popFromStack()`, `processAndReturn()`
+- Examples: `getOrCreateUser(email)`, `saveAndReturnId()`, `processAndReturn()` (note: `pop()` and `next()` are the accepted exceptions, see Guard Rails)
 
 ```typescript
 // ❌ Mixed — mutation + return (violation)
@@ -101,14 +101,14 @@ Mark functions as violations if they:
 
 - **Return a value AND mutate state** — the caller can't tell if they're calling for the return or the effect
 - **Hide mutations in getters** — a function named `getValue()` shouldn't call `emit()` or `increment()` or `write to cache`
-- **Return error codes instead of throwing** — if the return type is carrying both data and error signal (a code smell of mixed concern)
+- **Return domain data from a command** — a bare success/failure signal from a command is acceptable (see Guard Rails), but returning domain data means callers now depend on the mutation for reads
 - **Accumulate side effects scattered across the call** — side effect happens in database, side effect in cache, side effect in event bus, all in one function
 
 ### 3. Classify Violation Severity
 
 Not all violations are equally bad. Rank them:
 
-**Concealed query** (most dangerous)
+**Concealed command** (most dangerous: a command disguised as a query)
 - Function looks like a getter (named `get*()`, `fetch*()`, `compute*()`)
 - Caller expects only a return value, no side effects
 - But the function has hidden mutations (logs, caches, increments, notifies)
@@ -116,7 +116,7 @@ Not all violations are equally bad. Rank them:
 - Example: `getNextSequenceId()` increments the database counter
 
 ```typescript
-// ❌ Concealed query — looks like a getter, has a side effect
+// ❌ Concealed command — looks like a getter, has a side effect
 function getNextOrderId(): string {
   const id = database.incrementAndFetch("order_seq");  // ← hidden mutation
   return id;
@@ -170,20 +170,9 @@ function getUser(id: string): User {
 
 For each violation, extract it into separate query and command functions:
 
-#### Example 1: Concealed Query
+#### Example 1: Concealed Command
 
-**Before:**
-```typescript
-// ❌ Concealed query — looks safe, has hidden side effect
-function getNextOrderId(): string {
-  const id = database.incrementAndFetch("order_seq");
-  return id;
-}
-
-// Caller thinks it's safe to cache:
-const id = getNextOrderId();  // Returns "ORD001"
-const id2 = getNextOrderId(); // Caller expects same? Nope, now "ORD002"
-```
+**Before:** the `getNextOrderId()` snippet from Section 3: a getter that silently increments the sequence.
 
 **After:**
 ```typescript
@@ -204,24 +193,7 @@ const latest = getLatestOrderId(); // Just reads
 
 #### Example 2: Bundled Command-Query
 
-**Before:**
-```typescript
-// ⚠️ Mixed — returns user, also creates if missing
-function getOrCreateUser(email: string): User {
-  let user = database.findByEmail(email);
-  if (!user) {
-    user = { email, id: generateId(), createdAt: now() };
-    database.insert(user);
-    eventBus.emit("user.created", { email });
-  }
-  return user;
-}
-
-// Caller:
-const user = getOrCreateUser("alice@example.com");
-// Is alice new or existing? Function doesn't say.
-// Testing: must mock database.insert, eventBus.emit, and verify return.
-```
+**Before:** the `getOrCreateUser()` snippet from Section 3: find, create-if-missing, and return in one call. The caller can't tell whether the user is new or existing, and tests must mock the insert, the event emit, and verify the return.
 
 **After:**
 ```typescript
@@ -246,12 +218,12 @@ if (!user) {
 
 // Or with a single operation at a higher level:
 function ensureUserExists(email: string): { user: User; isNew: boolean } {
-  let user = getUserByEmail(email);
-  if (user) {
-    return { user, isNew: false };
+  const existing = getUserByEmail(email);
+  if (existing) {
+    return { user: existing, isNew: false };
   }
-  user = createUser(email);
-  return { user, isNew: true };
+  createUser(email);
+  return { user: getUserByEmail(email)!, isNew: true };
 }
 ```
 
@@ -264,19 +236,19 @@ For each violation found:
 ```
 CQS: [function name]
   Location:   [file:line]
-  Type:       [concealed query / bundled command-query / incidental side effect]
+  Type:       [concealed command / bundled command-query / incidental side effect]
   Mutation:   [what state changes]
   Return:     [what it returns]
   Risk:       [caching implications / retry implications / testing complexity]
   Fix:        [specific split into query + command, or rename to be honest]
 ```
 
-Example 1: Concealed Query
+Example 1: Concealed Command
 
 ```
 CQS: getNextOrderId
   Location:   src/orders/service.ts:42
-  Type:       concealed query
+  Type:       concealed command
   Mutation:   database sequence "order_seq" incremented
   Return:     next sequence ID (string)
   Risk:       caller caches result thinking it's side-effect-free; second call gets different ID; caching breaks
@@ -292,7 +264,7 @@ CQS: getOrCreateUser
   Mutation:   database insert (if user doesn't exist), eventBus.emit("user.created")
   Return:     User object (existing or newly created)
   Risk:       testing must verify both database state and return value; retry semantics unclear (idempotent on read, not on create)
-  Fix:        split into getUserByEmail(email): User | null (query) and createUser(email): User (command); caller composes them
+  Fix:        split into getUserByEmail(email): User | null (query) and createUser(email): void (command); caller composes them
 ```
 
 Example 3: Incidental Side Effect
@@ -309,7 +281,7 @@ CQS: getUser
 
 ## Interaction Model
 
-Decision engine. When reviewing code, the agent classifies functions as queries, commands, or mixed. It prioritizes concealed queries (most dangerous), then bundled command-queries, then incidental side effects. For each violation, it recommends a specific split or honest renaming. It provides before/after examples showing how to separate the concerns. It doesn't refactor entire codebases — it focuses on public interfaces and functions that cross module boundaries.
+Decision engine. When reviewing code, the agent classifies functions as queries, commands, or mixed. It prioritizes concealed commands (most dangerous), then bundled command-queries, then incidental side effects. For each violation, it recommends a specific split or honest renaming. It provides before/after examples showing how to separate the concerns. It doesn't refactor entire codebases — it focuses on public interfaces and functions that cross module boundaries.
 
 ## CQS at System Level: CQRS
 
@@ -350,7 +322,7 @@ CQRS is useful at architectural scale (multiple services, expensive infrastructu
 | Splitting but sharing mutable state | Splitting `getOrCreateUser` into `getUser` + `createUser` is good. But if both functions mutate a shared cache, you've only moved the problem. Ensure each function's mutations are isolated. |
 | Applying CQS to every private method | Focus on public boundaries. Private helpers can be more pragmatic. |
 | Treating CQRS as a prerequisite for CQS | CQRS is an architectural pattern for large systems. CQS is a function-level principle. Apply CQS first; CQRS only if your system needs it. |
-| Ignoring concealed queries | A function named `getBalance()` that increments a counter is a bug waiting to happen. Concealed queries are the most dangerous violation. |
+| Ignoring concealed commands | A function named `getBalance()` that increments a counter is a bug waiting to happen. Concealed commands are the most dangerous violation. |
 | Returning void from commands that fail | If a command can fail, return an error code or throw an exception. Don't return `void` and hide the failure in a side effect (writing to a log that no one checks). |
 
 ## Cross-References

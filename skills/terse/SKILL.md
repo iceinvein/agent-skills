@@ -1,10 +1,12 @@
 ---
 name: terse
 description: >
-  Professional output compression. Cuts ~20-30% of output tokens while keeping proper grammar,
-  readable prose, and semantic accuracy. Three intensity levels: clean, tight (default), sharp.
-  Always-on from session start. Switch with /terse clean|tight|sharp.
-  Off with "stop terse" or "normal mode".
+  Use when the user invokes /terse or asks for compressed, low-token output.
+  Professional output compression: cuts ~20-30% of output tokens while keeping proper
+  grammar, readable prose, and semantic accuracy. Three intensity levels: clean, tight
+  (default), sharp. Once active it applies to every response until "stop terse" or
+  "normal mode". Installed with global activation (SessionStart hook) it is on from
+  session start; with the default session install it activates when invoked.
 argument-hint: "[clean|tight|sharp]"
 ---
 
@@ -23,7 +25,7 @@ Terse compresses HOW the answer is delivered. It must never change WHAT the answ
 
 ACTIVE EVERY RESPONSE. No filler drift after many turns. Still active if unsure. Off only: "stop terse" / "normal mode".
 
-Active level: **$ARGUMENTS[0]** (default to **tight** if no argument provided). Switch anytime: `/terse clean|tight|sharp`.
+Active level: **$1** (default to **tight** if no argument provided). Switch anytime: `/terse clean|tight|sharp`.
 
 ## What to Eliminate
 
@@ -83,7 +85,9 @@ If context is needed between tool calls, state the *finding* or *decision*, not 
 
 These add no information. Remove on sight regardless of level:
 
-just, really, basically, actually, simply, essentially, honestly, certainly, definitely, sure, of course, happy to, absolutely, great question, that's a great point, as mentioned, it's worth noting that, it should be noted, in order to (use "to"), as well as (use "and"), due to the fact that (use "because"), at this point in time (use "now"), utilize (use "use"), demonstrate (use "show"), implement a solution for (use "fix"), investigate (use "check")
+just, really, basically, actually, simply, essentially, honestly, certainly, definitely, sure, of course, happy to, absolutely, great question, that's a great point, as mentioned, it's worth noting that, it should be noted
+
+(Word swaps like utilize→use or in order to→to are `tight`-level substitutions, listed under that level; `clean` keeps natural word choice and only drops the pure filler above.)
 
 ## Intensity Levels
 
@@ -102,6 +106,7 @@ Everything in `clean`, plus shorter synonyms, shorter sentences, and targeted cu
 
 Word cuts:
 - Shorter synonyms: big not extensive, fix not implement, use not utilize, show not demonstrate, check not investigate, need not requirement, start not initialize, end not terminate, send not transmit
+- Shorter phrases: "to" not "in order to", "and" not "as well as", "because" not "due to the fact that", "now" not "at this point in time", "fix" not "implement a solution for"
 - Strip transition phrases on sight: "however", "additionally", "furthermore", "moreover", "that said", "in other words", "it's also worth mentioning", "on the other hand", "as a result", "with that in mind". Just start the next sentence.
 - Replace "this means that" with a dash or colon. Replace "the reason is that" with "because".
 - One idea per sentence. Split compound sentences.
@@ -110,7 +115,7 @@ Content cuts:
 - Direct answer first, then explanation if needed.
 - One example per point. Two examples illustrating the same concept: keep the clearer one, drop the other.
 - If the answer would work without the last paragraph, drop the last paragraph.
-- Do not restructure or add formatting that wasn't in the uncompressed answer. Only cut.
+- Do not restructure or add formatting that wasn't in the uncompressed answer. Only cut. (This rule is `tight`-specific; `sharp` explicitly adds structural compression below.)
 
 ### `sharp`
 

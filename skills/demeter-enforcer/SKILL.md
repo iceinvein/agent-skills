@@ -121,8 +121,8 @@ DEMETER: OrderProcessor.calculateShipping()
   Chain:      order.getShippingAddress().getCountry().getTaxRate()
   Depth:      3 hops
   Location:   src/orders/processor.ts:142
-  Fix:        Tell, Don't Ask — call order.getShippingTaxRate() instead; move logic to Order class
-  Trade-off:  Order class grows; OrderProcessor loses context of *why* it needs tax rate (name is important: getShippingTaxRate, not getCountryTaxRate)
+  Fix:        Tell, Don't Ask — move the shipping calculation into Order: order.calculateShipping() reaches its own address internally, so OrderProcessor stops traversing. (Not order.getShippingTaxRate() — a wrapper getter that traverses internally is the Hidden Traversal anti-pattern, see Guard Rails.)
+  Trade-off:  Order takes on shipping logic and grows; if shipping rules vary by carrier or channel, prefer parameter narrowing (pass shippingCountry) instead
 ```
 
 ```
@@ -140,7 +140,7 @@ Decision engine. The agent analyzes method calls in code it writes or reviews, i
 
 ## The Law of Demeter Reference
 
-Karl Lieberherr's formal statement of the Law of Demeter consists of five rules:
+The law is commonly glossed as informal rules like these (Lieberherr's formal statement is the permitted-receiver constraint below, not this list):
 
 1. **Each unit should have only limited knowledge of other units:** Only units that are directly related to the current unit.
 2. **Each unit should only talk to its friends:** Don't talk to strangers (objects you don't know directly).
@@ -148,7 +148,7 @@ Karl Lieberherr's formal statement of the Law of Demeter consists of five rules:
 4. **Don't climb the object tree:** Don't chain method calls to navigate through intermediate objects.
 5. **The recipient of a message should not be the result of another message sent to a different object:** Avoid a.b().c(); instead, call a.getC() or ask a to do the work.
 
-The Law was formalized as a graph constraint: from object O, you can only call methods on objects that are:
+Lieberherr's formal statement is this permitted-receiver constraint: from object O, you can only call methods on objects that are:
 - O itself
 - Formal parameters of the method
 - Instance variables of O
@@ -159,7 +159,7 @@ The Law was formalized as a graph constraint: from object O, you can only call m
 
 **Don't count dots mechanically.** Some multi-dot expressions are fine. `LocalDate.of(2024, 4, 11).atTime(10, 30)` is a fluent API designed for chaining. The law is about reducing *coupling and fragility*, not eliminating all dots.
 
-**Aggregates and entities are exceptions.** If Customer owns Address (they're a single aggregate), then `customer.address.street` is fine—it's internal navigation, not a violation. Demeter applies to module boundaries, not within cohesive entities.
+**Aggregates and entities are exceptions.** If Customer owns Address (they're a single aggregate), then `customer.address.street` is fine—it's internal navigation, not a violation. This is a deliberate relaxation of the strict law (which permits no calls on accessor results, even within an aggregate); this skill applies Demeter to module boundaries, not within cohesive entities.
 
 **Don't wrap chains in facade methods.** Creating `order.getShippingCountry()` that internally chains `this.shippingAddress.country` doesn't solve the problem; it hides it. The fragility is still there.
 

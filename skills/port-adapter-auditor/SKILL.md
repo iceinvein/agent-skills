@@ -1,6 +1,6 @@
 ---
 name: port-adapter-auditor
-description: Use when business logic is tangled with database queries, HTTP handling, or third-party SDK calls, when testing a feature requires standing up real infrastructure, or when swapping an infrastructure dependency would require rewriting business logic. Trigger on "I can't test this without a database", "swapping the email provider means rewriting half the service", or when reviewing boundaries between core and infrastructure. NOT for dependency direction between layers, internal module structure within the core, or API contract design.
+description: Use when business logic is tangled with database queries, HTTP handling, or third-party SDK calls, when testing a feature requires standing up real infrastructure, or when swapping an infrastructure dependency would mean rewriting business logic. Trigger on "I can't test this without a database" or "swapping the email provider means rewriting half the service". NOT for dependency direction between layers (dependency-direction-auditor), internal core structure, or API contract design.
 ---
 
 # Port-Adapter Auditor
@@ -288,7 +288,7 @@ Decision engine. The agent prioritizes driven ports (outbound) first because the
 
 **Adapters can depend on libraries; ports cannot.** An adapter can import Stripe SDK, ORM libraries, HTTP frameworks. A port cannot. Ports are library-agnostic.
 
-**Beware ports that mirror adapters.** If your port looks exactly like your adapter's public interface, the port hasn't abstracted anything. It's just a pass-through. The port should translate between domain language and adapter language.
+**Beware ports that mirror adapters.** If your port looks exactly like your adapter's public interface, the port hasn't abstracted anything. It's just a pass-through. The port should be expressed in domain terms so the adapter has something to translate; a port that mirrors the SDK's surface has abstracted nothing.
 
 ## Common Mistakes
 
@@ -298,7 +298,7 @@ Decision engine. The agent prioritizes driven ports (outbound) first because the
 | Port returns infrastructure types | `OrderRepository.getById()` returns an ORM entity. Should return a domain Order. Adapter translates. |
 | Adapter does business logic | Business logic belongs in core. Adapter translates and delegates. If you find logic in an adapter, move it to core. |
 | One giant service (no ports) | Even monoliths need internal hexagons. Define ports between core and persistence, core and messaging, etc. |
-| Testing adapters instead of core | Don't write tests for adapters (they test the library). Write tests for core with mock adapters. Adapter tests are integration tests, not unit tests. |
+| Testing adapters instead of core | Don't unit-test adapters with mocks (that just tests the library). Write unit tests for core with mock adapters; cover adapters with integration tests against the real dependency. |
 | Ports for internal collaboration | Ports are for external systems (database, API, messaging). Internal communication between core modules uses dependency injection, not ports. |
 | Circular imports | Core imports adapter to construct it (bad). Use a composition root outside core to wire dependencies. Core only imports ports. |
 

@@ -1,6 +1,6 @@
 ---
 name: event-design-reviewer
-description: Use when designing domain events, naming events, defining event payloads, or reviewing event-driven communication between bounded contexts or services. Trigger on "what should this event be called?", "what data should the event carry?", "should this be an event or a command?", or when events are named after implementation details instead of domain concepts. NOT for UI event handlers (onClick, onChange) or framework-level events.
+description: Use when designing domain events, naming events, defining event payloads, or reviewing event-driven communication between bounded contexts. Trigger on "what should this event be called?", "what data should the event carry?", "should this be an event or a command?", or events named after implementation details. NOT for UI event handlers (onClick), framework-level events, or channel topology and delivery guarantees (integration-pattern-auditor).
 ---
 
 # Event Design Reviewer
@@ -155,7 +155,7 @@ Example:
 EVENT DESIGN: UserUpdated
   Type:         event (correct — it's a fact about something that happened)
   Domain test:  FAIL — "updated" is meaningless. Updated how? A domain expert would ask "what changed?"
-  Naming:       wrong — present-tense-ish, generic CRUD name, doesn't describe the domain action
+  Naming:       wrong — past tense (good) but a generic CRUD name that doesn't describe the domain action
   Payload:      thin — only carries { userId }, forcing consumers to query user service
   Envelope:     missing correlationId and version field
   Smells:       CRUD naming, thin payload creates temporal coupling, no schema versioning
@@ -190,7 +190,7 @@ Event naming is a domain decision. The agent enforces the principles but the hum
 
 **Vernon (2013):** Domain events are raised within the aggregate that owns the state change. The aggregate guarantees consistency; the event communicates the fact.
 
-**Dahan (2009):** Domain events vs. integration events. Domain events are internal to a bounded context (can carry rich domain types). Integration events cross boundaries (must use a shared, stable schema).
+**Dahan:** Udi Dahan's domain-events pattern (2009) underpins the now-standard domain-event vs. integration-event split, later popularized by microservices guidance. Domain events are internal to a bounded context (can carry rich domain types). Integration events cross boundaries (must use a shared, stable schema).
 
 | Concept | Domain Event | Integration Event |
 |---------|-------------|-------------------|

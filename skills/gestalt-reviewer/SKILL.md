@@ -18,7 +18,7 @@ A visual perception audit based on the Gestalt principles of visual organization
 - After generating multi-element layouts (forms, dashboards, cards, navigation)
 - When spacing between elements feels arbitrary or inconsistent
 
-**Not for:** Color theory, typography selection, interaction design, animation, or accessibility compliance. This skill evaluates *spatial organization and visual grouping*, not visual styling.
+**Not for:** Color theory, typography selection, interaction design, animation, or accessibility compliance. This skill evaluates *spatial organization and visual grouping*, not visual styling. For decoration and element-earning-its-place questions use `rams-design-audit`; for option overload and memory demands use `cognitive-load-auditor` — the three compose on a full UI review.
 
 ## The Process
 
@@ -62,9 +62,9 @@ If any two adjacent spacings are the same, the grouping is ambiguous.
 
 **The consistency test:** If two elements look the same, they should behave the same. If they behave differently, they must look different.
 
-### 3. Closure — Can the mind complete the shapes?
+### 3. Closure & Common Region — Can the mind complete the shapes, and do enclosures group?
 
-**Principle:** The visual system completes incomplete shapes and perceives enclosed regions as groups. You don't always need explicit borders — implied boundaries work.
+**Principle:** Two related principles audited together. Closure (classic Gestalt): the visual system completes incomplete shapes, so partial elements must read as deliberately incomplete, not broken. Common region (Palmer's extension): elements inside the same enclosed region are perceived as a group, so you don't always need explicit borders — implied boundaries work.
 
 **Audit checklist:**
 - Are containers and regions perceivable without heavy borders?
@@ -96,7 +96,7 @@ If any two adjacent spacings are the same, the grouping is ambiguous.
 - Vertical rhythm breaks — consistent spacing except one section that's arbitrarily different
 - Centered content inside left-aligned containers — creates an unstable axis
 
-**The squint test:** Squint at the layout (or blur it). The alignment axes should still be visible. If the structure disappears when you can't read the text, the visual organization depends on reading, not perception.
+**The squint test:** Squint at the layout (or blur it). The alignment axes should still be visible. If the structure disappears when you can't read the text, the visual organization depends on reading, not perception. (Agent equivalent: with a screenshot, downscale/blur it and check that groupings still read; source-only, verify shared alignment values instead — common margins, grid columns, consistent spacing tokens.)
 
 ### 5. Figure-Ground — Is foreground clear?
 
@@ -144,6 +144,8 @@ GESTALT: Contact form
 
 Decision engine. After generating UI with multiple elements, the agent audits the spatial organization against Gestalt principles. The audit identifies specific violations and provides concrete spacing/alignment/styling fixes. The human sees the audit alongside the layout.
 
+**Acquiring the UI when auditing something the agent didn't just write:** this is the most rendering-dependent of the UI audits. Prefer a rendered view (user screenshot, or a browser/screenshot tool if available). Source-only, audit the measurable proxies (spacing values, alignment tokens, border/shadow styles) and say the audit ran source-only.
+
 The agent prioritizes **proximity** (most impactful, most commonly violated) and **continuity** (alignment issues are the most visually jarring). Similarity and figure-ground are audited when relevant but are less frequently the root cause of "this layout feels off."
 
 ## Guard Rails
@@ -167,3 +169,5 @@ The agent prioritizes **proximity** (most impactful, most commonly violated) and
 | **Figure-Ground** | Foreground separates from background | Is primary content unambiguously the figure? |
 | **Common Fate** | Elements moving together are grouped | Do animations group the right elements? |
 | **Prägnanz** | Mind prefers the simplest interpretation | Is the simplest reading of the layout the correct one? |
+
+(Common Fate and Prägnanz are reference-only: audit Common Fate when the UI has animation or motion; Prägnanz is the summary lens behind the other principles, not a separate report line.)

@@ -1,6 +1,6 @@
 ---
 name: bounded-context-auditor
-description: Use when the same domain term means different things in different parts of the codebase, when a God Model has grown to serve multiple subsystems with conflicting needs, when teams step on each other modifying shared domain objects, or when deciding where service/module boundaries should be. Trigger on "should this be one service or two?", "why does the User class have 40 fields?", or when a change to one feature breaks an unrelated feature through a shared model. NOT for code-level coupling within a single context, import direction problems, or event payload design within a known context.
+description: Use when the same domain term means different things in different parts of the codebase, when a God Model serves multiple subsystems with conflicting needs, or when deciding where service/module boundaries should be. Trigger on "should this be one service or two?", "why does the User class have 40 fields?", or when a change to one feature breaks an unrelated one through a shared model. NOT for code-level coupling within a single context, import direction, or event payload design.
 ---
 
 # Bounded Context Auditor
@@ -46,7 +46,13 @@ Language is the first signal that boundaries exist. Look for three patterns:
 
 ### 2. Draw the Context Map
 
-For each distinct bounded context discovered, document its position in the system using Evans' relationship types:
+For each distinct bounded context discovered, document its position in the system using the context-mapping relationship types (Evans 2003 plus his later context-mapping set):
+
+**Partnership**
+- Two contexts (and teams) succeed or fail together; they plan and release in coordination
+- Example: Ordering and Payments ship a combined checkout initiative; neither can deliver alone
+- Distinct from Shared Kernel: the teams coordinate closely but each still owns its own model
+- Risk: coordination cost; use when the mutual dependency is real, not just convenient
 
 **Shared Kernel**
 - Two contexts own the same model together; changes require coordination
@@ -70,13 +76,19 @@ For each distinct bounded context discovered, document its position in the syste
 - Downstream translates upstream's model to its own language
 - Example: Fulfillment receives Order from Sales but translates to internal ShippableItem; changes to Order don't touch Fulfillment
 - Goal: isolation. Downstream only knows upstream's public interface, not internals
-- Bidirectional data flow, but translation is one-way
+- The ACL is owned by and protects the downstream; it may translate in both directions, but its loyalty is to the downstream model
 
 **Open Host Service**
 - Upstream publishes a protocol/API specifically for downstreams
 - Example: Payment Gateway publishes a stable API contract that all consumers depend on
 - Upside: clear contract, versioning, planned deprecation
 - Downside: upstream must maintain backward compatibility
+
+**Published Language**
+- Contexts exchange information via a well-documented shared language (schema, standard format), often paired with Open Host Service
+- Example: contexts integrate through a versioned Avro/JSON schema registry rather than each other's internal models
+- Upside: no context exposes internals; evolution is managed at the schema level
+- Risk: the shared language itself needs governance
 
 **Separate Ways**
 - No integration between contexts; they genuinely don't interact

@@ -25,7 +25,7 @@ A meta-orchestrator that runs the existing audit skills in this package across a
 ```
 /improve-my-codebase                                  # full sweep
 /improve-my-codebase quick                            # fast subset, top 5 issues
-/improve-my-codebase diff                             # only changed files vs. main
+/improve-my-codebase diff                             # only changed files vs. the base branch
 /improve-my-codebase interactive                      # interview-driven
 /improve-my-codebase focus <area>                     # narrow to one axis
 /improve-my-codebase module <path>                    # scope to a directory or file
@@ -36,8 +36,7 @@ A meta-orchestrator that runs the existing audit skills in this package across a
 Argument rules:
 - Positional. No leading `--`.
 - Modes: `quick`, `diff`, `interactive`. First match wins; mutually exclusive.
-- Scope filters: `focus <area>`, `module <path>`. Compose freely with each other and with default/diff modes.
-- `quick` and `interactive` ignore scope tokens (warn, do not error).
+- Scope filters: `focus <area>`, `module <path>`. Compose freely with each other and with every mode, including `quick` and `interactive` (interactive uses provided scope values as the defaults for its questions).
 - Unknown tokens: warn and drop, do not abort.
 
 ## Process Overview
@@ -77,13 +76,14 @@ The orchestrator receives a single string of positional args after the command. 
 
 **Rules:**
 - Empty args produce `{mode: "full", scope: {module: null, focus: null}}`.
-- `quick` or `interactive` with scope tokens present: keep mode, set scope to `{module: null, focus: null}`, emit warning "scope tokens ignored in <mode> mode".
+- Scope tokens are honored in every mode. `quick focus ui` runs the quick subset narrowed to `ui`.
 - `focus` without a value: emit error listing valid areas (from catalogue), exit before dispatch.
 - `module` without a value: emit error "module requires a path argument", exit before dispatch.
 - `module <path>` where path does not exist: emit error "no such module: <path>", exit before dispatch.
 
 **Valid focus areas** (derived from the `applies` vocabulary):
-`any`, `ui`, `domain`, `integration`, `architecture`, `errors`, `legacy`.
+`ui`, `domain`, `integration`, `architecture`, `errors`, `legacy`.
+(`any` is not a focus area: audits with `applies: any` always run, so there is nothing to narrow to. `focus any` gets the standard invalid-area error.)
 
 **Worked examples:**
 
@@ -95,7 +95,7 @@ The orchestrator receives a single string of positional args after the command. 
 | `"focus architecture"` | `{mode: "full", scope: {module: null, focus: "architecture"}}` |
 | `"diff focus architecture"` | `{mode: "diff", scope: {module: null, focus: "architecture"}}` |
 | `"module src/auth focus architecture"` | `{mode: "full", scope: {module: "src/auth", focus: "architecture"}}` |
-| `"quick focus ui"` | `{mode: "quick", scope: {module: null, focus: null}}` plus warning |
+| `"quick focus ui"` | `{mode: "quick", scope: {module: null, focus: "ui"}}` |
 | `"banana"` | `{mode: "full", scope: {module: null, focus: null}}` plus warning |
 
 ## Phase 2: Detect stack
@@ -149,11 +149,48 @@ Choose which audits to dispatch.
 **Inputs:**
 - Detection result from Phase 2.
 - Parsed args from Phase 1.
-- Catalogue: `skills/index.json`.
+- Catalogue: the inline routing table below.
+
+**The catalogue (routing table):**
+
+This table is the catalogue; no external file is needed to route. (In the source repo it mirrors the `applies`/`quick` fields in `skills/index.json`; the repo's audit script keeps them in sync.)
+
+| Audit | Applies | Quick |
+|-------|---------|-------|
+| bounded-context-auditor | domain | no |
+| codebase-architecture | any, architecture | no |
+| cognitive-load-auditor | ui | no |
+| cohesion-analyzer | architecture | yes |
+| complexity-accountant | any | no |
+| composability-auditor | any | no |
+| contract-enforcer | any | no |
+| coupling-auditor | architecture | yes |
+| cqs-auditor | architecture | yes |
+| demeter-enforcer | architecture | yes |
+| dependency-direction-auditor | architecture | yes |
+| design-review | any | no |
+| error-strategist | errors | no |
+| event-design-reviewer | integration, domain | no |
+| evolution-analyzer | any | no |
+| gestalt-reviewer | ui | yes |
+| idempotency-guardian | integration | no |
+| integration-pattern-auditor | integration | no |
+| module-secret-auditor | architecture | yes |
+| port-adapter-auditor | architecture | no |
+| rams-design-audit | ui | yes |
+| seam-finder | legacy | yes |
+| simplicity-razor | any | no |
+| temporal-coupling-detector | any | yes |
+| type-driven-designer | any | no |
+| unidirectional-flow-enforcer | ui | no |
+
+26 audits total (`catalogue_audit_count = 26`).
+
+**Locating audit content:** each routed audit's principles are read from its sibling skill directory, resolved relative to THIS file's location: the parent directory of `improve-my-codebase/` is the skills root (`skills/` in the source repo, `.claude/skills/` when installed). An audit's content is at `<skills-root>/<audit-id>/SKILL.md`. If that file does not exist (the audit is not installed), skip the audit, record `{audit, status: "not-installed"}`, and continue; suggest installing it in the terminal summary.
 
 **Algorithm:**
 
-1. Load catalogue from `skills/index.json`. If the file is missing, unreadable, or fails JSON parse, hard fail per the error table (the orchestrator cannot route without a catalogue). Filter to entries with both `applies` and `quick` fields (i.e. audit skills).
+1. Start from the routing table above.
 2. **Apply detection filter:** keep an audit if any of its `applies` values matches an active signal:
    - `any` always matches.
    - `ui` matches if `hasUI`.
@@ -174,6 +211,8 @@ Choose which audits to dispatch.
 
 **Module scope** is **not** applied here. It carries forward to Phase 4 as a per-subagent scope hint, because audit routing is the same regardless of whether the audit examines the whole repo or one path.
 
+6. For each surviving audit, verify its SKILL.md exists at `<skills-root>/<audit-id>/SKILL.md` (see Locating audit content above). Missing ones are recorded as `not-installed` and removed from the dispatch list; if that empties the list, abort with "Matched audits are not installed: <list>. Install them and rerun."
+
 **Worked example:**
 - Repo: Bun backend with `events/` directory.
 - Detection: `{hasUI: false, hasDomainLayer: false, hasIntegration: true, hasArchitecture: true}`.
@@ -186,10 +225,11 @@ Choose which audits to dispatch.
 
 When `mode === "diff"`, before dispatch the orchestrator computes the changed-file set:
 
-1. Run `git diff --name-only origin/main...HEAD` (fall back to `git diff --name-only main...HEAD` if no `origin` remote).
-2. Filter out paths that no longer exist (deleted files) and paths in the standard ignored set (`node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `tests/fixtures/`).
-3. If the resulting list is empty, emit "diff mode: no changed files vs. main; rerun without `diff` or specify a commit range" per the error table and exit before dispatch.
-4. Otherwise, this list is passed to each subagent as the `Scope` (the `Diff:` form of the prompt template in Phase 4).
+1. Resolve the base branch: `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the `origin/` prefix); if that fails, probe `git rev-parse --verify main` then `master` and use the first that exists. Run `git diff --name-only origin/<base>...HEAD` (fall back to `git diff --name-only <base>...HEAD` if no `origin` remote).
+2. If git itself errors (not a repo, unknown revision), report the git error verbatim and exit; do not conflate this with the empty-diff case below.
+3. Filter out paths that no longer exist (deleted files) and paths in the standard ignored set (`node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `tests/fixtures/`). If `scope.module` is also set, keep only paths under the module path (diff and module compose as an intersection).
+4. If the resulting list is empty, emit "diff mode: no changed files vs. <base><if module: within <module-path>>; rerun without `diff` or specify a commit range" per the error table and exit before dispatch.
+5. Otherwise, this list is passed to each subagent as the `Scope` (the `Diff:` form of the prompt template in Phase 4).
 
 ## Phase 4: Dispatch subagents
 
@@ -202,14 +242,15 @@ You are running the <audit-id> audit on a codebase.
 
 # Principles to apply
 
-<paste the full content of skills/<audit-id>/SKILL.md verbatim>
+<paste the full content of <skills-root>/<audit-id>/SKILL.md verbatim (see Phase 3, Locating audit content)>
 
 # Scope
 
 <one of:>
 - Whole repo at <repo-root-absolute-path>.
 - Module: <module-path-absolute>.
-- Diff: only the following files changed vs. main: <newline-separated list>.
+- Diff: only the following files changed vs. <base>: <newline-separated list>.
+- Diff within module <module-path>: only the following changed files under it: <newline-separated list>.
 
 # Method
 
@@ -245,9 +286,9 @@ Schema:
 - Do not include findings outside the declared scope.
 ````
 
-**Concurrency**: dispatch all subagents in a single tool-call batch. Subagents do not communicate with each other.
+**Concurrency**: dispatch all subagents in a single tool-call batch. Subagents do not communicate with each other. (On a harness without a parallel subagent tool, run the same prompts sequentially and collect outputs identically.)
 
-**Soft cap**: if a subagent has not returned within 5 minutes, drop it. The orchestrator does not have a wall-clock timer; this cap is enforced by treating any subagent that fails to return cleanly as `status: failed` and continuing.
+**Stuck subagents**: treat any subagent that fails to return cleanly as `status: failed` and continue; do not wait on or retry a hung dispatch.
 
 **Retry policy:**
 - If a subagent returns prose, markdown fences, or text that does not parse as JSON, retry **once** with this follow-up prompt:
@@ -266,14 +307,14 @@ Schema:
 ```json
 {
   "audit": "<audit-id>",
-  "status": "ok" | "failed",
+  "status": "ok" | "failed" | "not-installed",
   "reason": "<string or null>",
   "dropped_findings": <int, count of findings dropped at validation>,
   "retried": <bool, true if recovered on attempt 2>
 }
 ```
 
-One such record is emitted per dispatched audit. Successful runs use `status: "ok"`, `reason: null`. Failed runs use `status: "failed"` and a reason string (e.g. `"timeout"`, `"crashed"`, `"malformed JSON after 2 attempts"`).
+One such record is emitted per dispatched audit (plus one per routed-but-not-installed audit from Phase 3). Successful runs use `status: "ok"`, `reason: null`. Failed runs use `status: "failed"` and a reason string (e.g. `"timeout"`, `"crashed"`, `"malformed JSON after 2 attempts"`).
 
 ## Phase 5: Synthesize
 
@@ -293,11 +334,11 @@ Merge all `Finding[]` arrays into a single `Report` object.
    - `symbol_boost`: if the finding has a non-null `symbol` AND at least one other finding on the same file shares that symbol AND comes from a different audit, multiply by `1.25`.
    - `weight = severity_weight * convergence_weight * symbol_boost`.
 4. **Per-file score**: sum of `weight` across all findings on that file.
-5. **Sort files** by per-file score descending. For each file in the result, attach `top_issue` = the `principle` of the highest-weight finding on that file. Take the top N files (`N = 5` if `mode === "quick"`, else `10`; or all if fewer) for the "files most worth fixing" section.
-6. **Sort findings** flat by `weight` descending. For each finding in the result, attach `convergence` = `"<distinct_audits_on_file> audits on this file"` (e.g. "4 audits on this file"). Take the top M findings (`M = 5` if `mode === "quick"`, else `25`; or all if fewer) for the "top cross-cutting findings" section.
+5. **Sort files** by per-file score descending; break ties by file path ascending (deterministic output across runs). For each file in the result, attach `top_issue` = the `principle` of the highest-weight finding on that file. Take the top N files (`N = 5` if `mode === "quick"`, else `10`; or all if fewer) for the "files most worth fixing" section.
+6. **Sort findings** flat by `weight` descending; break ties by severity (high > med > low), then file path ascending, then line ascending (nulls last). For each finding in the result, attach `convergence` = `"<distinct_audits_on_file> audits on this file"` (e.g. "4 audits on this file"). Take the top M findings (`M = 5` if `mode === "quick"`, else `25`; or all if fewer) for the "top cross-cutting findings" section.
 7. **Build per-audit summaries**: for each audit ID present in the input map and with `findings.length > 0`, compute `{finding_count: <int>, unique_file_count: <int>, findings_by_file: [{file, findings: [...sorted by weight desc]}, ...]}`. Audits that returned `[]` are omitted from `by_audit_summary` (so Phase 6's per-axis index does not link to empty files).
 8. **Preserve raw findings**: copy the input `audit-id -> Finding[]` map to `Report.by_audit` verbatim (audits with empty arrays are still present here for completeness; the per-axis index in Phase 6 reads `by_audit_summary` instead, which omits empty audits).
-9. **Compute `audits_na`**: `audits_na = catalogue_audit_count - audits_dispatched_count` where `catalogue_audit_count` is the total number of audits in the catalogue with `applies` and `quick` fields, and `audits_dispatched_count` is the number routed by Phase 3 (regardless of pass/fail).
+9. **Compute `audits_na`**: `audits_na = catalogue_audit_count - audits_dispatched_count`, where `catalogue_audit_count` is 26 (the routing-table total) and `audits_dispatched_count` is the number actually dispatched in Phase 4 (regardless of pass/fail). Routed-but-not-installed audits are never dispatched, so they count toward `audits_na`; also list them in `failures` with reason `"not installed"`. Invariant: `audits_succeeded + audits_failed + audits_na = audits_total = catalogue_audit_count`.
 
 **Output `Report` structure:**
 
@@ -309,8 +350,8 @@ Merge all `Finding[]` arrays into a single `Report` object.
     "scope": { "module": "...", "focus": "..." },
     "audits_succeeded": 14,
     "audits_failed": 2,
-    "audits_na": 4,
-    "audits_total": 30,
+    "audits_na": 10,
+    "audits_total": 26,
     "failures": [{"audit": "event-design-reviewer", "reason": "malformed JSON after 2 attempts"}],
     "retries": [{"audit": "rams-design-audit", "recovered_on_attempt": 2}],
     "findings_high": 47,
@@ -374,7 +415,7 @@ The only filesystem-mutating phase. Produces one top-level rollup and one per-ax
 - `docs/improvements/YYYY-MM-DD/audit.md` (top-level rollup).
 - `docs/improvements/YYYY-MM-DD/audit/<audit-id>.md` (one per audit that returned at least one finding).
 
-If `docs/improvements/YYYY-MM-DD/` already exists for today, append a numeric suffix: `audit-2.md`, `audit-3.md`, etc. Do not overwrite a previous run.
+If today's directory already contains a run, suffix BOTH outputs so nothing from the earlier run is overwritten: `audit-2.md` with per-axis files under `audit-2/<audit-id>.md` (then `audit-3.md` + `audit-3/`, etc.). Links inside each rollup point at its own per-axis directory.
 
 **`audit.md` template:**
 
@@ -491,11 +532,11 @@ printTerminalSummary(report)
 When `parsed.mode === "interactive"`:
 
 1. Show the user the detected stack and the audit set the orchestrator would run by default.
-2. Ask, one at a time:
+2. Ask, one at a time (any `focus`/`module` provided on the command line is presented as the default answer):
    - "Anything you've been losing time on lately?" (free text, suggests a `focus` area)
    - "Any directory you want to scope to?" (path or skip; sets `module`)
    - "Quick scan or thorough?" (sets `quick` or full)
-3. Apply the answers as if they were args, re-route, then proceed to dispatch.
+3. Apply the answers as if they were args (scope values are honored in every mode), re-route, then proceed to dispatch.
 4. Confirm the final audit list before dispatching: "Running these audits: <list>. OK?"
 
 Interactive mode is the only path that reroutes after Phase 3.
@@ -513,4 +554,4 @@ Interactive mode is the only path that reroutes after Phase 3.
 | Subagent malformed JSON | 4 | Retry up to 1 time (2 attempts total). Then drop. |
 | Finding fails schema | 5 | Drop bad finding only. Note count in metadata. |
 | Cannot write report file | 6 | Fall back to terminal-only. Print full report. Surface write error. |
-| `index.json` missing/malformed | 3 | Hard fail. Suggest reinstalling. |
+| Routed audit's SKILL.md missing on disk | 3 | Skip that audit, record `{audit, status: "not-installed"}`, suggest installing it. Continue; hard fail only if no routed audit is installed. |

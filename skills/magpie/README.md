@@ -58,13 +58,10 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).
 - `templates/styles.css` is the HTML report stylesheet.
-- `fixtures/` holds canned PR data for tests (not shipped to users via the registry).
+- `fixtures/` holds canned PR data; `fixtures/example-pr/` ships with the bundle (it powers `magpie preview`), the rest exists for tests.
 - `install.sh` is run as a postinstall step by the agent-skills installer; symlinks `bin/magpie` onto PATH and records the location.
 - `uninstall.sh` is run as a postremove step; removes the PATH symlink if it still points back into this bundle.
 
-## Design docs
-
-The original design and implementation plan live at `docs/magpie/design.md` and `docs/magpie/plan.md` at the repo root.
 
 ## Run directory layout
 

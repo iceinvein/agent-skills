@@ -1,6 +1,6 @@
 ---
 name: composability-auditor
-description: Use when functions or modules are hard to reuse because they do too much or assume too much about their environment, when building a new feature requires modifying existing code instead of combining existing units, when functions have hardcoded dependencies on specific data sources or output formats, or when testing requires elaborate setup because the unit manages its own I/O. Trigger on "I need exactly what this does but with slightly different output", "why can't I reuse this?", or when adding a feature means adding a flag to an existing function. NOT for top-level orchestration code, performance-critical paths, or one-off scripts.
+description: Use when functions or modules are hard to reuse because they do too much or assume too much about their environment, when a new feature means modifying existing code instead of combining units, or when testing needs elaborate setup because the unit manages its own I/O. Trigger on "I need exactly what this does but with different output", or when adding a feature means adding a flag. NOT for top-level orchestration code, performance-critical paths, or one-off scripts.
 ---
 
 # Composability Auditor
@@ -145,7 +145,7 @@ Decomposed into three units:
 ```typescript
 // Unit 1: Fetch data — takes connection as parameter
 function fetchOrderReport(db: Database, orderId: string): Report {
-  const orders = db.query(`SELECT * FROM orders WHERE id = ${orderId}`);
+  const orders = db.query("SELECT * FROM orders WHERE id = ?", [orderId]);
   return formatReport(orders);
 }
 
@@ -163,8 +163,8 @@ function sendEmail(service: EmailService, message: EmailMessage): Promise<void> 
   return service.send(message);
 }
 
-// Composition — caller orchestrates
-async function processReport(orderId: string, config: Config) {
+// Composition — caller orchestrates; every dependency arrives as a parameter
+async function processReport(orderId: string, config: Config, emailService: EmailService) {
   const db = createConnection(config.databaseUrl);  // Config passed in
   const report = fetchOrderReport(db, orderId);
   const email = prepareReportEmail(report, config.recipientEmail);
@@ -185,7 +185,7 @@ Decision engine. The agent analyzes units in code it writes or reviews, producin
 
 ## The Unix Philosophy Reference
 
-McIlroy, Pike, and Thompson articulated four principles (1978):
+McIlroy, Pinson, and Tague articulated four principles in the 1978 Bell System Technical Journal foreword (Pike and Kernighan's *The UNIX Programming Environment*, 1984, later popularized the philosophy):
 
 1. **Make each program do one thing well.** Concentrate all efforts on that one thing. Don't clutter the program with unrelated features.
 2. **Expect the output of every program to become the input of another, yet unknown, program.** Don't insist on interactive input; don't produce extraneous information.

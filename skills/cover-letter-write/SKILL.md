@@ -1,16 +1,13 @@
 ---
 name: cover-letter-write
 description: >
-  Generate a cover letter from a resume and a job description. Accepts resume and
-  JD as PDF, DOCX, markdown/MDX, URL, or pasted text. Produces markdown, DOCX, and
-  PDF outputs. Enforces human-sounding prose (varied sentence length, concrete
-  verbs, no filler openers), aligns every claim to a resume bullet, and covers the
-  top job-description requirements without keyword stuffing. Respects active
-  writing persona if one is set via /cover-letter persona use. Use when the user
-  says "write cover letter", "draft cover letter", "generate cover letter", "new
-  cover letter", "cover letter for <role>", or shares a resume and job description
-  together. Even if the user phrases it as "make me a cover letter" or "help me
-  apply to X", trigger this skill.
+  Use when the user asks to write, draft, or generate a cover letter ("write
+  cover letter", "cover letter for <role>", "make me a cover letter"), or
+  shares a resume and job description together wanting an application letter.
+  Generates a letter from resume + JD (each as PDF, DOCX, markdown/MDX, URL, or
+  pasted text), aligned to resume evidence and human-sounding, emitting
+  markdown, DOCX, and PDF. NOT for scoring an existing letter
+  (cover-letter-audit) or revising one (cover-letter-rewrite).
 argument-hint: "--resume <file> --jd <file|url|text> [--length short|standard|long] [--out <dir>]"
 ---
 
@@ -122,7 +119,8 @@ For each gap (must-have with no resume evidence), decide:
 Check `~/.config/cover-letter/active-persona`. If a persona is active and the
 user did not override with `--tone`, load that persona JSON.
 
-Without a persona, use these defaults:
+Without a persona, use these defaults (these mirror the "Mid / default"
+values in cover-letter-persona's schema; that file is the source of truth):
 
 | Setting | Default |
 |---------|---------|
@@ -133,7 +131,7 @@ Without a persona, use these defaults:
 | Passive voice cap | 10% |
 | Readability | Flesch grade 8-10 |
 
-If the JD signals a clear tone (a startup posting that uses "ya'll" and
+If the JD signals a clear tone (a startup posting that uses "y'all" and
 emoji wants casual; a law firm posting that uses "the Firm" and
 "heretofore" wants formal), nudge the defaults one step toward that tone
 unless a persona explicitly locks them.
@@ -187,8 +185,8 @@ Writing rules the draft must follow:
 
 Before writing files, run the audit checks inline:
 
-1. Word count within target band (default 250-400)
-2. No AI phrases from the list in `cover-letter-audit` (50+ phrases)
+1. Word count within the declared target band (default 250-400; `--length short|standard|long` = 180/300/420 targets — tell the audit which band applies)
+2. No AI phrases from the list in `cover-letter-audit` (50+ phrases). If cover-letter-audit is not installed alongside this skill, at minimum reject the filler openers from Writing principle 6 and generic AI verbs ("leveraged", "spearheaded", "delve", "resonated")
 3. Sentence length std dev >= 5 (burstiness proxy)
 4. Passive voice <= persona cap (default 10%)
 5. Every claim traceable to a resume bullet
@@ -201,13 +199,19 @@ revisions in one line.
 
 ### Step 7: Emit outputs
 
-Write markdown first. Derive DOCX and PDF from it.
+Write markdown first. Derive DOCX and PDF from it. Name the files with the
+suite's slug convention: `<company>-<role>-<YYYY-MM-DD>.<ext>` (lowercase,
+hyphenated), in `./cover-letters/` unless `--out` overrides.
 
 ```bash
-# from cwd or --out dir
-pandoc cover-letter.md -o cover-letter.docx
-pandoc cover-letter.md -o cover-letter.pdf --pdf-engine=weasyprint
+# from --out dir (default ./cover-letters/)
+pandoc acme-platform-engineer-2026-07-18.md -o acme-platform-engineer-2026-07-18.docx
+pandoc acme-platform-engineer-2026-07-18.md -o acme-platform-engineer-2026-07-18.pdf --pdf-engine=weasyprint
 ```
+
+After emitting, write `~/.config/cover-letter/last-run.json` with
+`{resume, jd, letter_path, persona, length_band, date}` so audit/rewrite can
+resolve inputs when the user gives no paths.
 
 PDF engine fallback order:
 
@@ -222,8 +226,9 @@ install (`brew install weasyprint` on macOS) would unlock the PDF.
 ### Step 8: Report
 
 One terse summary: file paths, self-audit score, any acknowledged gaps. If the
-self-audit score is below 85, suggest `/cover-letter rewrite <file> --focus
-humanize` (or whichever category scored lowest).
+self-audit score is below 80 (under Strong per cover-letter-audit's rating
+table), suggest `/cover-letter rewrite <file> --focus humanize` (or whichever
+category scored lowest).
 
 ## Handling edge cases
 

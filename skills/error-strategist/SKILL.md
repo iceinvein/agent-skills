@@ -33,7 +33,7 @@ Before writing any error handling, classify the error using Duffy's taxonomy:
 - In production: Use process supervisors, crash recovery, and monitoring. The process restarts clean. This is safer than continuing with corrupted state.
 
 **Recoverable error** (expected operational failure)
-- Examples: network timeout, file not found, authentication rejected, rate limited, validation failure, external service unavailable
+- Examples: network timeout, file not found, authentication rejected, rate limited, runtime validation failure of external data (precondition *design* belongs to `contract-enforcer`), external service unavailable
 - Correct response: **Surface to the caller as a typed result.** The caller decides the recovery strategy — retry, fallback, surface to user, queue for later.
 - Why: These aren't bugs — they're part of normal operation. The system should handle them explicitly, not treat them as exceptional. The caller has context for recovery that the failing function doesn't.
 - Implementation: Use result types (`Result<T, E>`), error unions, or typed exceptions — never string messages or generic error classes.
@@ -157,7 +157,7 @@ Error *classification* is technical. Error *recovery strategy* is often a produc
 
 ## The Duffy Classification (Reference)
 
-From Joe Duffy's Midori error model:
+Adapted from Joe Duffy's Midori error model (Midori's split is two-way: bugs and fatal conditions both end in abandonment; the three-way taxonomy this skill uses separates fatal for practical triage):
 
 1. **Bugs are not recoverable at runtime.** They indicate programmer mistakes. The correct response is to fail fast, gather diagnostics, and fix the code. Trying to recover from bugs leads to undefined behavior.
 
@@ -167,7 +167,7 @@ From Joe Duffy's Midori error model:
 
 4. **The boundary between bug and recoverable depends on context.** A "file not found" error is recoverable if the user might have mistyped a path. It's a bug if the file is a configuration file that was validated at startup and should always exist.
 
-5. **Error handling and normal code should use the same control flow.** Recoverable errors should flow through return values, not through exceptions. Exceptions should be reserved for bugs and fatal conditions that abort the current operation entirely.
+5. **Recoverable errors are visible in the type system; bugs are never catchable.** In Midori, recoverable errors flow through declared, typed channels (results or checked/typed exceptions the caller must acknowledge), while bugs never throw anything catchable; they trigger abandonment (fail-fast process termination). Whatever your language, keep the two channels distinct: recoverable errors in signatures, bugs to fail-fast.
 
 ## Abrahams' Exception Safety Guarantees (Reference)
 

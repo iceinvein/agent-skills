@@ -19,19 +19,19 @@ A UI evaluation framework based on Jeff Johnson's *Designing with the Mind in Mi
 - "This is overwhelming" / "Too many choices" / "Where do I start?"
 - Navigation with many paths or deep nesting
 
-**Not for:** Visual styling (use Rams' Design Audit), color and typography choices (use Gestalt Reviewer for grouping), accessibility compliance (WCAG), or performance optimization.
+**Not for:** Visual styling and decoration (use `rams-design-audit`), spacing and visual grouping (use `gestalt-reviewer`), accessibility compliance (WCAG), or performance optimization. The three compose on a full UI review.
 
 ## The Process
 
 ### 1. Apply the Cognitive Laws
 
 **Miller's Law — Working memory holds 7±2 items (practically 3-4 groups)**
-- Count the number of independent items/options/controls visible at once
-- If > 7 items in a flat list, the interface is exceeding working memory
-- Fix: chunk into 3-5 labeled groups. The groups themselves become the memory items, and users expand into detail as needed.
-- Practical target: aim for 3-4 groups on any single screen. Within each group, 3-5 items.
+- Working memory limits apply to what the user must HOLD IN MIND (items to compare, codes to remember across screens, steps to track), not to what is merely visible: a visible list is externalized and scanned, not memorized (Johnson's own point).
+- Count what the user must actually keep in their head across an interaction; flag flows that require remembering more than 3-4 things (e.g. comparing options that aren't side by side, multi-screen wizards that reference earlier answers).
+- Ungrouped long lists are still a problem, but via scanning cost and decision time (see Hick's Law), not a working-memory violation.
+- Fix: chunk into 3-5 labeled groups so the user scans group labels first, and keep anything that must be remembered visible instead.
 
-**Hick's Law — Decision time = b × log₂(n + 1)**
+**Hick's Law — Decision time = a + b × log₂(n + 1)**
 - Count the number of choices the user must evaluate before acting
 - More choices = longer decision time = higher abandonment
 - Fix: reduce visible choices through progressive disclosure, smart defaults, or recommended options
@@ -93,7 +93,7 @@ Example:
 ```
 COGNITIVE LOAD: Project settings page
   Items visible:     23 settings in a flat list, no grouping
-  Chunking:          none — all 23 items presented equally. Exceeds Miller's Law by 3x.
+  Chunking:          none — all 23 items presented equally; scanning cost and per-item decisions pile up (Hick's Law)
   Decision points:   each setting is an independent choice — 23 decisions on one page
   Memory demands:    user must scroll up to see project name while editing deploy settings at bottom
   Primary action:    Save button at bottom — not visible without scrolling
@@ -105,13 +105,15 @@ COGNITIVE LOAD: Project settings page
 
 Decision engine. After generating UI code, the agent audits its own output for cognitive overload. The report identifies specific violations and concrete fixes. The human sees the audit alongside the component.
 
+**Acquiring the UI when auditing something the agent didn't just write:** prefer a rendered view (user screenshot, or a browser/screenshot tool if available); otherwise count items, choices, and flows from the component source and routing, and say the audit ran source-only (item counts and flow steps survive that mode; target sizes and visual salience don't).
+
 For complex interfaces where high information density is unavoidable (dashboards, admin panels, IDE-like tools), the agent acknowledges that intrinsic load is high and focuses on eliminating extraneous load rather than demanding everything be simple.
 
 ## Common Violations
 
 | Violation | Law broken | Fix |
 |-----------|-----------|-----|
-| 20+ items in a flat list | Miller's Law | Chunk into 3-5 labeled groups |
+| 20+ items in a flat list | Hick's Law (scanning/decision cost) | Chunk into 3-5 labeled groups |
 | 10+ navigation items at same level | Hick's Law | Progressive disclosure, group into categories |
 | Small, closely-spaced action buttons | Fitts's Law | Increase size, increase spacing, primary action larger |
 | "Type your account ID" (no autocomplete) | Recognition > recall | Provide selection or autocomplete |
@@ -137,7 +139,7 @@ For complex interfaces where high information density is unavoidable (dashboards
 | Law | Formula/Rule | Practical Implication |
 |-----|-------------|----------------------|
 | **Miller's Law** | Working memory: 7±2 items (practically 3-4 groups) | Chunk information; aim for 3-5 groups per screen |
-| **Hick's Law** | Decision time = b × log₂(n + 1) | Fewer choices → faster decisions. Use defaults. |
+| **Hick's Law** | Decision time = a + b × log₂(n + 1) | Fewer choices → faster decisions. Use defaults. |
 | **Fitts's Law** | Time = a + b × log₂(1 + D/W) | Big close targets for primary actions, small distant for destructive |
 | **Von Restorff Effect** | Distinct items are remembered better | Make the important thing visually different |
 | **Serial Position Effect** | First and last items remembered best | Put critical info at top and bottom, not buried in middle |

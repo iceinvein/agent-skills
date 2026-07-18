@@ -1,6 +1,6 @@
 ---
 name: module-secret-auditor
-description: Use when creating new files, directories, or modules, when reviewing project structure, when a change ripples across 3+ directories, or when the user asks "where should this code live?" or "how should I structure this?". Trigger on structural decisions and reorganizations.
+description: Use when creating new modules or directories, drawing or questioning module boundaries, when a change ripples across 3+ directories, or when the user asks "where should this code live?" or "how should I structure this?". Trigger on structural decisions and reorganizations. NOT for a module doing too many unrelated things (cohesion-analyzer), domain-language boundaries (bounded-context-auditor), naming conventions, code style, or adding code to existing well-bounded modules.
 ---
 
 # Module Secret Auditor
@@ -69,17 +69,20 @@ When proposing structure, organize around change-reasons, not around nouns or te
 
 Instead of:
 ```
-models/user.ts
-services/userService.ts
+models/user.ts          — user fields for every feature; changed by all of them
+services/userService.ts — session logic + notification prefs + billing address in one file
 controllers/userController.ts
 repositories/userRepository.ts
 ```
 
-Propose:
+Propose (same code, re-homed by which decision changes it):
 ```
 auth/               — secret: how identity is verified and sessions are managed
-pricing/            — secret: how costs are calculated and discounts applied
+                      (absorbs the session/token logic from userService + userController)
 notifications/      — secret: how and when users are notified, via which channels
+                      (absorbs the notification-preference logic from userService)
+billing/            — secret: how billing details are stored and validated
+                      (absorbs the billing fields from user.ts + userRepository)
 ```
 
 Each directory answers: **"If this decision changes, only this directory is affected."**

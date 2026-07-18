@@ -41,17 +41,17 @@ Evaluate the change against the laws most relevant to the situation:
 - Massive rewrites almost always fail because they fight the system's natural evolution rate.
 - Incremental, well-directed changes succeed because they work with the system's grain.
 
-**IV. Conservation of Familiarity** — The rate of effective change is limited by the team's ability to absorb novelty.
+**V. Conservation of Familiarity** — The rate of effective change is limited by the team's ability to absorb novelty. (Law IV, Conservation of Organizational Stability, is skipped here: it concerns process, not individual changes — see the Complete Reference below.)
 - How much novelty does this change introduce? New patterns, new abstractions, new conventions?
 - Will the team still recognize this area of the codebase after the change?
 - Changes that exceed the team's absorption rate create unknown unknowns — the team no longer fully understands what they have.
 
-**V. Continuing Growth** — Functional content must continually increase to maintain user satisfaction.
+**VI. Continuing Growth** — Functional content must continually increase to maintain user satisfaction.
 - Is the system's *structure* keeping pace with its *functionality*?
 - Growth without structural investment creates fragility: the system can do more but is harder to extend.
 - Structural investment without growth is gold-plating: the architecture is beautiful but doesn't serve more users.
 
-**VI. Declining Quality** — Unless rigorously adapted to account for environmental changes, system quality will appear to decline.
+**VII. Declining Quality** — Unless rigorously adapted to account for environmental changes, system quality will appear to decline.
 - Is the environment (dependencies, platforms, security requirements, user expectations) evolving in ways this code isn't keeping up with?
 - A codebase that was excellent in 2020 may be declining in 2026 — not because it got worse, but because the world moved on.
 
@@ -61,6 +61,7 @@ Look at the area of code being changed:
 
 **Churn analysis:**
 - How often has this area been modified recently? High churn signals evolution pressure — this area is under active adaptation or struggling with accumulated debt.
+- Measure it: `git log --since="6 months ago" --name-only --pretty=format: -- <path> | sort | uniq -c | sort -rn | head -20` ranks the hotspots; `git log --oneline --since="6 months ago" -- <path> | wc -l` counts commits touching the area. As a rough heuristic, a file in the repo's top decile of commit counts is high-churn.
 - Is each successive change *smaller and easier* (debt being paid down) or *larger and harder* (debt compounding)?
 - Are changes concentrated in a few files (hotspots) or spread evenly?
 

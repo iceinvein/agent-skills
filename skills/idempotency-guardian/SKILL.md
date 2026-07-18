@@ -1,11 +1,11 @@
 ---
 name: idempotency-guardian
-description: Use when designing or reviewing API endpoints that mutate state, reviewing event/message handlers, when retry logic exists anywhere in the system, when debugging duplicate side effects (double charges, duplicate emails, duplicated records), or when designing webhook/callback handlers. Trigger on "why did the customer get charged twice?", "the queue redelivered and now we have duplicate rows", or when writing handlers for external input. NOT for read-only operations, pure functions, or coupling/dependency structure.
+description: Use when designing or reviewing API endpoints that mutate state, event/message handlers, or webhook handlers, when retry logic exists anywhere in the system, or when debugging duplicate side effects (double charges, duplicate emails). Trigger on "why did the customer get charged twice?" or "the queue redelivered and now we have duplicate rows". NOT for read-only operations, pure functions, or coupling/dependency structure.
 ---
 
 # Idempotency Guardian
 
-A distributed systems analysis framework based on Pat Helland's *Idempotence Is Not a Medical Condition* (2012), the HTTP specification (RFC 7231), and messaging literature (Hohpe & Woolf's *Enterprise Integration Patterns*). Networks are unreliable. Messages get retried, consumers process the same event twice, payments get resubmitted, webhooks fire multiple times. The fundamental question is never "will this be called twice?" — it will be. The real question is: "when this is called twice with the same input, will the system still be correct?" An idempotent operation produces the same result whether executed once or multiple times. Idempotency is not an optimization or a nice-to-have — it's the minimum safety property for anything that can be called more than once. Without it, retries cause data corruption, duplicate side effects, and cascading failures.
+A distributed systems analysis framework based on Pat Helland's *Idempotence Is Not a Medical Condition* (2012), the HTTP specification (RFC 9110), and messaging literature (Hohpe & Woolf's *Enterprise Integration Patterns*). Networks are unreliable. Messages get retried, consumers process the same event twice, payments get resubmitted, webhooks fire multiple times. The fundamental question is never "will this be called twice?" — it will be. The real question is: "when this is called twice with the same input, will the system still be correct?" An idempotent operation produces the same result whether executed once or multiple times. Idempotency is not an optimization or a nice-to-have — it's the minimum safety property for anything that can be called more than once. Without it, retries cause data corruption, duplicate side effects, and cascading failures.
 
 **Core principle:** An idempotent operation produces the same observable result whether executed once or executed multiple times with the same input. Idempotency is the only reliable way to handle retries, at-least-once delivery, and network unreliability. State changes should be idempotent; side effects require explicit protection.
 
@@ -177,7 +177,7 @@ Mutation: POST /api/orders
     1. Insert order in database        → Protected (inside transaction, only runs if idempotency key check passes)
     2. Emit OrderCreated event         → UNPROTECTED (if request is retried, event fires twice; downstream processes duplicate order)
     3. Send confirmation email         → UNPROTECTED (if request is retried, email sent twice)
-  Fix: Emit event and send email inside the transaction, or defer with exactly-once guarantee
+  Fix: Transactional outbox — write outbox records for the event and the email in the same transaction as the order insert; a relay delivers them with deduplication, so a retried request never fires the side effects twice
 
 Mutation: ProcessPaymentHandler (event consumer)
   Side effects:
@@ -216,7 +216,7 @@ MUTATION: POST /api/orders (UNHEALTHY)
   Side effects:       1. Insert order in DB, 2. Emit OrderCreated event, 3. Send confirmation email
   Side effect safety: 1. DB (duplicate row), 2. Event (fires twice), 3. Email (sent twice)
   Risk:               Retry sends confirmation email twice, publishes event twice (downstream processes order twice), inserts duplicate row
-  Fix:                Add Idempotency-Key header check (atomic check-and-cache). Move event and email into same transaction as order insert. Or: use event sourcing + dedup consumer.
+  Fix:                Add Idempotency-Key header check (atomic check-and-cache). Write the event and the email as outbox records in the same transaction as the order insert (transactional outbox); a relay delivers them to idempotent consumers. Or: use event sourcing + dedup consumer.
 ```
 
 ```
@@ -246,13 +246,13 @@ Decision engine, prioritizes by blast radius (financial > external API > data in
 
 ## Guard Rails
 
-**State changes should be idempotent. Side effects require explicit protection.** Don't confuse them. Making an INSERT idempotent via upsert is straightforward. Making sure email is only sent once requires additional work (dedup, guard checks, or moving email into the same transaction).
+**State changes should be idempotent. Side effects require explicit protection.** Don't confuse them. Making an INSERT idempotent via upsert is straightforward. Making sure email is only sent once requires additional work (dedup, guard checks, or the outbox pattern: record the send intent transactionally, deliver via a relay).
 
 **"Just deduplicate" is not sufficient.** Deduplication prevents re-execution of the operation but not of its side effects. If you've already called Stripe.charge() and saved the result, dedup prevents you from calling it again — but only if you deduplicate before calling the external API.
 
 **Idempotency keys need lifecycle management.** You can't keep them forever. Set an expiry (24-72 hours is typical). After expiry, the same key can be reused. This is fine because the operation likely won't be retried after that time window.
 
-**Don't confuse idempotent with safe.** An operation can be idempotent but still unsafe (e.g., if it reads stale data). Idempotency is about repeated execution of the operation, not about correctness under concurrent execution.
+**Don't confuse idempotent with correct-under-concurrency.** An operation can be idempotent but still race (e.g., if it reads stale data between check and write). Idempotency is about repeated execution of the operation, not about correctness under concurrent execution. (And note "safe" in the HTTP spec is a separate term of art meaning side-effect-free.)
 
 **Distributed side effects are the hardest part.** If your operation calls multiple external systems (Stripe + SendGrid + analytics), protecting all of them is complex. Options: use outbox pattern (record intent, external daemon delivers), use orchestration (record state machine, step through atomically), or accept some risk.
 

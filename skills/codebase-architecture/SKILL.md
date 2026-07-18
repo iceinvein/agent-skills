@@ -18,7 +18,7 @@ Design architecture for new projects or review existing codebases. Covers both m
 - "Map the dependencies in this project"
 - Codebase feels tangled, coupled, or inconsistent
 
-**Not for:** Reviewing design documents (use `design-integrity-review`), bug hunting (use `find-bugs`), performance optimization.
+**Not for:** Reviewing design documents (use `design-review`), bug hunting, performance optimization.
 
 ## Mode Selection
 
@@ -70,7 +70,7 @@ These drivers determine which patterns are appropriate. A 500-line CLI does not 
 
 ### Phase 3: Select Architectural Patterns
 
-Using Phase 2 drivers, recommend macro-level patterns from `patterns-reference.md`:
+Using Phase 2 drivers, recommend macro-level patterns from the patterns reference installed alongside this skill (`patterns-reference.md`; on cursor/gemini installs it is named `codebase-architecture-patterns.*`; on codex installs it is not bundled, so name patterns from general knowledge instead):
 - Overall structure (layered, hexagonal, event-driven, etc.)
 - Communication style (sync, async, event sourcing)
 - Data strategy (single DB, CQRS, shared-nothing)
@@ -83,7 +83,7 @@ The most important phase:
 - Each module gets a clear responsibility (one sentence)
 - Define interfaces between modules
 - **Establish dependency direction** — which modules know about which? Dependencies should point toward stable abstractions, not toward volatile details.
-- **Name the design patterns** that apply within each module (e.g., "plugin system uses Strategy", "event bus uses Observer"). Refer to `patterns-reference.md`.
+- **Name the design patterns** that apply within each module (e.g., "plugin system uses Strategy", "event bus uses Observer"). Refer to the patterns reference (see Phase 3 for its per-install filename).
 
 ### Phase 5: Produce Architecture Spec
 
@@ -144,7 +144,7 @@ Save to `docs/architecture/architecture-review-YYYY-MM-DD.md`:
 
 For each smell or weakness:
 - What to change and why
-- Which pattern to apply (reference `patterns-reference.md`)
+- Which pattern to apply (from the patterns reference; see Phase 3 for its per-install filename)
 - Impact estimate (how much code changes, risk of breakage)
 - Priority (high / medium / low) with rationale
 

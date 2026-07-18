@@ -1,14 +1,13 @@
 ---
 name: cover-letter-persona
 description: >
-  Create and manage writing personas for cover letters using the NNGroup 4-dimension
-  tone framework (funny-serious, formal-casual, respectful-irreverent, enthusiastic-
-  matter-of-fact) adapted for professional correspondence. Personas define readability
-  target, sentence length distribution, contraction frequency, passive voice cap, and
-  do/don't lists. Used by cover-letter-write and cover-letter-rewrite to enforce a
-  consistent voice across all applications. Use when the user says "persona",
-  "voice", "tone", "writing style", "make it sound more formal", "more casual",
-  "create persona", "use persona", or asks how to tune the voice of their letters.
+  Use when the user wants to tune the voice of their cover letters: "persona",
+  "voice", "tone", "writing style", "make it sound more formal/casual",
+  "create persona", "use persona". Manages reusable writing personas on the
+  NNGroup 4-dimension tone framework; personas set readability, sentence
+  lengths, contraction frequency, passive-voice cap, and do/don't lists,
+  consumed by cover-letter-write and cover-letter-rewrite. NOT for one-off
+  edits to a letter (cover-letter-rewrite).
 argument-hint: "[create|list|use|show|delete] [persona-name]"
 ---
 
@@ -36,7 +35,7 @@ Create the directory on first run. Use kebab-case filenames (e.g.,
 |---------|---------|
 | `/cover-letter persona create [name]` | Interactive interview; writes a new persona file |
 | `/cover-letter persona list` | Show all saved personas |
-| `/cover-letter persona use <name>` | Set the active persona for this session |
+| `/cover-letter persona use <name>` | Set the active persona (persists until changed) |
 | `/cover-letter persona show <name>` | Print full persona profile |
 | `/cover-letter persona delete <name>` | Remove a persona file (ask to confirm) |
 
@@ -173,10 +172,11 @@ should I go with?"
 
 ## List command
 
-Glob `~/.config/cover-letter/personas/*.json` and render:
+Glob `~/.config/cover-letter/personas/*.json` and render ("Updated" is the
+persona file's modification time; no schema field needed):
 
-| Persona | Stage | Tone hint | Last used |
-|---------|-------|-----------|-----------|
+| Persona | Stage | Tone hint | Updated |
+|---------|-------|-----------|---------|
 | senior-eng-default | senior | serious, mid-formal | 2026-04-20 |
 | casual-startup | senior | serious, casual | 2026-04-24 |
 
@@ -189,7 +189,7 @@ Read the named persona JSON. Write its name to
 
 ```
 Active persona: senior-eng-default
-- Tone: serious (0.75), mid-formal (0.45), respectful (0.25), matter-of-fact (0.45)
+- Tone: serious (0.75), mid-formal (0.45), respectful (0.25), mid-enthusiastic (0.45)
 - Sentence length target: 17 words ± 8
 - Contractions: 40%; passive cap: 10%
 - Signature: "Best,\nAlex Chen\nalex@example.com | portfolio.example.com"

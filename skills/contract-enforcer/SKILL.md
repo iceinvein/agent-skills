@@ -15,9 +15,9 @@ A structured correctness framework based on Bertrand Meyer's *Design by Contract
 - Functions that handle external input, state transitions, or cross-module boundaries
 - "Is this function correct?" / "What are the edge cases?"
 - "What does this function guarantee?"
-- Reviewing boundary behavior or error handling
+- Reviewing boundary behavior (what a function requires and guarantees)
 
-**Not for:** Trivial getters, simple property access, configuration code, pure mappings with obvious behavior.
+**Not for:** Trivial getters, simple property access, configuration code, pure mappings with obvious behavior. For what happens after valid input enters the system — try/catch strategy, error classification, recovery boundaries — use `error-strategist` (which routes precondition/validation design back here).
 
 ## The Process
 
@@ -132,8 +132,8 @@ These are design decisions, not implementation details. The human owns them.
 
 ## The Meyer Principles (Reference)
 
-1. **Separate commands from queries.** Functions that return values should not have side effects. Functions with side effects should not return values. When you must violate this, document it in the contract.
-2. **Demand no more, promise no less.** Preconditions should be as weak as possible (accept the widest reasonable input). Postconditions should be as strong as possible (guarantee the most specific output).
-3. **The client is responsible for preconditions.** The function does not need to "handle" invalid input gracefully — it needs to fail clearly and immediately when preconditions are violated.
+1. **Separate commands from queries.** Functions that return values should not have side effects, and vice versa (the dedicated `cqs-auditor` skill covers this in full). When you must violate it, document that in the contract.
+2. **Demand only what you need, and demand it explicitly.** Require nothing beyond what the implementation truly relies on, but state every requirement precisely; postconditions should guarantee the most specific output you can honestly promise. Meyer's style is demanding: a strong, explicit precondition beats tolerant code that silently accepts anything.
+3. **The client is responsible for preconditions.** The function does not need to "handle" invalid input gracefully — it needs to fail clearly and immediately when preconditions are violated. Enforce preconditions at trust boundaries (external input, public APIs); internally, assert rather than handle.
 4. **Inheritance respects contracts.** Subtypes may weaken preconditions (accept more) and strengthen postconditions (guarantee more), but never the reverse.
 5. **Contracts are documentation that compiles.** The best contracts are checked at runtime (assertions, type narrowing, validation) — not just written in comments.

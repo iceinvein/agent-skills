@@ -1,6 +1,6 @@
 ---
 name: type-driven-designer
-description: Use when primitive types (string, number, boolean) represent domain concepts, when nullable fields have ambiguous meaning, when invalid combinations of fields are structurally possible but logically impossible, or when validation happens far from construction. Trigger on "why is this email field just a string?", "how can status be 'shipped' with no tracking number?", or when reviewing domain model types. NOT for performance-critical inner loops where type wrappers add overhead, dynamic/untyped languages, or API boundary serialization shapes.
+description: Use when primitives (string, number, boolean) represent domain concepts, when nullable fields have ambiguous meaning, when invalid field combinations are structurally possible, or when validation happens far from construction. Trigger on "why is this email just a string?", "how can status be 'shipped' with no tracking number?", or when reviewing domain model types. Works in any language with a type layer (TypeScript, Rust, Python + Pydantic). NOT for hot inner loops or API wire formats.
 ---
 
 # Type-Driven Designer
@@ -160,13 +160,13 @@ type PaymentStatus =
   | { status: "completed"; amount: number; transactionId: string; completedAt: Date }
   | { status: "failed"; amount: number; reason: string; failedAt: Date };
 
-function processPayment(payment: PaymentStatus): PaymentStatus {
-  if (payment.status === "pending") {
-    // Only pending payments can be processed
-    return { status: "processing", amount: payment.amount, gatewayId: "..." };
-  }
-  // Can't process already-completed or failed payments — type system enforces it
-  throw new Error(`Cannot process ${payment.status} payment`);
+type PendingPayment = Extract<PaymentStatus, { status: "pending" }>;
+type ProcessingPayment = Extract<PaymentStatus, { status: "processing" }>;
+
+// Accepts ONLY pending payments — passing a completed or failed payment
+// is a compile error, not a runtime throw. The type system enforces it.
+function processPayment(payment: PendingPayment): ProcessingPayment {
+  return { status: "processing", amount: payment.amount, gatewayId: "..." };
 }
 ```
 

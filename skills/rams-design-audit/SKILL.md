@@ -18,7 +18,7 @@ A design evaluation framework based on Dieter Rams' *Ten Principles for Good Des
 - When decorative elements (gradients, shadows, borders, icons) are present
 - Evaluating whether a redesign actually improved or just rearranged
 
-**Not for:** Functional logic review, accessibility audits (WCAG compliance), performance optimization, or backend architecture. This skill evaluates *visual design quality*, not correctness.
+**Not for:** Functional logic review, accessibility audits (WCAG compliance), performance optimization, or backend architecture. This skill evaluates *visual design quality*, not correctness. For option overload and memory demands use `cognitive-load-auditor`; for spacing and visual grouping use `gestalt-reviewer` — the three compose on a full UI review.
 
 ## The Process
 
@@ -39,7 +39,7 @@ Apply this ruthlessly to:
 
 ### 2. Evaluate Against Rams' Principles
 
-Score the interface against the principles most relevant to digital UI:
+Evaluate the interface against the principles most relevant to digital UI (a pass/fail-with-evidence judgment per principle; there is no numeric score):
 
 **Is it innovative?**
 - Does the design solve the interaction problem in a way that serves the user, or does it follow a template without questioning whether the template fits?
@@ -111,6 +111,8 @@ RAMS AUDIT: User settings page
 ## Interaction Model
 
 Decision engine. After generating UI code, the agent runs the Rams audit on its own output. The audit identifies specific elements to remove and states to add. The human sees the audit alongside the component and can override any cut.
+
+**Acquiring the UI when auditing something the agent didn't just write:** prefer a rendered view (screenshot the user provides, or a browser/screenshot tool if one is available); otherwise audit the component source and stylesheets directly and say which mode the audit ran in (source-only audits can judge decoration, states, and element count, but not rendered visual weight).
 
 When the human has explicitly requested a visual style that conflicts with Rams (e.g., "make it more playful," "add some personality"), the agent acknowledges the tension and adapts the audit to evaluate within the requested style — Rams doesn't mandate austerity, but even playful design should be intentional, not random.
 

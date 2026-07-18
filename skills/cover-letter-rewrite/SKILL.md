@@ -1,15 +1,13 @@
 ---
 name: cover-letter-rewrite
 description: >
-  Revise an existing cover letter by auditing it first, then applying targeted
-  fixes: humanize AI-sounding prose, align claims with the resume, tighten
-  structure, adjust tone to match an active persona, or improve job-description
-  coverage. Preserves the applicant's voice where it's already working. Supports
-  focused passes with --focus humanize|align|tighten|structure|tone. Produces
-  markdown, DOCX, and PDF outputs. Use when the user says "rewrite cover letter",
-  "improve cover letter", "humanize cover letter", "fix cover letter", "tighten
-  cover letter", "this cover letter sounds AI", "make this less generic", "make
-  this more specific", or shares a letter and asks for edits.
+  Use when the user asks to rewrite, improve, humanize, fix, or tighten an
+  existing cover letter ("this sounds AI", "make it less generic"), or shares
+  a letter asking for edits. Audit-driven targeted revision that preserves the
+  applicant's voice where it works; focus passes via --focus
+  humanize|align|tighten|structure|tone. Emits markdown, DOCX, and PDF. NOT
+  for writing from scratch (cover-letter-write) or score-only feedback
+  (cover-letter-audit).
 argument-hint: "<letter-file> [--resume <file>] [--jd <file|url|text>] [--focus humanize|align|tighten|structure|tone] [--length short|standard|long] [--out <dir>]"
 ---
 
@@ -24,11 +22,12 @@ targeting the weakest category (or the user's --focus).
 - **Rewrite**: user has a draft they like the bones of. Keep their voice,
   fix specific issues.
 - **Write**: user has resume + JD and nothing else, or the existing letter is
-  so generic it would be easier to start fresh (audit score below 50 with
-  multiple critical issues).
+  so generic it would be easier to start fresh (audit score below 60, the
+  "Rewrite" band in cover-letter-audit's rating table, with multiple critical
+  issues).
 
 If the user asks to "improve" or "fix" a letter, default to rewrite. If the
-letter scores below 50 with fabrication or complete topic drift, suggest a
+letter scores below 60 with fabrication or complete topic drift, suggest a
 fresh `/cover-letter write` instead.
 
 ## Inputs
@@ -50,6 +49,7 @@ Flags:
 - `--out <dir>` (default `./cover-letters/`).
 - `--preserve-voice` (stricter; forbid changes outside the flagged issues).
 - `--diff` (emit a unified diff between original and rewrite alongside files).
+- `--show-audit` (print the full before/after audit reports instead of the one-line score summaries).
 
 If resume or JD is missing and would be needed for the requested focus,
 either ask for it or proceed with a caveat (for example, `--focus humanize`
@@ -149,8 +149,9 @@ Actions:
   delivering results" becomes "Shipped three products to production in the
   last two years" (or similar; use real resume content).
 - Remove em-dashes; replace with period or comma or parentheses.
-- Add burstiness: introduce at least one short sentence (under 10 words) per
-  paragraph, and ensure at least one long sentence (over 20 words) per letter.
+- Add burstiness to the level the audit scores for: at least one short
+  sentence (under 10 words) AND one long sentence (over 20 words) per
+  paragraph, with sentence-length standard deviation >= 5.
 - Raise TTR: replace repeated nouns and verbs with synonyms the applicant
   would actually use.
 - Cut hedging and throat-clearing ("I would like to", "I believe", "it is
@@ -229,8 +230,9 @@ Actions:
 ### align focus
 
 The JD lists "experience with Kafka" as a must-have. The original letter
-doesn't mention it. The resume lists "migrated order service to Kafka-backed
-event sourcing (2M events/day)". Rewrite adds a single clause:
+doesn't mention it. The resume lists, under the Shopify role, "migrated order
+service to Kafka-backed event sourcing (2M events/day)". Rewrite adds a single
+clause (every fact in it, including the employer, traces to the resume):
 
 **Before:**
 

@@ -113,7 +113,7 @@ Coupling is about *between* modules. Cohesion is about *within* a module. They'r
 - **Low coupling + low cohesion** = modules are independent but internally disorganized. Fix the cohesion.
 - **Low coupling + high cohesion** = the goal. Modules are internally focused and externally independent.
 
-This skill addresses coupling only. If a module has cohesion problems (doing too many unrelated things), that's a signal for the Module Secret Auditor skill.
+This skill addresses coupling only. If a module has cohesion problems (doing too many unrelated things), that's a signal for the `cohesion-analyzer` skill.
 
 ## Guard Rails
 
@@ -131,7 +131,7 @@ This skill addresses coupling only. If a module has cohesion problems (doing too
 2. **Maximize cohesion within modules.** A module that does one thing well has fewer reasons to couple with others.
 3. **Coupling type matters more than coupling count.** One content coupling is worse than five data couplings.
 4. **Coupling is directional.** A depends on B ≠ B depends on A. Map the direction.
-5. **The Law of Demeter operationalizes coupling.** "Don't talk to strangers" — a module should only call methods on its direct dependencies, not on objects returned by those dependencies.
+5. **The Law of Demeter operationalizes coupling.** Later work (Lieberherr's Law of Demeter, 1987, not Constantine & Yourdon) turned this into the "don't talk to strangers" rule: a module should only call methods on its direct dependencies. See the `demeter-enforcer` skill.
 
 ## Common Mistakes
 

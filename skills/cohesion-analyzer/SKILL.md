@@ -115,7 +115,7 @@ COHESION: UserService (src/users/service.ts)
 
 ## Interaction Model
 
-Decision engine. The agent analyzes cohesion in modules it reviews or refactors, producing the cohesion report. When reviewing existing code, it identifies the lowest-cohesion modules (coincidental and logical first) and recommends targeted extractions. The agent targets the largest, most-changed files first—they're the best signal of cohesion problems. It doesn't aim for every module to reach functional cohesion; it balances practicality (some temporal/procedural cohesion is acceptable in init/shutdown) with clarity (modules should be nameable, testable, and reasonably sized).
+Decision engine. The agent analyzes cohesion in modules it reviews or refactors, producing the cohesion report. When reviewing existing code, it identifies the lowest-cohesion modules (coincidental and logical first) and recommends targeted extractions. The agent targets the largest, most-changed files first—they're the best signal of cohesion problems (rank them with `git log --since="6 months ago" --name-only --pretty=format: | sort | uniq -c | sort -rn | head -20`, cross-checked against line counts). It doesn't aim for every module to reach functional cohesion; it balances practicality (some temporal/procedural cohesion is acceptable in init/shutdown) with clarity (modules should be nameable, testable, and reasonably sized).
 
 ## Cohesion vs. Coupling
 

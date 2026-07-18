@@ -18,7 +18,7 @@ A structural analysis framework based on Robert C. Martin's *Clean Architecture*
 - "Why do I need a database to test this business rule?"
 - "Why does changing the API response format require modifying domain entities?"
 
-**Not for:** Dependencies *within* a single layer (that's cohesion — see `cohesion-analyzer`). Framework-internal wiring (e.g., how Express middleware chains — that's the framework's design). Coupling *strength* between modules at the same layer (→ `coupling-auditor`).
+**Not for:** Dependencies *within* a single layer, and coupling *strength* between same-layer modules (both → `coupling-auditor`; a single module doing too many unrelated things → `cohesion-analyzer`). Framework-internal wiring (e.g., how Express middleware chains — that's the framework's design). Designing the port/adapter boundary itself (→ `port-adapter-auditor`; this skill checks which way dependencies point across layers).
 
 ## The Process
 

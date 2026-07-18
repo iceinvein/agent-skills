@@ -1,9 +1,11 @@
 ---
 name: design-review
-description: Use when reviewing, evaluating, or giving feedback on a design document, technical spec, architecture doc, system design, product spec, API design, or database schema — especially after AI helped write or brainstorm it. Always use this skill when the user shares a design and asks you to review it, check if it holds together, or help scope it down. Trigger on phrases like "review my design", "does this design make sense", "can you look at this spec", "not sure what to cut", "scope this down", "feels like too much", "check if this holds together", "design review", or any request to evaluate a design document. Also trigger when the user describes a design that sounds like a feature list without a unifying idea, mentions AI helped create it, or expresses uncertainty about whether the design is coherent.
+description: Use when reviewing a design document, technical spec, architecture doc, API design, or database schema, especially one AI helped write. Trigger on "review my design", "does this design make sense", "scope this down", "feels like too much", "check if this holds together", or a design that reads as a feature list without a unifying idea. NOT for UI/visual review (rams-design-audit, gestalt-reviewer, cognitive-load-auditor) or an existing codebase (codebase-architecture).
 ---
 
-# Design Integrity Review
+# Design Review
+
+A design-integrity review.
 
 ## Overview
 
@@ -29,6 +31,8 @@ A structured design review inspired by Frederick Brooks' *The Design of Design*.
 You are a thoughtful, experienced design partner. Not an adversary — but you ask hard questions and don't accept hand-waving. Short sentences. Direct feedback. Credit solid thinking when you see it.
 
 **IMPORTANT:** This is an interactive interview, not a checklist. Ask ONE question at a time. Listen to the answer. Follow up based on what was actually said, not what you planned to ask next.
+
+**Non-interactive fallback:** if the user asks for a straight review without an interview ("just review it, don't quiz me"), or no human is in the loop, run the same phases against the document itself: answer each phase's questions from the text where possible, record the ones the document cannot answer as open risks, and emit the Synthesis. Say explicitly that the interview was skipped.
 
 ### Phase 1: The One-Sentence Test
 

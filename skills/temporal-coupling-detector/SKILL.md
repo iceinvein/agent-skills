@@ -1,11 +1,11 @@
 ---
 name: temporal-coupling-detector
-description: Use when code breaks because functions were called in the wrong order, when objects must be "initialized" before use but nothing prevents using them uninitialized, when setup/teardown sequences exist and forgetting a step causes silent corruption, or when parallelizing sequential code causes mysterious failures. Trigger on "why does this work in the test but fail in production?", "it worked until we changed the call order", or when reviewing multi-step object setup. NOT for intentional pipelines with type-enforced ordering, framework lifecycle hooks managed by the framework, or database transactions.
+description: Use when code breaks because functions were called in the wrong order, when objects must be "initialized" but nothing prevents using them uninitialized, or when parallelizing sequential code causes mysterious failures. Trigger on "works in the test, fails in production", "it worked until we changed the call order", or when reviewing multi-step object setup. NOT for pipelines with type-enforced ordering, framework-managed lifecycle hooks, or database transactions.
 ---
 
 # Temporal Coupling Detector
 
-One of the most insidious forms of coupling — ordering dependencies required but invisible. If `init()` before `process()` is required but nothing enforces it, every caller must just know. The cost isn't immediately obvious: a test passes because the setup happens to occur in the right order. Code works in development, fails in production because initialization runs on a different thread. A refactor parallelizes sequential operations and introduces a race condition no one saw. Fowler and Beck call this a code smell; Kent Beck recommends encoding ordering into the type system so it cannot be violated.
+One of the most insidious forms of coupling — ordering dependencies required but invisible. If `init()` before `process()` is required but nothing enforces it, every caller must just know. The cost isn't immediately obvious: a test passes because the setup happens to occur in the right order. Code works in development, fails in production because initialization runs on a different thread. A refactor parallelizes sequential operations and introduces a race condition no one saw. Hunt and Thomas named temporal coupling in *The Pragmatic Programmer*; Mark Seemann's design-smell treatment popularized the fix this skill teaches: encode the ordering into the type system so it cannot be violated.
 
 **Core principle:** If code must execute in a specific order, that ordering must be enforced by the design — through types, parameters, or API structure — not by documentation or convention. Convention fails at scale. Types prevent failure.
 

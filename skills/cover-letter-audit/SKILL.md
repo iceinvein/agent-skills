@@ -1,24 +1,22 @@
 ---
 name: cover-letter-audit
 description: >
-  Score a cover letter on a 100-point scale across four categories: content and
-  fit (35), structure (20), voice and humanness (25), correctness (20). Detects
-  AI-generated-content signals (burstiness, known AI phrase list, vocabulary
-  diversity, em-dash count), checks that every claim aligns with the resume,
-  validates job-description coverage without keyword stuffing, flags filler
-  openers, and produces a prioritized fix list. Works with markdown, DOCX, PDF,
-  or pasted letter text. Use when the user says "audit cover letter", "score
-  cover letter", "review cover letter", "check cover letter for AI", "does this
-  cover letter sound human", "rate my cover letter", "is this cover letter any
-  good", or shares a finished letter and asks for feedback.
+  Use when the user asks to audit, score, rate, or review an existing cover
+  letter ("audit cover letter", "does this sound AI", "rate my cover letter",
+  "is this any good"), or shares a finished letter asking for feedback.
+  Scores 100 points across content/fit, structure, voice/humanness, and
+  correctness, detects AI-content signals, and returns a prioritized fix
+  list. Accepts markdown, DOCX, PDF, or pasted text. NOT for writing a letter
+  (cover-letter-write) or applying edits (cover-letter-rewrite).
 argument-hint: "<letter-file-or-text> [--resume <file>] [--jd <file|url|text>] [--format md|json|table]"
 ---
 
 # Cover Letter Auditor
 
 Score a cover letter and return prioritized fixes. The score combines four
-categories to 100 points. A letter at 85+ is publishable; below 75 needs
-targeted rework; below 60 should be rewritten.
+categories to 100 points. The Rating table below maps score bands to actions
+and is the single source of truth for thresholds across the cover-letter
+suite; other skills cite it rather than restating numbers.
 
 ## Inputs
 
@@ -41,7 +39,9 @@ Flags:
 ## Parsing
 
 Same extraction tools as `cover-letter-write`. If the letter is a DOCX or PDF,
-convert to markdown first via pandoc or pdftotext.
+convert to markdown first via pandoc or pdftotext. If no letter path is given,
+check `~/.config/cover-letter/last-run.json` for the most recent write output
+before asking.
 
 ## Scoring rubric
 
@@ -67,9 +67,9 @@ coverage points: 3 to specificity, 3 to motivation.
 | Check | Points | Pass criteria |
 |-------|--------|--------------|
 | Sections present | 5 | Opening hook, fit/evidence, motivation, close all identifiable |
-| Opening | 5 | First sentence is specific and not on the filler-opener list. Generic opener costs all 5 points. |
+| Opening | 5 | First sentence is specific and not a filler opener (the "I am writing to express..." family, items 1-4 of the AI phrase list below). Generic opener costs all 5 points. |
 | Close | 3 | Two sentences max, no "do not hesitate to contact me", plain sign-off |
-| Length | 4 | Word count within target band (default 250-400, or persona band) |
+| Length | 4 | Word count within the declared target band: default 250-400, or the `--length short|standard|long` band from cover-letter-write (150-220 / 250-400 / 380-460) when one was declared or recorded in last-run.json |
 | Formatting | 3 | No stray markdown headings, no bullet lists, no tables, no code blocks. Letter reads as prose. |
 
 ### 3. Voice and Humanness (25)
@@ -78,15 +78,15 @@ coverage points: 3 to specificity, 3 to motivation.
 |-------|--------|--------------|
 | Burstiness | 7 | Sentence length standard deviation >= 5 words; at least one sentence under 10 words and one over 20 per paragraph |
 | AI phrase count | 6 | Zero phrases from the AI phrase list below. Minus 1 per phrase, down to 0. |
-| Vocabulary diversity (TTR) | 4 | Type-Token Ratio >= 0.5 for letters over 200 words. Below 0.4 earns 0. |
-| Contraction/formality match | 3 | Contraction frequency within persona band (default 0.3-0.6). If no persona, accept 0.2-0.7. |
+| Vocabulary diversity (TTR) | 4 | Type-Token Ratio >= 0.5 for letters over 200 words earns 4; 0.40-0.49 earns 2; below 0.4 earns 0. |
+| Contraction/formality match | 3 | Contraction frequency within ±0.15 of the persona's `contraction_frequency` scalar (default persona 0.4 → accept 0.25-0.55). If no persona, accept 0.2-0.7. |
 | Em-dash count | 2 | Zero em-dashes. Em-dashes are a strong AI-output signal; each one costs both points. |
-| Passive voice | 3 | At most 10% of clauses in passive voice (or persona cap) |
+| Passive voice | 3 | At most 10% of sentences in passive voice (or persona cap) |
 
 #### AI phrase list
 
-Flag any occurrence of these, case-insensitive. Extends the blog-analyze list
-with cover-letter-specific killers:
+Flag any occurrence of these, case-insensitive. This is the canonical list for
+the whole cover-letter suite (write and rewrite reference it):
 
 Cover-letter specific:
 

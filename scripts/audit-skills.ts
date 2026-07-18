@@ -134,6 +134,62 @@ for (const e of indexArr) {
   if (!dirs.includes(e.name)) add("ERR", e.name, "in index.json but no matching skill dir");
 }
 
+// ---- cross-reference lint: dangling skill names in SKILL.md prose ----
+// Catches refs like "(use `design-integrity-review`)" pointing at skills that don't exist.
+// Only backticked kebab-case tokens in a routing context (use/see/->/route to) are checked,
+// to avoid false positives on ordinary backticked identifiers.
+const dirSet = new Set(dirs);
+const routingRef = /(?:use|see|→|->|route to|signal for)(?:\s+the)?\s+`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`/gi;
+for (const dir of dirs) {
+  const mdPath = join(SKILLS, dir, "SKILL.md");
+  const mdFile = Bun.file(mdPath);
+  if (!(await mdFile.exists())) continue;
+  const text = await mdFile.text();
+  for (const m of text.matchAll(routingRef)) {
+    const ref = m[1];
+    if (!dirSet.has(ref)) add("ERR", dir, `references skill '${ref}' which does not exist in skills/`);
+  }
+}
+
+// ---- improve-my-codebase inline routing table vs index.json applies/quick ----
+// The orchestrator routes from an inline table (index.json is not installed with it).
+// Keep the two in sync or installed routing silently drifts from the registry.
+{
+  const imcPath = join(SKILLS, "improve-my-codebase", "SKILL.md");
+  const imcFile = Bun.file(imcPath);
+  if (await imcFile.exists()) {
+    const text = await imcFile.text();
+    const tableRows = new Map<string, { applies: string[]; quick: boolean }>();
+    const rowRe = /^\|\s*([a-z][a-z0-9-]+)\s*\|\s*([a-z,\s]+)\s*\|\s*(yes|no)\s*\|/gim;
+    for (const m of text.matchAll(rowRe)) {
+      if (m[1] === "audit") continue; // header row
+      tableRows.set(m[1], {
+        applies: m[2].split(",").map((s) => s.trim()).filter(Boolean),
+        quick: m[3].toLowerCase() === "yes",
+      });
+    }
+    const catalogued = indexArr.filter((e) => Array.isArray(e.applies) && typeof e.quick === "boolean");
+    if (tableRows.size === 0) {
+      add("ERR", "improve-my-codebase", "inline routing table not found in SKILL.md (orchestrator cannot route when installed)");
+    } else {
+      for (const e of catalogued) {
+        const row = tableRows.get(e.name);
+        if (!row) {
+          add("ERR", "improve-my-codebase", `routing table missing audit '${e.name}' (present in index.json)`);
+          continue;
+        }
+        const idxApplies = [...e.applies].sort().join(",");
+        const tblApplies = [...row.applies].sort().join(",");
+        if (idxApplies !== tblApplies) add("ERR", "improve-my-codebase", `routing table applies for '${e.name}' (${tblApplies}) != index.json (${idxApplies})`);
+        if (row.quick !== e.quick) add("ERR", "improve-my-codebase", `routing table quick for '${e.name}' (${row.quick}) != index.json (${e.quick})`);
+      }
+      for (const name of tableRows.keys()) {
+        if (!catalogued.some((e) => e.name === name)) add("ERR", "improve-my-codebase", `routing table lists '${name}' which has no applies/quick entry in index.json`);
+      }
+    }
+  }
+}
+
 // dirs with skill.json but README documents them or not — already covered.
 
 // ---- report ----

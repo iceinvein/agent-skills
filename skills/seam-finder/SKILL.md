@@ -1,6 +1,6 @@
 ---
 name: seam-finder
-description: Use when modifying existing code the agent didn't write, when the agent's instinct is to rewrite or heavily refactor, when adding tests to untested code, or when working in a codebase with minimal coverage. Trigger on "change this behavior", "add a feature to this", or any modification of legacy or unfamiliar code. NOT for greenfield code or code the agent just wrote in this session.
+description: Use when changing code that has minimal or no test coverage, when the agent's instinct is to rewrite or heavily refactor unfamiliar code, or when adding tests to untested code. Trigger on "carefully change this legacy code", "this has no tests", or modifications where breakage would be hard to detect. NOT for greenfield code, code the agent just wrote in this session, or well-tested code where the suite catches regressions.
 ---
 
 # Seam Finder
@@ -30,7 +30,7 @@ Before modifying existing code, survey the available seams:
 - Look for: constructor parameters, function arguments that accept interfaces, injected services, callback parameters, strategy patterns already in place
 - This is the most common seam in object-oriented code. If a dependency is passed in, you can substitute it.
 
-**Preprocessing seam** — Can the inputs be transformed before they reach this code?
+**Input seam** (an adaptation of Feathers' preprocessing seam, which in the book is the build-time preprocessor; the modern equivalent is transforming inputs) — Can the inputs be transformed before they reach this code?
 - Look for: middleware chains, interceptors, data transformation layers, event handlers, input normalization steps
 - The code doesn't change — its inputs do. This is safe because the original code path is untouched.
 

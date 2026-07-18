@@ -1,6 +1,6 @@
 ---
 name: integration-pattern-auditor
-description: Use when designing or reviewing how components, services, or modules communicate through messages, events, queues, or APIs. Trigger on "how should these services talk to each other?", "should this be async?", "why are messages being lost?", or when reviewing event-driven architecture, pub/sub systems, or inter-service communication. NOT for in-process function calls with no messaging involved.
+description: Use when designing or reviewing how components, services, or modules communicate through messages, events, queues, or APIs. Trigger on "how should these services talk to each other?", "should this be async?", "why are messages being lost?", or when reviewing event-driven architecture, pub/sub systems, or inter-service communication. NOT for in-process function calls with no messaging involved, or for event naming and payload design (event-design-reviewer).
 ---
 
 # Integration Pattern Auditor
@@ -187,5 +187,5 @@ Delivery requirements are business decisions. The pattern analysis is technical.
 | Treating all communication as "just HTTP calls" | Classify each interaction by pattern. HTTP is one transport, not one pattern. |
 | Building a message bus for two services | Point-to-point or direct calls are simpler when you have few participants. |
 | No correlation ID across async flows | Add correlation IDs from the start. Debugging async flows without them is nearly impossible. |
-| Consumer processes message, then acknowledges | Acknowledge AFTER processing. If the consumer crashes between ack and processing, the message is lost. |
+| Consumer acknowledges message, then processes | Acknowledge AFTER processing. If the consumer crashes between ack and processing, the message is lost. |
 | Assuming message order is preserved | Most distributed queues don't guarantee ordering. Verify or design for out-of-order. |

@@ -1,15 +1,13 @@
 ---
 name: cover-letter
 description: >
-  Full-lifecycle cover letter suite. Generates, audits, and rewrites cover letters
-  from a resume and job description. Produces markdown, DOCX, and PDF outputs.
-  Optimizes for human-sounding prose, evidence alignment with the resume, and
-  coverage of the job description's key requirements. Also scores letters for
-  AI-generated-content risk, structure, correctness, and tone. Use when the user
-  says "cover letter", "write cover letter", "draft cover letter", "audit cover
-  letter", "rewrite cover letter", "optimize cover letter", "check cover letter",
-  or shares a resume and job description together. Route to the right subcommand:
-  write, audit, rewrite, or persona.
+  Use for generic or ambiguous cover-letter requests: the user says "cover
+  letter" or "help me apply" without a clear write/audit/rewrite verb, invokes
+  /cover-letter, or asks what the suite can do. Routes to the subcommand
+  skills and holds the suite's shared conventions (file I/O, naming, state
+  directory, writing principles). When the phrasing already names the action
+  (write/draft, audit/score, rewrite/fix, persona/voice), trigger that
+  subcommand skill directly instead.
 argument-hint: "[write|audit|rewrite|persona] [...args]"
 ---
 
@@ -25,7 +23,7 @@ a human wrote them, fit the job, and match the resume.
 | `/cover-letter write` | Generate a letter from resume + job description | `cover-letter-write` |
 | `/cover-letter audit <file>` | Score a letter on content, structure, AI-ness, correctness | `cover-letter-audit` |
 | `/cover-letter rewrite <file>` | Humanize and realign an existing letter | `cover-letter-rewrite` |
-| `/cover-letter persona [create\|list\|use\|show]` | Manage writing voice/tone profiles | `cover-letter-persona` |
+| `/cover-letter persona [create\|list\|use\|show\|delete]` | Manage writing voice/tone profiles | `cover-letter-persona` |
 
 When invoked without arguments, list these subcommands and ask which one the
 user wants.
@@ -65,7 +63,7 @@ Letters are emitted as three sibling files by default:
 
 - `<out>/<company>-<role>-<YYYY-MM-DD>.md` (canonical source)
 - `<out>/<company>-<role>-<YYYY-MM-DD>.docx` (via `pandoc`)
-- `<out>/<company>-<role>-<YYYY-MM-DD>.pdf` (via `pandoc` with `--pdf-engine=weasyprint` or `wkhtmltopdf`; fall back to chromium headless if neither is present)
+- `<out>/<company>-<role>-<YYYY-MM-DD>.pdf` (via `pandoc`; the PDF engine fallback chain is defined once, in cover-letter-write's emit step)
 
 Default output directory: `./cover-letters/`. Override with `--out <dir>`.
 
@@ -80,7 +78,7 @@ Personas and session state live at `~/.config/cover-letter/`:
 ~/.config/cover-letter/
 ├── personas/           # one JSON per persona
 ├── active-persona      # plain text, contains active persona name
-└── last-run.json       # last write inputs (for fast rewrite/audit)
+└── last-run.json       # written by cover-letter-write step 7; read by audit/rewrite when the user gives no paths
 ```
 
 Create the directory on first write. Never touch anything outside it when
@@ -111,13 +109,13 @@ and rewrite skills enforce them; the audit skill scores against them.
    "I hope this message finds you well". Every one of these is an AI tell and
    a wasted first sentence.
 7. **No sentimental cliches.** A cover letter is not a Hallmark card. Avoid
-   "hit close to home", "struck a chord", "resonated with me", "spoke to me",
-   "dream come true", "right up my alley", "a perfect fit", "meant to be",
-   "the stars aligned", "at the end of the day", "wearing my heart on my
-   sleeve". These are corny; they signal either AI prose or a writer reaching
-   for warmth they have not earned with specificity. Replace with a concrete
-   reason the thing connects: which paragraph of the post, which past project
-   of yours, which shared problem.
+   the likes of "hit close to home", "struck a chord", "resonated with me";
+   the canonical list lives in cover-letter-audit's AI phrase list, which the
+   audit scores against (do not maintain a second copy here). These are corny;
+   they signal either AI prose or a writer reaching for warmth they have not
+   earned with specificity. Replace with a concrete reason the thing connects:
+   which paragraph of the post, which past project of yours, which shared
+   problem.
 8. **Human closing.** Skip "Please do not hesitate to contact me". A plain
    sign-off works better.
 9. **Length.** 250 to 400 words by default. Shorter is almost always better.
@@ -155,7 +153,7 @@ A typical end-to-end flow:
 1. `/cover-letter persona create` (one-time, or skip for default professional voice)
 2. `/cover-letter persona use <name>` (optional)
 3. `/cover-letter write --resume <resume> --jd <jd>` produces the letter plus a self-audit score
-4. If score below 85 or user unhappy, `/cover-letter rewrite <file>` with optional `--focus humanize|tighten|align`
+4. If the score lands below Strong (under 80 per cover-letter-audit's rating table) or the user is unhappy, `/cover-letter rewrite <file>` with optional `--focus humanize|tighten|align`
 5. `/cover-letter audit <file>` for a final independent score
 
 Each subcommand skill details its own workflow, inputs, and outputs.

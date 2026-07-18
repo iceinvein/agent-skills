@@ -5,7 +5,7 @@ description: Use when reviewing state management in UI applications, when data f
 
 # Unidirectional Flow Enforcer
 
-A state management framework based on Evan Czaplicki's *Elm Architecture* (2012) and the Flux pattern. State flows in one direction: events flow up, state flows down, and mutations happen in exactly one place. When data flows in multiple directions — components reading and writing shared state, child components mutating parent state, event handlers directly modifying global stores — the result is unpredictable behavior, cascading re-renders, and state bugs that are impossible to reproduce.
+A state management framework based on Evan Czaplicki's *Elm Architecture* and the Flux pattern. State flows in one direction: events flow up, state flows down, and mutations happen in exactly one place. When data flows in multiple directions — components reading and writing shared state, child components mutating parent state, event handlers directly modifying global stores — the result is unpredictable behavior, cascading re-renders, and state bugs that are impossible to reproduce.
 
 **Core principle:** State → View → Event → Update → State. This is a cycle, not a web. If you can't trace any piece of state from its origin through its transformation to its rendering, the architecture has a flow violation.
 
@@ -142,7 +142,7 @@ FLOW: Shopping cart
 
 Decision engine. After generating stateful UI code, the agent traces the data flow and checks for unidirectional violations. The report identifies specific flow breaks and concrete fixes. The human sees the analysis alongside the component code.
 
-When the framework imposes specific patterns (e.g., React's controlled components require two-way data flow for form inputs), the agent distinguishes between framework-idiomatic bidirectionality (acceptable) and architectural bidirectionality (violation).
+When the framework imposes specific patterns (e.g., Vue's `v-model` and Svelte's `bind:` sugar over two-way form bindings), the agent distinguishes between framework-idiomatic bidirectionality (acceptable) and architectural bidirectionality (violation). Note: React's controlled components are the canonical ONE-way pattern (value down via props, change up via a callback); do not excuse a real bidirectional mutation in React code as framework-idiomatic.
 
 ## Framework-Specific Guidance
 

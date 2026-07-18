@@ -136,11 +136,11 @@ SIMPLICITY: Using Redux + Redux Toolkit + RTK Query for app state
 
 | Term | Meaning | Example |
 |------|---------|---------|
-| **Simple** | Not interleaved; one braid | A pure function: data in, data out |
+| **Simple** | Not interleaved; one strand, one fold | A pure function: data in, data out |
 | **Easy** | Near at hand; familiar | An ORM with convention-over-configuration |
-| **Complex** | Interleaved; multiple braids | A function that fetches, caches, transforms, and logs |
-| **Complecting** | The act of braiding together | Adding "just one more concern" to an existing module |
-| **Decomplecting** | The act of separating braids | Splitting a god module into composable parts |
+| **Complex** | Interleaved; strands braided together | A function that fetches, caches, transforms, and logs |
+| **Complecting** | The act of braiding strands together | Adding "just one more concern" to an existing module |
+| **Decomplecting** | The act of separating strands | Splitting a god module into composable parts |
 | **Compose** | Combining simple things | Piping focused functions together |
 | **Artifact** | What you build | Code, modules, services |
 | **Construct** | Tools you use to build | Languages, libraries, patterns |

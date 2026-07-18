@@ -1,6 +1,6 @@
 ---
 name: magpie
-description: Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting findings to post via gh. Use when the user asks to review a GitHub pull request.
+description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"). Interactive PR review pipeline; five parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
 ---
 
 # Magpie
@@ -38,6 +38,8 @@ When a prior run exists for the same PR (active or archived under `~/.magpie/`),
 
 Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding written to `$RUN_DIR/findings/tests.json`. This is a sixth domain that flows through dedupe/critic/peer-review alongside the five LLM specialists. No specialist subagent is dispatched for it.
 
+The pipeline has no separate context-indexing stage, but `magpie status` and the progress page track one. After setup succeeds, append `{stage: context, status: skipped}` to `$RUN_DIR/log.jsonl` so both advance past `context`.
+
 ### 2. Serve
 
 Start the HTML server in the background using the Bash tool with `run_in_background: true`:
@@ -46,7 +48,7 @@ Start the HTML server in the background using the Bash tool with `run_in_backgro
 magpie serve "$RUN_DIR"
 ```
 
-Read `$RUN_DIR/state/server-info` for the URL. Print to the user: "Open <url> in your browser to follow along."
+Read `$RUN_DIR/state/server-info` for the URL; the server writes it asynchronously at startup, so if the file doesn't exist yet, wait a moment and re-read (it appears within ~1s). Print to the user: "Open <url> in your browser to follow along."
 
 Render the first progress paint:
 
@@ -56,7 +58,7 @@ magpie render "$RUN_DIR" progress
 
 ### 3. Specialists
 
-Dispatch the five specialist subagents in a single message using five Agent tool calls in parallel. For each focus in (security, bugs, performance, code-smells, architecture), the prompt is:
+Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress, so the served page shows the stage as active rather than "Paused". Then dispatch the five specialist subagents in a single message using five Agent tool calls in parallel. For each focus in (security, bugs, performance, code-smells, architecture), the prompt is:
 
 ````
 <specialist block for focus from this SKILL.md>
@@ -148,7 +150,7 @@ Read `$RUN_DIR/findings.deduped.json`. Substitute both placeholders in the criti
 
 ### 6. Peer review
 
-This stage always runs. `codex` is the preferred reviewer because it is a different model from the Claude agents that produced the findings; when `codex` is unavailable, a Claude second-opinion subagent stands in.
+Append `{stage: peer-review, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage always runs. `codex` is the preferred reviewer because it is a different model from the Claude agents that produced the findings; when `codex` is unavailable, a Claude second-opinion subagent stands in.
 
 Build the peer-review prompt first: take the `magpie-peer-review` block from this SKILL.md and substitute the placeholders listed in its `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`.
 
@@ -160,17 +162,19 @@ codex exec < "$RUN_DIR/peer-prompt.md" > "$RUN_DIR/peer.out"
 
 `peer.out` is codex's full transcript; extract the fenced JSON block tagged `review-peer-review` from it to get the verdicts array. Write that verdicts array to `$RUN_DIR/peer.json`, append `{stage: peer-review, status: done, provider: codex}`, then apply the verdicts as described below.
 
-If codex returns non-zero, do not abort: fall through to the Claude path and record `{stage: peer-review, provider: codex, status: error}` first.
+If codex returns non-zero, do not abort: record `{stage: peer-review, provider: codex, status: fallback, error: "<first line of stderr>"}` and fall through to the Claude path. (Never log `status: error` for a recoverable codex failure: `magpie status` stops at the first `error` entry and would report the run as poisoned even after the Claude fallback succeeds.)
 
 **Claude path (fallback).** When `codex` is unavailable or failed, get the second opinion from a Claude subagent instead. Set `<<PEER_PROVIDER>>` to `claude`, then prepend the `magpie-peer-review-claude-preamble` block from this SKILL.md to the substituted peer-review prompt (the preamble forces genuine independence, since the reviewer shares a model family with the primary reviewers). Dispatch one subagent (Agent tool, `general-purpose`) whose entire task is that combined prompt, and instruct it to return only the fenced `review-peer-review` JSON block. Write its output to `$RUN_DIR/peer.out`, extract the `review-peer-review` block to `$RUN_DIR/peer.json`, and append `{stage: peer-review, status: done, provider: claude}`.
 
-**Apply the verdicts (both paths).** Parse the verdicts JSON and apply the `update` / `add` entries (an empty array means no change), then write `findings.final.json`. Re-render progress.
+**Apply the verdicts (both paths).** Parse the verdicts JSON and apply the `update` / `add` entries (an empty array means no change). For each `add`, mint a unique `id` on the new finding before merging (`peer-1`, `peer-2`, ...): the peer contract does not include ids, but every finding in `findings.final.json` must carry one or the report render and post stages will crash. Then write `findings.final.json`. Re-render progress.
 
 ### 7. Report
 
 ```
 magpie render "$RUN_DIR" findings
 ```
+
+Append `{stage: report, status: done}` to `$RUN_DIR/log.jsonl` and re-render progress (the render CLI does not log this itself, and `magpie status` needs the `done` entry to resume past `report`).
 
 Print to the terminal: "Findings ready at <url>. Click checkboxes to select what to post, then reply with `post`."
 
@@ -180,7 +184,7 @@ End the turn.
 
 Most users will tick the checkboxes in the served report and click "Post to PR"; the report server handles the rest. The agent only handles posts when the user explicitly types `post` (optionally `post 1,3,7` for indices) in the conversation.
 
-When that happens, read `$RUN_DIR/state/events`. Compute the selected finding ids as (union of `select` events minus `deselect`) merged with any explicit indices the user named (1-based, against `findings.final.json` in file order). Then post via the CLI:
+When that happens, read `$RUN_DIR/state/events`. Fold the events in order, keeping the LAST event per finding id; ids whose last event is `select` are selected. (Not union-minus: the UI emits one event per toggle, so select then deselect then select again must resolve to selected.) Merge with any explicit indices the user named (1-based, against `findings.final.json` in file order). Then post via the CLI:
 
 ```
 magpie post "$RUN_DIR" --ids id1,id2,id3
@@ -190,10 +194,10 @@ That delegates to `runPost`, which:
 
 - Picks `formatInlineBody` (severity heading, `<sub>` risk metaline, parsed `Observation`/`Why it matters`/`Suggested direction`/`Needs verification` sections, optional `` ```suggestion `` block, hidden `magpie:finding` marker) when the finding has a `line`, and uses `gh api repos/<owner>/<repo>/pulls/<n>/comments` to open an inline review thread.
 - Falls back to `formatConversationBody` (same shape plus a `Location · <file>:<line>` metaline) posted via `gh pr comment <n>` when there is no anchor, or when GitHub rejects the inline anchor with 422.
-- When two or more new findings are being posted in this batch, prepends one top-level summary comment (verdict line, "Needs Attention" top three, `<details>` risk breakdown) and persists the sentinel `__summary__` in `post-status.json` so re-runs don't duplicate it. Override with `--include-summary always|never` if you need to force or suppress it.
+- When at least one new finding is being posted in this batch (default `auto` mode), prepends one top-level summary comment (verdict line, "Needs Attention" top three, `<details>` risk breakdown) and persists the sentinel `__summary__` in `post-status.json` so re-runs don't duplicate it. Override with `--include-summary always|never` if you need to force or suppress it.
 - Appends `{stage: post, ...}` events to `log.jsonl` and updates `$RUN_DIR/post-status.json` per finding id.
 
-Pass `--dry-run` to record the would-be gh commands without invoking gh. After posting, re-render the report so the badges update:
+Pass `--dry-run` to record the would-be gh commands without invoking gh. After posting, append `{stage: post, status: done}` to `$RUN_DIR/log.jsonl` (`runPost` logs per-finding `ok`/`failed` events but not the stage-complete marker, and `magpie status` counts only `done`), then re-render the report so the badges update:
 
 ```
 magpie render "$RUN_DIR" findings
@@ -530,7 +534,7 @@ The main agent runs this in-conversation against `findings.deduped.json` and wri
 
 ## Substitute before use
 
-The block below contains two placeholders. Replace both before running the rubric.
+The block below contains two placeholders. Replace both before running the rubric. (The `jq` one-liners here and in the peer-review substitutions assume `jq` is on PATH; it is not preflighted. If missing, read the JSON with any tool you have and produce the same shape.)
 
 - `<<DEDUPED_FINDINGS_COMPACT>>` — pretty-printed JSON array of the deduped candidates with only the fields the critic needs. Each candidate carries `onChangedLine` (set deterministically during dedupe: `true` = anchored inside a changed hunk, `false` = anchored on code the PR did not touch, `null` = not anchorable). Build with:
   ```
