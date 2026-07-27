@@ -13,6 +13,12 @@ const ORDER = [
 ] as const
 
 export type StatusResult = {
+  /**
+   * Highest stage the log says is behind us. A stage logged `skipped` counts:
+   * `context` has no work in the pipeline and is always logged that way, so
+   * treating it as unfinished would send a resume back to a stage that has no
+   * step to run.
+   */
   lastCompleted: (typeof ORDER)[number] | null
   next: (typeof ORDER)[number] | 'cleanup'
   error: string | null
@@ -35,7 +41,10 @@ export async function runStatus(runDir: string): Promise<StatusResult> {
       error = stage
       break
     }
-    if (status === 'done' && (ORDER as readonly string[]).includes(stage)) {
+    if (
+      (status === 'done' || status === 'skipped') &&
+      (ORDER as readonly string[]).includes(stage)
+    ) {
       lastCompleted = stage as StatusResult['lastCompleted']
     }
   }

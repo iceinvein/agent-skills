@@ -352,6 +352,23 @@
     }
   }
 
+  function isSelected(id) {
+    return findCheckboxes(id).some((cb) => cb.checked && !cb.disabled)
+  }
+
+  // Assigning `cb.checked` in script fires no change event, so any programmatic
+  // selection has to emit its own /events record. `state/events` is the only
+  // channel the orchestrator can read when the user types `post` in the
+  // terminal instead of using the in-page buttons; a silent set drops the
+  // finding from that post.
+  function setCheckedAndNotify(id, checked) {
+    const before = isSelected(id)
+    setChecked(id, checked)
+    const after = isSelected(id)
+    if (after === before) return
+    post({ type: after ? 'select' : 'deselect', findingId: id, timestamp: Date.now() })
+  }
+
   // ---------------------------------------------------------------------------
   // Bulk selection
   // ---------------------------------------------------------------------------
@@ -367,8 +384,8 @@
       if (el.getAttribute('data-posted') === 'true') continue
       ids.add(el.getAttribute('data-finding-id'))
     }
-    for (const id of ids) setChecked(id, true)
-    updateSelectedCount()
+    for (const id of ids) setCheckedAndNotify(id, true)
+    recountSelected()
   }
 
   function handleSelectRecommended() {
@@ -378,8 +395,8 @@
       if (el.getAttribute('data-posted') === 'true') continue
       ids.add(el.getAttribute('data-finding-id'))
     }
-    for (const id of ids) setChecked(id, true)
-    updateSelectedCount()
+    for (const id of ids) setCheckedAndNotify(id, true)
+    recountSelected()
   }
 
   // ---------------------------------------------------------------------------
@@ -399,14 +416,8 @@
     if (cbs.length === 0) return
     const cb = cbs[0]
     if (cb.disabled) return
-    const next = !cb.checked
-    setChecked(id, next)
-    post({
-      type: next ? 'select' : 'deselect',
-      findingId: id,
-      timestamp: Date.now(),
-    })
-    updateSelectedCount()
+    setCheckedAndNotify(id, !cb.checked)
+    recountSelected()
   }
 
   // ---------------------------------------------------------------------------
@@ -535,7 +546,7 @@
         if (cb.disabled) continue
         cb.checked = target.checked
       }
-      updateSelectedCount()
+      recountSelected()
       post({
         type: target.checked ? 'select' : 'deselect',
         findingId: id,

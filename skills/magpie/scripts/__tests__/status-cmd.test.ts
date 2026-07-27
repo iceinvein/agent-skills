@@ -31,6 +31,19 @@ test('empty log reports nothing completed', async () => {
   expect(result.next).toBe('setup')
 })
 
+test('a skipped stage advances the resume pointer past it', async () => {
+  // `context` has no work in the pipeline; SKILL.md tells the orchestrator to
+  // log it as skipped. If `skipped` did not advance the pointer, a resume
+  // would be sent back to a stage that has no step to run.
+  await writeFile(
+    join(runDir, 'log.jsonl'),
+    `${JSON.stringify({ stage: 'setup', status: 'done' })}\n${JSON.stringify({ stage: 'context', status: 'skipped' })}\n`,
+  )
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('context')
+  expect(result.next).toBe('specialists')
+})
+
 test('error stage halts progression', async () => {
   await writeFile(
     join(runDir, 'log.jsonl'),

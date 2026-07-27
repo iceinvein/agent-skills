@@ -44,6 +44,46 @@ test('confirm-post captures pending ids before closeConfirm clears them', async 
   expect(block).toMatch(/performPost\(\s*ids\s*\)/)
 })
 
+test('bulk selection routes through the notifying setter so /events stays complete', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  // `state/events` is the only channel the orchestrator has for reading a UI
+  // selection when the user types `post` in the terminal. Programmatic
+  // `cb.checked = true` fires no change event, so the bulk handlers must emit
+  // the select record themselves or terminal posts silently drop findings.
+  expect(src).toMatch(/function setCheckedAndNotify\(/)
+  const notifyStart = src.indexOf('function setCheckedAndNotify(')
+  const notifyBlock = src.slice(notifyStart, notifyStart + 600)
+  expect(notifyBlock).toContain('post({')
+  expect(notifyBlock).toMatch(/'select'/)
+  expect(notifyBlock).toMatch(/'deselect'/)
+
+  for (const handler of ['function handleSelectSev(', 'function handleSelectRecommended(']) {
+    const start = src.indexOf(handler)
+    expect(start).toBeGreaterThan(-1)
+    const block = src.slice(start, src.indexOf('\n  }', start))
+    expect(block).toContain('setCheckedAndNotify(')
+    // A bare setChecked() here is the regression: silent selection.
+    expect(block).not.toMatch(/[^d]\bsetChecked\(/)
+  }
+})
+
+test('selection changes persist to localStorage so a reload restores them', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  // restoreSelection() runs at bind time, so every path that mutates a
+  // checkbox has to go through recountSelected() (which writes localStorage),
+  // not the bare counter update.
+  const changeStart = src.indexOf("addEventListener('change'")
+  expect(changeStart).toBeGreaterThan(-1)
+  const changeBlock = src.slice(changeStart, src.indexOf('\n    })', changeStart))
+  expect(changeBlock).toContain('recountSelected()')
+
+  for (const handler of ['function handleSelectSev(', 'function handleSelectRecommended(']) {
+    const start = src.indexOf(handler)
+    const block = src.slice(start, src.indexOf('\n  }', start))
+    expect(block).toContain('recountSelected()')
+  }
+})
+
 test('recountSelected ignores disabled checkboxes (posted findings)', async () => {
   const src = await readFile(HELPER, 'utf8')
   // Posted findings get checked+disabled; they must not count as an active
