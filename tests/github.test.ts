@@ -147,3 +147,28 @@ test("resolveBundlePaths deduplicates overlapping includes", () => {
   const paths = resolveBundlePaths(entries, { include: ["bin", "bin/magpie"] });
   expect(paths).toEqual(["bin/magpie"]);
 });
+
+test("magpie's real manifest bundles every reference file its SKILL.md cites", async () => {
+  // resolveBundlePaths silently drops include entries that match nothing, so a
+  // prompt file left out of `bundle.include` installs as a broken link rather
+  // than a build failure. Resolve the real manifest against the real tree.
+  const skillDir = new URL("../skills/magpie/", import.meta.url).pathname;
+  const manifest = (await Bun.file(`${skillDir}skill.json`).json()) as {
+    bundle: { include: string[]; exclude?: string[] };
+  };
+  const skill = await Bun.file(`${skillDir}SKILL.md`).text();
+
+  const glob = new Bun.Glob("references/**/*");
+  const entries: TreeEntry[] = [{ path: "references", type: "tree" }];
+  for await (const rel of glob.scan({ cwd: skillDir })) {
+    entries.push({ path: rel, type: "blob" });
+  }
+
+  const bundled = new Set(resolveBundlePaths(entries, manifest.bundle));
+  const cited = new Set([...skill.matchAll(/references\/[a-z0-9-]+\.md/g)].map((m) => m[0]));
+
+  expect(cited.size).toBeGreaterThan(0);
+  for (const path of cited) {
+    expect(bundled.has(path)).toBe(true);
+  }
+});

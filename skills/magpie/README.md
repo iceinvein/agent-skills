@@ -53,7 +53,8 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 
 ## Layout
 
-- `SKILL.md` is the agent-facing prompt; installed by the agent-skills CLI.
+- `SKILL.md` is the agent-facing prompt: the stage walkthrough and nothing else. Installed by the agent-skills CLI.
+- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `specialists.md` (stage 3, the five focus blocks plus the shared output contract), `critic.md` (stage 5), `peer-review.md` (stage 6, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
 - `skill.json` is the agent-skills manifest.
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).

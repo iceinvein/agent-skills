@@ -2,10 +2,35 @@ import { expect, test } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 
 const SKILL = new URL('../../SKILL.md', import.meta.url).pathname
+const SKILL_JSON = new URL('../../skill.json', import.meta.url).pathname
+const ref = (name: string) => new URL(`../../references/${name}`, import.meta.url).pathname
 const FOCUSES = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
 
-test('SKILL.md has a specialist block for every focus', async () => {
+test('every references/ path SKILL.md cites exists on disk', async () => {
   const text = await readFile(SKILL, 'utf8')
+  const cited = [...text.matchAll(/references\/[a-z0-9-]+\.md/g)].map((m) => m[0])
+  expect(cited.length).toBeGreaterThan(0)
+  for (const rel of new Set(cited)) {
+    const body = await readFile(new URL(`../../${rel}`, import.meta.url).pathname, 'utf8')
+    expect(body.length).toBeGreaterThan(0)
+  }
+})
+
+test('references/ ships in the install bundle', async () => {
+  // resolveBundlePaths silently drops include entries that match nothing, so a
+  // missing entry here would install a SKILL.md whose prompts are all 404s.
+  const manifest = JSON.parse(await readFile(SKILL_JSON, 'utf8')) as {
+    bundle: { include: string[] }
+  }
+  const covers = (p: string) =>
+    manifest.bundle.include.some((inc) => inc === p || p.startsWith(`${inc}/`))
+  for (const name of ['specialists.md', 'critic.md', 'peer-review.md']) {
+    expect(covers(`references/${name}`)).toBe(true)
+  }
+})
+
+test('references/specialists.md has a block for every focus', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
   for (const focus of FOCUSES) {
     const tag = `magpie-specialist-${focus}`
     const fence = `\`\`\`${tag}`
@@ -13,23 +38,69 @@ test('SKILL.md has a specialist block for every focus', async () => {
     const start = text.indexOf(fence)
     const end = text.indexOf('```', start + tag.length + 3)
     const block = text.slice(start, end)
-    expect(block).toContain('orchestrator')
+    expect(block).toContain('Output Contract')
     expect(block).toContain(focus)
   }
 })
 
-test('SKILL.md §4 specifies the findings file path', async () => {
-  const text = await readFile(SKILL, 'utf8')
-  // The file-write instruction lives once, in the orchestrator template before §5.
-  const orchestrator = text.slice(0, text.indexOf('```magpie-specialist-'))
-  expect(orchestrator).toMatch(/findings\/<focus>\.json/)
-  expect(orchestrator).toMatch(/Write findings to/i)
+test('references/specialists.md carries the output contract next to the blocks', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  // The contract has to travel with the prompts: the orchestrator assembles
+  // both into one subagent prompt from this single file.
+  const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
+  expect(contract).toContain('## Output Contract')
+  expect(contract).toMatch(/findings\/<focus>\.json/)
+  expect(contract).toMatch(/Write findings to/i)
+  // Severity, impact, likelihood, confidence, action enums must all be listed.
+  expect(contract).toMatch(/"blocker".*"high".*"medium".*"low"/)
+  expect(contract).toMatch(/"critical".*"high".*"medium".*"low"/)
+  expect(contract).toMatch(/"likely".*"possible".*"edge-case".*"unknown"/)
+  expect(contract).toMatch(/"must-fix".*"should-fix".*"consider".*"optional"/)
+  expect(contract).toMatch(/"impact"[\s\S]*"likelihood"[\s\S]*"confidence"[\s\S]*"action"/)
+  expect(contract).toMatch(/"body"[\s\S]*"startLine"[\s\S]*"endLine"/)
+  // Anti-patterns flagged explicitly so subagents don't repeat the JSON-shape mistakes.
+  expect(contract).toMatch(/NOT "lines"/)
+  expect(contract).toMatch(/NOT "recommendation"/)
 })
 
-test('SKILL.md has the critic and peer-review blocks', async () => {
-  const text = await readFile(SKILL, 'utf8')
+test('references/critic.md holds the rubric and both placeholders', async () => {
+  const text = await readFile(ref('critic.md'), 'utf8')
   expect(text).toContain('```magpie-critic')
+  expect(text).toContain('<<DEDUPED_FINDINGS_COMPACT>>')
+  expect(text).toContain('<<DIFF_EXCERPT>>')
+  expect(text).toContain('review-critic')
+})
+
+test('references/peer-review.md holds the prompt and the Claude preamble', async () => {
+  const text = await readFile(ref('peer-review.md'), 'utf8')
   expect(text).toContain('```magpie-peer-review')
+  expect(text).toContain('```magpie-peer-review-claude-preamble')
+  expect(text).toContain('review-peer-review')
+  for (const ph of ['<<PRIMARY_PROVIDER>>', '<<PEER_PROVIDER>>', '<<KEPT_FINDINGS_COMPACT>>']) {
+    expect(text).toContain(ph)
+  }
+})
+
+test('SKILL.md sends each stage to the reference file it needs', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const section = (heading: string) => {
+    const start = text.indexOf(heading)
+    expect(start).toBeGreaterThan(-1)
+    const next = text.indexOf('\n### ', start + heading.length)
+    return text.slice(start, next === -1 ? undefined : next)
+  }
+  expect(section('### 3. Specialists')).toContain('references/specialists.md')
+  expect(section('### 5. Critic')).toContain('references/critic.md')
+  expect(section('### 6. Peer review')).toContain('references/peer-review.md')
+})
+
+test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  for (const tag of ['magpie-specialist-', 'magpie-critic', 'magpie-peer-review']) {
+    expect(text).not.toContain(`\`\`\`${tag}`)
+  }
+  // The walkthrough is the always-read part; keep it small enough to be cheap.
+  expect(text.split(/\s+/).length).toBeLessThan(2600)
 })
 
 test('styles.css declares a prefers-color-scheme:dark block that overrides core tokens', async () => {
@@ -104,25 +175,42 @@ test('severity chips and submit button no longer hardcode `color: white` (must f
   }
 })
 
-test('SKILL.md §4 inlines the full specialist schema with enum vocabularies', async () => {
+test('SKILL.md checks for a resumable run before minting a new run id', async () => {
   const text = await readFile(SKILL, 'utf8')
-  // The schema block sits inside the specialist orchestrator template (§4),
-  // before the specialist blocks begin (the first `magpie-specialist-` tag).
-  const schemaCutoff = text.indexOf('```magpie-specialist-')
-  expect(schemaCutoff).toBeGreaterThan(-1)
-  const orchestrator = text.slice(0, schemaCutoff)
-  // Severity, impact, likelihood, confidence, action enums must all be listed.
-  expect(orchestrator).toMatch(/"blocker".*"high".*"medium".*"low"/)
-  expect(orchestrator).toMatch(/"critical".*"high".*"medium".*"low"/)
-  expect(orchestrator).toMatch(/"likely".*"possible".*"edge-case".*"unknown"/)
-  expect(orchestrator).toMatch(/"must-fix".*"should-fix".*"consider".*"optional"/)
-  // The risk field must be documented as an object with the four required keys.
-  expect(orchestrator).toMatch(/"impact"[\s\S]*"likelihood"[\s\S]*"confidence"[\s\S]*"action"/)
-  // suggestion shape: body/startLine/endLine.
-  expect(orchestrator).toMatch(/"body"[\s\S]*"startLine"[\s\S]*"endLine"/)
-  // Anti-patterns flagged explicitly so subagents don't repeat the JSON-shape mistakes.
-  expect(orchestrator).toMatch(/NOT "lines"/)
-  expect(orchestrator).toMatch(/NOT "recommendation"/)
+  // §0 always computed a fresh `pr-<n>-<epoch>` id, so the resume section
+  // (which keyed off that brand-new directory) could never fire.
+  const setupSection = text.slice(0, text.indexOf('### 1. Setup'))
+  expect(setupSection).toContain('magpie --list-runs')
+  expect(setupSection).toMatch(/active/i)
+})
+
+test('SKILL.md does not gate resume on state/server-info', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('## Resuming a crashed run')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('## Aborting', start))
+  // server-info is deleted when the server idles out, so a resumable run
+  // fails that check. log.jsonl is the durable signal.
+  expect(section).toContain('log.jsonl')
+  expect(section).not.toMatch(/if .*server-info.* exists/i)
+  // Resuming must restart the server; the old one is gone.
+  expect(section).toContain('magpie serve')
+  // `context` is a no-op stage: say so, or the agent stalls on it.
+  expect(section).toContain('context')
+})
+
+test('SKILL.md names the report buttons that actually exist', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const actionBar = await readFile(
+    new URL('../render-action-bar.ts', import.meta.url).pathname,
+    'utf8',
+  )
+  for (const label of ['Post Selected', 'Post Recommended']) {
+    expect(actionBar).toContain(label)
+    expect(text).toContain(label)
+  }
+  // The old label was never rendered anywhere.
+  expect(text).not.toContain('Post to PR')
 })
 
 test('SKILL.md has the stage walkthrough', async () => {
