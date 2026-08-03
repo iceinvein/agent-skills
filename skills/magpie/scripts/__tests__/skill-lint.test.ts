@@ -92,7 +92,7 @@ test('references/scout.md holds the scout prompt and the brief contract', async 
     expect(text).toContain(ph)
   }
   // The scout must never trigger a full index; that is a consent-gated GPU pass.
-  expect(text).toContain('approve_indexing')
+  expect(text).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
   // watchItems are context for specialists, not findings in their own right.
   expect(text).toMatch(/not a finding/i)
 })
@@ -301,7 +301,7 @@ test('references/specialists.md carries the codebase-intelligence block', async 
   expect(block).toContain('bind_workspace')
   expect(block).toContain('indexing_in_progress')
   // The one operation a specialist must never perform.
-  expect(block).toContain('approve_indexing')
+  expect(block).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
 })
 
 test('every focus block names the code-intelligence tool for its focus', async () => {
