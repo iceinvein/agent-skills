@@ -290,3 +290,30 @@ test('brief content is HTML-escaped', () => {
   expect(html).not.toContain('<script>alert(1)</script>')
   expect(html).toContain('&lt;script&gt;')
 })
+
+test('subsystem role and issue title escape quotes in their title="" attribute context', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: {
+      ...SAMPLE_BRIEF,
+      subsystems: [{ name: 'upload', role: 'owns the put path" onmouseover="alert(1)' }],
+    },
+    issues: [
+      {
+        number: 42,
+        title: 'fails intermittently" onmouseover="alert(2)',
+        url: 'https://example.test/issues/42',
+      },
+    ],
+  })
+  // Raw quote-breakout must never appear unescaped in either attribute.
+  expect(html).not.toContain('path" onmouseover="alert(1)')
+  expect(html).not.toContain('intermittently" onmouseover="alert(2)')
+  // Escaped form must appear instead.
+  expect(html).toContain('path&quot; onmouseover=&quot;alert(1)')
+  expect(html).toContain('intermittently&quot; onmouseover=&quot;alert(2)')
+  // purpose escaping (already covered above) must remain intact alongside this.
+  expect(html).toContain('Adds bounded retries to the upload path')
+})
