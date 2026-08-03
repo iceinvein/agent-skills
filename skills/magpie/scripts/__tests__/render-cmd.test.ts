@@ -167,3 +167,28 @@ test('linked issues from pr.json render in the brief header', async () => {
   const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
   expect(html).toContain('https://example.test/issues/42')
 })
+
+test('issue entries with a missing, zero, or negative number are dropped, not defaulted to 0', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({
+      number: 1234,
+      headRefName: 'feature-x',
+      headRefOid: 'deadbeef',
+      closingIssuesReferences: [
+        { number: 42, title: 'Uploads fail', url: 'https://example.test/issues/42' },
+        { title: 'Missing number', url: 'https://example.test/issues/missing' },
+        { number: 0, title: 'Zero number', url: 'https://example.test/issues/zero' },
+        { number: -1, title: 'Negative number', url: 'https://example.test/issues/negative' },
+      ],
+    }),
+  )
+  await writeFile(join(runDir, 'brief.json'), JSON.stringify({ purpose: 'Fixes uploads.' }))
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(html).toContain('https://example.test/issues/42')
+  expect(html).not.toContain('https://example.test/issues/missing')
+  expect(html).not.toContain('https://example.test/issues/zero')
+  expect(html).not.toContain('https://example.test/issues/negative')
+})

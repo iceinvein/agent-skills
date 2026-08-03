@@ -208,3 +208,19 @@ test('bundled fixture covers all five focus domains', async () => {
     expect(html).toContain(`data-domain="${domain}"`)
   }
 })
+
+test('bundled fixture brief.json renders the PR brief header', async () => {
+  await runPreview({
+    page: 'findings',
+    stage: DEFAULT_STAGE,
+    outDir: workDir,
+    openInBrowser: false,
+  })
+  const html = await readFile(join(workDir, 'findings.html'), 'utf8')
+  expect(html).toContain('class="pr-brief"')
+  // Unique to fixtures/example-pr/brief.json; would not appear from any other
+  // part of the fixture or the page shell.
+  expect(html).toContain(
+    'Adds bounded retries to the upload path so transient S3 failures stop surfacing to end users as hard errors.',
+  )
+})
