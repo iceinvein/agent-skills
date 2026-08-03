@@ -30,9 +30,10 @@ Code intelligence: <<CODE_INTELLIGENCE>>
 
 ## Code intelligence
 
-When the line above says `available`, the code-intelligence MCP tools are bound to
-`<<RUN_DIR>>/worktree` and its index is seeded from the base repository. Use them to
-map where the change lands:
+When the line above says `available`, the code-intelligence MCP tools are indexed
+against `<<RUN_DIR>>/worktree`, seeded from the base repository. Call `bind_workspace`
+with `<<RUN_DIR>>/worktree` before your first query. Use them to map where the change
+lands:
 
 - `get_module_summary` on each directory the diff touches, to name the subsystem and
   say what it is responsible for.
