@@ -7,7 +7,7 @@ import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
 import { renderIssuesList } from './render-issues-list.ts'
-import type { PostStatusMap, PrFileEntry, ReviewFinding } from './types.ts'
+import type { PostStatusMap, PrBrief, PrFileEntry, ReviewFinding } from './types.ts'
 
 export type { PostStatusEntry, PostStatusMap } from './types.ts'
 
@@ -15,6 +15,12 @@ export type FindingsPrMeta = {
   number: number
   branch: string
   headSha: string
+}
+
+export type BriefIssue = {
+  number: number
+  title: string
+  url: string
 }
 
 export type RenderFindingsInput = {
@@ -28,6 +34,10 @@ export type RenderFindingsInput = {
   files?: PrFileEntry[]
   /** Raw unified diff text for the PR. */
   diff?: string
+  /** Scout-produced PR summary. When absent, the report renders no brief header. */
+  brief?: PrBrief
+  /** Issues this PR closes, from pr.json's closingIssuesReferences. */
+  issues?: BriefIssue[]
   /** Shiki highlighter, prepared by the caller. */
   highlighter: Highlighter
 }
@@ -74,6 +84,40 @@ function prHeader(input: RenderFindingsInput): string {
       <button type="button" data-action="set-view" data-view="all-issues" aria-pressed="false">All Issues <span class="seg-count">(${total})</span></button>
     </div>
   </header>`
+}
+
+function briefBlock(brief: PrBrief | undefined, issues: BriefIssue[]): string {
+  // Absent brief renders nothing: archived runs from before the scout stage
+  // existed must still open cleanly.
+  if (!brief) return ''
+  const changes =
+    brief.changes.length > 0
+      ? `<ul class="brief-changes">${brief.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
+      : ''
+  const subsystems =
+    brief.subsystems.length > 0
+      ? `<div class="brief-subsystems">${brief.subsystems
+          .map((s) => `<span class="brief-chip" title="${esc(s.role)}">${esc(s.name)}</span>`)
+          .join('')}</div>`
+      : ''
+  const issueLinks =
+    issues.length > 0
+      ? `<div class="brief-issues">${issues
+          .map(
+            (i) =>
+              `<a class="brief-issue" href="${esc(i.url)}" title="${esc(i.title)}">#${i.number}</a>`,
+          )
+          .join('')}</div>`
+      : ''
+  return `<details class="pr-brief" open>
+    <summary class="brief-summary">What this PR is for</summary>
+    <div class="brief-body">
+      <p class="brief-purpose">${esc(brief.purpose)}</p>
+      ${changes}
+      ${subsystems}
+      ${issueLinks}
+    </div>
+  </details>`
 }
 
 function filePane(opts: {
@@ -163,6 +207,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
   const diff = input.diff ?? ''
   const splitDiffs = splitDiffByFile(diff)
   const selectedIds = new Set<string>()
+  const briefHtml = briefBlock(input.brief, input.issues ?? [])
 
   if (input.findings.length === 0) {
     return `<!DOCTYPE html>
@@ -175,6 +220,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
 </head>
 <body data-run-id="${esc(runId)}" data-page="findings" data-view="files" data-diff-mode="unified" data-show-suggestions="false">
 ${prHeader(input)}
+${briefHtml}
 <main class="page-main">
   <div class="empty-state"><h1>No findings</h1><p>All specialists returned cleanly.</p></div>
 </main>
@@ -223,6 +269,7 @@ ${prHeader(input)}
 </head>
 <body data-run-id="${esc(runId)}" data-page="findings" data-view="files" data-diff-mode="unified" data-show-suggestions="false">
 ${prHeader(input)}
+${briefHtml}
 <main class="page-main">
   <div class="view files-view">
     ${tree}

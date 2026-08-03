@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from 'bun:test'
 import type { Highlighter } from 'shiki'
 import { getHighlighter } from '../highlight.ts'
 import { renderFindingsHtml } from '../render-findings.ts'
-import type { ReviewFinding } from '../types.ts'
+import type { PrBrief, ReviewFinding } from '../types.ts'
 
 function f(p: Partial<ReviewFinding> & { id: string; title: string }): ReviewFinding {
   return {
@@ -199,4 +199,94 @@ test('renders pr meta when supplied', () => {
   expect(html).toContain('PR #42')
   expect(html).toContain('feat/x')
   expect(html).toContain('deadbeefdead')
+})
+
+const SAMPLE_BRIEF: PrBrief = {
+  purpose:
+    'Adds bounded retries to the upload path so transient S3 failures stop surfacing to users.',
+  changes: ['Wraps the S3 put in a bounded retry', 'Adds a jittered backoff helper'],
+  subsystems: [
+    { name: 'upload', role: 'owns the client-facing put path' },
+    { name: 'storage-client', role: 'wraps the S3 SDK' },
+  ],
+  watchItems: ['The PR body claims idempotency but no request key is sent'],
+  unclear: ['Whether the retry budget interacts with the outer request timeout'],
+}
+
+test('brief header renders purpose, changes, and subsystem chips', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: SAMPLE_BRIEF,
+  })
+  expect(html).toContain('class="pr-brief"')
+  expect(html).toContain('Adds bounded retries to the upload path')
+  expect(html).toContain('Wraps the S3 put in a bounded retry')
+  expect(html).toContain('class="brief-chip"')
+  expect(html).toContain('>upload<')
+  expect(html).toContain('>storage-client<')
+})
+
+test('brief header omits watchItems and unclear, which are prompt-only', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: SAMPLE_BRIEF,
+  })
+  expect(html).not.toContain('no request key is sent')
+  expect(html).not.toContain('outer request timeout')
+})
+
+test('no brief means no brief header at all', () => {
+  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  expect(html).not.toContain('class="pr-brief"')
+})
+
+test('an empty subsystem list renders no chip row', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: { ...SAMPLE_BRIEF, subsystems: [] },
+  })
+  expect(html).toContain('class="pr-brief"')
+  expect(html).not.toContain('brief-subsystems')
+})
+
+test('brief header renders on the empty-findings page too', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    highlighter: hl,
+    brief: SAMPLE_BRIEF,
+  })
+  expect(html).toContain('No findings')
+  expect(html).toContain('class="pr-brief"')
+})
+
+test('linked issues render as links when supplied', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: SAMPLE_BRIEF,
+    issues: [
+      { number: 42, title: 'Uploads fail intermittently', url: 'https://example.test/issues/42' },
+    ],
+  })
+  expect(html).toContain('https://example.test/issues/42')
+  expect(html).toContain('#42')
+})
+
+test('brief content is HTML-escaped', () => {
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    highlighter: hl,
+    brief: { ...SAMPLE_BRIEF, purpose: 'Fixes <script>alert(1)</script> handling' },
+  })
+  expect(html).not.toContain('<script>alert(1)</script>')
+  expect(html).toContain('&lt;script&gt;')
 })

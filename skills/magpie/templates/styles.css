@@ -1638,3 +1638,64 @@ code.inline-code {
     border-color: var(--line);
   }
 }
+
+/* ---- PR brief header ---- */
+.pr-brief {
+  margin: 0;
+  padding: 10px 16px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.brief-summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.brief-body {
+  padding-top: 8px;
+  max-width: 92ch;
+}
+
+.brief-purpose {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.brief-changes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.brief-subsystems,
+.brief-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.brief-chip,
+.brief-issue {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.brief-issue {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
