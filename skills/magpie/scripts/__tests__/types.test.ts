@@ -6,6 +6,7 @@ import {
   FOCUS_IDS,
   isSuggestion,
   looksLikeProse,
+  parseBrief,
   parseFinding,
 } from '../types.ts'
 
@@ -315,4 +316,50 @@ describe('isSuggestion', () => {
       isSuggestion(parseFinding({ ...base, risk: { ...base.risk, action: 'should-fix' } })),
     ).toBe(false)
   })
+})
+
+test('parseBrief accepts a well-formed brief', () => {
+  const brief = parseBrief({
+    purpose: 'Adds retry handling to the upload path.',
+    changes: ['Wraps the S3 put in a bounded retry', 'Adds a jittered backoff helper'],
+    subsystems: [{ name: 'upload', role: 'owns the client-facing put path' }],
+    watchItems: ['The PR body claims idempotency but no request key is sent'],
+    unclear: ['Whether the retry budget interacts with the outer request timeout'],
+  })
+  expect(brief).not.toBeNull()
+  expect(brief?.purpose).toBe('Adds retry handling to the upload path.')
+  expect(brief?.changes).toHaveLength(2)
+  expect(brief?.subsystems[0]).toEqual({ name: 'upload', role: 'owns the client-facing put path' })
+  expect(brief?.watchItems).toHaveLength(1)
+  expect(brief?.unclear).toHaveLength(1)
+})
+
+test('parseBrief returns null for a brief with no purpose', () => {
+  expect(parseBrief({ changes: ['a'] })).toBeNull()
+  expect(parseBrief({ purpose: '   ', changes: ['a'] })).toBeNull()
+})
+
+test('parseBrief returns null for non-objects', () => {
+  expect(parseBrief(null)).toBeNull()
+  expect(parseBrief('a brief')).toBeNull()
+  expect(parseBrief(['a brief'])).toBeNull()
+})
+
+test('parseBrief drops junk entries instead of throwing', () => {
+  const brief = parseBrief({
+    purpose: 'Does a thing.',
+    changes: ['kept', 42, null, '   ', 'also kept'],
+    subsystems: [{ name: 'kept', role: 'r' }, { role: 'no name' }, 'not an object', null],
+    watchItems: 'not an array',
+    unclear: undefined,
+  })
+  expect(brief?.changes).toEqual(['kept', 'also kept'])
+  expect(brief?.subsystems).toEqual([{ name: 'kept', role: 'r' }])
+  expect(brief?.watchItems).toEqual([])
+  expect(brief?.unclear).toEqual([])
+})
+
+test('parseBrief defaults a subsystem with no role to an empty role', () => {
+  const brief = parseBrief({ purpose: 'p', subsystems: [{ name: 'auth' }] })
+  expect(brief?.subsystems).toEqual([{ name: 'auth', role: '' }])
 })

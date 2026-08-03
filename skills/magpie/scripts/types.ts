@@ -332,3 +332,53 @@ export type PrFileEntry = {
 export function isSuggestion(f: ReviewFinding): boolean {
   return f.risk.action === 'consider' || f.risk.action === 'optional'
 }
+
+export type BriefSubsystem = {
+  name: string
+  role: string
+}
+
+/** Scout-produced PR summary. Written to `$RUN_DIR/brief.json` by the context stage. */
+export type PrBrief = {
+  purpose: string
+  changes: string[]
+  subsystems: BriefSubsystem[]
+  watchItems: string[]
+  unclear: string[]
+}
+
+function briefStrings(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0)
+}
+
+/**
+ * Lenient by design, unlike `parseFinding`. A subagent-authored brief that came
+ * back malformed must degrade the report header to absent, not throw away an
+ * otherwise-complete review at render time.
+ */
+export function parseBrief(raw: unknown): PrBrief | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  const purpose = typeof r.purpose === 'string' ? r.purpose.trim() : ''
+  if (purpose.length === 0) return null
+  const subsystems: BriefSubsystem[] = Array.isArray(r.subsystems)
+    ? (r.subsystems as unknown[]).flatMap((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+        const e = entry as Record<string, unknown>
+        const name = typeof e.name === 'string' ? e.name.trim() : ''
+        if (name.length === 0) return []
+        return [{ name, role: typeof e.role === 'string' ? e.role.trim() : '' }]
+      })
+    : []
+  return {
+    purpose,
+    changes: briefStrings(r.changes),
+    subsystems,
+    watchItems: briefStrings(r.watchItems),
+    unclear: briefStrings(r.unclear),
+  }
+}
