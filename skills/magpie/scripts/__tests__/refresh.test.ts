@@ -84,3 +84,48 @@ test('refreshFindings sets data-run-id from the run directory basename', async (
   const expectedId = runDir.split('/').pop()
   expect(fresh).toContain(`data-run-id="${expectedId}"`)
 })
+
+test('refreshFindings carries the brief header through, so archives keep it on re-render', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'brief.json'),
+    JSON.stringify({
+      purpose: 'Adds bounded retries to the upload path.',
+      changes: ['Wraps the S3 put in a bounded retry'],
+      subsystems: [{ name: 'upload', role: 'owns the put path' }],
+      watchItems: [],
+      unclear: [],
+    }),
+  )
+  const result = await refreshFindings(runDir)
+  expect(result.refreshed).toBe(true)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toContain('class="pr-brief"')
+  expect(fresh).toContain('Adds bounded retries to the upload path.')
+})
+
+test('refreshFindings omits the brief header when brief.json is absent', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).not.toContain('class="pr-brief"')
+})
+
+test('refreshFindings carries linked issues from pr.json through the brief header', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({
+      number: 1234,
+      headRefName: 'feature-x',
+      headRefOid: 'deadbeef',
+      closingIssuesReferences: [
+        { number: 42, title: 'Uploads fail', url: 'https://example.test/issues/42' },
+      ],
+    }),
+  )
+  await writeFile(join(runDir, 'brief.json'), JSON.stringify({ purpose: 'Fixes uploads.' }))
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toContain('https://example.test/issues/42')
+})

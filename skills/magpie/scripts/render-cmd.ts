@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { type BriefIssue, type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
+import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { renderProgressToDisk } from './render-progress.ts'
 import { parseBrief, parseFinding } from './types.ts'
 
@@ -123,16 +123,7 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
   // returns null for a brief that parsed but is unusable. Either way the header
   // is simply omitted.
   const brief = parseBrief(await readJson<unknown>(join(runDir, 'brief.json'), null)) ?? undefined
-  const issuesRaw = Array.isArray(prJson.closingIssuesReferences)
-    ? (prJson.closingIssuesReferences as unknown[])
-    : []
-  const issues: BriefIssue[] = issuesRaw.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') return []
-    const e = entry as Record<string, unknown>
-    const number = Number(e.number ?? 0)
-    if (!Number.isFinite(number) || number <= 0) return []
-    return [{ number, title: String(e.title ?? ''), url: String(e.url ?? '') }]
-  })
+  const issues = parseClosingIssues(prJson)
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
     { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues },

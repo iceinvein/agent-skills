@@ -23,6 +23,25 @@ export type BriefIssue = {
   url: string
 }
 
+/**
+ * Maps pr.json's `closingIssuesReferences` into the brief header's issue links.
+ * Shared by render-cmd's findings branch and refresh (which re-renders
+ * findings.html for `magpie open` / `magpie serve <archived-id>`), so both
+ * call sites stay in lockstep instead of drifting apart.
+ */
+export function parseClosingIssues(prJson: Record<string, unknown>): BriefIssue[] {
+  const issuesRaw = Array.isArray(prJson.closingIssuesReferences)
+    ? (prJson.closingIssuesReferences as unknown[])
+    : []
+  return issuesRaw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const e = entry as Record<string, unknown>
+    const number = Number(e.number ?? 0)
+    if (!Number.isFinite(number) || number <= 0) return []
+    return [{ number, title: String(e.title ?? ''), url: String(e.url ?? '') }]
+  })
+}
+
 export type RenderFindingsInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap

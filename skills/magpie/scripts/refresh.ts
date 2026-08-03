@@ -1,7 +1,7 @@
 import { readdir, readFile, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
-import { type PrFileEntry, parseFinding } from './types.ts'
+import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
+import { type PrFileEntry, parseBrief, parseFinding } from './types.ts'
 
 export type RefreshResult = {
   refreshed: boolean
@@ -61,6 +61,7 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
 
   let pr: { number: number; branch: string; headSha: string } | undefined
   let files: PrFileEntry[] = []
+  let issues: ReturnType<typeof parseClosingIssues> = []
   try {
     const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
     const prNumber = Number(prJson.number ?? 0)
@@ -80,14 +81,34 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
         deletions: Number(entry.deletions ?? 0),
       }
     })
+    issues = parseClosingIssues(prJson)
   } catch {
     // optional file; archived runs may not include pr.json
+  }
+
+  // Scout-produced summary. Same lenient-degrade contract as render-cmd.ts: a
+  // missing or malformed brief.json simply omits the header rather than
+  // failing the refresh (older archives predate the scout stage entirely).
+  let brief: ReturnType<typeof parseBrief> | undefined
+  try {
+    brief = parseBrief(await Bun.file(join(runDir, 'brief.json')).json())
+  } catch {
+    // optional file
   }
 
   const diff = await readFile(join(runDir, 'diff.patch'), 'utf8').catch(() => '')
 
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr, files, diff },
+    {
+      findings,
+      postStatus,
+      runId: basename(runDir),
+      pr,
+      files,
+      diff,
+      brief: brief ?? undefined,
+      issues,
+    },
     join(screenDir, 'findings.html'),
   )
 
