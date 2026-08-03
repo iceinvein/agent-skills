@@ -19,6 +19,20 @@ case "$1 $2" in
       "deletions": 0,
       "changeType": "modified"
     }
+  ],
+  "commits": [
+    {
+      "oid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      "messageHeadline": "Add retry handling to the upload path",
+      "messageBody": ""
+    }
+  ],
+  "closingIssuesReferences": [
+    {
+      "number": 42,
+      "title": "Uploads fail intermittently under load",
+      "url": "https://github.com/octocat/Hello-World/issues/42"
+    }
   ]
 }
 JSON

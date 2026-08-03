@@ -45,3 +45,24 @@ test('fetchPr returns ok=false when gh exits non-zero', async () => {
     expect(result.error).toBeDefined()
   }
 })
+
+test('PR_VIEW_FIELDS requests commit messages and linked issues', async () => {
+  const { PR_VIEW_FIELDS } = await import('../gh.ts')
+  const fields = PR_VIEW_FIELDS.split(',')
+  expect(fields).toContain('commits')
+  expect(fields).toContain('closingIssuesReferences')
+  // The pre-existing fields must survive the edit.
+  for (const field of ['number', 'title', 'body', 'url', 'files', 'headRefOid']) {
+    expect(fields).toContain(field)
+  }
+})
+
+test('fetchPr carries commits and linked issues into pr.json', async () => {
+  const result = await fetchPr({ ghBin: FAKE_GH, prNumber: 1234, runDir })
+  expect(result.ok).toBe(true)
+  const pr = JSON.parse(await readFile(join(runDir, 'pr.json'), 'utf8'))
+  expect(Array.isArray(pr.commits)).toBe(true)
+  expect(pr.commits[0].messageHeadline).toBe('Add retry handling to the upload path')
+  expect(Array.isArray(pr.closingIssuesReferences)).toBe(true)
+  expect(pr.closingIssuesReferences[0]).toMatchObject({ number: 42 })
+})

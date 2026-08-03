@@ -13,7 +13,7 @@ export type FetchPrResult =
   | { ok: true; prJsonPath: string; diffPath: string }
   | { ok: false; error: string }
 
-const PR_VIEW_FIELDS = [
+export const PR_VIEW_FIELDS = [
   'number',
   'title',
   'headRefName',
@@ -26,6 +26,9 @@ const PR_VIEW_FIELDS = [
   // depending on cwd (the worktree is gone after cleanup).
   'url',
   'files',
+  // Intent evidence for the scout's brief, and issue links for the report header.
+  'commits',
+  'closingIssuesReferences',
 ].join(',')
 
 export async function fetchPr(input: FetchPrInput): Promise<FetchPrResult> {
