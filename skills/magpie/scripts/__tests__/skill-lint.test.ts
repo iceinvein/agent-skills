@@ -238,3 +238,38 @@ test('SKILL.md has the stage walkthrough', async () => {
   expect(text).toMatch(/magpie render/)
   expect(text).toMatch(/magpie cleanup/)
 })
+
+test('references/specialists.md carries the codebase-intelligence block', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toContain('```magpie-codebase-intelligence')
+  const start = text.indexOf('```magpie-codebase-intelligence')
+  const block = text.slice(start, text.indexOf('```', start + 32))
+  expect(block).toContain('bind_workspace')
+  expect(block).toContain('indexing_in_progress')
+  // The one operation a specialist must never perform.
+  expect(block).toContain('approve_indexing')
+})
+
+test('every focus block names the code-intelligence tool for its focus', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const tools: Record<(typeof FOCUSES)[number], string> = {
+    security: 'trace_data_flow',
+    bugs: 'get_call_hierarchy',
+    performance: 'find_affected_code',
+    'code-smells': 'search_code',
+    architecture: 'explore_dependency_graph',
+  }
+  for (const focus of FOCUSES) {
+    const fence = `\`\`\`magpie-specialist-${focus}`
+    const start = text.indexOf(fence)
+    const block = text.slice(start, text.indexOf('```', start + fence.length))
+    expect(block).toContain(tools[focus])
+  }
+})
+
+test('the output contract tells specialists to look before they hedge', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
+  expect(contract).toContain('Needs verification:')
+  expect(contract).toMatch(/look before .*hedg/i)
+})

@@ -1,6 +1,7 @@
 # Specialist prompts
 
-Stage 3 of the walkthrough dispatches five subagents from this file. Build each prompt from three parts, in this order, and send it as the agent's entire task:
+Stage 4 of the walkthrough dispatches five subagents from this file. Build each prompt
+from up to five parts, in this order, and send it as the agent's entire task:
 
 1. The focus block for that focus (the fenced `magpie-specialist-<focus>` blocks below), verbatim.
 2. The run header, with the two placeholders filled in:
@@ -12,10 +13,42 @@ Diff: <RUN_DIR>/diff.patch
 ```
 
 3. The `## Output Contract` section below, verbatim.
+4. The `magpie-codebase-intelligence` block below, verbatim, **only** when the context
+   stage logged `codeIntelligence: true`. Omit it entirely otherwise: telling a
+   specialist to use tools it does not have wastes a turn per specialist on discovery.
+5. The brief, when `<RUN_DIR>/brief.json` exists, rendered as:
 
-Replace every `<RUN_DIR>` and `<PR_NUMBER>` with the real values before sending: the subagent has no shell variables from your session, so an unexpanded path means it writes its findings where nothing will read them. Leave `<focus>` as written; the contract tells the subagent to substitute it.
+```
+## What this PR is for
 
-Send all three parts every time. The contract is what makes the output parseable by `magpie dedupe`, and the focus blocks are what keep the five reviews from collapsing into the same generic pass. Do not paraphrase, summarise, or trim either one.
+<purpose>
+
+What it does:
+- <each entry of changes>
+
+Subsystems it lands in:
+- <name>: <role>          (omit this heading when subsystems is empty)
+
+Watch items:
+- <each entry of watchItems>   (omit this heading when watchItems is empty)
+
+Open questions the scout could not resolve:
+- <each entry of unclear>      (omit this heading when unclear is empty)
+
+This brief is the author's claim as understood by a reader who has not reviewed the
+code. It is not ground truth. Where the diff contradicts it, that is a finding in
+your domain, not a correction to the brief. A watch item is a pointer, not a verdict:
+escalate it into a finding with your own risk fields, or leave it alone.
+```
+
+Replace every `<RUN_DIR>` and `<PR_NUMBER>` with the real values before sending: the
+subagent has no shell variables from your session, so an unexpanded path means it
+writes its findings where nothing will read them. Leave `<focus>` as written; the
+contract tells the subagent to substitute it.
+
+Parts 1, 2, and 3 go every time. The contract is what makes the output parseable by
+`magpie dedupe`, and the focus blocks are what keep the five reviews from collapsing
+into the same generic pass. Do not paraphrase, summarise, or trim either one.
 
 ## Output Contract
 
@@ -66,7 +99,7 @@ Good:
 - `Observation: <one idea, what the diff actually does and where>`
 - `Why it matters: <impact at realistic scale or on a real user path>`
 - `Suggested direction: <one concrete next step, optional if the fix isn't obvious>`
-- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing.
+- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing. When the codebase-intelligence tools are available and one of them could answer the question, look before you hedge. A question you resolved is not a `Needs verification:` paragraph, it is evidence: cite the file:line you found under `Observation:` and omit the paragraph entirely.
 
 One idea per paragraph. Do not collapse them into a single wall of text. Do not invent extra labels. If a section doesn't apply, omit it. The interactive report and the GitHub comment both parse these labels and render them as section headers, so missing labels degrade the output.
 
@@ -78,6 +111,47 @@ One idea per paragraph. Do not collapse them into a single wall of text. Do not 
 - Wrapping the code in a `` ``` `` fence inside `body` is tolerated (the poster hoists the inner code out), but bare code is preferred.
 
 If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<blocker>/<high>/<medium>/<low>)`. Do not include other prose.
+
+## Codebase intelligence
+
+Include this block as part 4 only when the context stage logged `codeIntelligence: true`.
+
+```magpie-codebase-intelligence
+## Codebase intelligence
+
+You have code-intelligence MCP tools against an index of this exact worktree,
+including the PR's own changes. Call `bind_workspace` with `<RUN_DIR>/worktree` before
+your first query.
+
+These answer the cross-file questions a diff cannot:
+
+- `ask_code`: a natural-language question, answered with grounded evidence. Start here
+  when you do not yet know which symbol to pivot on.
+- `find_references` / `get_call_hierarchy`: who calls this, and what does it call.
+  Use for reachability: is the path you are worried about actually reachable.
+- `find_affected_code`: the full reverse-dependency set for a symbol. Use for blast
+  radius before claiming a change is safe or unsafe.
+- `trace_data_flow`: follow a value from its origin to where it is used. Use to
+  confirm that untrusted input actually reaches the sink you are worried about.
+- `search_code`: hybrid semantic and literal search. Use to check whether something
+  already exists before claiming the PR should add it.
+- `get_definition`: the body of a symbol the diff calls but does not show.
+- `explore_dependency_graph`: module-level edges. Use for cycles and boundaries.
+- `find_tests_for_symbol`: whether the symbol you are flagging is covered.
+
+Rules:
+
+- Cite what you find as ordinary `file:line` evidence under `Observation:`. Do not
+  say "code intelligence told me"; the location is the evidence.
+- Verify before you report. A finding you could have refuted with one query and did
+  not is worse than no finding: it costs the author trust and the critic a slot.
+- Verify before you hedge. If a tool can answer the question, a `Needs verification:`
+  paragraph is a failure to look, not honest uncertainty.
+- If a tool returns `indexing_in_progress`, finish reading the diff and retry once.
+  If it is still not ready, review from the diff and worktree alone. Do not block.
+- Never call `approve_indexing`. Never call `refresh_index`. Starting a full index is
+  a consent-gated operation that is not yours to start.
+```
 
 ## Focus blocks
 
@@ -132,6 +206,7 @@ For each potential finding:
 2. Identify the trust boundary: is this crossing from untrusted to trusted context?
 3. Assess exploitability: can an attacker realistically trigger this?
 4. Evaluate impact: what's the blast radius if exploited?
+5. Confirm the flow with `trace_data_flow` from the entry point to the sink before reporting. A taint path you asserted but did not trace is a guess.
 
 **Risk guide:**
 - blocker: Realistic path to remote code execution, auth bypass, data breach, or privilege escalation
@@ -196,6 +271,8 @@ For each potential bug:
 3. What's the consequence: crash, data corruption, silent wrong behavior?
 4. Is there an existing guard I'm not seeing?
 
+Question 4 is answerable: `get_call_hierarchy` on the changed symbol shows every caller, and `find_references` shows where the guard would have to live. Check before you file.
+
 **Risk guide:**
 - blocker: Data loss, data corruption, broken auth/session behavior, or consistently crashing a major workflow
 - high: Reachable incorrect behavior, race, resource leak, or crash in a meaningful workflow
@@ -254,6 +331,7 @@ For each potential issue:
 2. How often does this code path execute? (once on init vs. every keystroke)
 3. What's the measurable impact? (milliseconds vs. seconds)
 4. Is the optimization worth the complexity cost?
+5. Establish the call frequency with `find_affected_code` before claiming a path is hot. "Called from one cold init path" and "called per keystroke" are different findings.
 
 **Risk guide:**
 - blocker: Change can make a major workflow unusable or cause unbounded production resource exhaustion
@@ -315,6 +393,7 @@ For each potential smell:
 2. Confirm the smell is introduced or materially worsened by this PR, not merely pre-existing nearby code.
 3. Suggest the smallest refactor that fits the surrounding codebase patterns.
 4. Weigh the cost: do not ask for a new abstraction unless it reduces real duplication, coupling, or reasoning burden now.
+5. Before claiming the PR duplicates something or should reuse an existing helper, find it with `search_code`. Name the file:line of the thing it should have reused, or do not make the claim.
 
 **Risk guide:**
 - blocker: Smell creates a high-risk maintenance trap likely to cause defects across modules soon
@@ -373,6 +452,7 @@ For each potential issue:
 2. Is this coupling necessary or incidental?
 3. Would a new team member understand where to make changes?
 4. Is this over-engineered for the current requirements, or appropriately future-proofed?
+5. Confirm boundary and cycle claims with `explore_dependency_graph` on the touched modules. A cycle you inferred from import statements in the diff may already be broken by an interface you cannot see.
 
 **Risk guide:**
 - blocker: Change introduces a serious boundary violation or contract break likely to cascade across subsystems
