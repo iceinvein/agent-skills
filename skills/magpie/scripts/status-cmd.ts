@@ -15,9 +15,9 @@ const ORDER = [
 export type StatusResult = {
   /**
    * Highest stage the log says is behind us. A stage logged `skipped` counts:
-   * `context` has no work in the pipeline and is always logged that way, so
-   * treating it as unfinished would send a resume back to a stage that has no
-   * step to run.
+   * `context` logs `skipped` when the scout produced no brief, and the pipeline
+   * has nothing to go back for, so treating it as unfinished would send a resume
+   * to a stage with no remaining work.
    */
   lastCompleted: (typeof ORDER)[number] | null
   next: (typeof ORDER)[number] | 'cleanup'

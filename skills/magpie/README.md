@@ -12,6 +12,7 @@ Given a GitHub PR number, dispatches five specialist subagents in parallel (secu
 - `gh` on PATH, authenticated (`gh auth status`)
 - `git` on PATH
 - `codex` on PATH, authenticated (optional; if absent the peer-review stage falls back to a Claude second-opinion subagent)
+- the code-intelligence MCP server, with a completed index for the repo under review (optional; if absent the specialists review from the diff and worktree alone)
 
 ## Install
 
@@ -54,7 +55,7 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 ## Layout
 
 - `SKILL.md` is the agent-facing prompt: the stage walkthrough and nothing else. Installed by the agent-skills CLI.
-- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `specialists.md` (stage 3, the five focus blocks plus the shared output contract), `critic.md` (stage 5), `peer-review.md` (stage 6, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
+- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract), `specialists.md` (stage 4, the five focus blocks plus the shared output contract and the codebase-intelligence block), `critic.md` (stage 6), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
 - `skill.json` is the agent-skills manifest.
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).

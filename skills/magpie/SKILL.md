@@ -46,8 +46,6 @@ When a prior run exists for the same PR (active or archived under `~/.magpie/`),
 
 Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding written to `$RUN_DIR/findings/tests.json`. This is a sixth domain that flows through dedupe/critic/peer-review alongside the five LLM specialists. No specialist subagent is dispatched for it.
 
-The pipeline has no separate context-indexing stage, but `magpie status` and the progress page track one. After setup succeeds, append `{stage: context, status: skipped}` to `$RUN_DIR/log.jsonl`; both treat a skipped stage as behind them, so the pipeline advances to `specialists`.
-
 ### 2. Serve
 
 Start the HTML server in the background using the Bash tool with `run_in_background: true`:
@@ -66,7 +64,22 @@ Render the first progress paint:
 magpie render "$RUN_DIR" progress
 ```
 
-### 3. Specialists
+### 3. Context
+
+Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage has two steps and never aborts the run.
+
+**Bind probe.** If the `mcp__code-intelligence__*` tools are not in your tool list, skip straight to the scout with `CODE_INTELLIGENCE=unavailable`. Otherwise call `bind_workspace` with `$RUN_DIR/worktree`. The worktree is a linked git worktree, so an already-indexed base repo seeds its index instead of re-indexing.
+
+- `consent_required` means the base repo has never completed an index. **Never call `approve_indexing`**: that is a full GPU pass the user did not ask for. Set `CODE_INTELLIGENCE=unavailable`, and print one line: "Code intelligence is unavailable (the base repo has no index); specialists will review from the diff alone."
+- `indexing_started` or `indexing_in_progress` means the seed took. Poll `get_index_stats` every 5s for at most 60s, then set `CODE_INTELLIGENCE=available` either way. Do not block the pipeline on completion; the specialist contract handles a still-indexing tool.
+- A ready result sets `CODE_INTELLIGENCE=available`.
+- Any other error sets `CODE_INTELLIGENCE=unavailable`. Do not retry.
+
+**Scout.** Read `references/scout.md` and dispatch one subagent (Agent tool, `general-purpose`) carrying the `magpie-scout` block with `<<RUN_DIR>>`, `<<PR_NUMBER>>`, and `<<CODE_INTELLIGENCE>>` substituted. It writes `$RUN_DIR/brief.json`.
+
+Append `{stage: context, status: done, codeIntelligence: true|false}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read.
+
+### 4. Specialists
 
 Read `references/specialists.md` now, before dispatching anything. It holds the five focus blocks and the output contract that every specialist prompt is built from. Assemble the prompts from that file verbatim: prompts written from memory drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
 
@@ -76,7 +89,7 @@ After each subagent returns, append `{stage: specialist, focus: <focus>, status:
 
 If all five specialists fail (no findings files written), log `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
 
-### 4. Dedupe
+### 5. Dedupe
 
 ```
 magpie dedupe "$RUN_DIR" [--threshold <0-10>]
@@ -88,11 +101,11 @@ Each finding receives a derived 0-10 `score` from its risk fields. Findings belo
 
 Re-render progress.
 
-### 5. Critic
+### 6. Critic
 
 Read `references/critic.md` and `$RUN_DIR/findings.deduped.json`. Substitute both placeholders in the critic rubric (the compact candidate list including each finding's `onChangedLine`, and the `<<DIFF_EXCERPT>>` hunks for the referenced files), then apply the rubric verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
 
-### 6. Peer review
+### 7. Peer review
 
 Append `{stage: peer-review, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage always runs. `codex` is the preferred reviewer because it is a different model from the Claude agents that produced the findings; when `codex` is unavailable, a Claude second-opinion subagent stands in.
 
@@ -112,7 +125,7 @@ If codex returns non-zero, do not abort: record `{stage: peer-review, provider: 
 
 **Apply the verdicts (both paths).** Parse the verdicts JSON and apply the `update` / `add` entries (an empty array means no change). For each `add`, mint a unique `id` on the new finding before merging (`peer-1`, `peer-2`, ...): the peer contract does not include ids, but every finding in `findings.final.json` must carry one or the report render and post stages will crash. Then write `findings.final.json`. Re-render progress.
 
-### 7. Report
+### 8. Report
 
 ```
 magpie render "$RUN_DIR" findings
@@ -124,7 +137,7 @@ Print to the terminal: "Findings ready at <url>. Tick the ones you want and clic
 
 End the turn.
 
-### 8. Post
+### 9. Post
 
 Most users will tick the checkboxes in the served report and click **Post Selected** (or **Post Recommended**, which takes every finding whose `risk.action` is `must-fix` or `should-fix`, skipping the `consider`/`optional` ones); the report server handles the rest and posts the batch as one GitHub review with inline threads. The agent only handles posts when the user explicitly types `post` (optionally `post 1,3,7` for indices) in the conversation, which takes the CLI path below: separate inline comments plus a top-level summary comment. Either path records posted ids in `post-status.json`, so the two cannot double-post the same finding.
 
@@ -147,11 +160,13 @@ Pass `--dry-run` to record the would-be gh commands without invoking gh. After p
 magpie render "$RUN_DIR" findings
 ```
 
-### 9. Cleanup
+### 10. Cleanup
 
 ```
 magpie cleanup "$RUN_DIR" --repo "$REPO"
 ```
+
+If the context stage bound code intelligence, rebind the session to the repository now: call `bind_workspace` with `$REPO`. Binding is per session with no per-call override, so a run that ends without this leaves your session pointed at a worktree `cleanup` just deleted. The daemon prunes the seeded index on its own once the worktree is gone.
 
 The run directory is renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed. The CLI prints two lines on success: `archived to <path>` and `view later: magpie open <archived-id>`. Surface that second line to the user verbatim so they have a one-command path back to the report.
 
@@ -172,7 +187,7 @@ magpie status "$RUN_DIR"
 
 The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
-- `context` is a no-op. Append `{stage: context, status: skipped}` and continue at `specialists`.
+- `context` re-runs as written. The seeded index survives a crash, so the rebind is near-instant, and the scout re-runs only if `$RUN_DIR/brief.json` is missing.
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done, re-dispatch only that focus.
 - Non-null `error` means the run stopped on a failed stage. Report which stage to the user and confirm before re-running it.

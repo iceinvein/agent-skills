@@ -105,18 +105,36 @@ test('SKILL.md sends each stage to the reference file it needs', async () => {
     const next = text.indexOf('\n### ', start + heading.length)
     return text.slice(start, next === -1 ? undefined : next)
   }
-  expect(section('### 3. Specialists')).toContain('references/specialists.md')
-  expect(section('### 5. Critic')).toContain('references/critic.md')
-  expect(section('### 6. Peer review')).toContain('references/peer-review.md')
+  expect(section('### 3. Context')).toContain('references/scout.md')
+  expect(section('### 4. Specialists')).toContain('references/specialists.md')
+  expect(section('### 6. Critic')).toContain('references/critic.md')
+  expect(section('### 7. Peer review')).toContain('references/peer-review.md')
 })
 
 test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
   const text = await readFile(SKILL, 'utf8')
-  for (const tag of ['magpie-specialist-', 'magpie-critic', 'magpie-peer-review']) {
+  for (const tag of ['magpie-specialist-', 'magpie-critic', 'magpie-peer-review', 'magpie-scout']) {
     expect(text).not.toContain(`\`\`\`${tag}`)
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
   expect(text.split(/\s+/).length).toBeLessThan(2600)
+})
+
+test('SKILL.md never instructs the agent to approve indexing', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  // A full index is a consent-gated GPU pass. The context stage degrades instead.
+  expect(text).toContain('approve_indexing')
+  expect(text).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
+})
+
+test('SKILL.md rebinds the code-intelligence session at cleanup', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 10. Cleanup')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('\n## ', start))
+  // Binding is per session with no per-call override, so a run that ends without
+  // rebinding leaves the session pointed at a worktree that no longer exists.
+  expect(section).toContain('bind_workspace')
 })
 
 test('styles.css declares a prefers-color-scheme:dark block that overrides core tokens', async () => {
