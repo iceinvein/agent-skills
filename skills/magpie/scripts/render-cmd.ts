@@ -1,8 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
+import { type BriefIssue, type PostStatusMap, renderFindingsToDisk } from './render-findings.ts'
 import { renderProgressToDisk } from './render-progress.ts'
-import { parseFinding } from './types.ts'
+import { parseBrief, parseFinding } from './types.ts'
 
 async function nextVersionedPath(screenDir: string, base: string): Promise<string> {
   const entries: string[] = await readdir(screenDir).catch(() => [] as string[])
@@ -119,9 +119,23 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
     }
   })
   const diff = await readFile(join(runDir, 'diff.patch'), 'utf8').catch(() => '')
+  // `readJson` swallows both a missing file and malformed JSON, and `parseBrief`
+  // returns null for a brief that parsed but is unusable. Either way the header
+  // is simply omitted.
+  const brief = parseBrief(await readJson<unknown>(join(runDir, 'brief.json'), null)) ?? undefined
+  const issuesRaw = Array.isArray(prJson.closingIssuesReferences)
+    ? (prJson.closingIssuesReferences as unknown[])
+    : []
+  const issues: BriefIssue[] = issuesRaw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const e = entry as Record<string, unknown>
+    const number = Number(e.number ?? 0)
+    if (!Number.isFinite(number) || number <= 0) return []
+    return [{ number, title: String(e.title ?? ''), url: String(e.url ?? '') }]
+  })
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr, files, diff },
+    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues },
     outPath,
   )
   return 0

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runRender } from '../render-cmd.ts'
@@ -114,4 +114,56 @@ test('findings render includes files and diff when provided', async () => {
   const html = await Bun.file(join(runDir, 'screen', 'findings.html')).text()
   expect(html).toContain('data-file-pane="src/app.ts"')
   expect(html).toContain('data-file-pane="src/util.ts"')
+})
+
+test('findings render includes the brief header when brief.json is present', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'brief.json'),
+    JSON.stringify({
+      purpose: 'Adds bounded retries to the upload path.',
+      changes: ['Wraps the S3 put in a bounded retry'],
+      subsystems: [{ name: 'upload', role: 'owns the put path' }],
+      watchItems: [],
+      unclear: [],
+    }),
+  )
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(html).toContain('class="pr-brief"')
+  expect(html).toContain('Adds bounded retries to the upload path.')
+})
+
+test('findings render omits the brief header when brief.json is absent', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(html).not.toContain('class="pr-brief"')
+})
+
+test('a malformed brief.json degrades to no header instead of failing the render', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(join(runDir, 'brief.json'), '{ this is not json')
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(html).not.toContain('class="pr-brief"')
+})
+
+test('linked issues from pr.json render in the brief header', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({
+      number: 1234,
+      headRefName: 'feature-x',
+      headRefOid: 'deadbeef',
+      closingIssuesReferences: [
+        { number: 42, title: 'Uploads fail', url: 'https://example.test/issues/42' },
+      ],
+    }),
+  )
+  await writeFile(join(runDir, 'brief.json'), JSON.stringify({ purpose: 'Fixes uploads.' }))
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(html).toContain('https://example.test/issues/42')
 })

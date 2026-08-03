@@ -4,7 +4,7 @@ import type { PostStatusMap } from './render-findings.ts'
 import { renderFindingsToDisk } from './render-findings.ts'
 import type { RenderProgressInput, StageId, StageStatus } from './render-progress.ts'
 import { renderProgressToDisk } from './render-progress.ts'
-import { parseFinding } from './types.ts'
+import { type PrBrief, parseBrief, parseFinding } from './types.ts'
 
 export type PreviewPage = 'findings' | 'progress' | 'both'
 
@@ -181,6 +181,7 @@ async function readFixture(fixtureDir: string): Promise<{
   postStatus: PostStatusMap
   files: Array<{ path: string; additions: number; deletions: number }>
   diff: string
+  brief: PrBrief | undefined
 }> {
   const prRaw = JSON.parse(await readFile(join(fixtureDir, 'pr.json'), 'utf8')) as Record<
     string,
@@ -214,6 +215,13 @@ async function readFixture(fixtureDir: string): Promise<{
   } catch {
     // optional file
   }
+  let brief: PrBrief | undefined
+  try {
+    const briefRaw = JSON.parse(await readFile(join(fixtureDir, 'brief.json'), 'utf8'))
+    brief = parseBrief(briefRaw) ?? undefined
+  } catch {
+    // optional file
+  }
   return {
     pr: {
       number: Number(prRaw.number ?? 0),
@@ -224,6 +232,7 @@ async function readFixture(fixtureDir: string): Promise<{
     postStatus: postStatusRaw as PostStatusMap,
     files: filesArray,
     diff,
+    brief,
   }
 }
 
@@ -270,6 +279,7 @@ export async function runPreview(opts: PreviewOptions): Promise<PreviewResult> {
         pr: fixture.pr,
         files: fixture.files,
         diff: fixture.diff,
+        brief: fixture.brief,
       },
       findingsPath,
     )

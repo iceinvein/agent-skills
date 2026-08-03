@@ -1,0 +1,18 @@
+{
+  "purpose": "Adds bounded retries to the upload path so transient S3 failures stop surfacing to end users as hard errors.",
+  "changes": [
+    "Wraps the S3 put call in a bounded retry with jittered backoff",
+    "Threads a per-request deadline through the storage client",
+    "Adds a metrics counter for exhausted retry budgets"
+  ],
+  "subsystems": [
+    { "name": "upload", "role": "owns the client-facing put path" },
+    { "name": "storage-client", "role": "wraps the S3 SDK and owns timeouts" }
+  ],
+  "watchItems": [
+    "The PR body claims the retry is idempotent, but no idempotency key is sent with the put"
+  ],
+  "unclear": [
+    "Whether the new per-request deadline interacts correctly with the outer HTTP timeout"
+  ]
+}
