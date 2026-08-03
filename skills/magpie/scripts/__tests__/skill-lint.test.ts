@@ -127,6 +127,20 @@ test('SKILL.md never instructs the agent to approve indexing', async () => {
   expect(text).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
 })
 
+test('SKILL.md logs codeIntelligence on both the done and skipped context outcomes', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 3. Context')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('\n### 4.', start))
+  // The bind probe's result is known by the time either log line is written,
+  // regardless of whether the scout produced a brief; specialists read this key
+  // to decide whether to include the codebase-intelligence block.
+  const doneEntry = section.match(/\{stage: context, status: done[^}]*\}/)
+  const skippedEntry = section.match(/\{stage: context, status: skipped[^}]*\}/)
+  expect(doneEntry?.[0]).toContain('codeIntelligence')
+  expect(skippedEntry?.[0]).toContain('codeIntelligence')
+})
+
 test('SKILL.md rebinds the code-intelligence session at cleanup', async () => {
   const text = await readFile(SKILL, 'utf8')
   const start = text.indexOf('### 10. Cleanup')
@@ -229,7 +243,8 @@ test('SKILL.md does not gate resume on state/server-info', async () => {
   expect(section).not.toMatch(/if .*server-info.* exists/i)
   // Resuming must restart the server; the old one is gone.
   expect(section).toContain('magpie serve')
-  // `context` is a no-op stage: say so, or the agent stalls on it.
+  // `context` re-runs on resume too (bind probe plus a conditional scout
+  // dispatch); the resume section must still call it out explicitly.
   expect(section).toContain('context')
 })
 

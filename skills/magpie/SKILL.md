@@ -77,7 +77,7 @@ Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render
 
 **Scout.** Read `references/scout.md` and dispatch one subagent (Agent tool, `general-purpose`) carrying the `magpie-scout` block with `<<RUN_DIR>>`, `<<PR_NUMBER>>`, and `<<CODE_INTELLIGENCE>>` substituted. It writes `$RUN_DIR/brief.json`.
 
-Append `{stage: context, status: done, codeIntelligence: true|false}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read.
+Append `{stage: context, status: done, codeIntelligence: true|false}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped, codeIntelligence: true|false}` instead and continue: the brief is optional everywhere it is read. The bind probe's result is known regardless of what the scout did, so both entries carry it.
 
 ### 4. Specialists
 
@@ -187,7 +187,7 @@ magpie status "$RUN_DIR"
 
 The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
-- `context` re-runs as written. The seeded index survives a crash, so the rebind is near-instant, and the scout re-runs only if `$RUN_DIR/brief.json` is missing.
+- `context` re-runs by redoing the bind probe, then dispatching the scout only if `$RUN_DIR/brief.json` is missing. The seeded index survives a crash, so the rebind is near-instant.
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done, re-dispatch only that focus.
 - Non-null `error` means the run stopped on a failed stage. Report which stage to the user and confirm before re-running it.
