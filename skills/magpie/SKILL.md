@@ -87,7 +87,7 @@ Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-re
 
 After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress. (Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry advances `magpie status`.)
 
-If all five specialists fail (no findings files written), log `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
+If all five specialists fail (no findings files written), log `{stage: specialists, status: error}`, rebind code intelligence to `$REPO` if bound (stage 10), and stop. Otherwise mark `{stage: specialists, status: done}`.
 
 ### 5. Dedupe
 
@@ -196,4 +196,4 @@ The server from the original run is gone. Restart it with `magpie serve "$RUN_DI
 
 ## Aborting
 
-If the user types `abort` mid-run, run `magpie cleanup` immediately and exit.
+If the user types `abort` mid-run, rebind code intelligence to `$REPO` if bound (stage 10), then run `magpie cleanup` and exit.

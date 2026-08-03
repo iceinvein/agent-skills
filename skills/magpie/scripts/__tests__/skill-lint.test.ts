@@ -151,6 +151,27 @@ test('SKILL.md rebinds the code-intelligence session at cleanup', async () => {
   expect(section).toContain('bind_workspace')
 })
 
+test('SKILL.md rebinds before cleanup on the abort path too', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('## Aborting')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start)
+  // Stage 3 bound the session to the worktree; `abort` deletes that worktree via
+  // `magpie cleanup`, so it must rebind first or leave the session dangling.
+  expect(section).toMatch(/rebind.*(\$REPO|stage 10)/i)
+  expect(section).toContain('magpie cleanup')
+})
+
+test('SKILL.md rebinds before the stage-4 all-specialists-failed hard stop', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 4. Specialists')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('\n### 5.', start))
+  // This path stops the run without calling cleanup, but a later resume or
+  // abort must not find the session still pointed at the worktree.
+  expect(section).toMatch(/rebind.*(\$REPO|stage 10)/i)
+})
+
 test('styles.css declares a prefers-color-scheme:dark block that overrides core tokens', async () => {
   const STYLES = new URL('../../templates/styles.css', import.meta.url).pathname
   const css = await readFile(STYLES, 'utf8')
