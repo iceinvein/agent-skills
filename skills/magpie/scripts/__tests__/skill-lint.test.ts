@@ -24,7 +24,7 @@ test('references/ ships in the install bundle', async () => {
   }
   const covers = (p: string) =>
     manifest.bundle.include.some((inc) => inc === p || p.startsWith(`${inc}/`))
-  for (const name of ['specialists.md', 'critic.md', 'peer-review.md']) {
+  for (const name of ['specialists.md', 'critic.md', 'peer-review.md', 'scout.md']) {
     expect(covers(`references/${name}`)).toBe(true)
   }
 })
@@ -79,6 +79,22 @@ test('references/peer-review.md holds the prompt and the Claude preamble', async
   for (const ph of ['<<PRIMARY_PROVIDER>>', '<<PEER_PROVIDER>>', '<<KEPT_FINDINGS_COMPACT>>']) {
     expect(text).toContain(ph)
   }
+})
+
+test('references/scout.md holds the scout prompt and the brief contract', async () => {
+  const text = await readFile(ref('scout.md'), 'utf8')
+  expect(text).toContain('```magpie-scout')
+  expect(text).toContain('brief.json')
+  for (const key of ['purpose', 'changes', 'subsystems', 'watchItems', 'unclear']) {
+    expect(text).toContain(key)
+  }
+  for (const ph of ['<<RUN_DIR>>', '<<PR_NUMBER>>']) {
+    expect(text).toContain(ph)
+  }
+  // The scout must never trigger a full index; that is a consent-gated GPU pass.
+  expect(text).toContain('approve_indexing')
+  // watchItems are context for specialists, not findings in their own right.
+  expect(text).toMatch(/not a finding/i)
 })
 
 test('SKILL.md sends each stage to the reference file it needs', async () => {
