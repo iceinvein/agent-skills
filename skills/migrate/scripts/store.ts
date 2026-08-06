@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import { assertNotUnderSource } from './paths.ts'
@@ -26,33 +27,66 @@ export async function writeRows<T>(path: string, rows: T[], sourcePath: string):
   assertNotUnderSource(path, sourcePath)
   const body = rows.map((r) => JSON.stringify(r)).join('\n')
   const text = rows.length > 0 ? `${body}\n` : ''
-  const tmp = `${path}.tmp`
+  const random = randomBytes(8).toString('hex')
+  const tmp = `${path}.${random}.tmp`
   await writeFile(tmp, text)
   await rename(tmp, path)
+}
+
+function stableStringify(obj: unknown): string {
+  if (obj === null) return 'null'
+  if (typeof obj !== 'object') return JSON.stringify(obj)
+  if (Array.isArray(obj)) {
+    return `[${obj.map(stableStringify).join(',')}]`
+  }
+  const pairs: string[] = []
+  const keys = Object.keys(obj as Record<string, unknown>).sort()
+  for (const key of keys) {
+    const val = (obj as Record<string, unknown>)[key]
+    pairs.push(`${JSON.stringify(key)}:${stableStringify(val)}`)
+  }
+  return `{${pairs.join(',')}}`
 }
 
 export function upsertRows<T extends { id: string }>(
   existing: T[],
   incoming: T[],
 ): { rows: T[]; added: number; updated: number } {
+  const snapshot = new Map<string, string>()
+  for (let i = 0; i < existing.length; i++) {
+    const row = existing[i]
+    if (row) snapshot.set(row.id, stableStringify(row))
+  }
   const rows = [...existing]
   const index = new Map<string, number>()
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     if (row) index.set(row.id, i)
   }
-  let added = 0
-  let updated = 0
   for (const row of incoming) {
     const at = index.get(row.id)
     if (at === undefined) {
       index.set(row.id, rows.length)
       rows.push(row)
-      added++
     } else {
-      const before = rows[at]
       rows[at] = row
-      if (JSON.stringify(before) !== JSON.stringify(row)) updated++
+    }
+  }
+  let added = 0
+  let updated = 0
+  const finalIndex = new Map<string, string>()
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (row) {
+      const id = row.id
+      const newStr = stableStringify(row)
+      finalIndex.set(id, newStr)
+      const oldStr = snapshot.get(id)
+      if (oldStr === undefined) {
+        added++
+      } else if (oldStr !== newStr) {
+        updated++
+      }
     }
   }
   return { rows, added, updated }
