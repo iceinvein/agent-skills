@@ -120,3 +120,16 @@ test('shardDiff propagates a non-ENOENT read failure instead of treating it as a
   await mkdir(join(runDir, 'diff.patch'))
   await expect(shardDiff(runDir)).rejects.toThrow()
 })
+
+test('shardDiff treats a diff.patch that does not exist yet as an empty diff', async () => {
+  // No writeFile at all here: diff.patch is genuinely absent, the one case
+  // the ENOENT branch exists to tolerate. Task 4 wires shardDiff into
+  // runSetup and Task 6 reads the manifest unconditionally, so "no diff yet"
+  // must still leave a readable manifest rather than a missing file.
+  expect(existsSync(join(runDir, 'diff.patch'))).toBe(false)
+  const manifest = await shardDiff(runDir)
+  expect(manifest.shards).toEqual([])
+  expect(manifest.totalFiles).toBe(0)
+  expect(manifest.totalLines).toBe(0)
+  expect(existsSync(join(runDir, 'shards', 'manifest.json'))).toBe(true)
+})
