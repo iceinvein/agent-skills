@@ -107,3 +107,18 @@ test('a sub-high rubric parity without a queue id is rejected', async () => {
   const code = await runImport({ root, kind: 'reqs', batchFile: await batch([req], 'parity') })
   expect(code).toBe(1)
 })
+
+test('a batch file whose top-level JSON is null is rejected, not thrown', async () => {
+  const path = join(root, 'null-batch.json')
+  await writeFile(path, 'null')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('a duplicate id within one batch is rejected and nothing is written', async () => {
+  const dup = { ...ELEMENT, element: 'GET /api/users, second copy' }
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT, dup]) })
+  expect(code).toBe(1)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})

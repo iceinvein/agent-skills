@@ -16,7 +16,12 @@ export async function runImport(opts: {
   batchFile: string
 }): Promise<number> {
   const cfg = await loadConfig(opts.root)
-  const parsed = JSON.parse(await readFile(opts.batchFile, 'utf8')) as BatchFile
+  const raw: unknown = JSON.parse(await readFile(opts.batchFile, 'utf8'))
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    process.stderr.write('import: batch file needs {"batch": id, "phase": name, "rows": [...]}\n')
+    return 2
+  }
+  const parsed = raw as BatchFile
   const batchId = parsed.batch
   const phase = parsed.phase
   if (!batchId || !phase || !Array.isArray(parsed.rows)) {
@@ -42,6 +47,17 @@ export async function runImport(opts: {
     } else {
       errors.push(...result.errors)
     }
+  }
+
+  // A repeated id within one batch is an authoring error: keeping the last one
+  // silently would discard a row nobody was told about. Name every id that
+  // recurs so the whole batch is refused under the all-or-nothing rule below.
+  const idCounts = new Map<string, number>()
+  for (const row of validated) {
+    idCounts.set(row.id, (idCounts.get(row.id) ?? 0) + 1)
+  }
+  for (const [id, count] of idCounts) {
+    if (count > 1) errors.push(`batch: id ${id} appears ${count} times in this batch`)
   }
 
   // All or nothing. A partially-written batch is a store an agent cannot reason

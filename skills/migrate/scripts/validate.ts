@@ -19,6 +19,14 @@ function str(v: unknown): v is string {
   return typeof v === 'string'
 }
 
+// A row must be a JSON object. null, arrays and primitives all fail this, and
+// must be rejected here rather than left to crash on the first property read:
+// `null.id` throws, but a normal validation error is what the all-or-nothing
+// import path expects.
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 function checkRef(ref: unknown, where: string, errors: string[]): void {
   const r = ref as Record<string, unknown>
   const kind = r?.kind
@@ -48,8 +56,9 @@ function checkRef(ref: unknown, where: string, errors: string[]): void {
 }
 
 export function validateElement(row: unknown, cfg: Config): Validated<Element> {
+  if (!isRecord(row)) return { ok: false, errors: ['element: row must be a JSON object'] }
   const errors: string[] = []
-  const r = row as Record<string, unknown>
+  const r = row
   const id = str(r.id) ? r.id : ''
   const surface = str(r.surface) ? r.surface : ''
   const where = `element ${id || '<no id>'}`
@@ -114,8 +123,9 @@ export function validateElement(row: unknown, cfg: Config): Validated<Element> {
 }
 
 export function validateRequirement(row: unknown, _cfg: Config): Validated<Requirement> {
+  if (!isRecord(row)) return { ok: false, errors: ['requirement: row must be a JSON object'] }
   const errors: string[] = []
-  const r = row as Record<string, unknown>
+  const r = row
   const id = str(r.id) ? r.id : ''
   const where = `requirement ${id || '<no id>'}`
 
@@ -181,8 +191,9 @@ export function validateRequirement(row: unknown, _cfg: Config): Validated<Requi
 }
 
 export function validateDelta(row: unknown, _cfg: Config): Validated<Delta> {
+  if (!isRecord(row)) return { ok: false, errors: ['delta: row must be a JSON object'] }
   const errors: string[] = []
-  const r = row as Record<string, unknown>
+  const r = row
   const id = str(r.id) ? r.id : ''
   const where = `delta ${id || '<no id>'}`
   if (!id.startsWith('delta-')) errors.push(`${where}: id must start with delta-`)
