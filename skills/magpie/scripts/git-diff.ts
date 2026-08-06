@@ -29,6 +29,18 @@ async function resolveCommit(gitBin: string, cwd: string, ref: string): Promise<
 }
 
 /**
+ * Render a fetch's outcome for an error message, so a genuine failure (wrong
+ * remote, auth failure, rate limiting) can be told apart from a benign one
+ * (no origin, offline, non-GitHub remote) when resolution ends up failing.
+ * Empty when the fetch succeeded, since a successful fetch explains nothing.
+ */
+function fetchDiagnostic(result: { exit: number; stderr: string }): string {
+  if (result.exit === 0) return ''
+  const stderr = result.stderr.trim()
+  return stderr ? `; git fetch: ${stderr}` : `; git fetch exited ${result.exit}`
+}
+
+/**
  * Reproduce `gh pr diff` from the local clone. GitHub refuses the `.diff` media
  * type above roughly 300 files, and a review that cannot get a diff is worth
  * less than one built from local objects.
@@ -44,8 +56,14 @@ export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResul
   // Best effort. `pull/<n>/head` is a GitHub convention and resolves fork PRs
   // that `headRefName` cannot, but a repo with no `origin`, an offline run, or
   // a non-GitHub remote must still work when the commits are already local.
-  await git(gitBin, repoPath, ['fetch', 'origin', `pull/${prNumber}/head:${prRef}`])
-  await git(gitBin, repoPath, ['fetch', 'origin', baseRefName])
+  // Each fetch's own result is kept (not discarded) so, if resolution below
+  // still fails, the error can say why the fetch didn't help.
+  const headFetch = await git(gitBin, repoPath, [
+    'fetch',
+    'origin',
+    `pull/${prNumber}/head:${prRef}`,
+  ])
+  const baseFetch = await git(gitBin, repoPath, ['fetch', 'origin', baseRefName])
 
   let head: string | null = null
   for (const ref of [prRef, headRefOid]) {
@@ -55,7 +73,7 @@ export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResul
   if (!head) {
     return {
       ok: false,
-      error: `cannot resolve PR head ${headRefOid} locally (tried ${prRef} and the SHA); fetch the PR branch and retry`,
+      error: `cannot resolve PR head ${headRefOid} locally (tried ${prRef} and the SHA); fetch the PR branch and retry${fetchDiagnostic(headFetch)}`,
     }
   }
   // Reviewing a stale local ref and reporting it as a review of the PR is worse
@@ -75,7 +93,7 @@ export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResul
   if (!base) {
     return {
       ok: false,
-      error: `cannot resolve base branch ${baseRefName} locally (tried origin/${baseRefName} and ${baseRefName})`,
+      error: `cannot resolve base branch ${baseRefName} locally (tried origin/${baseRefName} and ${baseRefName})${fetchDiagnostic(baseFetch)}`,
     }
   }
 
