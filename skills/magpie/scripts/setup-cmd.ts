@@ -47,6 +47,7 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
 
   const fetched = await fetchPr({
     ghBin: deps.gh,
+    gitBin: deps.git,
     prNumber: input.prNumber,
     runDir: input.runDir,
     cwd: input.repoPath,
@@ -57,7 +58,18 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(input.runDir)
     return 4
   }
-  await logLine(input.runDir, { stage: 'fetch-pr', status: 'done' })
+  await logLine(input.runDir, {
+    stage: 'fetch-pr',
+    status: 'done',
+    source: fetched.source,
+    ...(fetched.mergeBase ? { mergeBase: fetched.mergeBase } : {}),
+  })
+  // Sidecar so the report can say where the diff came from without re-parsing
+  // log.jsonl, the same way incremental.json carries the incremental context.
+  await writeFile(
+    join(input.runDir, 'diff-source.json'),
+    `${JSON.stringify({ source: fetched.source, mergeBase: fetched.mergeBase ?? null }, null, 2)}\n`,
+  )
 
   await applyPathFilter(input.runDir, input.repoPath)
 
@@ -90,6 +102,7 @@ async function cleanup(runDir: string): Promise<void> {
     'pr.json',
     'diff.patch',
     'diff.full.patch',
+    'diff-source.json',
     'excluded-files.json',
     'incremental.json',
     'findings',
