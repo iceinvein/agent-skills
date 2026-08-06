@@ -122,3 +122,45 @@ test('runDedupe with threshold 0 keeps everything', async () => {
   const kept = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
   expect(kept).toHaveLength(1)
 })
+
+test('runDedupe collects sharded focus files', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'security.shard-1.json'),
+    JSON.stringify([f('security-1', 'a.ts', 10, 'hardcoded token in the client', 'security')]),
+  )
+  await writeFile(
+    join(runDir, 'findings', 'security.shard-2.json'),
+    JSON.stringify([f('security-1', 'z.ts', 99, 'missing auth check on the handler', 'security')]),
+  )
+  const exit = await runDedupe(runDir, { threshold: 0 })
+  expect(exit).toBe(0)
+  const out = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(out).toHaveLength(2)
+  const ids = out.map((x: { id: string }) => x.id).sort()
+  expect(ids).toEqual(['security-s1-1', 'security-s2-1'])
+})
+
+test('runDedupe leaves unsharded ids untouched', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([f('bugs-1', 'a.ts', 10, 'off by one in the loop bound', 'bugs')]),
+  )
+  const exit = await runDedupe(runDir, { threshold: 0 })
+  expect(exit).toBe(0)
+  const out = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(out[0]?.id).toBe('bugs-1')
+})
+
+test('runDedupe still skips files it cannot map to a focus', async () => {
+  await writeFile(join(runDir, 'findings', 'nonsense.json'), JSON.stringify([]))
+  await writeFile(join(runDir, 'findings', 'security.shard-x.json'), JSON.stringify([]))
+  const exit = await runDedupe(runDir)
+  expect(exit).toBe(0)
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  const skips = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+    .filter((e) => e.status === 'skip' && e.reason === 'unknown-focus')
+  expect(skips.map((s) => s.file).sort()).toEqual(['nonsense.json', 'security.shard-x.json'])
+})

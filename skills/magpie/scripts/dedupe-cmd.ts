@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { annotateChangedLines } from './changed-lines.ts'
 import { deduplicateFindings } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
+import { namespaceId, parseFindingsFilename } from './findings-files.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
 import { FOCUS_IDS, parseFinding, type ReviewFinding } from './types.ts'
 
@@ -29,8 +30,8 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
 
   for (const name of files) {
     if (!name.endsWith('.json')) continue
-    const focus = name.slice(0, -'.json'.length)
-    if (!FOCUS_IDS.includes(focus as (typeof FOCUS_IDS)[number])) {
+    const parsed = parseFindingsFilename(name)
+    if (!parsed || !FOCUS_IDS.includes(parsed.focus as (typeof FOCUS_IDS)[number])) {
       await logLine(runDir, {
         stage: 'dedupe',
         status: 'skip',
@@ -39,6 +40,7 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
       })
       continue
     }
+    const { focus, shard } = parsed
     const path = join(findingsDir, name)
     let raw: unknown
     try {
@@ -63,7 +65,8 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
     }
     for (const item of raw) {
       try {
-        collected.push(parseFinding(item))
+        const finding = parseFinding(item)
+        collected.push({ ...finding, id: namespaceId(finding.id, focus, shard) })
       } catch (err) {
         await logLine(runDir, {
           stage: 'dedupe',
