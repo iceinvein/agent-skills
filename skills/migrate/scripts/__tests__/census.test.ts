@@ -272,3 +272,90 @@ test('validateCensus error messages are not pre-prefixed with census:', () => {
     for (const e of result.errors) expect(e.startsWith('census:')).toBe(false)
   }
 })
+
+// Finding 1, round 2: exact-string uniqueness was defeated by cosmetically
+// distinct but semantically identical entries (wrong case, a trailing
+// space, trailing punctuation), and cross-list padding (the same value
+// reused in both queued and skipped) was never checked at all. Queue ids
+// are now validated against a real format (ids.ts's isValidSlug) instead of
+// merely checked pairwise for uniqueness, so a cosmetic variant is rejected
+// on its own merits rather than needing to be recognized as a duplicate.
+
+test('an uppercase queued id is rejected as malformed, not treated as a fresh distinct id', () => {
+  const bad = { ...LENS, total: 46, queued: ['Q-1'] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('queued[0]')
+})
+
+test('a queued id with trailing whitespace is rejected, not silently trimmed and accepted', () => {
+  const bad = { ...LENS, total: 46, queued: ['q-1 '] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('queued[0]')
+})
+
+test('a queued id with trailing punctuation is rejected as malformed', () => {
+  const bad = { ...LENS, total: 46, queued: ['q-1.'] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('queued[0]')
+})
+
+test('a repeated well-formed queued id is rejected as a duplicate', () => {
+  const bad = { ...LENS, total: 47, queued: ['q-table-ownership', 'q-table-ownership'] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('q-table-ownership')
+})
+
+test('cross-list padding: the same value in both queued and skipped is rejected', () => {
+  // in_ledger 44 + added 1 + skipped.length 1 + queued.length 1 = 47 = total:
+  // this would balance if the shared value 'q-1' were allowed to pad both
+  // lists at once.
+  const bad: Census = {
+    ...LENS,
+    total: 47,
+    queued: ['q-1'],
+    skipped: [{ element: 'q-1', reason: 'x' }],
+  }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('q-1')
+})
+
+test('queued id format validation applies to attribute, rule-sweep and closer, not only lens', () => {
+  const attribute = {
+    kind: 'attribute',
+    surface: 'tables',
+    subject: 'table-roster-days',
+    directions: {},
+    total: 15,
+    behavioral: 7,
+    explained: 6,
+    queued: ['Q-1'],
+    batch: 'b-2',
+  }
+  const ruleSweep = {
+    kind: 'rule-sweep',
+    subject: 'user-management',
+    probes: 4,
+    found: 2,
+    as_requirements: 1,
+    queued: ['q-1.'],
+    batch: 'b-3',
+  }
+  const closer = {
+    kind: 'closer',
+    closer: 'read-write-symmetry',
+    checked: 34,
+    findings: 3,
+    fixed: 2,
+    queued: ['q-1 '],
+    batch: 'b-4',
+  }
+  for (const bad of [attribute, ruleSweep, closer]) {
+    const result = validateCensus(bad)
+    expect(result.ok).toBe(false)
+  }
+})

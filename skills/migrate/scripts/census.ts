@@ -1,6 +1,19 @@
+import { isValidSlug } from './ids.ts'
 import type { Census, Skipped } from './types.ts'
 import type { Validated } from './validate.ts'
 import { isRecord } from './validate.ts'
+
+const QUEUE_PREFIX = 'q-'
+
+// A queue id is q- followed by a lowercase kebab-case slug (ids.ts's own
+// shape, reused rather than a second regex). This is deliberately a format
+// constraint, not a blocklist of specific cosmetic defects: an uppercase
+// letter, a stray space, or trailing punctuation are all rejected because
+// none of them produces a well-formed slug, not because each was chased
+// down individually.
+function isValidQueueId(s: string): boolean {
+  return s.startsWith(QUEUE_PREFIX) && isValidSlug(s.slice(QUEUE_PREFIX.length))
+}
 
 export function censusKey(record: Census): string {
   if (record.kind === 'lens') return `lens:${record.surface}`
@@ -64,11 +77,16 @@ export function validateCensus(row: unknown): Validated<Census> {
     }
     return v
   }
-  // Every queued id must be a non-empty string, and a repeated id inside one
-  // record is an authoring error rather than a silent no-op: since balance is
-  // judged by .length, a duplicate would otherwise let an agent pad a
-  // genuinely imbalanced record until it looks balanced. Same call Task 7
-  // made for a duplicate id inside one import batch.
+  // Every queued entry must be a well-formed queue id, not merely a
+  // non-empty string: a bare id-shaped check let a duplicate survive under a
+  // cosmetic disguise (different case, a trailing space, trailing
+  // punctuation), each one still counted toward .length by balanceOf. The
+  // format constraint closes that as a class rather than chasing variants.
+  // Trimmed before validating, and an entry that only becomes valid after
+  // trimming is rejected rather than silently accepted with the whitespace
+  // dropped: the point is that a stray space fails cleanly, not that it gets
+  // normalized away. The uniqueness check below then compares the one
+  // canonical (already trim-equal) value every accepted entry has.
   const queuedList = (k: string): string[] => {
     const v = r[k] ?? []
     if (!Array.isArray(v)) {
@@ -77,11 +95,12 @@ export function validateCensus(row: unknown): Validated<Census> {
     }
     const out: string[] = []
     v.forEach((item, i) => {
-      if (typeof item !== 'string' || item.length === 0) {
-        errors.push(`${k}[${i}] must be a non-empty string`)
+      const trimmed = typeof item === 'string' ? item.trim() : ''
+      if (typeof item !== 'string' || trimmed !== item || !isValidQueueId(trimmed)) {
+        errors.push(`${k}[${i}] must be a valid queue id: q- followed by a lowercase slug`)
         return
       }
-      out.push(item)
+      out.push(trimmed)
     })
     const seen = new Map<string, number>()
     for (const id of out) seen.set(id, (seen.get(id) ?? 0) + 1)
@@ -130,8 +149,20 @@ export function validateCensus(row: unknown): Validated<Census> {
     num('total')
     num('in_ledger')
     num('added')
-    skippedList('skipped')
-    queuedList('queued')
+    const skipped = skippedList('skipped')
+    const queued = queuedList('queued')
+    // queued ids and skipped element names are different namespaces (a
+    // queue id must be q-<slug>; an element name is unconstrained free text
+    // drawn from the legacy system), so nothing stops a skipped element from
+    // coincidentally, or deliberately, matching a queued id's exact text.
+    // Checked explicitly: see the report for why this earns its keep rather
+    // than being left to the format constraint alone.
+    const queuedSet = new Set(queued)
+    for (const s of skipped) {
+      if (queuedSet.has(s.element)) {
+        errors.push(`${s.element} appears in both skipped and queued`)
+      }
+    }
   } else if (kind === 'attribute') {
     text('surface')
     text('subject')
