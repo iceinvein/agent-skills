@@ -42,6 +42,21 @@ If exit is non-zero, surface stderr verbatim and stop. The CLI removes the workt
 
 Setup automatically filters lockfiles, build output, generated source, and snapshot fixtures from `diff.patch` before specialists see it. Users can override by placing `.magpie.json` at the repo root: `{"exclude": [...glob], "include": [...glob], "useDefaults": true|false}`. When anything is filtered, the raw diff is preserved as `$RUN_DIR/diff.full.patch` and the exclusion list as `$RUN_DIR/excluded-files.json`.
 
+When `gh pr diff` refuses the diff (GitHub returns HTTP 406 above roughly 300 files)
+or returns an empty diff for a PR that has changed files, setup rebuilds it from the
+local clone instead of aborting: it fetches `pull/<n>/head`, resolves the merge base
+against the PR's base branch, and diffs from there, which reproduces the three-dot
+semantics `gh pr diff` uses. A local head that does not match the PR's `headRefOid`
+is a hard error rather than a silently stale review. The `fetch-pr` log entry records
+`source: "gh" | "git"` and the merge base, and `$RUN_DIR/diff-source.json` carries the
+same for the report.
+
+Setup then splits the filtered diff into shards, writing `$RUN_DIR/shards/manifest.json`
+and, when more than one shard results, `$RUN_DIR/shards/shard-<n>.patch`. `diff.patch`
+itself is never modified: shards are views over it. Re-split with a different budget
+using `magpie shard "$RUN_DIR" --budget <lines> --max-files <n>` (defaults: 6000 patch
+lines, 80 files).
+
 When a prior run exists for the same PR (active or archived under `~/.magpie/`), setup writes `$RUN_DIR/incremental.json` with `{previousRunId, previousSha, currentSha, sameSha}`. The post stage surfaces this as a "Incremental review since `<sha>`" trailer on the summary comment.
 
 Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding written to `$RUN_DIR/findings/tests.json`. This is a sixth domain that flows through dedupe/critic/peer-review alongside the five LLM specialists. No specialist subagent is dispatched for it.
@@ -83,11 +98,44 @@ Append `{stage: context, status: done, codeIntelligence: true|false}` and re-ren
 
 Read `references/specialists.md` now, before dispatching anything. It holds the five focus blocks and the output contract that every specialist prompt is built from. Assemble the prompts from that file verbatim: prompts written from memory drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
 
-Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress, so the served page shows the stage as active rather than "Paused". Then dispatch the five specialist subagents in a single message using five Agent tool calls in parallel, one per focus in (security, bugs, performance, code-smells, architecture), each carrying the prompt that `references/specialists.md` describes.
+Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render
+progress, so the served page shows the stage as active rather than "Paused". Then read
+`$RUN_DIR/shards/manifest.json` before assembling any prompt.
 
-After each subagent returns, append `{stage: specialist, focus: <focus>, status: done, findings: <count>}` to `$RUN_DIR/log.jsonl` and re-render progress. (Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry advances `magpie status`.)
+**One shard, zero shards, or no manifest** (a diff filtered down to nothing, e.g. a
+lockfile-only PR, produces `shards: []` in an otherwise normal manifest; a run
+predating this feature has no manifest file at all): dispatch the five specialist
+subagents in a single message using five Agent tool calls in parallel, one per focus
+in (security, bugs, performance, code-smells, architecture), each carrying the prompt
+that `references/specialists.md` describes, using the unsharded run header. Nothing
+else in this stage applies.
 
-If all five specialists fail (no findings files written), log `{stage: specialists, status: error}`, rebind code intelligence to `$REPO` if bound (stage 10), and stop. Otherwise mark `{stage: specialists, status: done}`.
+**More than one shard:** each focus reviews every shard, so the run dispatches
+`5 × <shard count>` subagents in total.
+
+**More than four shards: stop and ask the user once, before dispatching anything.**
+State the shard count, the resulting agent count, and the three options: proceed as
+sharded; re-shard with a larger budget (`magpie shard "$RUN_DIR" --budget <lines>`)
+for fewer, larger chunks; or review only the highest-risk shards and record the rest
+in the report as explicitly unreviewed. Wait for the answer. This is the only
+interactive gate in the pipeline before the report, and it exists so that neither the
+cost nor a coverage gap is ever silent.
+
+Dispatch by wave, one shard per wave, the five focuses in parallel within a wave.
+Re-render progress between waves. This holds in-flight agents at five and makes a
+crash cheap to resume: only the `(focus, shard)` pairs whose findings file is missing
+need re-dispatching.
+
+After each subagent returns, append
+`{stage: specialist, focus: <focus>, shard: <n>, status: done, findings: <count>}` to
+`$RUN_DIR/log.jsonl` and re-render progress. Omit `shard` on the unsharded path (one
+shard, zero shards, or no manifest).
+(Per-focus `specialist` entries are diagnostic; only the aggregate `specialists` entry
+advances `magpie status`.)
+
+If every specialist fails (no findings files written), log
+`{stage: specialists, status: error}`, rebind code intelligence to `$REPO` if bound
+(stage 10), and stop. Otherwise mark `{stage: specialists, status: done}`.
 
 ### 5. Dedupe
 
@@ -105,11 +153,23 @@ Re-render progress.
 
 Read `references/critic.md` and `$RUN_DIR/findings.deduped.json`. Substitute both placeholders in the critic rubric (the compact candidate list including each finding's `onChangedLine`, and the `<<DIFF_EXCERPT>>` hunks for the referenced files), then apply the rubric verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
 
+When `findings.deduped.json` holds more than 40 findings, run the rubric in batches of
+30 rather than one prompt: a sharded run can produce more candidates than fit alongside
+their diff excerpts. Apply the same rubric verbatim per batch and concatenate the kept
+subsets into `findings.kept.json`.
+
 ### 7. Peer review
 
 Append `{stage: peer-review, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage always runs. `codex` is the preferred reviewer because it is a different model from the Claude agents that produced the findings; when `codex` is unavailable, a Claude second-opinion subagent stands in.
 
 Build the peer-review prompt first: read `references/peer-review.md`, take the `magpie-peer-review` block from it, and substitute the placeholders listed in that file's `## Substitute before use` preamble. Write the substituted prompt to `$RUN_DIR/peer-prompt.md`.
+
+When more than 40 findings are going to the peer reviewer, batch them 30 at a time,
+writing `$RUN_DIR/peer-prompt-<k>.md` and `$RUN_DIR/peer-<k>.out` per batch and merging
+the verdict arrays into `$RUN_DIR/peer.json`. Keep the `add` id counter running across
+batches (`peer-1`, `peer-2`, ...): restarting it per batch produces colliding ids, and
+every finding in `findings.final.json` must have a unique one or the report and post
+stages crash.
 
 **Codex path (preferred).** If `codex` is available (setup did not log `missingOptional: ["codex"]` and `command -v codex` succeeds), set `<<PEER_PROVIDER>>` to `codex` and run codex with the prompt piped on stdin:
 
@@ -189,7 +249,10 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
 - `context` re-runs by redoing the bind probe, then dispatching the scout only if `$RUN_DIR/brief.json` is missing. The seeded index survives a crash, so the rebind is near-instant.
 - Any other stage: run it as written in the walkthrough.
-- If a specialist focus has no findings file but its sibling stages are done, re-dispatch only that focus.
+- If a specialist focus has no findings file but its sibling stages are done,
+  re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
+  read `shards/manifest.json`, and re-dispatch only the pairs with no
+  `findings/<focus>.shard-<n>.json`.
 - Non-null `error` means the run stopped on a failed stage. Report which stage to the user and confirm before re-running it.
 
 The server from the original run is gone. Restart it with `magpie serve "$RUN_DIR"` (step 2) before re-rendering, so the user gets a live URL again.

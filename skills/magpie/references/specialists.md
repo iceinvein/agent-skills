@@ -4,13 +4,33 @@ Stage 4 of the walkthrough dispatches five subagents from this file. Build each 
 from up to five parts, in this order, and send it as the agent's entire task:
 
 1. The focus block for that focus (the fenced `magpie-specialist-<focus>` blocks below), verbatim.
-2. The run header, with the two placeholders filled in:
+2. The run header, with the placeholders filled in. Unsharded:
 
 ```
 You are reviewing PR #<PR_NUMBER>.
 Working directory: <RUN_DIR>/worktree
 Diff: <RUN_DIR>/diff.patch
 ```
+
+When stage 4 is fanning this focus across shards, use instead:
+
+```
+You are reviewing PR #<PR_NUMBER>.
+Working directory: <RUN_DIR>/worktree
+Shard: <n> of <N>
+Diff: <RUN_DIR>/shards/shard-<n>.patch
+
+This shard is your review scope. The other shards belong to other agents working
+in parallel: do not review files outside your shard, and do not report findings
+anchored to them. Reading any file in the worktree for context is expected and
+encouraged.
+```
+
+Files excluded by the path filter are absent from your diff but present in the
+worktree, with their full patches in `<RUN_DIR>/diff.full.patch` and the exclusion
+list in `<RUN_DIR>/excluded-files.json`. When a change in your scope implies a change
+in an excluded file (a migration implies a model snapshot, a schema change implies
+generated types), open it and cross-check rather than treating it as out of scope.
 
 3. The `## Output Contract` section below, verbatim.
 4. The `magpie-codebase-intelligence` block below, verbatim, **only** when the context
@@ -52,7 +72,10 @@ into the same generic pass. Do not paraphrase, summarise, or trim either one.
 
 ## Output Contract
 
-Write findings to <RUN_DIR>/findings/<focus>.json before returning. The file MUST be a JSON array. Each entry MUST conform to this schema exactly (no extra top-level keys, no renamed keys):
+Write findings to <RUN_DIR>/findings/<focus>.json before returning, or to
+<RUN_DIR>/findings/<focus>.shard-<n>.json when your run header names a shard. The file
+MUST be a JSON array. Each entry MUST conform to this schema exactly (no extra
+top-level keys, no renamed keys):
 
 ```
 {

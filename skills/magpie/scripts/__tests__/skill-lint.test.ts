@@ -117,7 +117,9 @@ test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
     expect(text).not.toContain(`\`\`\`${tag}`)
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
-  expect(text.split(/\s+/).length).toBeLessThan(2600)
+  // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added:
+  // that's real, load-bearing procedure, not bloat.
+  expect(text.split(/\s+/).length).toBeLessThan(3000)
 })
 
 test('SKILL.md never instructs the agent to approve indexing', async () => {
@@ -326,4 +328,32 @@ test('the output contract tells specialists to look before they hedge', async ()
   const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
   expect(contract).toContain('Needs verification:')
   expect(contract).toMatch(/look before .*hedg/i)
+})
+
+test('the output contract documents both findings filenames', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
+  // The pre-existing assertion must keep holding.
+  expect(contract).toMatch(/findings\/<focus>\.json/)
+  expect(contract).toMatch(/findings\/<focus>\.shard-<n>\.json/)
+})
+
+test('the run header documents the shard lines', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toContain('Shard: <n> of <N>')
+  expect(text).toContain('shards/shard-<n>.patch')
+})
+
+test('specialists are told excluded files are still reachable', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toContain('diff.full.patch')
+  expect(text).toContain('excluded-files.json')
+})
+
+test('SKILL.md documents the shard manifest and the fan-out gate', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  expect(text).toContain('shards/manifest.json')
+  expect(text).toContain('diff.patch')
+  // The confirmation gate above four shards is the design's only interactive stop.
+  expect(text).toMatch(/more than four shards/i)
 })
