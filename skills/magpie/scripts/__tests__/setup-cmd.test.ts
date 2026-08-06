@@ -179,3 +179,24 @@ test('runSetup with failing gh removes any partial state', async () => {
   expect(contents).not.toContain('worktree')
   expect(contents).not.toContain('pr.json')
 })
+
+test('runSetup shards the filtered diff and logs the result', async () => {
+  const exit = await runSetup({
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+  expect(exit).toBe(0)
+  const manifest = JSON.parse(await readFile(join(runDir, 'shards', 'manifest.json'), 'utf8'))
+  expect(manifest.shards.length).toBeGreaterThanOrEqual(1)
+  // The fake PR is one small file, so it stays a single-shard passthrough.
+  expect(manifest.shards[0].path).toBe('diff.patch')
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  const shardEntry = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+    .find((e) => e.stage === 'shard')
+  expect(shardEntry).toMatchObject({ status: 'done', shards: 1 })
+})

@@ -4,6 +4,7 @@ import { fetchPr } from './gh.ts'
 import { buildIncrementalContext, findPreviousRun } from './incremental.ts'
 import { filterDiff, loadPathFilterConfig } from './path-filter.ts'
 import { type Deps, defaultDeps, preflight, renderInstallHint } from './preflight.ts'
+import { shardDiff } from './shard.ts'
 import { detectMissingTests } from './tests-check.ts'
 import { createWorktree } from './worktree.ts'
 
@@ -73,6 +74,8 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
 
   await applyPathFilter(input.runDir, input.repoPath)
 
+  await runShard(input.runDir)
+
   await runTestsCheck(input.runDir)
 
   await detectIncrementalReview(input.runDir, input.prNumber)
@@ -104,6 +107,7 @@ async function cleanup(runDir: string): Promise<void> {
     'diff.full.patch',
     'diff-source.json',
     'excluded-files.json',
+    'shards',
     'incremental.json',
     'findings',
     'screen',
@@ -111,6 +115,18 @@ async function cleanup(runDir: string): Promise<void> {
   ]) {
     await rm(join(runDir, name), { recursive: true, force: true }).catch(() => {})
   }
+}
+
+async function runShard(runDir: string): Promise<void> {
+  const manifest = await shardDiff(runDir)
+  await logLine(runDir, {
+    stage: 'shard',
+    status: 'done',
+    shards: manifest.shards.length,
+    budget: manifest.budget,
+    files: manifest.totalFiles,
+    lines: manifest.totalLines,
+  })
 }
 
 async function runTestsCheck(runDir: string): Promise<void> {

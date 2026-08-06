@@ -10,6 +10,7 @@ Subcommands:
   setup <run-dir> --pr <n>   Pre-flight, fetch PR, create worktree
   serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
+  shard <run-dir>            Re-split diff.patch into budgeted shards
   render <run-dir> <page>    Render progress.html or findings.html
   cleanup <run-dir>          Remove worktree, stop server, archive run
   status <run-dir>           Print highest completed stage
@@ -115,6 +116,36 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runDedupe } = await import('../scripts/dedupe-cmd.ts')
     return runDedupe(runDir, threshold !== undefined ? { threshold } : {})
+  },
+  shard: async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('shard: missing <run-dir> [--budget <n>] [--max-files <n>]\n')
+      return 2
+    }
+    const numFlag = (name: string): number | undefined | null => {
+      const idx = args.indexOf(name)
+      if (idx === -1) return undefined
+      const n = Number(args[idx + 1])
+      if (!Number.isFinite(n) || n <= 0) {
+        process.stderr.write(`shard: invalid ${name} ${args[idx + 1]} (want a positive number)\n`)
+        return null
+      }
+      return n
+    }
+    const budget = numFlag('--budget')
+    if (budget === null) return 2
+    const maxFiles = numFlag('--max-files')
+    if (maxFiles === null) return 2
+    const { shardDiff } = await import('../scripts/shard.ts')
+    const manifest = await shardDiff(runDir, {
+      ...(budget !== undefined ? { budget } : {}),
+      ...(maxFiles !== undefined ? { maxFiles } : {}),
+    })
+    process.stdout.write(
+      `${manifest.shards.length} shard(s), ${manifest.totalFiles} files, ${manifest.totalLines} patch lines\n`,
+    )
+    return 0
   },
   render: async (args) => {
     const runDir = args[0]
