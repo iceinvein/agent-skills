@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
-import { readFile, rename, writeFile } from 'node:fs/promises'
-import { assertNotUnderSource, storePaths } from './paths.ts'
+import { readFile } from 'node:fs/promises'
+import { storePaths } from './paths.ts'
+import { writeAtomically } from './store.ts'
 
 export const PHASES = [
   'probe',
@@ -38,7 +39,13 @@ function empty(): Record<Phase, PhaseState> {
 export async function loadPhases(root: string): Promise<Record<Phase, PhaseState>> {
   const path = storePaths(root).phases
   if (!existsSync(path)) return empty()
-  const parsed = JSON.parse(await readFile(path, 'utf8')) as PhasesFile
+  const text = await readFile(path, 'utf8')
+  let parsed: PhasesFile
+  try {
+    parsed = JSON.parse(text) as PhasesFile
+  } catch {
+    throw new Error(`${path}: malformed JSON`)
+  }
   const state = empty()
   for (const p of PHASES) {
     const found = parsed.phases?.[p]
@@ -52,17 +59,19 @@ export async function loadPhases(root: string): Promise<Record<Phase, PhaseState
   return state
 }
 
+// Reads and writes phases.json atomically using temp-plus-rename. If multiple
+// callers record batches concurrently, read-modify-write race conditions can
+// lose updates on the last rename. This is acceptable until orchestration
+// actually uses concurrent callers; the resolution is a design decision for
+// the orchestrator and belongs in Milestone 2.
 export async function savePhases(
   root: string,
   phases: Record<Phase, PhaseState>,
   sourcePath: string,
 ): Promise<void> {
   const path = storePaths(root).phases
-  assertNotUnderSource(path, sourcePath)
   const file: PhasesFile = { version: 1, phases }
-  const tmp = `${path}.tmp`
-  await writeFile(tmp, `${JSON.stringify(file, null, 2)}\n`)
-  await rename(tmp, path)
+  await writeAtomically(path, `${JSON.stringify(file, null, 2)}\n`, sourcePath)
 }
 
 export async function recordBatch(

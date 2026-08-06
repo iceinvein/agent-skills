@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isPhase, loadPhases, recordBatch, setPhaseStatus } from '../phases.ts'
+import { isPhase, loadPhases, recordBatch, savePhases, setPhaseStatus } from '../phases.ts'
 
 let root: string
 const NO_SOURCE = '/nonexistent-source'
@@ -51,4 +51,19 @@ test('recordBatch does not reopen a done phase', async () => {
 test('isPhase rejects an unknown phase name', () => {
   expect(isPhase('seam')).toBe(true)
   expect(isPhase('seams')).toBe(false)
+})
+
+test('loadPhases names the file on malformed JSON', async () => {
+  const path = join(root, '.migrate', 'phases.json')
+  await writeFile(path, '{ this is not json')
+  await expect(loadPhases(root)).rejects.toThrow(/phases.json: malformed JSON/)
+})
+
+test('savePhases cleans up temp file on failure', async () => {
+  const dir = join(root, '.migrate')
+  const emptyState = await loadPhases(root)
+  await expect(savePhases(dir, emptyState, NO_SOURCE)).rejects.toThrow()
+  const files = await readdir(root)
+  const tmpFiles = files.filter((f) => f.endsWith('.tmp'))
+  expect(tmpFiles.length).toBe(0)
 })

@@ -22,15 +22,18 @@ export async function readRows<T>(path: string): Promise<T[]> {
 
 // Temp-plus-rename so a crash mid-write cannot truncate the store. The temp
 // file is a sibling, which keeps the rename on one filesystem and therefore
-// atomic.
-export async function writeRows<T>(path: string, rows: T[], sourcePath: string): Promise<void> {
+// atomic. Cleanup on failure ignores unlink errors to let the original error
+// propagate unchanged.
+export async function writeAtomically(
+  path: string,
+  content: string,
+  sourcePath: string,
+): Promise<void> {
   assertNotUnderSource(path, sourcePath)
-  const body = rows.map((r) => JSON.stringify(r)).join('\n')
-  const text = rows.length > 0 ? `${body}\n` : ''
   const random = randomBytes(8).toString('hex')
   const tmp = `${path}.${random}.tmp`
   try {
-    await writeFile(tmp, text)
+    await writeFile(tmp, content)
     await rename(tmp, path)
   } finally {
     try {
@@ -39,6 +42,15 @@ export async function writeRows<T>(path: string, rows: T[], sourcePath: string):
       // Ignore cleanup errors, let original error propagate
     }
   }
+}
+
+// Temp-plus-rename so a crash mid-write cannot truncate the store. The temp
+// file is a sibling, which keeps the rename on one filesystem and therefore
+// atomic.
+export async function writeRows<T>(path: string, rows: T[], sourcePath: string): Promise<void> {
+  const body = rows.map((r) => JSON.stringify(r)).join('\n')
+  const text = rows.length > 0 ? `${body}\n` : ''
+  await writeAtomically(path, text, sourcePath)
 }
 
 function stableStringify(obj: unknown): string {
