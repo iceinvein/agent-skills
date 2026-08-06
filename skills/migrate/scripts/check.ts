@@ -101,11 +101,56 @@ export async function runCheck(opts: {
   const elementIds = new Set(elements.map((e) => e.id))
   const capSlugs = new Set(capabilities.map((c) => c.slug))
   const queueIds = new Set(queueItems.map((q) => q.id))
-  const needQueue = (id: string, owner: string): void => {
+
+  // A duplicate id or slug within one store file is a real defect the refs
+  // gate must catch on its own, not something it can assume another gate or
+  // command already ruled out: `import reqs` upserts by id, but
+  // capabilities.jsonl has no import path at all today, so hand-editing is
+  // currently the only way a row lands there, and nothing stops two rows
+  // from hand-editing into the same identity with different content. A
+  // gate whose soundness depends on another gate having run first is not
+  // independently a gate (see Task 10's inverted citation range for the
+  // same reasoning). Counted off the raw row arrays, not the `Set`s above:
+  // a `Set` collapses duplicates by construction, which is exactly the
+  // evidence (which id, how many rows) this check exists to preserve.
+  function duplicatesOf(values: string[]): Map<string, number> {
+    const counts = new Map<string, number>()
+    for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1)
+    const dups = new Map<string, number>()
+    for (const [v, count] of counts) {
+      if (count > 1) dups.set(v, count)
+    }
+    return dups
+  }
+  for (const [id, count] of duplicatesOf(requirements.map((r) => r.id))) {
+    violations.push({
+      gate: 'refs',
+      message: `requirement id ${id} appears ${count} times in requirements.jsonl`,
+    })
+  }
+  for (const [slug, count] of duplicatesOf(capabilities.map((c) => c.slug))) {
+    violations.push({
+      gate: 'refs',
+      message: `capability slug ${slug} appears ${count} times in capabilities.jsonl`,
+    })
+  }
+  for (const [id, count] of duplicatesOf(elements.map((e) => e.id))) {
+    violations.push({
+      gate: 'refs',
+      message: `element id ${id} appears ${count} times in elements.jsonl`,
+    })
+  }
+
+  // `field` names where the queue reference came from (`disposition.queue`,
+  // `confidence.queue`, `parity.queue`) so that one requirement citing the
+  // same missing queue id from two different fields produces two
+  // violations that read as two distinct citations to fix, not one
+  // ambiguous duplicate-looking line.
+  const needQueue = (id: string, owner: string, field: string): void => {
     if (!queueIds.has(id)) {
       violations.push({
         gate: 'refs',
-        message: `${owner} references queue item ${id}, which does not exist`,
+        message: `${owner} references queue item ${id} via ${field}, which does not exist`,
       })
     }
   }
@@ -116,7 +161,9 @@ export async function runCheck(opts: {
         message: `${el.id} is mapped to ${el.disposition.fr}, which is not in the registry`,
       })
     }
-    if (el.disposition.kind === 'out-of-scope') needQueue(el.disposition.queue, el.id)
+    if (el.disposition.kind === 'out-of-scope') {
+      needQueue(el.disposition.queue, el.id, 'disposition.queue')
+    }
   }
   for (const req of requirements) {
     if (!capSlugs.has(req.cap)) {
@@ -125,9 +172,10 @@ export async function runCheck(opts: {
         message: `${req.id} names capability ${req.cap}, which is not in the partition`,
       })
     }
-    if (req.confidence.kind === 'queued') needQueue(req.confidence.queue, req.id)
+    if (req.confidence.kind === 'queued')
+      needQueue(req.confidence.queue, req.id, 'confidence.queue')
     if (req.parity?.kind === 'rubric' && req.parity.level !== 'high') {
-      needQueue(req.parity.queue, req.id)
+      needQueue(req.parity.queue, req.id, 'parity.queue')
     }
     for (const ref of req.citations) {
       if (ref.kind === 'ledger' && !elementIds.has(ref.id)) {

@@ -194,3 +194,88 @@ test('a dirty source checkout is a source violation', async () => {
   const result = await runCheck({ root })
   expect(result.violations.some((v) => v.gate === 'source')).toBe(true)
 })
+
+// Review round: the refs gate must catch duplicate identities on its own,
+// not assume some other gate (or another command) already ruled them out.
+// `capabilities.jsonl` in particular has no import path at all yet, so
+// hand-editing is currently the only way a row lands there, making a
+// duplicate slug directly reachable today, not a hypothetical.
+
+test('two requirements sharing an id both survive but are flagged as a refs violation naming the id and count', async () => {
+  await seedClean()
+  const dup: Requirement = { ...REQUIREMENT, requirement: 'List users, second copy' }
+  await writeRows(storePaths(root).requirements, [REQUIREMENT, dup], source)
+  const result = await runCheck({ root })
+  const refs = result.violations.filter((v) => v.gate === 'refs')
+  expect(
+    refs.some((v) => v.message.includes('UM-001') && v.message.includes('appears 2 times')),
+  ).toBe(true)
+})
+
+test('two capabilities sharing a slug are flagged as a refs violation naming the slug and count', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      { slug: 'user-management', title: 'Users', ns: 'UM', elements: [] },
+      { slug: 'user-management', title: 'Users (duplicate)', ns: 'UM', elements: [] },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  const refs = result.violations.filter((v) => v.gate === 'refs')
+  expect(
+    refs.some(
+      (v) => v.message.includes('user-management') && v.message.includes('appears 2 times'),
+    ),
+  ).toBe(true)
+})
+
+test('two elements sharing an id are flagged as a refs violation naming the id and count', async () => {
+  await seedClean()
+  const dup: Element = { ...ELEMENT, element: 'GET /api/users, second copy' }
+  await writeRows(storePaths(root).elements, [ELEMENT, dup], source)
+  const result = await runCheck({ root })
+  const refs = result.violations.filter((v) => v.gate === 'refs')
+  expect(
+    refs.some(
+      (v) => v.message.includes('route-get-api-users') && v.message.includes('appears 2 times'),
+    ),
+  ).toBe(true)
+})
+
+test('ids that merely share a prefix are not confused with duplicates', async () => {
+  await seedClean()
+  const other: Requirement = {
+    ...REQUIREMENT,
+    id: 'UM-0010',
+    citations: [{ kind: 'ledger', id: 'route-get-api-users' }],
+  }
+  await writeRows(storePaths(root).requirements, [REQUIREMENT, other], source)
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([])
+})
+
+test('two citations of the same missing queue id on one requirement produce two distinguishable refs violations', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).requirements,
+    [
+      {
+        ...REQUIREMENT,
+        confidence: { kind: 'queued', queue: 'q-missing' },
+        parity: { kind: 'rubric', level: 'moderate', queue: 'q-missing' },
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  const refs = result.violations.filter((v) => v.gate === 'refs' && v.message.includes('q-missing'))
+  expect(refs).toHaveLength(2)
+  // Not deduplicated: both citations are real and both need fixing, so the
+  // two violations must remain distinct entries with distinct messages,
+  // each naming which field it came from.
+  expect(new Set(refs.map((v) => v.message)).size).toBe(2)
+  expect(refs.some((v) => v.message.includes('confidence.queue'))).toBe(true)
+  expect(refs.some((v) => v.message.includes('parity.queue'))).toBe(true)
+})
