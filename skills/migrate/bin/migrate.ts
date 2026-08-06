@@ -45,6 +45,21 @@ const HANDLERS: Record<string, Handler> = {
     const { runImport } = await import('../scripts/import-cmd.ts')
     return runImport({ root, kind, batchFile: file })
   },
+  census: async (args) => {
+    const file = args[0]
+    if (!file) {
+      process.stderr.write('census: missing <record.json>\n')
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('census: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runCensus } = await import('../scripts/census-cmd.ts')
+    return runCensus({ root, file })
+  },
 }
 
 async function main(argv: string[]): Promise<number> {

@@ -21,9 +21,9 @@ function str(v: unknown): v is string {
 
 // A row must be a JSON object. null, arrays and primitives all fail this, and
 // must be rejected here rather than left to crash on the first property read:
-// `null.id` throws, but a normal validation error is what the all-or-nothing
-// import path expects.
-function isRecord(v: unknown): v is Record<string, unknown> {
+// `null.id` throws, but a normal validation error is what every validator in
+// this file (and census.ts) expects to return instead.
+export function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
