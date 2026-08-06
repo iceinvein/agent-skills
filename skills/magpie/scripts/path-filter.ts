@@ -43,6 +43,12 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
   '**/*.min.js',
   '**/*.min.css',
   '**/*.map',
+  // Generated .NET / C#
+  '**/*.Designer.cs',
+  '**/*ModelSnapshot.cs',
+  '**/*.g.cs',
+  '**/*.g.i.cs',
+  '**/*.designer.vb',
   // Snapshot fixtures
   '**/*.snap',
   '**/__snapshots__/**',
