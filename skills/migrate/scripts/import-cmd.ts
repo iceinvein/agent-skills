@@ -1,5 +1,5 @@
 import { loadConfig } from './config.ts'
-import { storePaths } from './paths.ts'
+import { assertNotUnderSource, storePaths } from './paths.ts'
 import { isPhase, recordBatch } from './phases.ts'
 import { readJsonFile, readRows, upsertRows, writeRows } from './store.ts'
 import type { Delta, Element, Requirement } from './types.ts'
@@ -82,6 +82,20 @@ export async function runImport(opts: {
       : opts.kind === 'reqs'
         ? paths.requirements
         : paths.deltas
+  try {
+    assertNotUnderSource(target, cfg.source.path)
+  } catch (e) {
+    // A store whose configured source.path resolves to include its own
+    // target path (e.g. source.path: '.') can never be written to, for any
+    // batch content whatsoever: an environment/config problem, invariant
+    // across every possible row, not a property of this batch's data. Same
+    // usage-error class as "no .migrate store found above the cwd" and
+    // "config.toml not found" elsewhere in this CLI, not a batch-content
+    // failure (1).
+    process.stderr.write(`import: ${(e as Error).message}\n`)
+    return 2
+  }
+
   const existing = await readRows<Element | Requirement | Delta>(target)
   const merged = upsertRows(existing as { id: string }[], validated)
   await writeRows(target, merged.rows, cfg.source.path)

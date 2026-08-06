@@ -37,7 +37,18 @@ export async function runQueue(opts: { root: string; args: string[] }): Promise<
       // content failure instead.
       return isMissingFrontmatter(parsed.errors) ? 2 : 1
     }
-    assertNotUnderSource(dest, cfg.source.path)
+    try {
+      assertNotUnderSource(dest, cfg.source.path)
+    } catch (e) {
+      // A store whose configured source.path resolves to include its own
+      // queue directory (e.g. source.path: '.') can never be written to,
+      // for any well-formed item whatsoever: an environment/config
+      // problem, invariant across every possible file, not a property of
+      // this item's own content, so it is a usage error (2), not the
+      // content failure (1) returned just above for a bad grammar.
+      process.stderr.write(`queue add: ${(e as Error).message}\n`)
+      return 2
+    }
     await mkdir(queueDir, { recursive: true })
     await copyFile(file, dest)
     process.stdout.write(`queue add: ${parsed.value.id} [${parsed.value.severity}]\n`)

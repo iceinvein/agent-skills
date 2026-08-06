@@ -1,6 +1,6 @@
 import { balanceOf, censusKey, validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
-import { storePaths } from './paths.ts'
+import { assertNotUnderSource, storePaths } from './paths.ts'
 import { readJsonFile, readRows, writeRows } from './store.ts'
 import type { Census } from './types.ts'
 
@@ -34,6 +34,17 @@ export async function runCensus(opts: { root: string; file: string }): Promise<n
     return 1
   }
   const path = storePaths(opts.root).census
+  try {
+    assertNotUnderSource(path, cfg.source.path)
+  } catch (e) {
+    // A store whose configured source.path resolves to include its own
+    // target path can never be written to, regardless of this record's
+    // content: an environment/config problem, not a balance-check-visible
+    // property of the data, so it gets the same usage-error class as the
+    // shape check above, not the balance-check's operation failure (1).
+    process.stderr.write(`census: ${(e as Error).message}\n`)
+    return 2
+  }
   const existing = await readRows<Census>(path)
   const key = censusKey(result.value)
   // A re-run of the same census subject replaces its record rather than

@@ -260,3 +260,110 @@ test('queue with an unknown verb is a usage error (2)', async () => {
   const code = await runQueue({ root, args: ['frobnicate'] })
   expect(code).toBe(2)
 })
+
+// Critical finding 1: a store configured so its own path resolves inside
+// its configured source tree (e.g. source.path pointing at the project
+// root itself, which the store also lives under) must not crash.
+// assertNotUnderSource throws by design (writeRows's own contract, see
+// store.test.ts); queue-cmd.ts must catch that throw and report a clean
+// diagnostic with a deliberate exit code instead of letting it escape as
+// an uncaught stack trace. Chosen exit code: 2 -- a malformed/unusable
+// setup that fails identically no matter what valid file content is
+// supplied, not a property of this file's own data (see the report for
+// the full argument against exit code 1).
+
+test('queue add refuses to write when the store sits inside its own configured source tree, as a clean usage error (2), not a crash', async () => {
+  await writeConfig(root, { sourcePath: root, scope: 'all', targetName: 'newapp' })
+  const path = join(root, 'q-invoice-batch-scope.md')
+  await writeFile(path, GOOD)
+  const code = await runQueue({ root, args: ['add', path] })
+  expect(code).toBe(2)
+  expect(existsSync(join(queueDir, 'q-invoice-batch-scope.md'))).toBe(false)
+})
+
+// Critical finding 2: sectionBody must match headings at a line boundary
+// and at exactly level two. Before the fix, '### Options' (one hash too
+// many) was invisible to the next-boundary search but still matched by a
+// plain indexOf('## Options') substring lookup, so Evidence silently
+// absorbed the whole mislabeled Options block (including its own heading)
+// while Options was separately (mis)populated from that same text --
+// ok:true, corrupted and duplicated, no diagnostic. A duplicated
+// '## Evidence' heading similarly truncated Evidence to its first block
+// and dropped the second entirely, again ok:true with no diagnostic.
+
+test('a heading one level too deep (### Options) is reported as a missing section, not silently accepted with corrupted content', () => {
+  const text = GOOD.replace('## Options', '### Options')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('Options')
+})
+
+test('a duplicated ## Evidence heading is rejected as a duplicate section, not silently truncated to the first block', () => {
+  const text = GOOD.replace(
+    '## Evidence\n\nRoute POST /api/invoice/batch found in InvoiceController.cs:215-240.\n',
+    '## Evidence\n\nFirst evidence block.\n\n## Evidence\n\nSecond evidence block, silently dropped by the pre-fix code.\n',
+  )
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const msg = result.errors.join(' ')
+    expect(msg).toContain('Evidence')
+    expect(msg.toLowerCase()).toContain('duplicate')
+  }
+})
+
+test('a level-three sub-heading inside a section is kept as ordinary content, not treated as a boundary', () => {
+  const text = GOOD.replace(
+    'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+    'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.\n\n### Extra detail\n\nAlso seen in the audit log.',
+  )
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    expect(result.value.evidence).toContain('### Extra detail')
+    expect(result.value.evidence).toContain('Also seen in the audit log.')
+    expect(result.value.options).not.toContain('Extra detail')
+  }
+})
+
+// Important finding 3: a leading BOM and/or CRLF line endings must not
+// reject an otherwise well-formed item wholesale. Both are common
+// byproducts of authoring on Windows; neither changes the file's actual
+// content, so both are stripped/normalized before any grammar check runs.
+
+test('a leading BOM does not cause a well-formed item to be rejected', () => {
+  const result = parseQueueItem(`\uFEFF${GOOD}`, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+})
+
+test('CRLF line endings do not cause a well-formed item to be rejected', () => {
+  const crlf = GOOD.replace(/\n/g, '\r\n')
+  const result = parseQueueItem(crlf, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    expect(result.value.evidence).toContain('InvoiceController.cs')
+    expect(result.value.evidence).not.toContain('\r')
+  }
+})
+
+test('a BOM plus CRLF together do not cause a well-formed item to be rejected', () => {
+  const text = `\uFEFF${GOOD.replace(/\n/g, '\r\n')}`
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+})
+
+// Minor finding 4: a wrong-case heading (e.g. '## options') reports
+// "missing ## Options section" with no hint that case is the problem,
+// identical to the message for a heading that's absent entirely. State
+// the grammar so the author can tell the two apart.
+
+test('a wrong-case heading names the exact grammar required, not just "missing"', () => {
+  const text = GOOD.replace('## Options', '## options')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const msg = result.errors.join(' ')
+    expect(msg).toContain('Options')
+    expect(msg).toContain('case-sensitive')
+  }
+})

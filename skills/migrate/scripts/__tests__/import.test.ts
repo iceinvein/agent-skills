@@ -137,3 +137,19 @@ test('a batch file that does not exist is rejected with a clean diagnostic', asy
   expect(code).toBe(2)
   expect(await readRows(storePaths(root).elements)).toEqual([])
 })
+
+// Critical finding 1 (shared with census-cmd.ts and queue-cmd.ts): a store
+// whose configured source.path resolves to include the store's own target
+// path (e.g. source.path pointing at the project root itself, which the
+// store also lives under) must not crash. assertNotUnderSource throws by
+// design (writeRows's own contract, see store.test.ts); import-cmd.ts must
+// catch that throw and report a clean diagnostic with a deliberate exit
+// code instead of letting it escape as an uncaught stack trace. See the
+// report for the full argument for exit code 2 over 1.
+
+test('import refuses to write when the store sits inside its own configured source tree, as a clean usage error (2), not a crash', async () => {
+  await writeConfig(root, { sourcePath: root, scope: 'all', targetName: 'newapp' })
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT]) })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
