@@ -1,4 +1,4 @@
-import type { Census } from './types.ts'
+import type { Census, Skipped } from './types.ts'
 import type { Validated } from './validate.ts'
 import { isRecord } from './validate.ts'
 
@@ -41,34 +41,86 @@ export function balanceOf(record: Census): string | null {
 export function validateCensus(row: unknown): Validated<Census> {
   // A row must be a JSON object with a recognized kind before any field is
   // dereferenced. A null, a string, a number or an array must be rejected
-  // cleanly here rather than throwing on the first property read.
-  if (!isRecord(row)) return { ok: false, errors: ['census: row must be a JSON object'] }
+  // cleanly here rather than throwing on the first property read. Messages
+  // here carry no 'census: ' prefix of their own: the call site owns that
+  // prefix, so callers never have to strip or double it.
+  if (!isRecord(row)) return { ok: false, errors: ['row must be a JSON object'] }
   const errors: string[] = []
   const r = row
   const kind = r.kind
   const num = (k: string): number => {
     const v = r[k]
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) {
-      errors.push(`census: ${k} must be a non-negative integer`)
+      errors.push(`${k} must be a non-negative integer`)
       return 0
-    }
-    return v
-  }
-  const list = (k: string): unknown[] => {
-    const v = r[k] ?? []
-    if (!Array.isArray(v)) {
-      errors.push(`census: ${k} must be an array`)
-      return []
     }
     return v
   }
   const text = (k: string): string => {
     const v = r[k]
     if (typeof v !== 'string' || v.length === 0) {
-      errors.push(`census: ${k} is required`)
+      errors.push(`${k} is required`)
       return ''
     }
     return v
+  }
+  // Every queued id must be a non-empty string, and a repeated id inside one
+  // record is an authoring error rather than a silent no-op: since balance is
+  // judged by .length, a duplicate would otherwise let an agent pad a
+  // genuinely imbalanced record until it looks balanced. Same call Task 7
+  // made for a duplicate id inside one import batch.
+  const queuedList = (k: string): string[] => {
+    const v = r[k] ?? []
+    if (!Array.isArray(v)) {
+      errors.push(`${k} must be an array`)
+      return []
+    }
+    const out: string[] = []
+    v.forEach((item, i) => {
+      if (typeof item !== 'string' || item.length === 0) {
+        errors.push(`${k}[${i}] must be a non-empty string`)
+        return
+      }
+      out.push(item)
+    })
+    const seen = new Map<string, number>()
+    for (const id of out) seen.set(id, (seen.get(id) ?? 0) + 1)
+    for (const [id, count] of seen) {
+      if (count > 1) errors.push(`${k} id ${id} appears ${count} times`)
+    }
+    return out
+  }
+  // Every skipped entry must be an object naming a non-empty element and a
+  // non-empty reason. A repeated element is the same padding risk as a
+  // repeated queued id, and is rejected on the element alone (not full
+  // struct equality) so varying the reason text cannot evade the check.
+  const skippedList = (k: string): Skipped[] => {
+    const v = r[k] ?? []
+    if (!Array.isArray(v)) {
+      errors.push(`${k} must be an array`)
+      return []
+    }
+    const out: Skipped[] = []
+    v.forEach((item, i) => {
+      const element = isRecord(item) ? item.element : undefined
+      const reason = isRecord(item) ? item.reason : undefined
+      const valid =
+        typeof element === 'string' &&
+        element.length > 0 &&
+        typeof reason === 'string' &&
+        reason.length > 0
+      if (!valid) {
+        errors.push(`${k}[${i}] must be an object with a non-empty element and reason`)
+        return
+      }
+      out.push({ element, reason })
+    })
+    const seen = new Map<string, number>()
+    for (const s of out) seen.set(s.element, (seen.get(s.element) ?? 0) + 1)
+    for (const [element, count] of seen) {
+      if (count > 1) errors.push(`${k} element ${element} appears ${count} times`)
+    }
+    return out
   }
 
   if (kind === 'lens') {
@@ -78,8 +130,8 @@ export function validateCensus(row: unknown): Validated<Census> {
     num('total')
     num('in_ledger')
     num('added')
-    list('skipped')
-    list('queued')
+    skippedList('skipped')
+    queuedList('queued')
   } else if (kind === 'attribute') {
     text('surface')
     text('subject')
@@ -87,28 +139,26 @@ export function validateCensus(row: unknown): Validated<Census> {
     num('total')
     num('behavioral')
     num('explained')
-    list('queued')
+    queuedList('queued')
   } else if (kind === 'rule-sweep') {
     text('subject')
     text('batch')
     num('probes')
     num('found')
     num('as_requirements')
-    list('queued')
+    queuedList('queued')
   } else if (kind === 'closer') {
     text('closer')
     text('batch')
     num('checked')
     num('findings')
     num('fixed')
-    list('queued')
+    queuedList('queued')
   } else {
-    errors.push(`census: unknown kind ${String(kind)}`)
+    errors.push(`unknown kind ${String(kind)}`)
   }
 
   if (errors.length > 0) return { ok: false, errors }
   const record = row as Census
-  const imbalance = balanceOf(record)
-  if (imbalance) return { ok: false, errors: [imbalance] }
   return { ok: true, value: record }
 }

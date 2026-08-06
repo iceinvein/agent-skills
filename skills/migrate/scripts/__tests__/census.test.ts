@@ -156,7 +156,11 @@ test('validateCensus rejects an array row instead of throwing', () => {
 test('runCensus refuses a file whose top-level JSON is null, not thrown', async () => {
   const file = join(root, 'null.json')
   await writeFile(file, 'null')
-  expect(await runCensus({ root, file })).toBe(1)
+  // A null row is not shaped like a census record at all (no envelope exists
+  // to distinguish this from the balance check the way import-cmd.ts's
+  // {batch, phase, rows} envelope does), so this is a usage error (2), not
+  // an operation failure (1).
+  expect(await runCensus({ root, file })).toBe(2)
   expect(await readRows(storePaths(root).census)).toEqual([])
 })
 
@@ -175,4 +179,96 @@ test('runCensus reports a malformed JSON file as a clean usage error', async () 
   await writeFile(file, '{ this is not json')
   expect(await runCensus({ root, file })).toBe(2)
   expect(await readRows(storePaths(root).census)).toEqual([])
+})
+
+// Finding 1: skipped and queued are counted by .length, so a duplicate entry
+// pads the balance arithmetic without changing anything real. A duplicate
+// must be refused, not silently deduped, and never allowed to make an
+// otherwise-imbalanced record look balanced.
+
+test('a duplicate queued id is rejected even though it would make the sum balance', () => {
+  // in_ledger 44 + added 1 + skipped 0 + queued.length 2 = 47 = total: this
+  // would pass balanceOf's arithmetic if the duplicate were silently counted.
+  const padded: Census = { ...LENS, total: 47, queued: ['q-1', 'q-1'] }
+  const result = validateCensus(padded)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('q-1')
+})
+
+test('a duplicate skipped element is rejected even though it would make the sum balance', () => {
+  const padded: Census = {
+    ...LENS,
+    total: 47,
+    skipped: [
+      { element: 'X', reason: 'a' },
+      { element: 'X', reason: 'b' },
+    ],
+  }
+  const result = validateCensus(padded)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('X')
+})
+
+test('runCensus refuses a record padded with a duplicate queued id', async () => {
+  const file = join(root, 'padded.json')
+  const padded = { ...LENS, total: 47, queued: ['q-1', 'q-1'] }
+  await writeFile(file, JSON.stringify(padded))
+  expect(await runCensus({ root, file })).toBe(2)
+  expect(await readRows(storePaths(root).census)).toEqual([])
+})
+
+// Finding 2: list() only checked that skipped/queued were arrays, never that
+// their elements matched Skipped / string. Each element must be validated,
+// naming the offending index.
+
+test('a skipped entry that is not an object is rejected, naming the index', () => {
+  const bad = { ...LENS, skipped: ['not-an-object'] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('skipped[0]')
+})
+
+test('a skipped entry missing a reason is rejected, naming the index', () => {
+  const bad = { ...LENS, skipped: [{ element: 'foo' }] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('skipped[0]')
+})
+
+test('a queued entry that is not a string is rejected, naming the index', () => {
+  const bad = { ...LENS, queued: [123] }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('queued[0]')
+})
+
+// Finding 3: a shape failure (missing/mistyped fields, unknown kind, a
+// duplicate) is a usage error (2); only a balance failure on an otherwise
+// well-formed record is an operation failure (1). The two must be
+// distinguishable without parsing stderr text.
+
+test('a record missing required fields is a usage error (2), not an operation failure', async () => {
+  const file = join(root, 'incomplete.json')
+  await writeFile(file, JSON.stringify({ kind: 'lens' }))
+  expect(await runCensus({ root, file })).toBe(2)
+  expect(await readRows(storePaths(root).census)).toEqual([])
+})
+
+test('a well-formed but unbalanced record is an operation failure (1), not a usage error', async () => {
+  const file = join(root, 'unbalanced.json')
+  await writeFile(file, JSON.stringify({ ...LENS, total: 99 }))
+  expect(await runCensus({ root, file })).toBe(1)
+  expect(await readRows(storePaths(root).census)).toEqual([])
+})
+
+// Finding 4: validateCensus's own error strings must not carry a 'census: '
+// prefix, since runCensus prepends one when printing; a message that was
+// already prefixed produced 'census: census: ...' on a real CLI run.
+
+test('validateCensus error messages are not pre-prefixed with census:', () => {
+  const result = validateCensus(null)
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    for (const e of result.errors) expect(e.startsWith('census:')).toBe(false)
+  }
 })
