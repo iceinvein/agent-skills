@@ -60,6 +60,16 @@ const HANDLERS: Record<string, Handler> = {
     const { runCensus } = await import('../scripts/census-cmd.ts')
     return runCensus({ root, file })
   },
+  queue: async (args) => {
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('queue: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runQueue } = await import('../scripts/queue-cmd.ts')
+    return runQueue({ root, args })
+  },
 }
 
 async function main(argv: string[]): Promise<number> {

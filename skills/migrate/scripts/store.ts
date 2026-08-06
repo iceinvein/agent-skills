@@ -22,6 +22,22 @@ export async function readJsonFile(path: string): Promise<unknown> {
   }
 }
 
+// Reads one markdown file as text, or throws a clean diagnostic naming the
+// path first (missing file, a directory where a file was expected, or an
+// unreadable file) instead of letting readFile's raw error escape. Queue
+// items are markdown, not JSON, so this is readJsonFile's sibling: same
+// message convention, no JSON parsing.
+export async function readTextFile(path: string): Promise<string> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (e) {
+    const code = (e as { code?: string }).code
+    if (code === 'EISDIR') throw new Error(`${path}: is a directory, not a file`)
+    if (code === 'EACCES') throw new Error(`${path}: permission denied`)
+    throw new Error(`${path}: not found`)
+  }
+}
+
 export async function readRows<T>(path: string): Promise<T[]> {
   if (!existsSync(path)) return []
   const text = await readFile(path, 'utf8')
