@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readRows, upsertRows, writeRows } from '../store.ts'
@@ -101,4 +101,13 @@ test('concurrent writes to same path do not collide', async () => {
   ])
   const rows = await readRows(path)
   expect(rows.length).toBe(1)
+})
+
+test('writeRows cleans up temp file on failure', async () => {
+  const dir = join(root, 'target-dir')
+  await mkdir(dir)
+  await expect(writeRows(dir, [{ id: 'a', n: 1 }], NO_SOURCE)).rejects.toThrow()
+  const files = await readdir(root)
+  const tmpFiles = files.filter((f) => f.endsWith('.tmp'))
+  expect(tmpFiles.length).toBe(0)
 })

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { assertNotUnderSource } from './paths.ts'
 
 export async function readRows<T>(path: string): Promise<T[]> {
@@ -29,8 +29,16 @@ export async function writeRows<T>(path: string, rows: T[], sourcePath: string):
   const text = rows.length > 0 ? `${body}\n` : ''
   const random = randomBytes(8).toString('hex')
   const tmp = `${path}.${random}.tmp`
-  await writeFile(tmp, text)
-  await rename(tmp, path)
+  try {
+    await writeFile(tmp, text)
+    await rename(tmp, path)
+  } finally {
+    try {
+      await unlink(tmp)
+    } catch {
+      // Ignore cleanup errors, let original error propagate
+    }
+  }
 }
 
 function stableStringify(obj: unknown): string {
