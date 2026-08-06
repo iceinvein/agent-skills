@@ -1,7 +1,9 @@
 # Specialist prompts
 
-Stage 4 of the walkthrough dispatches five subagents from this file. Build each prompt
-from up to five parts, in this order, and send it as the agent's entire task:
+Stage 4 of the walkthrough dispatches five subagents per shard from this file. Build
+each prompt from up to six parts, in this order, and send it as the agent's entire
+task. Each part is a fenced block or the named section it points at; the prose around
+them is instruction to you, not text for the specialist.
 
 1. The focus block for that focus (the fenced `magpie-specialist-<focus>` blocks below), verbatim.
 2. The run header, with the placeholders filled in. Unsharded:
@@ -26,17 +28,23 @@ anchored to them. Reading any file in the worktree for context is expected and
 encouraged.
 ```
 
+3. The `## Output Contract` section below, verbatim.
+4. The excluded-files block below, verbatim, when `<RUN_DIR>/excluded-files.json`
+   exists (setup writes it only when the path filter removed something, and without
+   it the two paths the block names do not exist):
+
+```
 Files excluded by the path filter are absent from your diff but present in the
-worktree, with their full patches in `<RUN_DIR>/diff.full.patch` and the exclusion
-list in `<RUN_DIR>/excluded-files.json`. When a change in your scope implies a change
+worktree, with their full patches in <RUN_DIR>/diff.full.patch and the exclusion
+list in <RUN_DIR>/excluded-files.json. When a change in your scope implies a change
 in an excluded file (a migration implies a model snapshot, a schema change implies
 generated types), open it and cross-check rather than treating it as out of scope.
+```
 
-3. The `## Output Contract` section below, verbatim.
-4. The `magpie-codebase-intelligence` block below, verbatim, **only** when the context
+5. The `magpie-codebase-intelligence` block below, verbatim, **only** when the context
    stage logged `codeIntelligence: true`. Omit it entirely otherwise: telling a
    specialist to use tools it does not have wastes a turn per specialist on discovery.
-5. The brief, when `<RUN_DIR>/brief.json` exists, rendered as:
+6. The brief, when `<RUN_DIR>/brief.json` exists, rendered as:
 
 ```
 ## What this PR is for
