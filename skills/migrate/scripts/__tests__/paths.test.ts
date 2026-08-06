@@ -43,3 +43,8 @@ test('assertNotUnderSource is not fooled by a sibling with a shared prefix', () 
   const source = join(root, 'legacy')
   expect(() => assertNotUnderSource(join(root, 'legacy-notes', 'x.md'), source)).not.toThrow()
 })
+
+test('assertNotUnderSource allows writes to the source parent directory', () => {
+  const source = join(root, 'legacy')
+  expect(() => assertNotUnderSource(root, source)).not.toThrow()
+})
