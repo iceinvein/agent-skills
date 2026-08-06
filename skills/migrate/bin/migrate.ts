@@ -24,7 +24,28 @@ Subcommands:
 
 type Handler = (args: string[]) => Promise<number> | number
 
-const HANDLERS: Record<string, Handler> = {}
+const HANDLERS: Record<string, Handler> = {
+  import: async (args) => {
+    const kind = args[0]
+    const file = args[1]
+    if (kind !== 'elements' && kind !== 'reqs' && kind !== 'deltas') {
+      process.stderr.write('import: want <elements|reqs|deltas> <batch.json>\n')
+      return 2
+    }
+    if (!file) {
+      process.stderr.write('import: missing <batch.json>\n')
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('import: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runImport } = await import('../scripts/import-cmd.ts')
+    return runImport({ root, kind, batchFile: file })
+  },
+}
 
 async function main(argv: string[]): Promise<number> {
   const [sub, ...rest] = argv
