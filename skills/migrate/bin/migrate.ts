@@ -84,6 +84,32 @@ const HANDLERS: Record<string, Handler> = {
       leaks: args.includes('--leaks'),
     })
   },
+  status: async () => {
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('status: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runStatus } = await import('../scripts/status-cmd.ts')
+    return runStatus({ root })
+  },
+  reset: async (args) => {
+    const at = args.indexOf('--phase')
+    const phase = at !== -1 ? args[at + 1] : undefined
+    if (!phase) {
+      process.stderr.write('reset: missing --phase <phase>\n')
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('reset: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runReset } = await import('../scripts/reset-cmd.ts')
+    return runReset({ root, phase })
+  },
 }
 
 async function main(argv: string[]): Promise<number> {
