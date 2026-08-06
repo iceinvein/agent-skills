@@ -359,3 +359,119 @@ test('queued id format validation applies to attribute, rule-sweep and closer, n
     expect(result.ok).toBe(false)
   }
 })
+
+// Round 3: skipped's duplicate check and the cross-list check both compared
+// raw element-name strings, so a case or whitespace variant on the skipped
+// side defeated both (queued was already fixed in round 2, but skipped was
+// left alone). Fixed by normalizing (trim + case-fold) for comparison only;
+// the stored value is always the author's original text.
+
+test('a case-variant duplicate skipped element is rejected', () => {
+  const bad: Census = {
+    ...LENS,
+    total: 47,
+    skipped: [
+      { element: 'orders', reason: 'a' },
+      { element: 'ORDERS', reason: 'b' },
+    ],
+  }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('orders')
+})
+
+test('a whitespace-variant duplicate skipped element is rejected', () => {
+  const bad: Census = {
+    ...LENS,
+    total: 47,
+    skipped: [
+      { element: 'orders', reason: 'a' },
+      { element: ' orders ', reason: 'b' },
+    ],
+  }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('orders')
+})
+
+test('cross-list padding is rejected even with a case-variant on the skipped side', () => {
+  // queued is already canonicalized ('q-1'), so this specifically checks
+  // that the skipped side is normalized before the two are compared.
+  const bad: Census = {
+    ...LENS,
+    total: 47,
+    queued: ['q-1'],
+    skipped: [{ element: 'Q-1', reason: 'x' }],
+  }
+  const result = validateCensus(bad)
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('Q-1')
+})
+
+// Normalization must stop at trim + case-fold: it must not newly reject
+// legitimate records, including ones whose element names differ only in
+// punctuation (which is left alone deliberately, since punctuation can be
+// load-bearing in a free-text element name).
+
+test('punctuation-only variants of an element name are accepted as distinct, not deduped', () => {
+  const ok: Census = {
+    ...LENS,
+    total: 48,
+    skipped: [
+      { element: 'orders', reason: 'framework-owned' },
+      { element: 'orders.', reason: 'legacy typo, kept verbatim' },
+    ],
+    queued: ['q-table-ownership'],
+  }
+  const result = validateCensus(ok)
+  expect(result.ok).toBe(true)
+  if (result.ok) expect(result.value).toEqual(ok)
+})
+
+test('legitimate records still validate for all four kinds', () => {
+  const lens = validateCensus({
+    ...LENS,
+    total: 48,
+    skipped: [
+      { element: 'orders', reason: 'framework-owned' },
+      { element: 'orders.', reason: 'legacy typo, kept verbatim' },
+    ],
+    queued: ['q-table-ownership'],
+  })
+  expect(lens.ok).toBe(true)
+
+  const attribute = validateCensus({
+    kind: 'attribute',
+    surface: 'tables',
+    subject: 'table-roster-days',
+    directions: { ddl: 14, entity: 13 },
+    total: 15,
+    behavioral: 7,
+    explained: 6,
+    queued: ['q-ros-007'],
+    batch: 'b-2',
+  })
+  expect(attribute.ok).toBe(true)
+
+  const ruleSweep = validateCensus({
+    kind: 'rule-sweep',
+    subject: 'user-management',
+    probes: 4,
+    found: 2,
+    as_requirements: 2,
+    queued: [],
+    batch: 'b-3',
+  })
+  expect(ruleSweep.ok).toBe(true)
+
+  const closer = validateCensus({
+    kind: 'closer',
+    closer: 'read-write-symmetry',
+    checked: 34,
+    findings: 3,
+    fixed: 2,
+    queued: ['q-sym-001'],
+    batch: 'b-4',
+  })
+  expect(closer.ok).toBe(true)
+})

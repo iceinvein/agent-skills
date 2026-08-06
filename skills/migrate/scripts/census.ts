@@ -15,6 +15,16 @@ function isValidQueueId(s: string): boolean {
   return s.startsWith(QUEUE_PREFIX) && isValidSlug(s.slice(QUEUE_PREFIX.length))
 }
 
+// Trim and case-fold, and stop there: this is the comparison form used for
+// duplicate and cross-list checks, never the stored form. Element names are
+// free text naming real things in a legacy source, so nothing past
+// whitespace and case is safe to normalize away; 'orders.' and 'orders' can
+// legitimately be two different elements, and collapsing punctuation or
+// internal whitespace would start rejecting valid input.
+function normalizeForComparison(s: string): string {
+  return s.trim().toLowerCase()
+}
+
 export function censusKey(record: Census): string {
   if (record.kind === 'lens') return `lens:${record.surface}`
   if (record.kind === 'attribute') return `attribute:${record.subject}`
@@ -134,10 +144,27 @@ export function validateCensus(row: unknown): Validated<Census> {
       }
       out.push({ element, reason })
     })
-    const seen = new Map<string, number>()
-    for (const s of out) seen.set(s.element, (seen.get(s.element) ?? 0) + 1)
-    for (const [element, count] of seen) {
-      if (count > 1) errors.push(`${k} element ${element} appears ${count} times`)
+    // Uniqueness is enforced on trimmed, case-folded element names, not the
+    // raw text: 'orders' and ' ORDERS' name the same entry and must not pad
+    // .length as if they were two. The stored value is always the author's
+    // original text (evidence should survive verbatim); only the comparison
+    // is normalized. This is a documented limit, not a guarantee: unlike
+    // queued ids, element names are free text with no format to constrain,
+    // so two genuinely distinct strings a person would recognize as the same
+    // real thing ('orders' and 'order', or two different names for one
+    // table) are not detectable this way, and no check can make free text
+    // padding-proof in general.
+    const seen = new Map<string, string[]>()
+    for (const s of out) {
+      const key = normalizeForComparison(s.element)
+      const variants = seen.get(key) ?? []
+      variants.push(s.element)
+      seen.set(key, variants)
+    }
+    for (const [key, variants] of seen) {
+      if (variants.length > 1) {
+        errors.push(`${k} element ${key} appears ${variants.length} times (${variants.join(', ')})`)
+      }
     }
     return out
   }
@@ -156,10 +183,13 @@ export function validateCensus(row: unknown): Validated<Census> {
     // drawn from the legacy system), so nothing stops a skipped element from
     // coincidentally, or deliberately, matching a queued id's exact text.
     // Checked explicitly: see the report for why this earns its keep rather
-    // than being left to the format constraint alone.
-    const queuedSet = new Set(queued)
+    // than being left to the format constraint alone. Compared on the same
+    // normalized (trimmed, case-folded) form used for the skipped-side
+    // duplicate check above, so a case or whitespace variant on the skipped
+    // side cannot dodge this the way raw comparison let it.
+    const queuedSet = new Set(queued.map(normalizeForComparison))
     for (const s of skipped) {
-      if (queuedSet.has(s.element)) {
+      if (queuedSet.has(normalizeForComparison(s.element))) {
         errors.push(`${s.element} appears in both skipped and queued`)
       }
     }
