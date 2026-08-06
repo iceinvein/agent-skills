@@ -43,19 +43,66 @@ function splitFrontmatter(text: string): { fm: Record<string, string>; body: str
 type Heading = { name: string; start: number; end: number }
 
 // Only a line that starts with exactly '## ' (two hashes, one space, at the
-// very start of a line) counts as a section heading. Anchoring to a line
-// boundary and requiring exactly two hashes means '### Options' (one hash
-// too many) or '#Options' (too few) are ordinary body text, not headings:
-// a level typo can no longer be mistaken for a real heading, corrupt a
-// neighboring section's content, or silently stand in for a missing one.
-const HEADING = /^## (.+)$/gm
+// very start of a line) counts as a section heading. Requiring exactly two
+// hashes at the true start of the line means '### Options' (one hash too
+// many) or '#Options' (too few), or an indented/blockquoted/tab-indented
+// '##' line, are ordinary body text, not headings: a level typo can no
+// longer be mistaken for a real heading, corrupt a neighboring section's
+// content, or silently stand in for a missing one.
+const HEADING_LINE = /^## (.+)$/
 
-function findHeadings(body: string): Heading[] {
+// A fenced code block (three or more backticks, or three or more tildes, at
+// the start of a line once surrounding whitespace is trimmed) hides
+// everything inside it from heading detection: a pasted shell script's
+// '## Section' comments, a quoted markdown file, or a diff are Evidence
+// content, not document structure, and must not be mistaken for one. This
+// is deliberately not a conforming CommonMark fence parser -- no info
+// string handling, no requirement that a closing fence be at least as long
+// as the one that opened it -- it only needs to stop quoted code from
+// reading as a heading, which a same-character open/close toggle already
+// does; a fence line of the other character (e.g. a '~~~' divider inside a
+// backtick-fenced block) does not close it.
+const FENCE_LINE = /^(`{3,}|~{3,})/
+
+type HeadingScan = {
+  headings: Heading[]
+  // The 1-indexed body line where an opening fence was never matched by a
+  // closing one, or null if every fence (if any) closed. A null-vs-number
+  // result, not a boolean, so the error message can point at exactly where
+  // the unterminated fence began.
+  unclosedFenceAt: number | null
+}
+
+function findHeadings(body: string): HeadingScan {
   const headings: Heading[] = []
-  for (const m of body.matchAll(HEADING)) {
-    headings.push({ name: (m[1] ?? '').trim(), start: m.index, end: m.index + m[0].length })
+  const lines = body.split('\n')
+  let fenceChar: string | null = null
+  let fenceStartLine: number | null = null
+  let offset = 0
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    const fenceMatch = FENCE_LINE.exec(line.trim())
+    if (fenceMatch) {
+      const ch = fenceMatch[1]?.[0] ?? ''
+      if (fenceChar === null) {
+        fenceChar = ch
+        fenceStartLine = i + 1
+      } else if (ch === fenceChar) {
+        fenceChar = null
+        fenceStartLine = null
+      }
+      // A fence line of the other character while already inside a fence
+      // is just content (e.g. a '~~~' rule inside a backtick block): no
+      // state change, and it can never look like a heading anyway.
+    } else if (fenceChar === null) {
+      const m = HEADING_LINE.exec(line)
+      if (m) {
+        headings.push({ name: (m[1] ?? '').trim(), start: offset, end: offset + line.length })
+      }
+    }
+    offset += line.length + 1
   }
-  return headings
+  return { headings, unclosedFenceAt: fenceChar === null ? null : fenceStartLine }
 }
 
 type SectionResult = { kind: 'ok'; text: string } | { kind: 'missing' } | { kind: 'duplicate' }
@@ -118,26 +165,40 @@ export function parseQueueItem(rawText: string, path: string): ParsedQueue {
     errors.push(`${path}: an adjudicated item needs a ruling`)
   }
 
-  const headings = findHeadings(body)
+  const { headings, unclosedFenceAt } = findHeadings(body)
   const found: Record<string, string> = {}
-  for (const name of SECTIONS) {
-    const section = sectionBody(headings, body, name)
-    if (section.kind === 'missing') {
-      // States the grammar explicitly (line-anchored, exactly two hashes,
-      // case-sensitive) so a level typo or a wrong-case heading (which also
-      // lands here, since neither is recognized as this heading) reads as
-      // a grammar mismatch rather than "you forgot this entirely".
-      errors.push(
-        `${path}: missing ## ${name} section (a line reading exactly "## ${name}", case-sensitive)`,
-      )
-    } else if (section.kind === 'duplicate') {
-      errors.push(
-        `${path}: duplicate ## ${name} section (the heading "## ${name}" appears more than once)`,
-      )
-    } else if (section.text.length === 0) {
-      errors.push(`${path}: ## ${name} section is empty`)
-    } else {
-      found[name] = section.text
+  if (unclosedFenceAt !== null) {
+    // The document's structure past an unterminated fence cannot be
+    // trusted -- any '##' line after it might belong inside the fence or
+    // outside it, and there is no reliable way to tell. Rather than guess
+    // (which risks exactly the silent corruption Finding 2 fixed) or pile
+    // on confusing per-section "missing"/"duplicate" noise that would
+    // misdirect the author toward the wrong section entirely, this is one
+    // clear, specific, loud error naming the real problem, and every
+    // per-section check below is skipped.
+    errors.push(
+      `${path}: unclosed code fence starting at body line ${unclosedFenceAt} (add a matching closing fence; headings after this point cannot be recognized)`,
+    )
+  } else {
+    for (const name of SECTIONS) {
+      const section = sectionBody(headings, body, name)
+      if (section.kind === 'missing') {
+        // States the grammar explicitly (line-anchored, exactly two hashes,
+        // case-sensitive) so a level typo or a wrong-case heading (which also
+        // lands here, since neither is recognized as this heading) reads as
+        // a grammar mismatch rather than "you forgot this entirely".
+        errors.push(
+          `${path}: missing ## ${name} section (a line reading exactly "## ${name}", case-sensitive)`,
+        )
+      } else if (section.kind === 'duplicate') {
+        errors.push(
+          `${path}: duplicate ## ${name} section (the heading "## ${name}" appears more than once)`,
+        )
+      } else if (section.text.length === 0) {
+        errors.push(`${path}: ## ${name} section is empty`)
+      } else {
+        found[name] = section.text
+      }
     }
   }
 

@@ -367,3 +367,109 @@ test('a wrong-case heading names the exact grammar required, not just "missing"'
     expect(msg).toContain('case-sensitive')
   }
 })
+
+// Round-1 confirmation: an indented, tab-indented, blockquoted, or
+// starts-with heading must still be treated as ordinary body text (not a
+// section boundary), exactly as before the fence fix. These are
+// regression checks, not fail-before/pass-after tests for this round --
+// the fence-scanning rewrite only changed how a line is classified while
+// inside a fence; the underlying line-anchored, exact-name heading test
+// applied to a non-fenced line is unchanged.
+
+test('an indented ## Options heading is not recognized (still missing)', () => {
+  const text = GOOD.replace('## Options', '  ## Options')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('missing ## Options')
+})
+
+test('a tab-indented ## Options heading is not recognized (still missing)', () => {
+  const text = GOOD.replace('## Options', '\t## Options')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('missing ## Options')
+})
+
+test('a blockquoted ## Options heading is not recognized (still missing)', () => {
+  const text = GOOD.replace('## Options', '> ## Options')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('missing ## Options')
+})
+
+test('a heading whose name only starts with the required text (## Options considered) does not match Options', () => {
+  const text = GOOD.replace('## Options', '## Options considered')
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join(' ')).toContain('missing ## Options')
+})
+
+// Critical finding (round 2): a fenced code block quoting a '##'-prefixed
+// line (a shell script's own comments, a quoted markdown file, a diff)
+// must not be mistaken for real document structure. Before this fix, a
+// fenced '## Options' inside Evidence was rejected as "duplicate ##
+// Options" (colliding with the real Options heading later in the
+// document) -- a false rejection of well-formed input pointing the author
+// at entirely the wrong problem.
+
+const FENCE = '```'
+
+test('a fenced code block in Evidence containing ## Options parses cleanly, with the fence content preserved verbatim', () => {
+  const text = GOOD.replace(
+    'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+    [
+      'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+      '',
+      FENCE,
+      '## Options',
+      'echo "quoted shell output, not a real heading"',
+      FENCE,
+    ].join('\n'),
+  )
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    expect(result.value.evidence).toContain('## Options')
+    expect(result.value.evidence).toContain('echo "quoted shell output, not a real heading"')
+    expect(result.value.options).not.toContain('echo')
+  }
+})
+
+test('a fenced code block containing ## Evidence does not trigger duplicate-section detection', () => {
+  const text = GOOD.replace(
+    'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+    [
+      'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+      '',
+      FENCE,
+      '## Evidence',
+      'quoted from another document, not a real heading',
+      FENCE,
+    ].join('\n'),
+  )
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    expect(result.value.evidence).toContain('## Evidence')
+    expect(result.value.evidence).toContain('quoted from another document, not a real heading')
+  }
+})
+
+test('an unclosed fence produces one clear, loud error naming the fence, not a silently truncated or corrupted document', () => {
+  const text = GOOD.replace(
+    'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+    [
+      'Route POST /api/invoice/batch found in InvoiceController.cs:215-240.',
+      '',
+      FENCE,
+      'echo "this fence is never closed"',
+    ].join('\n'),
+  )
+  const result = parseQueueItem(text, join(queueDir, 'q-invoice-batch-scope.md'))
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const msg = result.errors.join(' ')
+    expect(msg).toContain('unclosed')
+    expect(msg).toContain('fence')
+  }
+})
