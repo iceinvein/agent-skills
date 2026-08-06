@@ -98,6 +98,13 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
 
   const diff = await readFile(join(runDir, 'diff.patch'), 'utf8').catch(() => '')
 
+  let diffSource: { source: 'gh' | 'git'; mergeBase: string | null } | undefined
+  try {
+    diffSource = (await Bun.file(join(runDir, 'diff-source.json')).json()) as typeof diffSource
+  } catch {
+    diffSource = undefined
+  }
+
   await renderFindingsToDisk(
     {
       findings,
@@ -108,6 +115,7 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
       diff,
       brief: brief ?? undefined,
       issues,
+      diffSource,
     },
     join(screenDir, 'findings.html'),
   )

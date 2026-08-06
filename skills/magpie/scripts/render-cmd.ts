@@ -138,9 +138,14 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
   // is simply omitted.
   const brief = parseBrief(await readJson<unknown>(join(runDir, 'brief.json'), null)) ?? undefined
   const issues = parseClosingIssues(prJson)
+  const diffSource =
+    (await readJson<{ source: 'gh' | 'git'; mergeBase: string | null } | null>(
+      join(runDir, 'diff-source.json'),
+      null,
+    )) ?? undefined
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues },
+    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues, diffSource },
     outPath,
   )
   return 0

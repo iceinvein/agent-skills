@@ -59,6 +59,8 @@ export type RenderFindingsInput = {
   issues?: BriefIssue[]
   /** Shiki highlighter, prepared by the caller. */
   highlighter: Highlighter
+  /** Where diff.patch came from. Absent means gh, which needs no note. */
+  diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
 }
 
 function esc(s: string): string {
@@ -86,13 +88,21 @@ function brandBlock(): string {
 
 function prHeader(input: RenderFindingsInput): string {
   const pr = input.pr
+  const src = input.diffSource
+  const diffNote =
+    src?.source === 'git'
+      ? `<span class="diff-source" title="gh pr diff could not serve this PR, so the diff was rebuilt from the local clone">diff from local clone${
+          src.mergeBase ? ` at <code>${esc(src.mergeBase.slice(0, 12))}</code>` : ''
+        }</span>`
+      : ''
   const prMeta = pr
     ? `<div class="pr-meta">
         <span class="pr-number">PR #${pr.number}</span>
         <span class="pr-branch">${esc(pr.branch)}</span>
         <code>${esc(pr.headSha.slice(0, 12))}</code>
+        ${diffNote}
       </div>`
-    : `<div class="pr-meta"></div>`
+    : `<div class="pr-meta">${diffNote}</div>`
   const total = input.findings.length
   return `<header class="pr-header">
     ${brandBlock()}

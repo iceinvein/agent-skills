@@ -183,6 +183,11 @@ button {
   color: var(--ink);
 }
 
+.diff-source {
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
 .header-spacer {
   flex: 1;
 }
