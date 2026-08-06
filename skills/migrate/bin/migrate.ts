@@ -110,6 +110,18 @@ const HANDLERS: Record<string, Handler> = {
     const { runReset } = await import('../scripts/reset-cmd.ts')
     return runReset({ root, phase })
   },
+  report: async (args) => {
+    const at = args.indexOf('--out')
+    const outDir = at !== -1 ? args[at + 1] : undefined
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('report: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runReport } = await import('../scripts/report-cmd.ts')
+    return runReport({ root, ...(outDir ? { outDir } : {}) })
+  },
 }
 
 async function main(argv: string[]): Promise<number> {
