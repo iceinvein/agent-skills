@@ -78,6 +78,7 @@ test('an inverted line range is a violation', async () => {
     source,
   )
   expect(v).toHaveLength(1)
+  expect(v[0]?.message).toContain('inverted')
   expect(v[0]?.gate).toBe('citations')
 })
 
@@ -104,6 +105,7 @@ test('a symlink inside source tree pointing outside is a violation', async () =>
 test('an absolute path is rejected', async () => {
   const v = await resolveCitations([req([{ kind: 'src', path: '/absolute/path.cs' }])], source)
   expect(v).toHaveLength(1)
+  expect(v[0]?.message).toContain('absolute path')
   expect(v[0]?.gate).toBe('citations')
 })
 

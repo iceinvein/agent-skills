@@ -75,7 +75,12 @@ export async function resolveCitations(
       if (ref.lines) {
         const total = await lineCount(realPath, cache)
         const [start, end] = ref.lines
-        if (start < 1 || end > total || start > end) {
+        if (start > end) {
+          violations.push({
+            gate: 'citations',
+            message: `${req.id} cites ${ref.path}:${start}-${end} but the range is inverted`,
+          })
+        } else if (start < 1 || end > total) {
           violations.push({
             gate: 'citations',
             message: `${req.id} cites ${ref.path}:${start}-${end} but the file has ${total} line(s)`,
