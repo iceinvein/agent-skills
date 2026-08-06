@@ -122,3 +122,18 @@ test('a duplicate id within one batch is rejected and nothing is written', async
   expect(code).toBe(1)
   expect(await readRows(storePaths(root).elements)).toEqual([])
 })
+
+test('a syntactically malformed batch file is rejected with a clean diagnostic', async () => {
+  const path = join(root, 'malformed.json')
+  await writeFile(path, '{ this is not json')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('a batch file that does not exist is rejected with a clean diagnostic', async () => {
+  const path = join(root, 'does-not-exist.json')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})

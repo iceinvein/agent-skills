@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises'
 import { loadConfig } from './config.ts'
 import { storePaths } from './paths.ts'
 import { isPhase, recordBatch } from './phases.ts'
-import { readRows, upsertRows, writeRows } from './store.ts'
+import { readJsonFile, readRows, upsertRows, writeRows } from './store.ts'
 import type { Delta, Element, Requirement } from './types.ts'
 import { validateDelta, validateElement, validateRequirement } from './validate.ts'
 
@@ -16,7 +15,15 @@ export async function runImport(opts: {
   batchFile: string
 }): Promise<number> {
   const cfg = await loadConfig(opts.root)
-  const raw: unknown = JSON.parse(await readFile(opts.batchFile, 'utf8'))
+  let raw: unknown
+  try {
+    raw = await readJsonFile(opts.batchFile)
+  } catch (e) {
+    // Not shaped like a batch file at all (missing, or not valid JSON): a
+    // malformed request, same class as the missing-field check just below.
+    process.stderr.write(`import: ${(e as Error).message}\n`)
+    return 2
+  }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     process.stderr.write('import: batch file needs {"batch": id, "phase": name, "rows": [...]}\n')
     return 2

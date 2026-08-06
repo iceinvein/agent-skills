@@ -3,6 +3,25 @@ import { existsSync } from 'node:fs'
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { assertNotUnderSource } from './paths.ts'
 
+// Reads one JSON file and parses it, or throws a clean diagnostic naming the
+// path and the reason (missing file, or content that isn't valid JSON)
+// instead of letting readFile/JSON.parse's raw error escape. Shared by every
+// command that takes a single JSON file as an argument, so each one only has
+// to decide what its own exit code means, not how to report a bad file.
+export async function readJsonFile(path: string): Promise<unknown> {
+  let text: string
+  try {
+    text = await readFile(path, 'utf8')
+  } catch {
+    throw new Error(`${path}: not found`)
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(`${path}: not valid JSON`)
+  }
+}
+
 export async function readRows<T>(path: string): Promise<T[]> {
   if (!existsSync(path)) return []
   const text = await readFile(path, 'utf8')
