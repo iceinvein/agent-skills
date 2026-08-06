@@ -157,3 +157,45 @@ test('progress-pane block replaces diff-pane on the progress page', () => {
   expect(html).toContain('data-role="progress-pane"')
   expect(html).toContain('Indexing repo symbols')
 })
+
+test('progress names the shard count while specialists run', () => {
+  const html = renderProgressHtml({
+    prNumber: 7,
+    headSha: 'abc123abc123',
+    branch: 'feature-x',
+    stages: {
+      setup: 'done',
+      context: 'done',
+      specialists: 'running',
+      dedupe: 'pending',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: {},
+    shardCount: 6,
+  })
+  expect(html).toContain('Five reviewers across 6 shards')
+})
+
+test('progress keeps the single-shard wording when there is one shard', () => {
+  const html = renderProgressHtml({
+    prNumber: 7,
+    headSha: 'abc123abc123',
+    branch: 'feature-x',
+    stages: {
+      setup: 'done',
+      context: 'done',
+      specialists: 'running',
+      dedupe: 'pending',
+      critic: 'pending',
+      'peer-review': 'pending',
+      report: 'pending',
+      post: 'pending',
+    },
+    specialistCounts: {},
+    shardCount: 1,
+  })
+  expect(html).toContain('Five reviewers reading the diff in parallel')
+})

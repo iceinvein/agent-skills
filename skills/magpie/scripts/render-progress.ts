@@ -41,6 +41,8 @@ export type RenderProgressInput = {
   branch: string
   stages: Record<StageId, StageStatus>
   specialistCounts: Record<string, number>
+  /** Shard count from shards/manifest.json. Absent or 1 means unsharded. */
+  shardCount?: number
 }
 
 function esc(s: string): string {
@@ -82,7 +84,10 @@ function progressPane(input: RenderProgressInput): string {
   const cur = current(input.stages)
   let lead: string
   if (cur.status === 'running') {
-    lead = STAGE_NOW_DOING[cur.id]
+    lead =
+      cur.id === 'specialists' && (input.shardCount ?? 1) > 1
+        ? `Five reviewers across ${input.shardCount} shards`
+        : STAGE_NOW_DOING[cur.id]
   } else if (cur.status === 'error') {
     lead = `${STAGE_NOW_DOING[cur.id]} stalled`
   } else if (cur.status === 'pending') {
