@@ -1,0 +1,27 @@
+[source]
+path  = "{{SOURCE_PATH}}"
+scope = "{{SCOPE}}"
+stack = "{{SOURCE_STACK}}"
+vcs   = "{{VCS}}"
+basis = "{{BASIS}}"
+
+[target]
+name  = "{{TARGET_NAME}}"
+stack = "{{TARGET_STACK}}"
+parity_test_path = "tests/parity/{capability}/{fr_slug}.test.ts"
+
+[target.layout]
+
+[target.commands]
+test  = "echo 'wire the target test command'"
+lint  = "echo 'wire the target lint command'"
+build = "echo 'wire the target build command'"
+
+[surfaces]
+types = ["routes", "tables", "jobs", "reports", "screens", "integrations", "workflows", "settings"]
+
+[closers]
+set = ["cross-capability-workflow", "scope-injection", "read-write-symmetry"]
+
+[handoff]
+adapter = "markdown"
