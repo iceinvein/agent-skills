@@ -224,6 +224,12 @@
     "version": "0.9.0"
   },
   {
+    "name": "migrate",
+    "description": "Source-agnostic legacy migration mapping. Enumerates the legacy surface from two independent directions per lens, derives a capability seam empirically, extracts cited functional requirements, plans parity, and routes every ambiguity to a batch decision queue. Coverage arithmetic and citation resolution are enforced by a bundled Bun CLI rather than self-reported. Use when the user asks to migrate, re-specify, or map a legacy system.",
+    "type": "prompt",
+    "version": "0.1.0"
+  },
+  {
     "name": "module-secret-auditor",
     "description": "Parnas-inspired information hiding analysis: module boundaries drawn by change-reason, not by noun or technical layer",
     "type": "prompt",
