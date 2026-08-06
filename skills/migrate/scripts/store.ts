@@ -64,7 +64,7 @@ export async function writeAtomically(
   content: string,
   sourcePath: string,
 ): Promise<void> {
-  assertNotUnderSource(path, sourcePath)
+  await assertNotUnderSource(path, sourcePath)
   const random = randomBytes(8).toString('hex')
   const tmp = `${path}.${random}.tmp`
   try {

@@ -76,7 +76,24 @@ export async function runCheck(opts: {
   for (const record of census) {
     const imbalance = balanceOf(record)
     if (imbalance) violations.push({ gate: 'census', message: imbalance })
-    if (record.kind === 'lens') surfacesWithCensus.add(record.surface)
+    if (record.kind === 'lens') {
+      surfacesWithCensus.add(record.surface)
+      // balanceOf only checks that the record's own numbers add up
+      // internally; nothing before this ties in_ledger + added to anything
+      // outside the record itself, so a lens census can balance perfectly
+      // while claiming a headcount elements.jsonl never received (total is
+      // self-reported and cannot be checked against anything, but in_ledger
+      // + added claims a specific number of rows now exist in the ledger
+      // for this surface, and that claim is directly countable).
+      const claimed = record.in_ledger + record.added
+      const actual = elements.filter((e) => e.surface === record.surface).length
+      if (actual !== claimed) {
+        violations.push({
+          gate: 'census',
+          message: `lens census for ${record.surface} claims in_ledger ${record.in_ledger} + added ${record.added} = ${claimed} element(s) in the ledger, but elements.jsonl has ${actual}`,
+        })
+      }
+    }
     if (record.kind === 'closer') closersWithCensus.add(record.closer)
   }
   for (const surface of cfg.surfaces) {

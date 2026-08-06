@@ -12,12 +12,19 @@ export async function runReport(opts: { root: string; outDir?: string }): Promis
   const cfg = await loadConfig(opts.root)
   const p = storePaths(opts.root)
   const outDir = opts.outDir ?? join(opts.root, 'docs', 'migrate')
-  assertNotUnderSource(outDir, cfg.source.path)
+  await assertNotUnderSource(outDir, cfg.source.path)
   await mkdir(outDir, { recursive: true })
 
   const elements = await readRows<Element>(p.elements)
   const requirements = await readRows<Requirement>(p.requirements)
-  const { items } = await loadQueue(p.queueDir)
+  const { items, errors } = await loadQueue(p.queueDir)
+  // A queue item the report cannot parse is not represented in queue.md at
+  // all: silently emitting a file that only covers the parseable items,
+  // under a banner claiming it was generated from the store, would let an
+  // owner reading it conclude there is nothing else to adjudicate. Surfaced
+  // the same way every other command in this CLI surfaces a domain problem
+  // on an otherwise well-formed request: named on stderr, non-zero exit.
+  for (const e of errors) process.stderr.write(`report: ${e}\n`)
   const { summary } = await runCheck({ root: opts.root })
 
   await writeFile(join(outDir, 'ledger.md'), `${renderLedger(elements)}\n${summary}\n`)
@@ -25,5 +32,10 @@ export async function runReport(opts: { root: string; outDir?: string }): Promis
   await writeFile(join(outDir, 'queue.md'), renderQueueReport(items))
 
   process.stdout.write(`report: wrote ledger.md, requirements.md, queue.md to ${outDir}\n`)
-  return 0
+  // A malformed queue item is a content failure on an otherwise well-formed
+  // request (the store exists and could be read), the same class `queue
+  // list` already reports as exit 1 for the identical condition -- not a
+  // usage error (2, this request was perfectly serviceable) and not success
+  // (0, the report is incomplete).
+  return errors.length > 0 ? 1 : 0
 }

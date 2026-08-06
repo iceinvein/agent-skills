@@ -109,6 +109,38 @@ test('an unaccounted element is a coverage violation naming its id', async () =>
   expect(coverage[0]?.message).toContain('route-get-api-users')
 })
 
+// Important finding 2: balanceOf only checks a census record's own numbers
+// against each other; nothing tied in_ledger + added to elements.jsonl
+// itself, so a lens record could claim any in_ledger/added split it liked
+// as long as it balanced internally. `total` is self-reported and cannot be
+// checked against anything, but in_ledger + added is a concrete claim about
+// how many rows now exist in the ledger for that surface, and that claim is
+// directly countable against elements.jsonl.
+test('a lens census claiming elements that were never added to the ledger is a census violation', async () => {
+  await seedClean()
+  // Balances on its own (50 = 50 + 0 + 0 + 0) but elements.jsonl holds zero
+  // rows for 'tables': the padding surface the report describes verbatim.
+  await writeRows(
+    storePaths(root).census,
+    [lensCensus('routes', 1, 1), { ...lensCensus('tables', 50, 50) }],
+    source,
+  )
+  const result = await runCheck({ root })
+  const census = result.violations.filter((v) => v.gate === 'census')
+  expect(census).toHaveLength(1)
+  expect(census[0]?.message).toContain('tables')
+  expect(census[0]?.message).toContain('50')
+})
+
+test('a lens census whose in_ledger + added matches the real ledger count passes', async () => {
+  await seedClean()
+  // routes: in_ledger 1 + added 0 = 1, and exactly one 'routes' element
+  // exists in the seeded store, so this must not be flagged.
+  const result = await runCheck({ root })
+  const census = result.violations.filter((v) => v.gate === 'census')
+  expect(census).toEqual([])
+})
+
 test('a declared surface with no census record is a census violation', async () => {
   await seedClean()
   await writeRows(storePaths(root).census, [lensCensus('routes', 1, 1)], source)

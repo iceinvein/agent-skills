@@ -83,7 +83,7 @@ export async function runImport(opts: {
         ? paths.requirements
         : paths.deltas
   try {
-    assertNotUnderSource(target, cfg.source.path)
+    await assertNotUnderSource(target, cfg.source.path)
   } catch (e) {
     // A store whose configured source.path resolves to include its own
     // target path (e.g. source.path: '.') can never be written to, for any

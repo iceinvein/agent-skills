@@ -24,15 +24,37 @@ Subcommands:
 
 type Handler = (args: string[]) => Promise<number> | number
 
+// A flag's value is missing, or the value slot is occupied by another flag
+// (`init --scope --name newapp` used to read scope as the literal string
+// "--name" and carry on), in both cases the request is malformed, not a
+// value the command can act on. Every `--flag <value>` parser in this file
+// shares this one check so the three no longer disagree about which of
+// those two shapes is a usage error and which is silently tolerated.
+function readFlag(args: string[], name: string): { value?: string; error?: string } {
+  const at = args.indexOf(name)
+  if (at === -1) return {}
+  const value = args[at + 1]
+  if (value === undefined || value.startsWith('--')) {
+    return { error: `${name} needs a value` }
+  }
+  return { value }
+}
+
 const HANDLERS: Record<string, Handler> = {
   init: async (args) => {
-    const flag = (name: string): string | undefined => {
-      const at = args.indexOf(name)
-      return at !== -1 ? args[at + 1] : undefined
+    const names = ['--source', '--scope', '--name', '--source-stack', '--target-stack', '--basis']
+    const values: Record<string, string | undefined> = {}
+    for (const name of names) {
+      const result = readFlag(args, name)
+      if (result.error) {
+        process.stderr.write(`init: ${result.error}\n`)
+        return 2
+      }
+      values[name] = result.value
     }
-    const sourcePath = flag('--source')
-    const scope = flag('--scope')
-    const targetName = flag('--name')
+    const sourcePath = values['--source']
+    const scope = values['--scope']
+    const targetName = values['--name']
     if (!sourcePath || !scope || !targetName) {
       process.stderr.write(
         'init: want --source <path> --scope <text> --name <target> [--source-stack <s>] [--target-stack <s>] [--basis <runnable|source-only>]\n',
@@ -45,9 +67,9 @@ const HANDLERS: Record<string, Handler> = {
       sourcePath,
       scope,
       targetName,
-      ...(flag('--source-stack') ? { sourceStack: flag('--source-stack') } : {}),
-      ...(flag('--target-stack') ? { targetStack: flag('--target-stack') } : {}),
-      ...(flag('--basis') ? { basis: flag('--basis') } : {}),
+      ...(values['--source-stack'] ? { sourceStack: values['--source-stack'] } : {}),
+      ...(values['--target-stack'] ? { targetStack: values['--target-stack'] } : {}),
+      ...(values['--basis'] ? { basis: values['--basis'] } : {}),
     })
   },
   import: async (args) => {
@@ -120,8 +142,12 @@ const HANDLERS: Record<string, Handler> = {
     return runStatus({ root })
   },
   reset: async (args) => {
-    const at = args.indexOf('--phase')
-    const phase = at !== -1 ? args[at + 1] : undefined
+    const result = readFlag(args, '--phase')
+    if (result.error) {
+      process.stderr.write(`reset: ${result.error}\n`)
+      return 2
+    }
+    const phase = result.value
     if (!phase) {
       process.stderr.write('reset: missing --phase <phase>\n')
       return 2
@@ -136,8 +162,12 @@ const HANDLERS: Record<string, Handler> = {
     return runReset({ root, phase })
   },
   report: async (args) => {
-    const at = args.indexOf('--out')
-    const outDir = at !== -1 ? args[at + 1] : undefined
+    const result = readFlag(args, '--out')
+    if (result.error) {
+      process.stderr.write(`report: ${result.error}\n`)
+      return 2
+    }
+    const outDir = result.value
     const { findStoreRoot } = await import('../scripts/paths.ts')
     const root = await findStoreRoot(process.cwd())
     if (!root) {
@@ -149,7 +179,17 @@ const HANDLERS: Record<string, Handler> = {
   },
 }
 
-async function main(argv: string[]): Promise<number> {
+// A handler's rejection reaching the guard below is not guaranteed to be an
+// Error: `(e as Error).message` on a non-Error rejection prints the useless
+// "sub: undefined", and on a rejected `null` or `undefined` it throws inside
+// the catch itself -- the one shape that would otherwise still escape this
+// guard uncaught. Every other value (a string, a plain object, an Error)
+// converts to a message without throwing.
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
+export async function main(argv: string[]): Promise<number> {
   const [sub, ...rest] = argv
   if (sub === '--help' || sub === '-h') {
     process.stdout.write(`${USAGE}\n`)
@@ -187,10 +227,17 @@ async function main(argv: string[]): Promise<number> {
     // printed is the Error's own message (never a generic replacement, so a
     // genuine bug is still visible), prefixed the way every handler prefixes
     // its own diagnostics, and nothing else: no stack trace.
-    process.stderr.write(`${sub}: ${(e as Error).message}\n`)
+    process.stderr.write(`${sub}: ${errorMessage(e)}\n`)
     return 2
   }
 }
 
-const code = await main(process.argv.slice(2))
-process.exit(code)
+// Guarded so this module can be imported (e.g. by tests, to exercise `main`
+// and `errorMessage` directly) without re-running the CLI against the
+// importing process's own argv and calling process.exit out from under it.
+// Running `bun bin/migrate.ts ...` directly still takes this branch exactly
+// as before.
+if (import.meta.main) {
+  const code = await main(process.argv.slice(2))
+  process.exit(code)
+}

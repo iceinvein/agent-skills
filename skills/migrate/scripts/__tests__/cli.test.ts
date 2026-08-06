@@ -2,6 +2,7 @@ import { afterEach, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { errorMessage } from '../../bin/migrate.ts'
 
 const CLI = join(import.meta.dir, '..', '..', 'bin', 'migrate.ts')
 
@@ -110,4 +111,73 @@ test("the guard does not mask a well-formed request's own classified failure", a
   // change behaviour for a case already handled.
   expect(code).toBe(2)
   expect(err).toContain('import: no .migrate store found above the cwd')
+})
+
+// Minor finding 5: init, report and reset each parse a `--flag <value>`
+// pair, and used to disagree on what happens when the value slot is empty
+// or is itself another flag. `init --scope --name newapp` used to read
+// scope as the literal string '--name' and exit 0; `report --out` with
+// nothing after it used to fall back to the default directory in silence;
+// only `reset --phase` with no value at all was already a usage error. All
+// three now share one rule, reset's own shape: either shape of a bad value
+// is a usage error (2) naming the flag.
+
+test('init treats a flag value that is itself another flag as a usage error, not a swallowed value', async () => {
+  guardRoot = await realpath(await mkdtemp(join(tmpdir(), 'migrate-cli-flags-')))
+  const { code, err } = await run(['init', '--source', guardRoot, '--scope', '--name', 'newapp'], {
+    cwd: guardRoot,
+  })
+  expect(code).toBe(2)
+  expect(err).toContain('--scope needs a value')
+})
+
+test('report --out with no value is a usage error, not a silent fallback to the default directory', async () => {
+  guardRoot = await realpath(await mkdtemp(join(tmpdir(), 'migrate-cli-flags-')))
+  const { code, err } = await run(['report', '--out'], { cwd: guardRoot })
+  expect(code).toBe(2)
+  expect(err).toContain('--out needs a value')
+})
+
+test('reset --phase whose value is itself another flag is a usage error, matching a missing value', async () => {
+  guardRoot = await realpath(await mkdtemp(join(tmpdir(), 'migrate-cli-flags-')))
+  const { code, err } = await run(['reset', '--phase', '--out'], { cwd: guardRoot })
+  expect(code).toBe(2)
+  expect(err).toContain('--phase needs a value')
+})
+
+test('reset --phase with no value at all is still a usage error (unchanged)', async () => {
+  guardRoot = await realpath(await mkdtemp(join(tmpdir(), 'migrate-cli-flags-')))
+  const { code, err } = await run(['reset', '--phase'], { cwd: guardRoot })
+  expect(code).toBe(2)
+  expect(err).toContain('--phase needs a value')
+})
+
+test('reset with no --phase flag at all is a usage error naming the missing flag', async () => {
+  guardRoot = await realpath(await mkdtemp(join(tmpdir(), 'migrate-cli-flags-')))
+  const { code, err } = await run(['reset'], { cwd: guardRoot })
+  expect(code).toBe(2)
+  expect(err).toContain('missing --phase')
+})
+
+// Minor finding 6: the central guard's `(e as Error).message` printed the
+// useless "sub: undefined" for a non-Error rejection, and would have thrown
+// a TypeError from inside the catch itself for a rejected `null` or
+// `undefined` -- the one shape that would still have escaped uncaught.
+// `errorMessage` is the exact expression the guard now calls; exercised
+// directly here since nothing in this CLI's own handlers currently rejects
+// with anything but a real Error, so the failure mode this closes cannot
+// be reproduced by driving the CLI end-to-end.
+
+test('errorMessage returns the message of an Error instance', () => {
+  expect(errorMessage(new Error('boom'))).toBe('boom')
+})
+
+test('errorMessage converts a non-Error rejection to a string instead of printing undefined', () => {
+  expect(errorMessage('boom')).toBe('boom')
+  expect(errorMessage({ code: 'EBOOM' })).toBe('[object Object]')
+})
+
+test('errorMessage converts a null or undefined rejection without throwing a second error', () => {
+  expect(errorMessage(null)).toBe('null')
+  expect(errorMessage(undefined)).toBe('undefined')
 })

@@ -281,3 +281,31 @@ test('status reports all phases done when nothing is left to resume', async () =
   expect(code).toBe(0)
   expect(text).toContain('resume: all phases done')
 })
+
+async function captureStderr(fn: () => Promise<number>): Promise<{ code: number; text: string }> {
+  const out: string[] = []
+  const original = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stderr.write
+  try {
+    const code = await fn()
+    return { code, text: out.join('') }
+  } finally {
+    process.stderr.write = original
+  }
+}
+
+// Important finding 3: `check` and `queue list` already flag a malformed
+// queue item and exit 1 for the identical condition; status used to print
+// its counts at exit 0 with no mention of it at all, which reads as "the
+// store is fine" when part of it could not even be read.
+test('status surfaces a malformed queue item on stderr and exits 1, not silently 0', async () => {
+  await writeFile(join(storePaths(root).queueDir, 'q-broken.md'), 'not a queue item at all')
+
+  const { code, text } = await captureStderr(() => runStatus({ root }))
+
+  expect(code).toBe(1)
+  expect(text).toContain('q-broken.md')
+})

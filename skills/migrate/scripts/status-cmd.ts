@@ -12,7 +12,12 @@ export async function runStatus(opts: { root: string }): Promise<number> {
   const phases = await loadPhases(opts.root)
   const elements = await readRows<Element>(p.elements)
   const requirements = await readRows<Requirement>(p.requirements)
-  const { items } = await loadQueue(p.queueDir)
+  const { items, errors } = await loadQueue(p.queueDir)
+  // A malformed queue item on disk must not be invisible here: `check`
+  // flags it and exits 1, `queue list` flags it and exits 1, and status
+  // reporting the same store at exit 0 with no mention of it would read as
+  // "nothing else to look at" when there is.
+  for (const e of errors) process.stderr.write(`status: ${e}\n`)
   const open = items.filter((i) => i.status === 'open')
 
   process.stdout.write(`source: ${cfg.source.path} (${cfg.source.stack}, ${cfg.source.basis})\n`)
@@ -40,5 +45,8 @@ export async function runStatus(opts: { root: string }): Promise<number> {
   } else {
     process.stdout.write('\nresume: all phases done\n')
   }
-  return 0
+  // Same class and exit code as `queue list` for the identical condition: a
+  // content failure on an otherwise well-formed request, not a usage error
+  // (2) and not success (0) while part of the queue could not be read.
+  return errors.length > 0 ? 1 : 0
 }

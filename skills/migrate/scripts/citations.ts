@@ -1,5 +1,6 @@
 import { readFile, realpath } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
+import { isContained } from './paths.ts'
 import type { Requirement, Violation } from './types.ts'
 
 async function lineCount(path: string, cache: Map<string, number>): Promise<number> {
@@ -41,8 +42,7 @@ export async function resolveCitations(
       }
 
       const abs = resolve(join(sourceRoot, ref.path))
-      const rel = relative(sourceRoot, abs)
-      if (rel.startsWith(`..${sep}`) || rel === '..') {
+      if (!isContained(abs, sourceRoot)) {
         violations.push({
           gate: 'citations',
           message: `${req.id} cites ${ref.path}, which is outside the source tree`,
@@ -63,8 +63,7 @@ export async function resolveCitations(
       }
 
       // Check containment of the real path against the real sourceRoot
-      const realRel = relative(realSourceRoot, realPath)
-      if (realRel.startsWith(`..${sep}`) || realRel === '..') {
+      if (!isContained(realPath, realSourceRoot)) {
         violations.push({
           gate: 'citations',
           message: `${req.id} cites ${ref.path}, which is outside the source tree`,

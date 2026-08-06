@@ -35,7 +35,7 @@ export async function runCensus(opts: { root: string; file: string }): Promise<n
   }
   const path = storePaths(opts.root).census
   try {
-    assertNotUnderSource(path, cfg.source.path)
+    await assertNotUnderSource(path, cfg.source.path)
   } catch (e) {
     // A store whose configured source.path resolves to include its own
     // target path can never be written to, regardless of this record's

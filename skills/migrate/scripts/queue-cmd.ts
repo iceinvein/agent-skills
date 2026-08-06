@@ -38,7 +38,7 @@ export async function runQueue(opts: { root: string; args: string[] }): Promise<
       return isMissingFrontmatter(parsed.errors) ? 2 : 1
     }
     try {
-      assertNotUnderSource(dest, cfg.source.path)
+      await assertNotUnderSource(dest, cfg.source.path)
     } catch (e) {
       // A store whose configured source.path resolves to include its own
       // queue directory (e.g. source.path: '.') can never be written to,
