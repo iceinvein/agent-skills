@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runSetup } from '../setup-cmd.ts'
@@ -199,4 +199,65 @@ test('runSetup shards the filtered diff and logs the result', async () => {
     .map((l) => JSON.parse(l))
     .find((e) => e.stage === 'shard')
   expect(shardEntry).toMatchObject({ status: 'done', shards: 1 })
+})
+
+test('runSetup cleans up a populated shards/ when worktree creation fails after sharding', async () => {
+  // `git worktree add` refuses a target path that already exists and is
+  // non-empty, which forces the worktree step to fail *after* fetchPr,
+  // applyPathFilter, and runShard have already run successfully, without
+  // needing a fake git binary.
+  await mkdir(join(runDir, 'worktree'), { recursive: true })
+  await writeFile(join(runDir, 'worktree', 'occupied'), 'x')
+
+  const exit = await runSetup({
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+  expect(exit).toBe(5)
+
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  const entries = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+  // Sharding really did happen before the worktree failure: this isn't a
+  // false pass from the worktree step failing before shard ever ran.
+  expect(entries.find((e) => e.stage === 'shard')).toMatchObject({ status: 'done', shards: 1 })
+  expect(entries.find((e) => e.stage === 'worktree')).toMatchObject({ status: 'error' })
+
+  const contents = await readdir(runDir).catch(() => [])
+  expect(contents).not.toContain('shards')
+  expect(contents).not.toContain('worktree')
+})
+
+test('runSetup treats a shardDiff throw as a hard stop: logs, cleans up, exits 6', async () => {
+  // shardDiff creates $RUN_DIR/shards via a plain recursive mkdir. Seeding
+  // 'shards' as a regular file ahead of time forces that mkdir to throw
+  // EEXIST, a genuine non-ENOENT failure out of shardDiff. diff.patch itself
+  // can't be used for this: fetchPr and applyPathFilter both write it earlier
+  // in the pipeline, so pre-seeding it as something unreadable would fail
+  // before the shard step is ever reached.
+  await writeFile(join(runDir, 'shards'), 'not a directory')
+
+  const exit = await runSetup({
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+  expect(exit).toBe(6)
+
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  const entries = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+  const shardEntry = entries.find((e) => e.stage === 'shard')
+  expect(shardEntry).toMatchObject({ status: 'error' })
+  expect(typeof (shardEntry as { error: unknown }).error).toBe('string')
+
+  const contents = await readdir(runDir).catch(() => [])
+  expect(contents.filter((c) => c !== 'log.jsonl')).toHaveLength(0)
 })

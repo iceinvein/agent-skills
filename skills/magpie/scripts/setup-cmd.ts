@@ -74,7 +74,15 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
 
   await applyPathFilter(input.runDir, input.repoPath)
 
-  await runShard(input.runDir)
+  try {
+    await runShard(input.runDir)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await logLine(input.runDir, { stage: 'shard', status: 'error', error: message })
+    process.stderr.write(`magpie: ${message}\n`)
+    await cleanup(input.runDir)
+    return 6
+  }
 
   await runTestsCheck(input.runDir)
 
