@@ -1,10 +1,20 @@
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import { writeConfig } from './config.ts'
 import { storePaths } from './paths.ts'
 
 const ENV_IGNORE = '.migrate/.env'
+
+// A real ignore entry is a whole line, not any line containing the string as a
+// substring: a comment mentioning the path, or an unrelated deeper path such as
+// foo/.migrate/.env, must not be mistaken for the real entry.
+function gitignoreListsEnvFile(text: string): boolean {
+  return text.split('\n').some((line) => {
+    const trimmed = line.trim()
+    return trimmed.length > 0 && !trimmed.startsWith('#') && trimmed === ENV_IGNORE
+  })
+}
 
 export async function runInit(opts: {
   root: string
@@ -19,6 +29,10 @@ export async function runInit(opts: {
   const sourcePath = isAbsolute(opts.sourcePath) ? opts.sourcePath : resolve(opts.sourcePath)
   if (!existsSync(sourcePath)) {
     process.stderr.write(`init: source path does not exist: ${sourcePath}\n`)
+    return 2
+  }
+  if (!statSync(sourcePath).isDirectory()) {
+    process.stderr.write(`init: source path is not a directory: ${sourcePath}\n`)
     return 2
   }
   const basis = opts.basis ?? 'source-only'
@@ -47,7 +61,7 @@ export async function runInit(opts: {
   const gitignore = join(opts.root, '.gitignore')
   if (existsSync(gitignore)) {
     const text = await readFile(gitignore, 'utf8')
-    if (!text.includes(ENV_IGNORE)) {
+    if (!gitignoreListsEnvFile(text)) {
       const prefix = text.endsWith('\n') || text.length === 0 ? '' : '\n'
       await appendFile(gitignore, `${prefix}${ENV_IGNORE}\n`)
     }

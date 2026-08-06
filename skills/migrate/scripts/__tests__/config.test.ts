@@ -69,3 +69,44 @@ test('writeConfig then loadConfig round-trips', async () => {
   expect(cfg.source.stack).toBe('unknown')
   expect(cfg.handoff.adapter).toBe('markdown')
 })
+
+// A hostile scope is operator-typed free text, not TOML syntax: writeConfig
+// must escape it so loadConfig reads back the exact bytes that were passed in,
+// rather than truncating the value, injecting a key, or leaving config.toml
+// unparseable for every later command.
+const HOSTILE_SCOPES: Array<[string, string]> = [
+  ['a quote that would otherwise close the string and inject a key', 'billing" evil = true #'],
+  ['a backslash that would otherwise start a TOML escape', 'billing\\team'],
+  ['a newline that would otherwise leave the string unterminated', 'billing\nrogue'],
+  ['a tab', 'billing\trogue'],
+  ['several hostile characters combined', 'billing" \\evil\t\n#more'],
+]
+
+for (const [label, scope] of HOSTILE_SCOPES) {
+  test(`writeConfig then loadConfig round-trips ${label} byte-identically`, async () => {
+    await writeConfig(root, { sourcePath: '/tmp/legacy', scope, targetName: 'newapp' })
+    const cfg = await loadConfig(root)
+    expect(cfg.source.scope).toBe(scope)
+  })
+}
+
+test('writeConfig round-trips a value containing backspace, form feed and delete', async () => {
+  const scope = `billing${String.fromCharCode(0x08)}${String.fromCharCode(0x0c)}${String.fromCharCode(0x7f)}rogue`
+  await writeConfig(root, { sourcePath: '/tmp/legacy', scope, targetName: 'newapp' })
+  const cfg = await loadConfig(root)
+  expect(cfg.source.scope).toBe(scope)
+})
+
+test('writeConfig refuses a value containing a control character it cannot represent', async () => {
+  const scope = `billing${String.fromCharCode(0x1b)}esc`
+  await expect(
+    writeConfig(root, { sourcePath: '/tmp/legacy', scope, targetName: 'newapp' }),
+  ).rejects.toThrow(/U\+001b/)
+})
+
+test('writeConfig does not fall prey to $-pattern replacement corruption', async () => {
+  const scope = 'cost$&$$center'
+  await writeConfig(root, { sourcePath: '/tmp/legacy', scope, targetName: 'newapp' })
+  const cfg = await loadConfig(root)
+  expect(cfg.source.scope).toBe(scope)
+})

@@ -69,3 +69,27 @@ test('init detects vcs as none when the source path has no .git directory', asyn
   await runInit(BASE())
   expect((await loadConfig(root)).source.vcs).toBe('none')
 })
+
+test('init refuses a source path that is a file, not a directory', async () => {
+  const filePath = join(root, 'not-a-dir.txt')
+  await writeFile(filePath, 'hi')
+  expect(await runInit({ ...BASE(), sourcePath: filePath })).toBe(2)
+})
+
+test('init does not mistake an unrelated deeper path for a real .gitignore entry', async () => {
+  await writeFile(join(root, '.gitignore'), 'node_modules/\nfoo/.migrate/.env\n')
+  await runInit(BASE())
+  const text = await readFile(join(root, '.gitignore'), 'utf8')
+  const lines = text.split('\n').map((l) => l.trim())
+  expect(lines).toContain('.migrate/.env')
+  expect(lines.filter((l) => l === '.migrate/.env')).toHaveLength(1)
+})
+
+test('init does not mistake a commented-out mention for a real .gitignore entry', async () => {
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n# .migrate/.env (handled elsewhere)\n')
+  await runInit(BASE())
+  const text = await readFile(join(root, '.gitignore'), 'utf8')
+  const lines = text.split('\n').map((l) => l.trim())
+  expect(lines).toContain('.migrate/.env')
+  expect(lines.filter((l) => l === '.migrate/.env')).toHaveLength(1)
+})
