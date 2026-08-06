@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SHARD_BUDGET, groupKey, planShards, shardDiff } from '../shard.ts'
@@ -112,4 +112,11 @@ test('shardDiff handles an empty diff without writing shard files', async () => 
   const manifest = await shardDiff(runDir)
   expect(manifest.shards).toEqual([])
   expect(manifest.totalFiles).toBe(0)
+})
+
+test('shardDiff propagates a non-ENOENT read failure instead of treating it as an empty diff', async () => {
+  // Make diff.patch a directory: reading it as text is a real, portable I/O
+  // failure (EISDIR) that is not "file absent" and must not be swallowed.
+  await mkdir(join(runDir, 'diff.patch'))
+  await expect(shardDiff(runDir)).rejects.toThrow()
 })

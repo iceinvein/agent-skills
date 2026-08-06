@@ -71,6 +71,20 @@ export function planShards(chunks: FileChunk[], budget: number, maxFiles: number
   return shards
 }
 
+/** Read `$RUN_DIR/diff.patch`, tolerating only its absence. A missing
+ *  diff.patch means "nothing to shard"; anything else (permission error,
+ *  disk error, EISDIR, ...) is a genuine failure and must propagate rather
+ *  than silently turn into an empty manifest. */
+async function readDiffPatch(runDir: string): Promise<string> {
+  try {
+    return await Bun.file(join(runDir, 'diff.patch')).text()
+  } catch (err) {
+    const code = err && typeof err === 'object' && 'code' in err ? err.code : undefined
+    if (code === 'ENOENT') return ''
+    throw err
+  }
+}
+
 /**
  * Split `$RUN_DIR/diff.patch` into budgeted shards. `diff.patch` is never
  * modified: shards are views over it, which is what keeps the critic's diff
@@ -83,9 +97,7 @@ export async function shardDiff(
 ): Promise<ShardManifest> {
   const budget = opts.budget ?? DEFAULT_SHARD_BUDGET
   const maxFiles = opts.maxFiles ?? DEFAULT_SHARD_MAX_FILES
-  const diff = await Bun.file(join(runDir, 'diff.patch'))
-    .text()
-    .catch(() => '')
+  const diff = await readDiffPatch(runDir)
   const chunks = splitFileChunks(diff)
   const totalLines = chunks.reduce((n, c) => n + c.lines, 0)
   const shardsDir = join(runDir, 'shards')
