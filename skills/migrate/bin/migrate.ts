@@ -70,6 +70,20 @@ const HANDLERS: Record<string, Handler> = {
     const { runQueue } = await import('../scripts/queue-cmd.ts')
     return runQueue({ root, args })
   },
+  check: async (args) => {
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('check: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runCheckCmd } = await import('../scripts/check-cmd.ts')
+    return runCheckCmd({
+      root,
+      citations: args.includes('--citations'),
+      leaks: args.includes('--leaks'),
+    })
+  },
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -91,7 +105,28 @@ async function main(argv: string[]): Promise<number> {
     process.stderr.write(`Unknown subcommand: ${sub}\n${USAGE}\n`)
     return 2
   }
-  return await handler(rest)
+  try {
+    return await handler(rest)
+  } catch (e) {
+    // Every failure a handler recognizes already returns its own exit code
+    // without throwing (see import-cmd.ts, census-cmd.ts, queue-cmd.ts,
+    // check-cmd.ts). An Error reaching here is one none of them classified,
+    // and in this codebase that is dominated by one shape: loadConfig
+    // throwing because config.toml is missing or malformed, unguarded at
+    // its import-cmd.ts, census-cmd.ts, queue-cmd.ts and check.ts call
+    // sites, or an equivalent case where the store itself cannot be read
+    // (a corrupt phases.json, a malformed row in an existing store file).
+    // Every one of those means the request could never have been serviced
+    // as posed, not that a well-formed request turned up a bad answer, so
+    // it takes the same code already used a few lines up for "no .migrate
+    // store found above the cwd" and, in every handler, for the
+    // assertNotUnderSource containment refusal: 2, not 1. The message
+    // printed is the Error's own message (never a generic replacement, so a
+    // genuine bug is still visible), prefixed the way every handler prefixes
+    // its own diagnostics, and nothing else: no stack trace.
+    process.stderr.write(`${sub}: ${(e as Error).message}\n`)
+    return 2
+  }
 }
 
 const code = await main(process.argv.slice(2))
