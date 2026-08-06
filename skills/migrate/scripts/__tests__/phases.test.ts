@@ -60,10 +60,11 @@ test('loadPhases names the file on malformed JSON', async () => {
 })
 
 test('savePhases cleans up temp file on failure', async () => {
-  const dir = join(root, '.migrate')
   const emptyState = await loadPhases(root)
-  await expect(savePhases(dir, emptyState, NO_SOURCE)).rejects.toThrow()
-  const files = await readdir(root)
-  const tmpFiles = files.filter((f) => f.endsWith('.tmp'))
+  const phaseFile = join(root, '.migrate', 'phases.json')
+  await mkdir(phaseFile)
+  await expect(savePhases(root, emptyState, NO_SOURCE)).rejects.toThrow()
+  const migrateFiles = await readdir(join(root, '.migrate'))
+  const tmpFiles = migrateFiles.filter((f) => f.endsWith('.tmp'))
   expect(tmpFiles.length).toBe(0)
 })
