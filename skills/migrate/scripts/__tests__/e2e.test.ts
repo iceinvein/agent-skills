@@ -235,7 +235,15 @@ test('a citation to a file absent from the fixture fails the citations gate', as
   await migrate(['init', '--source', source, '--scope', 'all', '--name', 'tiny-next'])
   const cfgPath = join(target, '.migrate', 'config.toml')
   const cfg = await readFile(cfgPath, 'utf8')
-  await writeFile(cfgPath, cfg.replace(/^set = .*$/m, 'set = []'))
+  // Narrow both surfaces and closers to empty: this test imports no elements
+  // and records no census, so any declared surface or closer would fail the
+  // census gate regardless of the citations violation under test, leaving
+  // the exit code unable to discriminate a fixed citations bug from a
+  // still-broken one.
+  await writeFile(
+    cfgPath,
+    cfg.replace(/^types = .*$/m, 'types = []').replace(/^set = .*$/m, 'set = []'),
+  )
   await writeFile(
     join(target, '.migrate', 'capabilities.jsonl'),
     `${JSON.stringify({ slug: 'users', title: 'Users', ns: 'US', elements: [] })}\n`,

@@ -64,5 +64,5 @@ fi
 
 echo ""
 echo "Verify:"
+echo "  migrate --version"
 echo "  migrate --help"
-echo "  migrate --list-runs"
