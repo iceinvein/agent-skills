@@ -25,6 +25,31 @@ Subcommands:
 type Handler = (args: string[]) => Promise<number> | number
 
 const HANDLERS: Record<string, Handler> = {
+  init: async (args) => {
+    const flag = (name: string): string | undefined => {
+      const at = args.indexOf(name)
+      return at !== -1 ? args[at + 1] : undefined
+    }
+    const sourcePath = flag('--source')
+    const scope = flag('--scope')
+    const targetName = flag('--name')
+    if (!sourcePath || !scope || !targetName) {
+      process.stderr.write(
+        'init: want --source <path> --scope <text> --name <target> [--source-stack <s>] [--target-stack <s>] [--basis <runnable|source-only>]\n',
+      )
+      return 2
+    }
+    const { runInit } = await import('../scripts/init-cmd.ts')
+    return runInit({
+      root: process.cwd(),
+      sourcePath,
+      scope,
+      targetName,
+      ...(flag('--source-stack') ? { sourceStack: flag('--source-stack') } : {}),
+      ...(flag('--target-stack') ? { targetStack: flag('--target-stack') } : {}),
+      ...(flag('--basis') ? { basis: flag('--basis') } : {}),
+    })
+  },
   import: async (args) => {
     const kind = args[0]
     const file = args[1]
