@@ -10,7 +10,8 @@ Subcommands:
   setup <run-dir> --pr <n>   Pre-flight, fetch PR, create worktree
   serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
-  shard <run-dir>            Re-split diff.patch into budgeted shards
+  shard <run-dir> [--budget N] [--max-files N]
+                             Re-split diff.patch into budgeted shards
   render <run-dir> <page>    Render progress.html or findings.html
   cleanup <run-dir>          Remove worktree, stop server, archive run
   status <run-dir>           Print highest completed stage
@@ -137,6 +138,17 @@ const HANDLERS: Record<string, Handler> = {
     if (budget === null) return 2
     const maxFiles = numFlag('--max-files')
     if (maxFiles === null) return 2
+    // `shardDiff` tolerates a missing diff.patch (setup calls it before the diff
+    // can exist) and mkdirs `shards/` on the way, so a typo'd run directory would
+    // otherwise be invented on disk and reported as a successful zero-shard split.
+    const { stat } = await import('node:fs/promises')
+    const isRunDir = await stat(runDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false)
+    if (!isRunDir) {
+      process.stderr.write(`shard: no such run directory: ${runDir}\n`)
+      return 2
+    }
     const { shardDiff } = await import('../scripts/shard.ts')
     const manifest = await shardDiff(runDir, {
       ...(budget !== undefined ? { budget } : {}),

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { type FileChunk, splitFileChunks } from './diff-chunks.ts'
 
@@ -85,11 +85,36 @@ async function readDiffPatch(runDir: string): Promise<string> {
   }
 }
 
+/** Delete `shard-<n>.patch` files left by an earlier split. Re-splitting 7 shards
+ *  into 4 would otherwise leave `shard-5.patch` .. `shard-7.patch` on disk: the
+ *  manifest is authoritative for dispatch, but a stale patch makes the directory
+ *  claim coverage the manifest does not have, and a resume that reads shard ids
+ *  off disk would review a file set that no longer matches its id. Only the shard
+ *  patches are touched: `manifest.json` stays in place until it is overwritten at
+ *  the end (so there is never a window with no manifest), and `diff.patch` lives
+ *  outside this directory and is what a single-shard manifest points at. */
+async function clearStaleShardPatches(shardsDir: string): Promise<void> {
+  let entries: string[]
+  try {
+    entries = await readdir(shardsDir)
+  } catch {
+    return
+  }
+  for (const name of entries) {
+    if (/^shard-\d+\.patch$/.test(name)) await rm(join(shardsDir, name), { force: true })
+  }
+}
+
 /**
  * Split `$RUN_DIR/diff.patch` into budgeted shards. `diff.patch` is never
  * modified: shards are views over it, which is what keeps the critic's diff
  * excerpts, dedupe's evidence check, and the report's rendering working
  * unchanged.
+ *
+ * Re-splitting an already-sharded run invalidates any
+ * `findings/<focus>.shard-<n>.json` from the previous split: the same shard id
+ * now names a different file set. Stage 4's resume rule keys on those files, so
+ * the caller must delete them before re-dispatching.
  */
 export async function shardDiff(
   runDir: string,
@@ -101,6 +126,7 @@ export async function shardDiff(
   const chunks = splitFileChunks(diff)
   const totalLines = chunks.reduce((n, c) => n + c.lines, 0)
   const shardsDir = join(runDir, 'shards')
+  await clearStaleShardPatches(shardsDir)
   await mkdir(shardsDir, { recursive: true })
 
   const planned = planShards(chunks, budget, maxFiles)

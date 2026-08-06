@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -305,6 +306,26 @@ test('shard rejects an invalid --max-files, naming the flag and value', async ()
   const exit = await proc.exited
   expect(exit).toBe(2)
   expect(stderr).toContain('shard: invalid --max-files -1')
+})
+
+test('shard rejects a run directory that does not exist instead of creating it', async () => {
+  const missing = join(tmpdir(), `magpie-cli-no-run-${Date.now()}`, 'nested')
+  const proc = Bun.spawn(['bun', CLI, 'shard', missing], { stdout: 'pipe', stderr: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain(`shard: no such run directory: ${missing}`)
+  // The old behaviour mkdir -p'd the typo and reported success.
+  expect(stdout).not.toContain('shard(s)')
+  expect(existsSync(missing)).toBe(false)
+})
+
+test('--help shows the shard budget flags', async () => {
+  const proc = Bun.spawn(['bun', CLI, '--help'], { stdout: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  expect(await proc.exited).toBe(0)
+  expect(stdout).toContain('shard <run-dir> [--budget N] [--max-files N]')
 })
 
 test('shard with a custom --budget and --max-files reaches shardDiff with those values', async () => {

@@ -151,6 +151,151 @@ test('runDedupe leaves unsharded ids untouched', async () => {
   expect(out[0]?.id).toBe('bugs-1')
 })
 
+const LLM_FOCUSES = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
+
+/** A manifest with `count` shards, shaped like the one `shardDiff` writes. */
+async function writeManifest(count: number): Promise<void> {
+  await mkdir(join(runDir, 'shards'), { recursive: true })
+  const shards = Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    path: count === 1 ? 'diff.patch' : `shards/shard-${i + 1}.patch`,
+    files: [`src/f${i + 1}.ts`],
+    lines: 10,
+  }))
+  await writeFile(
+    join(runDir, 'shards', 'manifest.json'),
+    JSON.stringify({
+      budget: 6000,
+      maxFiles: 80,
+      totalFiles: count,
+      totalLines: 10 * count,
+      shards,
+    }),
+  )
+}
+
+/** Run dedupe with stdout captured, the way a human at the terminal sees it. */
+async function dedupeCapturingStdout(): Promise<{ exit: number; stdout: string }> {
+  const out: string[] = []
+  const origWrite = process.stdout.write.bind(process.stdout)
+  process.stdout.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    const exit = await runDedupe(runDir, { threshold: 0 })
+    return { exit, stdout: out.join('') }
+  } finally {
+    process.stdout.write = origWrite
+  }
+}
+
+async function dedupeLogEntry(status: string): Promise<Record<string, unknown> | undefined> {
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  return log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .find((e) => e.stage === 'dedupe' && e.status === status)
+}
+
+test('runDedupe reports nothing missing when every (focus, shard) file is present', async () => {
+  await writeManifest(3)
+  for (const focus of LLM_FOCUSES) {
+    for (const shard of [1, 2, 3]) {
+      await writeFile(
+        join(runDir, 'findings', `${focus}.shard-${shard}.json`),
+        JSON.stringify([f(`${focus}-1`, `s${shard}.ts`, 1, `${focus} on shard ${shard}`, focus)]),
+      )
+    }
+  }
+  // Setup writes tests.json once for the whole run, never per shard.
+  await writeFile(join(runDir, 'findings', 'tests.json'), JSON.stringify([]))
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  expect(stdout).not.toContain('missing')
+  expect(stdout).toContain('15')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toEqual({ expected: 15, missing: [] })
+})
+
+test('runDedupe names the (focus, shard) pairs that have no findings file', async () => {
+  await writeManifest(2)
+  for (const focus of LLM_FOCUSES) {
+    await writeFile(
+      join(runDir, 'findings', `${focus}.shard-1.json`),
+      JSON.stringify([f(`${focus}-1`, 'a.ts', 1, `${focus} on shard 1`, focus)]),
+    )
+  }
+  // Shard 2 lost security and bugs: two of ten agents never wrote a file.
+  for (const focus of ['performance', 'code-smells', 'architecture']) {
+    await writeFile(
+      join(runDir, 'findings', `${focus}.shard-2.json`),
+      JSON.stringify([f(`${focus}-1`, 'b.ts', 2, `${focus} on shard 2`, focus)]),
+    )
+  }
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  expect(stdout).toContain('missing')
+  expect(stdout).toContain('security.shard-2.json')
+  expect(stdout).toContain('bugs.shard-2.json')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toEqual({
+    expected: 10,
+    missing: ['security.shard-2.json', 'bugs.shard-2.json'],
+  })
+})
+
+test('a single-shard manifest expects the unsharded findings filenames', async () => {
+  await writeManifest(1)
+  for (const focus of ['security', 'bugs', 'performance', 'code-smells']) {
+    await writeFile(
+      join(runDir, 'findings', `${focus}.json`),
+      JSON.stringify([f(`${focus}-1`, 'a.ts', 1, `${focus} finding here`, focus)]),
+    )
+  }
+  const { stdout } = await dedupeCapturingStdout()
+  // Stage 4 takes the unsharded path on a single-shard run, so the expected name
+  // has no shard suffix.
+  expect(stdout).toContain('architecture.json')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toEqual({ expected: 5, missing: ['architecture.json'] })
+})
+
+test('runDedupe without a manifest reports no coverage at all', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([f('bugs-1', 'a.ts', 10, 'off by one in the loop bound', 'bugs')]),
+  )
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  // A run predating the sharder has nothing to reconcile against; behaviour is
+  // exactly as before.
+  expect(stdout).toBe('')
+  const done = await dedupeLogEntry('done')
+  expect(done).toBeDefined()
+  expect(done?.coverage).toBeUndefined()
+})
+
+test('a zero-shard manifest expects nothing (the diff filtered down to nothing)', async () => {
+  await writeManifest(0)
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  expect(stdout).toBe('')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toBeUndefined()
+})
+
+test('a malformed shards/manifest.json is treated as no manifest', async () => {
+  await mkdir(join(runDir, 'shards'), { recursive: true })
+  await writeFile(join(runDir, 'shards', 'manifest.json'), '{ not json')
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  expect(stdout).toBe('')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toBeUndefined()
+})
+
 test('runDedupe still skips files it cannot map to a focus', async () => {
   await writeFile(join(runDir, 'findings', 'nonsense.json'), JSON.stringify([]))
   await writeFile(join(runDir, 'findings', 'security.shard-x.json'), JSON.stringify([]))

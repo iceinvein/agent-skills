@@ -17,6 +17,49 @@ export type RunDedupeOptions = {
   threshold?: number
 }
 
+/**
+ * The five focuses a specialist subagent writes. `tests` is a `FOCUS_IDS` entry
+ * too, but setup writes `findings/tests.json` once for the whole run with no
+ * subagent, so it is never expected per shard.
+ */
+const SPECIALIST_FOCUS_IDS = FOCUS_IDS.filter((id) => id !== 'tests')
+
+type Coverage = { expected: number; missing: string[] }
+
+/**
+ * Reconcile the findings files on disk against the `(focus, shard)` pairs the
+ * shard manifest implies. Stage 4 fails the run only when *every* specialist
+ * fails, so a sharded run that lost one agent out of thirty still logs
+ * `specialists: done` and renders a report indistinguishable from a complete
+ * one. Returns null when there is nothing to reconcile against (no manifest, an
+ * unreadable one, or a manifest with no shards, which is what an empty or
+ * fully-filtered diff produces), leaving pre-sharder runs behaving exactly as
+ * they did before.
+ */
+async function reconcileCoverage(runDir: string, present: Set<string>): Promise<Coverage | null> {
+  let shards: Array<Record<string, unknown>>
+  try {
+    const manifest = (await Bun.file(join(runDir, 'shards', 'manifest.json')).json()) as {
+      shards?: unknown
+    }
+    if (!Array.isArray(manifest.shards) || manifest.shards.length === 0) return null
+    shards = manifest.shards as Array<Record<string, unknown>>
+  } catch {
+    return null
+  }
+  // A single-shard manifest means stage 4 took the unsharded path, so its
+  // specialists write `<focus>.json` with no shard suffix.
+  const sharded = shards.length > 1
+  const expected: string[] = []
+  for (const [i, shard] of shards.entries()) {
+    const id = typeof shard?.id === 'number' ? shard.id : i + 1
+    for (const focus of SPECIALIST_FOCUS_IDS) {
+      expected.push(sharded ? `${focus}.shard-${id}.json` : `${focus}.json`)
+    }
+  }
+  return { expected: expected.length, missing: expected.filter((name) => !present.has(name)) }
+}
+
 export async function runDedupe(runDir: string, options: RunDedupeOptions = {}): Promise<number> {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD
   const findingsDir = join(runDir, 'findings')
@@ -110,6 +153,14 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
       )}\n`,
     )
   }
+  const coverage = await reconcileCoverage(runDir, new Set(files))
+  if (coverage) {
+    process.stdout.write(
+      coverage.missing.length === 0
+        ? `dedupe: all ${coverage.expected} expected findings files present\n`
+        : `dedupe: ${coverage.missing.length} of ${coverage.expected} expected findings files missing (re-dispatch those specialists): ${coverage.missing.join(', ')}\n`,
+    )
+  }
   await logLine(runDir, {
     stage: 'dedupe',
     status: 'done',
@@ -121,6 +172,7 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
       skipped: evidence.skipped,
       dropped: evidence.dropped.length,
     },
+    ...(coverage ? { coverage } : {}),
   })
   return 0
 }

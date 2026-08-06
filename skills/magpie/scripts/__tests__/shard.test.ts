@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_SHARD_BUDGET, groupKey, planShards, shardDiff } from '../shard.ts'
@@ -105,6 +105,36 @@ test('shardDiff writes one patch per shard when the budget forces a split', asyn
   const whole = await readFile(join(runDir, 'diff.patch'), 'utf8')
   expect(whole).toContain('src/a/one.ts')
   expect(whole).toContain('src/b/two.ts')
+})
+
+test('a re-split into fewer shards leaves no orphaned shard patches behind', async () => {
+  const diff =
+    chunk('src/a/one.ts', 200) + chunk('src/b/two.ts', 200) + chunk('src/c/three.ts', 200)
+  await writeFile(join(runDir, 'diff.patch'), diff)
+  const first = await shardDiff(runDir, { budget: 150 })
+  expect(first.shards).toHaveLength(3)
+  expect(existsSync(join(runDir, 'shards', 'shard-3.patch'))).toBe(true)
+
+  // Re-split with room for two shards. shard-3.patch describes a file set no
+  // shard id owns any more, so it must not survive the new split.
+  const second = await shardDiff(runDir, { budget: 450 })
+  expect(second.shards).toHaveLength(2)
+  const patches = (await readdir(join(runDir, 'shards'))).filter((n) => n.endsWith('.patch')).sort()
+  expect(patches).toEqual(['shard-1.patch', 'shard-2.patch'])
+  expect(existsSync(join(runDir, 'shards', 'manifest.json'))).toBe(true)
+})
+
+test('a re-split down to one shard clears every shard patch and keeps the manifest', async () => {
+  const diff = chunk('src/a/one.ts', 200) + chunk('src/b/two.ts', 200)
+  await writeFile(join(runDir, 'diff.patch'), diff)
+  expect((await shardDiff(runDir, { budget: 150 })).shards).toHaveLength(2)
+  const manifest = await shardDiff(runDir, { budget: 10_000 })
+  expect(manifest.shards).toHaveLength(1)
+  expect(manifest.shards[0]?.path).toBe('diff.patch')
+  // Only the manifest is left: the single-shard entry points at diff.patch, and
+  // diff.patch itself lives outside shards/ and is never touched.
+  expect(await readdir(join(runDir, 'shards'))).toEqual(['manifest.json'])
+  expect(existsSync(join(runDir, 'diff.patch'))).toBe(true)
 })
 
 test('shardDiff handles an empty diff without writing shard files', async () => {
