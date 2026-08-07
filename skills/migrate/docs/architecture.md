@@ -84,10 +84,21 @@ error. A fixed temp name was tried first and lost data under concurrent writes.
 
 **The read-modify-write around a store file is lock-serialised.** `import` and
 `census` each read a whole store file, upsert or replace rows, and rewrite the
-whole file (`census` also commits a batch into `phases.json`); `phase
---status` does its own read-modify-write on `phases.json` alone. Atomic writes
-alone do not make any of that safe under a concurrent caller: two callers can
-still read the same base and one rename can still discard the other's rows.
+whole file; both also commit a batch into `phases.json`, via `recordBatch`,
+inside the same lock. `phase --status` does its own read-modify-write on
+`phases.json` alone. Atomic writes alone do not make any of that safe under a
+concurrent caller: two callers can still read the same base and one rename can
+still discard the other's rows.
+
+`census-cmd.ts` orders its two writes deliberately: it commits the batch into
+`phases.json` first, and writes `census.jsonl` second. If the process is
+interrupted between them, the result is an orphan batch entry, never an orphan
+census row, and that is the safer half-write of the two. Nothing treats
+`phases.json`'s batch list as meaningful except as corroboration for a census
+row that is also expected to exist, so an orphan batch entry is inert. An
+orphan census row would be worse: a record naming a batch that was never
+actually committed, which is exactly the mismatch the run-state gate exists to
+catch.
 `lock.ts`'s `withStoreLock` wraps each of these three write paths in one lock
 file for the whole store (`.migrate/.lock`, `O_EXCL` create, bounded retry with
 backoff). It distinguishes a lock file that is merely absent or momentarily

@@ -508,6 +508,64 @@ test('a rule-sweep census without a phase is rejected by name', () => {
   if (!result.ok) expect(result.errors).toContain('phase is required')
 })
 
+// Fix round 1, Finding 2: `phase` was free text on every kind, but check.ts's
+// run-state gate only ever looks for a lens census's batch in
+// phases.enumerate.batches and a closer census's batch in
+// phases.extract.batches, both hardcoded, never read off the record's own
+// `phase`. A lens or closer record declaring any other phase could have
+// census-cmd.ts commit its batch under that other phase and the gate would
+// then report it as never committed, even though it was. validateCensus now
+// rejects that mismatch at write time instead of leaving it for the gate to
+// discover after the fact.
+
+test('a lens census declaring a phase other than enumerate is rejected by name', () => {
+  const result = validateCensus(lens({ phase: 'extract' }))
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const joined = result.errors.join('\n')
+    expect(joined).toContain('lens census must declare phase "enumerate"')
+    expect(joined).toContain('found "extract"')
+  }
+})
+
+test('a closer census declaring a phase other than extract is rejected by name', () => {
+  const result = validateCensus({
+    kind: 'closer',
+    closer: 'read-write-symmetry',
+    phase: 'enumerate',
+    checked: 34,
+    findings: 3,
+    fixed: 2,
+    queued: ['q-sym-001'],
+    batch: 'b-4',
+  })
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const joined = result.errors.join('\n')
+    expect(joined).toContain('closer census must declare phase "extract"')
+    expect(joined).toContain('found "enumerate"')
+  }
+})
+
+test('an attribute census may declare any phase, since the gate never cross-checks it against a batch list', () => {
+  const result = validateCensus({
+    kind: 'attribute',
+    surface: 'tables',
+    subject: 'table-roster-days',
+    phase: 'seam',
+    directions: {
+      ddl: { count: 14, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+      entity: { count: 13, evidence: 'rg -n "\\[Table\\(" --type cs | wc -l' },
+    },
+    total: 15,
+    behavioral: 7,
+    explained: 6,
+    queued: ['q-ros-007'],
+    batch: 'b-2',
+  })
+  expect(result.ok).toBe(true)
+})
+
 // Critical finding 1 (shared with import-cmd.ts and queue-cmd.ts): a store
 // whose configured source.path resolves to include the store's own target
 // path must not crash. assertNotUnderSource throws by design (writeRows's

@@ -259,9 +259,31 @@ export function validateCensus(row: unknown): Validated<Census> {
     return out
   }
 
+  // check.ts's run-state gate looks for a lens census's batch in exactly one
+  // place, phases.enumerate.batches, and a closer census's batch in exactly
+  // one other place, phases.extract.batches, both hardcoded, not read off the
+  // record's own `phase` field. Before this check, `phase` was free text on
+  // every kind, so a lens record could declare `phase: "extract"`, have
+  // census-cmd.ts commit its batch under `extract` (it commits under
+  // whatever phase the record itself names), and the gate would then search
+  // `enumerate.batches`, find nothing, and report the batch as never
+  // committed even though it plainly was. Constraining `phase` here, at write
+  // time, to the one phase the gate will actually look in makes the writer
+  // and the gate agree by construction instead of leaving the gate to detect
+  // a mismatch after the fact. Declared but not called for a kind the gate
+  // never cross-checks against a phase (`attribute`, `rule-sweep`); the
+  // string is required there, same as always, but its value is free.
+  const requirePhase = (kindLabel: string, required: string, declared: string): void => {
+    if (declared && declared !== required) {
+      errors.push(
+        `${kindLabel} census must declare phase "${required}", the only phase gate 10 (run-state) checks its batch against; found "${declared}"`,
+      )
+    }
+  }
+
   if (kind === 'lens') {
     text('surface')
-    text('phase')
+    requirePhase('lens', 'enumerate', text('phase'))
     text('batch')
     num('total')
     num('in_ledger')
@@ -304,7 +326,7 @@ export function validateCensus(row: unknown): Validated<Census> {
     queuedList('queued')
   } else if (kind === 'closer') {
     text('closer')
-    text('phase')
+    requirePhase('closer', 'extract', text('phase'))
     text('batch')
     num('checked')
     num('findings')

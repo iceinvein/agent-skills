@@ -16,7 +16,7 @@ For how it is built and how to extend it, see [architecture.md](architecture.md)
 | `0` | Success |
 | `1` | A content or domain failure in a well-formed request. The request was serviceable and the answer is no: a gate found violations, a census does not balance, a queue file is unparseable. |
 | `2` | A malformed or unusable request. The command could not begin: a missing flag value, an unknown phase, a file that is absent or not valid JSON, no store above the cwd, a config that will not load. |
-| `3` | The store lock is unavailable: another process holds it, or a holder looks stale and force-unlocking was not requested. `import`, `census`, and `phase --status` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
+| `3` | The store lock is unavailable: another process holds it, a holder looks stale, or the lock file has failed to parse across five consecutive reads, and force-unlocking was not requested. `import`, `census`, and `phase --status` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
 
 The split matters because an orchestrating agent should be able to tell "your
 generator is broken" from "your numbers are wrong" from "try again" without
@@ -236,8 +236,26 @@ and case folding. Otherwise an imbalanced record could be padded into passing by
 repeating an entry.
 
 **`phase` is required on every kind**, one of the eight phase names (see below).
-It is what lets a lens or closer census be cross-checked against `phases.json` by
-the run-state gate.
+A `lens` record must declare `enumerate`; a `closer` record must declare
+`extract`. Those are the only two phases the run-state gate ever looks in: a
+lens's `batch` is checked against `phases.enumerate.batches` and a closer's
+against `phases.extract.batches`, both hardcoded in `check.ts`, never read off
+the record's own `phase` value. `validateCensus` rejects any other phase
+declared on those two kinds, by name, so a record cannot name a batch the gate
+will never find; the writer and the gate agree by construction rather than by
+convention that happens to hold. `attribute` and `rule-sweep` records still
+require a non-empty `phase`, but its value is free, since the gate never
+cross-checks either kind against a batch list.
+
+**Recording a census commits its batch before writing the census row, not
+after.** `migrate census` calls `recordBatch` first, then writes
+`census.jsonl`. If the process is interrupted in between, the batch is
+committed with no census row behind it. That is the safer of the two possible
+half-writes: an orphan batch entry is inert, since nothing treats
+`phases.json`'s batch list as meaningful except as corroboration for a census
+row that is also expected to exist. The other order would be worse: an orphan
+census row naming a batch that was never actually committed would defeat the
+exact guarantee the run-state gate exists to provide.
 
 **`directions` (on `lens` and `attribute`) maps each direction name to an object,
 not a bare number:** `{ "count": <non-negative integer>, "evidence": "<the
