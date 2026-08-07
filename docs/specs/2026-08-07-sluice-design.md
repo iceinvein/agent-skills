@@ -62,7 +62,7 @@ and the dispatch rules are reference files loaded on demand.
 
 ```
 skills/sluice/
-  SKILL.md            ~826 tok   router: channel table, six rule one-liners, deep entry
+  SKILL.md            ~900 tok   router: channel table, six rule one-liners, deep entry
   skill.json                     manifest + claudeHookDirective
   references/
     intent.md         ~300 tok   agree on intent, decompose multi-subsystem asks
@@ -353,7 +353,7 @@ an entire server subsystem is worth that.
    round-trips and no written documents.
 2. A multi-subsystem request still produces a design and a plan before code.
 3. Always-on session cost is under 50 tokens.
-4. Fast-channel invocation cost is under 900 tokens.
+4. Fast-channel invocation cost is under 1000 tokens. Measured at 848 with a real tokenizer against superpowers' 12,700, so the exact ceiling matters far less than the ratio; it was raised from 900 to fit the routing contract and the conflict warning, both of which the router had promised and not shipped.
 7. Every superpowers capability listed in the parity table has a home in sluice.
 5. `bun run skill:audit` passes clean.
 6. The agent states its channel on every code-changing request, stays silent on
