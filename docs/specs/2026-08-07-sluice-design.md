@@ -65,7 +65,7 @@ skills/sluice/
   SKILL.md            ~785 tok   router: channel table, one-line rules, deep-channel entry
   skill.json                     manifest + claudeHookDirective
   references/
-    intent.md         ~250 tok   agree on intent before building
+    intent.md         ~300 tok   agree on intent, decompose multi-subsystem asks
     test-first.md     ~300 tok   write the failing test, watch it fail
     root-cause.md     ~300 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
@@ -246,7 +246,10 @@ eval-tuned phrasing, which is accepted deliberately.
 1. **`intent.md`** — Agree on what is being built before building it. Ask
    questions one at a time; propose approaches with a recommendation. Scaled to
    the channel: `main` agrees in one chat message, `deep` writes it down. No hard
-   gate.
+   gate. Also carries the decomposition check: a request spanning several
+   independent subsystems is split into separately shippable pieces, each taking
+   its own trip through the channel, because one design covering four subsystems
+   yields a plan that is wrong in four places.
 2. **`test-first.md`** — Write the failing test, watch it fail, then write the
    minimal code. The load-bearing claim: if you did not watch it fail, you do not
    know it tests the right thing.
