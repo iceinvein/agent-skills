@@ -9,7 +9,7 @@ A skill that routes work by change shape into four channels, each mandating only
 the rules that channel needs. It replaces the superpowers plugin's single
 mandatory pipeline, which charges every task the cost of the largest task.
 
-Target: ~20 tokens always-on, ~785 tokens on invoke, no forced user round-trips
+Target: ~20 tokens always-on, ~826 tokens on invoke, no forced user round-trips
 below the deep channel.
 
 ## Name
@@ -62,15 +62,17 @@ and the dispatch rules are reference files loaded on demand.
 
 ```
 skills/sluice/
-  SKILL.md            ~785 tok   router: channel table, one-line rules, deep-channel entry
+  SKILL.md            ~826 tok   router: channel table, six rule one-liners, deep entry
   skill.json                     manifest + claudeHookDirective
   references/
     intent.md         ~300 tok   agree on intent, decompose multi-subsystem asks
-    test-first.md     ~300 tok   write the failing test, watch it fail
-    root-cause.md     ~300 tok   root cause before fix; 3 fixes = architecture
+    visual.md         ~350 tok   show it when showing beats telling (via Artifact)
+    test-first.md     ~380 tok   write the failing test, watch it fail
+    root-cause.md     ~360 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
     review.md         ~350 tok   fresh-context review, diff handed over as a file
-    deep-channel.md   ~650 tok   plan format, dispatch rules, review policy (deep only)
+    finish.md         ~300 tok   green suite, then the human picks the ending
+    deep-channel.md   ~750 tok   plan format, dispatch rules, review policy (deep only)
 ```
 
 This matches `skills/magpie/`'s layout in this repo (SKILL.md + `references/`).
@@ -97,9 +99,9 @@ rule.
 | Channel | Signal | Rules | Announce | Typical cost |
 |---------|--------|-------|----------|--------------|
 | `bypass` | No code change | none — just answer | nothing | ~15 tok |
-| `fast` | Existing interfaces, one subsystem | test-first, verify | "Fast channel. Test first, then implement." | ~785 tok |
-| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." | ~785 tok |
-| `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." | ~785 tok + refs on friction |
+| `fast` | Existing interfaces, one subsystem | test-first, verify | "Fast channel. Test first, then implement." | ~826 tok |
+| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." | ~826 tok |
+| `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." | ~826 tok + refs on friction |
 
 `bypass` announces nothing. Silence is what keeps a question a question — it fixes
 a specific superpowers failure, whose `using-superpowers` rationalization table
@@ -286,15 +288,50 @@ Kept from superpowers' `writing-plans`:
 Dropped: the five boilerplate TDD steps written out per task, full code blocks for
 every step, the "which execution mode?" menu, and the mandatory announce string.
 
+## Parity, not a lighter feature set
+
+The savings come from execution (fewer dispatches, tiered review, less ceremony
+per run), not from dropping capabilities. Everything superpowers does that is a
+capability rather than ceremony is carried over, compressed:
+
+| superpowers | tokens | sluice |
+|-------------|-------:|--------|
+| `finishing-a-development-branch` | 1755 | `references/finish.md`, ~300 |
+| `dispatching-parallel-agents` | 1519 | folded into `deep-channel.md`, ~60 |
+| `using-git-worktrees` | 1703 | folded into `deep-channel.md`, ~40 |
+| `writing-good-tests` | 2067 | folded into `test-first.md`, ~80 |
+| `root-cause-tracing` | 1329 | already covered by `root-cause.md` |
+| `defense-in-depth` | 912 | folded into `root-cause.md`, ~30 |
+| `condition-based-waiting` | 879 | folded into `root-cause.md`, ~30 |
+| `brainstorming/visual-companion` | 3324 | `references/visual.md`, ~350 |
+
+### The visual companion is rebuilt on Artifact
+
+Roughly half of superpowers' `visual-companion.md` operates a local Node server:
+session keys and WebSocket auth, `server-info` and `server-stopped` files, a
+four-hour idle timeout with same-port restart, four different backgrounding
+recipes for four harnesses, `--host 0.0.0.0` handling for containers, a stop
+script, and a `.superpowers/` gitignore requirement.
+
+The `Artifact` tool removes all of it: one call publishes a hosted page,
+republishing the same file path updates the same URL, and there is no port,
+process, cleanup, or per-harness variation. Its 700-token CSS class catalogue
+also goes, since `artifact-design` and `artifact-diagramming` already carry page
+design guidance.
+
+What is lost is click-to-select: superpowers records browser clicks to
+`state_dir/events`. Its own text calls the terminal message the primary feedback
+and those events supplementary, and the user answers in chat either way. Deleting
+an entire server subsystem is worth that.
+
 ## Deliberately absent
 
-- **Worktrees.** The harness provides `EnterWorktree`.
-- **Parallel dispatch guidance.** Already in the harness prompt.
 - **Skill-authoring content.** Belongs in its own skill, not in a workflow router.
 - **Tone policing** around how to phrase review replies.
 - **Platform detection** and the no-subagent fallback path. Claude Code only.
 - **Rationalization tables in the router.** They live in the reference files,
   read on friction.
+- **`executing-plans`.** It exists only as superpowers' no-subagent fallback.
 
 ## Constraints
 
@@ -317,6 +354,7 @@ every step, the "which execution mode?" menu, and the mandatory announce string.
 2. A multi-subsystem request still produces a design and a plan before code.
 3. Always-on session cost is under 50 tokens.
 4. Fast-channel invocation cost is under 900 tokens.
+7. Every superpowers capability listed in the parity table has a home in sluice.
 5. `bun run skill:audit` passes clean.
 6. The agent states its channel on every code-changing request, stays silent on
    `bypass`, and re-states when escalating.
