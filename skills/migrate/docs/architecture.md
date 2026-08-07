@@ -37,13 +37,15 @@ scripts/
   paths.ts             store paths, store-root lookup, containment guard
   config.ts            config.toml load and write, TOML escaping
   store.ts             JSONL read, atomic write, id upsert, file readers
+  lock.ts              store lock: serialises the read-modify-write in import,
+                       census and phase --status
   phases.ts            phases.json state and committed batches
   validate.ts          per-row shape validation shared by import and check
-  census.ts            census kinds, balance invariants, subject identity
+  census.ts            census kinds, balance and bounds invariants, subject identity
   citations.ts         resolves src refs against the source tree
   leaks.ts             scans artifacts and git history for env values
   queue.ts             queue item parsing and grammar
-  check.ts             composes the nine gates into a violation list
+  check.ts             composes the ten gates into a violation list
   report.ts            markdown rendering
   *-cmd.ts             one per subcommand; argument handling and orchestration
 ```
@@ -79,6 +81,23 @@ it through `writeRows` or `writeAtomically` rather than calling `writeFile`.
 **Writes are atomic.** `writeAtomically` writes to a randomly-named sibling then
 renames, and cleans up the temp file on failure without masking the original
 error. A fixed temp name was tried first and lost data under concurrent writes.
+
+**The read-modify-write around a store file is lock-serialised.** `import` and
+`census` each read a whole store file, upsert or replace rows, and rewrite the
+whole file (`census` also commits a batch into `phases.json`); `phase
+--status` does its own read-modify-write on `phases.json` alone. Atomic writes
+alone do not make any of that safe under a concurrent caller: two callers can
+still read the same base and one rename can still discard the other's rows.
+`lock.ts`'s `withStoreLock` wraps each of these three write paths in one lock
+file for the whole store (`.migrate/.lock`, `O_EXCL` create, bounded retry with
+backoff). It distinguishes a lock file that is merely absent or momentarily
+empty (never counted against a corruption budget) from one that is genuinely
+corrupt (five consecutive unreadable reads), re-reads before declaring a
+holder's pid stale (the holder may have released between reads), and checks
+its deadline unconditionally rather than only while a live holder is in view.
+A lock failure raises `LockError`, which every caller maps to exit 3, not the
+generic exit-2 path in `bin/migrate.ts`'s guard; `--force-unlock` removes a
+lock believed stale before retrying.
 
 **No timestamps in the store.** Git supplies chronology. An injected clock makes
 tests flake, and there is no field a resume path needs it for.
@@ -116,8 +135,11 @@ Gates live in `check.ts` and push `{ gate, message }` onto one list.
 2. Push violations that name the specific offending row, path or id. An
    aggregate "check failed" is never acceptable; the message is what an agent
    acts on without a human.
-3. If the gate is expensive, make it opt-in behind a flag like `--citations` and
-   `--leaks`, and have `check-cmd.ts` pass it through.
+3. If the gate is expensive, make it opt-in behind a flag like `--leaks`, and
+   have `check-cmd.ts` pass it through. If it is cheap enough to want on by
+   default instead, follow citations: on unless the caller passes
+   `--no-citations`, so an orchestrator does not have to remember to ask for
+   it.
 4. Add tests for both directions. A gate that produces false failures is worse
    than no gate, because it makes `check` ignorable.
 
@@ -177,11 +199,15 @@ can distinguish `orders` from `order`. This is documented in `census.ts` beside
 the check. The padding route that mattered more, an inflated `in_ledger`, is
 closed by reconciliation against the real element count.
 
-**Concurrency.** `recordBatch` does read-modify-write on `phases.json`. Atomic
-rename prevents a truncated file but not a lost update, so concurrent importers
-can lose committed-batch history. No concurrent caller exists yet; the fan-out
-orchestration in Milestone 2 will create one, and the preferred fix is an
-append-only batch log matching how `elements.jsonl` already works.
+**Concurrency is closed, not open.** This used to say `recordBatch`'s
+read-modify-write on `phases.json` could lose committed-batch history under
+concurrent importers, and that the preferred fix was an append-only batch log
+matching how `elements.jsonl` already worked. Both halves of that were wrong
+by the time a concurrent caller actually existed: `elements.jsonl` was never
+append-only (`import` reads, upserts, and rewrites the whole file, the same
+shape as `phases.json`), so an append-only log would have been the odd
+mechanism out rather than a pattern already proven in the store. Milestone 2
+closed this with a store lock instead; see the invariant above.
 
 **`capabilities.jsonl` has no import path.** It is hand-written, which is why the
 `refs` gate checks for duplicate slugs explicitly.

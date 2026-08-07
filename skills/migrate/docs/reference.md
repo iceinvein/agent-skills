@@ -9,16 +9,18 @@ For how it is built and how to extend it, see [architecture.md](architecture.md)
 
 ## Conventions
 
-**Exit codes.** Every command uses the same three.
+**Exit codes.** Every command uses the same four.
 
 | Code | Meaning |
 |---|---|
 | `0` | Success |
 | `1` | A content or domain failure in a well-formed request. The request was serviceable and the answer is no: a gate found violations, a census does not balance, a queue file is unparseable. |
 | `2` | A malformed or unusable request. The command could not begin: a missing flag value, an unknown phase, a file that is absent or not valid JSON, no store above the cwd, a config that will not load. |
+| `3` | The store lock is unavailable: another process holds it, or a holder looks stale and force-unlocking was not requested. `import`, `census`, and `phase --status` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
 
 The split matters because an orchestrating agent should be able to tell "your
-generator is broken" from "your numbers are wrong" without parsing stderr.
+generator is broken" from "your numbers are wrong" from "try again" without
+parsing stderr.
 
 **Field names are `snake_case` on disk** (`found_by`, `in_ledger`,
 `as_requirements`, `owner_signed`, `parity_exclusion`). The TypeScript types
@@ -27,6 +29,18 @@ mirror them exactly so there is no serialization layer.
 **Nothing writes into the source tree.** Every writer refuses a path that
 resolves inside `source.path`, following symlinks and case-insensitive volumes,
 and exits 2.
+
+**The store lock.** `import`, `census`, and `phase --status` each hold one lock
+(`.migrate/.lock`) across their read-modify-write of the store, so two agents
+writing at once cannot silently drop each other's rows. A waiting caller polls
+with backoff for up to 30 seconds by default. A holder confirmed no longer
+running is reported as stale rather than waited out further; so is a lock file
+that fails to parse on five consecutive reads (a lock file that is merely
+missing, or momentarily empty between creation and its holder record being
+written, does not count toward that). `--force-unlock` removes a lock believed
+stale, after you have confirmed no other agent is actually writing. A lock
+failure is exit `3`, not `1` or `2`, because the request itself is fine and
+would likely succeed on retry.
 
 ## Batch files
 
@@ -169,8 +183,9 @@ variant; unknown kinds are rejected.
 ```
 
 `lines` is optional; when present it must be `[start, end]` with `start <= end`.
-Only `src` refs are resolved against the source tree, and only under
-`--citations`. A `ledger` ref is checked by the `refs` gate instead.
+Only `src` refs are resolved against the source tree, and only by the
+`citations` gate (on by default; skipped under `--no-citations`). A `ledger`
+ref is checked by the `refs` gate instead.
 
 **Disposition** (on elements)
 
@@ -220,6 +235,19 @@ Within `skipped` and `queued`, duplicates are rejected, compared after trimming
 and case folding. Otherwise an imbalanced record could be padded into passing by
 repeating an entry.
 
+**`phase` is required on every kind**, one of the eight phase names (see below).
+It is what lets a lens or closer census be cross-checked against `phases.json` by
+the run-state gate.
+
+**`directions` (on `lens` and `attribute`) maps each direction name to an object,
+not a bare number:** `{ "count": <non-negative integer>, "evidence": "<the
+command or method that produced this count>" }`. The old `{"ddl": 43}` shape from
+Milestone 1 no longer validates; it is rejected by name, pointing at the
+bare-count field, so a hand-edited record written against the old shape fails
+loudly rather than silently passing with `evidence` absent. A record needs at
+least two independent directions; the lens contract does not admit a
+single-direction enumeration.
+
 ### lens
 
 One per declared surface. This is the record the coverage claim rests on.
@@ -229,7 +257,10 @@ One per declared surface. This is the record the coverage claim rests on.
   "kind": "lens",
   "surface": "tables",
   "phase": "enumerate",
-  "directions": { "ddl": 43, "orm": 40 },
+  "directions": {
+    "ddl": { "count": 43, "evidence": "grep CREATE TABLE across *.sql" },
+    "orm": { "count": 40, "evidence": "grep DbSet<> in the DbContext" }
+  },
   "total": 45,
   "in_ledger": 44,
   "added": 1,
@@ -246,6 +277,13 @@ equal the number of elements actually carrying that surface. `total` counts what
 exists in the legacy source and cannot be corroborated, but the claim about how
 many rows reached the ledger is directly countable, so it is counted.
 
+`total` is also **bounded by the directions**: `max(directions) <= total <=
+sum(directions)`, since a deduped union can never be smaller than its largest
+input or larger than their concatenation. In the example, `max(43, 40) = 43` and
+`sum(43, 40) = 83`, so any `total` from 43 through 83 is arithmetically possible;
+45 is. This bounds `total` without corroborating it: nothing on this side of the
+source can confirm the legacy system really has exactly 45 tables.
+
 ### attribute
 
 One per subject with sub-elements: a table's columns, a report's parameters, a
@@ -256,7 +294,11 @@ screen's fields.
   "kind": "attribute",
   "surface": "tables",
   "subject": "table-roster-days",
-  "directions": { "ddl": 14, "entity": 13 },
+  "phase": "extract",
+  "directions": {
+    "ddl": { "count": 14, "evidence": "column list from CREATE TABLE" },
+    "entity": { "count": 13, "evidence": "properties on the EF entity class" }
+  },
   "total": 15,
   "behavioral": 7,
   "explained": 6,
@@ -265,7 +307,8 @@ screen's fields.
 }
 ```
 
-Balance: `explained + queued.length == behavioral`.
+Balance: `explained + queued.length == behavioral`. `total` is bounded by
+`directions` the same way as `lens`, above.
 
 ### rule-sweep
 
@@ -276,6 +319,7 @@ requirement captured.
 {
   "kind": "rule-sweep",
   "subject": "user-management",
+  "phase": "extract",
   "probes": 4,
   "found": 2,
   "as_requirements": 2,
@@ -284,7 +328,8 @@ requirement captured.
 }
 ```
 
-Balance: `found == as_requirements + queued.length`.
+Balance: `found == as_requirements + queued.length`. `rule-sweep` has no
+`directions` field and no bound.
 
 ### closer
 
@@ -294,6 +339,7 @@ One per declared closer in `[closers].set`.
 {
   "kind": "closer",
   "closer": "read-write-symmetry",
+  "phase": "extract",
   "checked": 34,
   "findings": 3,
   "fixed": 2,
@@ -303,6 +349,7 @@ One per declared closer in `[closers].set`.
 ```
 
 Balance: `findings == fixed + queued.length`. `checked` is informational.
+`closer` has no `directions` field and no bound.
 
 ## Queue items
 
@@ -341,7 +388,7 @@ Recommend (c); usage suggests it is deprecated.
   containing `##` lines. An unclosed fence is a loud error.
 - BOM and CRLF are handled.
 
-## The nine gates
+## The ten gates
 
 `migrate check` reports violations grouped by gate, always in this order. Every
 message names the specific offending row, path or id; there is no aggregate
@@ -356,25 +403,36 @@ The summary line is always printed, passing or failing:
 | Gate | Enforces |
 |---|---|
 | `coverage` | Every element has a terminal disposition. An `unaccounted` element is a violation naming its id and surface. |
-| `census` | Every declared surface has a lens record and every declared closer has a closer record; every record balances; `in_ledger + added` matches the real element count for that surface. |
+| `census` | Every declared surface has a lens record and every declared closer has a closer record; every record is validated and balances; `in_ledger + added` matches the real element count for that surface; for `lens` and `attribute` records, `total` is bounded by `max(directions) <= total <= sum(directions)`. A row that fails validation is named by line number, and excluded from the arithmetic checks above, but still registers the surface or closer it names so this gate does not also claim that surface's lens never ran. |
 | `refs` | Referential integrity: a `mapped` disposition resolves to a real requirement, a queue id resolves to a real queue file, a requirement's `cap` resolves to a capability, a `ledger` citation resolves to a real element. Also catches duplicate requirement ids, capability slugs and element ids. |
 | `queue` | Queue files parse and satisfy the grammar above. |
 | `deltas` | No delta is left unsigned. |
 | `parity` | Every requirement whose confidence is not `queued` carries a parity plan. |
-| `citations` | **Opt-in, `--citations`.** Every `src` citation resolves against the source tree, with line ranges inside the file. Symlinks are followed and checked, so a link out of the tree is rejected. |
+| `citations` | **On by default; opt out with `--no-citations`.** Every `src` citation resolves against the source tree, with line ranges inside the file. Symlinks are followed and checked, so a link out of the tree is rejected. The old `--citations` flag is still accepted and silently ignored. |
 | `leaks` | **Opt-in, `--leaks`.** No value from `.migrate/.env` appears in a committed artifact or anywhere in git history. Messages name the variable and file, never the value. |
 | `source` | The source checkout has no uncommitted changes, when it is a git repo. |
+| `run-state` | Every phase through the checked terminus must be `done` in `phases.json`; a phase `done` while its immediate predecessor is still `pending` fails regardless of terminus; a lens or closer census naming a `batch` that `phases.json` never recorded committing (in `enumerate` or `extract` respectively) fails by name. |
 
 **`check` is strict mid-run by design.** The census gate wants a record for
 every declared surface and closer, so it does not pass until a run is finished.
 Grouping by gate is what lets you tell an expected mid-run gap from a real
 defect.
 
-**Two things `check` alone cannot tell you.** Citations are opt-in, so a plain
-run does not verify them; and a store where nothing has happened yet, with an
-all-zero census for every surface, passes at `0/0 mapped`. Use `migrate status`
-to see whether a run actually started. Both are recorded as open items for the
-next milestone.
+**`--phase <p>` narrows only the run-state gate, not the other nine.** Without
+`--phase`, `run-state` requires every phase through `handoff` to be `done`, so
+exit 0 means the whole migration is complete. With `--phase enumerate`, it
+requires only `probe` and `enumerate` to be `done`, which is the mid-run
+posture: a coverage or census gap past that point still fails on its own gate,
+exactly as it would without `--phase`, because those nine gates read the store,
+not the phase you named. Verified against a fresh store: `check --phase probe`
+reports one `run-state` violation (`probe`); plain `check` reports eight, one
+per phase.
+
+**What `check` alone still cannot tell you.** `run-state` reads `phases.json`,
+which a command sets on request; an agent that runs `migrate phase <p>
+--status done` across every phase over an all-zero census still reaches exit
+0. What changed from Milestone 1 is that doing nothing no longer does. Use
+`migrate status` for a plainer read of what has actually run.
 
 ## Command details
 
@@ -385,6 +443,17 @@ Creates `.migrate/` and `.migrate/queue/`, writes `config.toml`, and appends
 config at 1, and a source path that is missing or not a directory at 2. Values
 you pass are escaped, so a scope containing quotes or backslashes round-trips
 intact. `vcs` is detected from the presence of `.git` in the source.
+
+**`migrate phase [<name>] [--status <s>]`**
+With no arguments, prints all eight phases: status and batch count, one line
+each, reading is the default so an orchestrator resuming a run sees where it
+stopped before it moves anything. With `<name>` alone, prints just that
+phase's line. With `<name> --status <s>`, sets that phase's status; `<s>` is
+one of `pending`, `running`, `blocked`, `done`. An unknown phase name or status
+value exits 2, naming the valid set. The write path takes the store lock and
+accepts `--force-unlock`; a lock failure exits 3. Unlike `init`, `phase`
+resolves its store root the same way `check` does, by searching upward from
+the cwd, not by trusting the cwd itself.
 
 **`migrate reset --phase <phase>`**
 Clears only what that phase owns: `enumerate` clears elements and lens census
