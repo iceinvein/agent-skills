@@ -270,6 +270,12 @@ async function main() {
         process.exit(1);
       }
 
+      if (result.warnings) {
+        for (const warning of result.warnings) {
+          console.warn(`⚠ ${warning}`);
+        }
+      }
+
       console.log(`✓ Removed '${skillName}'`);
       break;
     }
