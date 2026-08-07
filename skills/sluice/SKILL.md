@@ -76,6 +76,7 @@ two implementers at once, and review is tiered, not automatic.
 
 ## Conflicts
 
-Sluice cannot run alongside the superpowers plugin. Superpowers puts its own
-fixed pipeline in front of every change to a codebase, and that pipeline
-overrides this router outright, so the two cannot be installed together.
+Sluice cannot run alongside the superpowers plugin. Superpowers requires its
+own fixed pipeline up front for anything that adds to or changes what the
+software does, not just code edits, and that pipeline overrides this router
+outright, so the two cannot be installed together.

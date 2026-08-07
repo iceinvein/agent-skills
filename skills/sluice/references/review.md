@@ -15,11 +15,13 @@ Leave every finding open to the reviewer; steering them away from an issue
 first is the same mistake as reviewing it yourself. A finding that looks
 wrong still gets raised, then argued.
 
-Grades come back as Critical, Important or Minor, but a finding has only two
-places to go: fixed before the work moves on, which is what the top two
-amount to, or on the record for the final review, which is what Minor
-amounts to. Do not add a third slot, or an adjudication step to feed it; the
-sorting costs more than the findings are worth.
+Every finding has one of two destinations. Either it blocks, and the work
+stays where it is until the fix lands, or it goes onto the task's record,
+which is what the final review reads. Reviewers grade findings Critical,
+Important or Minor, and the grade picks between the two: only Minor may wait
+for the record, and anything graded above it blocks. A third destination is
+not on offer, so neither is the adjudication step that would sort findings
+into it; that sorting costs more than the findings are worth.
 
 Send findings back to the agent that wrote the code: it already holds the
 task and its reasoning, memory you would otherwise rebuild. Three rounds is

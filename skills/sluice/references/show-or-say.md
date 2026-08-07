@@ -3,8 +3,8 @@
 This is never offered at the start. What triggers it is a specific moment in
 the conversation: a question arrives that turns on how something looks rather
 than on what it means. Offer then, in a message carrying nothing else, and
-wait. Plenty of conversations never raise such a question, and
-in those the offer is simply never made.
+wait. Plenty of conversations never raise such a question, and in those the
+offer is simply never made.
 
 Apply the test to each question rather than deciding once: could you settle
 this in a sentence, or do the candidates have to sit side by side where an

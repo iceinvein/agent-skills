@@ -15,10 +15,11 @@ costs far more than asking would have.
 
 With the suite green and the base confirmed, put exactly three options to
 your partner: merge it locally, push it and open a PR, or leave the branch
-as it stands. That list is closed. Anything outside it, throwing the work
-away included, happens only when they ask for it in as many words. Then
-stop. Which of the three it is belongs to them, however obvious the choice
-looks from where you are standing, so nothing moves until they say.
+as it stands. Those three exhaust what you may offer. Your partner may still
+ask for something off the list, scrapping the branch above all, but the
+request has to originate with them and be unmistakable. Then stop. Which of
+the three it is belongs to them, however obvious the choice looks from where
+you are standing, so nothing moves until they say.
 
 After a local merge, run the whole suite again over the merged tree before
 deleting anything. A failure there stops the cleanup; you haven't pushed

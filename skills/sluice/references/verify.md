@@ -20,7 +20,7 @@ passed proves nothing about what it would catch.
 
 Wording is not a loophole. "Looks right", "should be good" and "that's
 sorted" are completion claims in other clothes. So is pleasure at your own
-work: "great", "perfect", "done" each announce that it landed, and each needs
-the same command run beforehand as "it passes" does.
+work: "beautiful", "there we go", "nailed it" each announce that the thing
+landed, and each needs the same command run beforehand as "it passes" does.
 
 The friction line: "the change was too small to need a full run." Run it.

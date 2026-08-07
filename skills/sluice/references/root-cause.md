@@ -1,23 +1,23 @@
 # Root cause
 
-This rule is trigger-based, not channel-assigned. A crash, a test that just
-turned red, output nobody can account for: anything the code does that
-nobody intended fires it, in every channel, `bypass` included.
+This rule is trigger-based, not channel-assigned. Anything the code does that
+nobody intended fires it, in every channel, `bypass` included: a crash, a
+test that has just turned red, output no one can account for.
 
 It rules out patching first and understanding later. A change aimed at the
 symptom buys quiet, and the quiet ends: the defect comes back, usually
 worse.
 
-**Reproduce it first of all.** A fault you cannot trigger on demand
-is not something you can fix, only guess at. Then read the error to the end,
-stack trace and all; the part you skim is often the part naming the cause.
+**Reproduce it first.** A fault you cannot trigger on demand is not something
+you can fix, only guess at. Then read the error to the end, stack trace and
+all; the part you skim is often the part naming the cause.
 
 **Find the origin, not the blast site.** Follow the bad value back to
-whatever produced it and repair it there. Two things shorten the walk: what
-moved recently, a commit or a dependency bump, and a nearby case that works.
-Set the working one beside the broken one and list every way they diverge,
-the ways you are sure do not matter included, since that is usually where it
-hides.
+whatever produced it and repair it there. Two things shorten the walk. One is
+whatever moved recently, a commit or a dependency bump. The other is a nearby
+case that still works: set it beside the broken one and list every way the
+two diverge, including the ones you are certain cannot matter, since that is
+usually where it hides.
 
 **One hypothesis, written down.** Alter two things at once and a green
 result cannot say which earned it, so state the theory plainly, pick the
