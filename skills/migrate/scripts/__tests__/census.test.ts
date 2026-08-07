@@ -638,3 +638,80 @@ test('bounds say nothing about kinds that carry no directions', () => {
   expect(result.ok).toBe(true)
   if (result.ok) expect(boundsOf(result.value)).toBeNull()
 })
+
+// Review round 1, Finding 3: the two-direction minimum is counted on the raw
+// keys of the input object, before any entry is filtered out for being
+// malformed. Pinned here so a future refactor that switches to counting the
+// validated output map instead cannot silently regress this: a record with
+// one valid direction and one bare-count direction must still be rejected,
+// and specifically for the bare-count shape, not for a spurious "needs at
+// least two directions" message that would imply the fix is counting the
+// wrong thing.
+test('one valid direction plus one malformed direction is rejected for the malformed one, not treated as short of two', () => {
+  const result = validateCensus(
+    lens({
+      directions: {
+        ddl: { count: 43, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+        orm: 40,
+      },
+    }),
+  )
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const joined = result.errors.join('\n')
+    expect(joined).toContain('old bare-count shape')
+    expect(joined).not.toContain('at least two independent directions')
+  }
+})
+
+// Review round 1, Finding 1b: boundsOf's own type signature promises
+// record.directions is well-formed, but a hand-edited census.jsonl can put
+// anything there, and this function is the last line of defense once
+// check.ts's gate-time validation exists (a future caller could always skip
+// that and call boundsOf directly). Object.values(...).map(d => d.count) on
+// a bare number silently produces undefined, and Math.max/reduce on
+// undefined produce NaN, against which every comparison is false, so the
+// bug this pins is a false negative: total 999 must never be judged "in
+// bounds" just because one direction was malformed.
+test('boundsOf names a malformed direction instead of silently treating it as in bounds', () => {
+  const malformed = {
+    kind: 'lens',
+    surface: 'tables',
+    phase: 'enumerate',
+    directions: { ddl: 43, orm: { count: 40, evidence: 'rg -n "\\[Table\\(" --type cs' } },
+    total: 999,
+    in_ledger: 999,
+    added: 0,
+    skipped: [],
+    queued: [],
+    batch: 'b-1',
+  } as unknown as Census
+  const message = boundsOf(malformed)
+  expect(message).toContain('ddl')
+})
+
+// Review round 1, Finding 2: all nine bounds tests above call validateCensus
+// and boundsOf directly; none drives a bounds-violating record through the
+// real command path, so census-cmd.ts's own
+// `balanceOf(result.value) ?? boundsOf(result.value)` line has never been
+// exercised end to end. This closes that gap for the exit code and the
+// stderr message together.
+test('runCensus refuses a record whose total is out of bounds, on stderr, as an operation failure (1)', async () => {
+  const file = join(root, 'out-of-bounds.json')
+  await writeFile(file, JSON.stringify(lens({ total: 90, in_ledger: 90 })))
+  const original = process.stderr.write.bind(process.stderr)
+  const out: string[] = []
+  process.stderr.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stderr.write
+  let code: number
+  try {
+    code = await runCensus({ root, file })
+  } finally {
+    process.stderr.write = original
+  }
+  expect(code).toBe(1)
+  expect(out.join('')).toContain('exceeds the 83 findings')
+  expect(await readRows(storePaths(root).census)).toEqual([])
+})

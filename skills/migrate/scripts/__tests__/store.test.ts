@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readRows, upsertRows, writeRows } from '../store.ts'
+import { readRawRows, readRows, upsertRows, writeRows } from '../store.ts'
 
 let root: string
 const NO_SOURCE = '/nonexistent-source'
@@ -41,6 +41,25 @@ test('readRows names the offending line on malformed JSON', async () => {
   const path = join(root, 'bad.jsonl')
   await writeFile(path, '{"id":"a"}\nnot json\n')
   await expect(readRows(path)).rejects.toThrow(/line 2/)
+})
+
+// readRawRows is readRows's own foundation now, but check.ts is the only
+// caller that needs the line number rather than just the parsed value, so
+// this pins that contract directly instead of leaving it to be exercised
+// only indirectly through check.ts's gate tests. A blank line shifts every
+// line number after it, which is exactly the case a 1-based index computed
+// from the filtered array (rather than the original split) would get wrong.
+test('readRawRows pairs each parsed value with its 1-based line number, including across a blank line', async () => {
+  const path = join(root, 'y.jsonl')
+  await writeFile(path, '{"id":"a"}\n\n{"id":"b"}\n')
+  expect(await readRawRows(path)).toEqual([
+    { line: 1, raw: { id: 'a' } },
+    { line: 3, raw: { id: 'b' } },
+  ])
+})
+
+test('readRawRows returns empty for a missing file', async () => {
+  expect(await readRawRows(join(root, 'nope.jsonl'))).toEqual([])
 })
 
 test('upsertRows replaces by id in place and counts', () => {

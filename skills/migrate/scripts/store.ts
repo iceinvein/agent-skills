@@ -38,21 +38,32 @@ export async function readTextFile(path: string): Promise<string> {
   }
 }
 
-export async function readRows<T>(path: string): Promise<T[]> {
+// Parses each line without asserting a type onto it, and keeps the 1-based
+// line number each value came from. readRows below is the common case (a
+// caller that trusts its own writer), but a gate checking a file that could
+// have been hand-edited needs both: the unknown value, so it can run real
+// validation instead of a cast that only satisfies the compiler; and the
+// line number, so a violation can point at something the reader can find in
+// the file rather than just naming the record's own fields.
+export async function readRawRows(path: string): Promise<{ line: number; raw: unknown }[]> {
   if (!existsSync(path)) return []
   const text = await readFile(path, 'utf8')
-  const rows: T[] = []
+  const rows: { line: number; raw: unknown }[] = []
   const lines = text.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]?.trim()
     if (!line) continue
     try {
-      rows.push(JSON.parse(line) as T)
+      rows.push({ line: i + 1, raw: JSON.parse(line) })
     } catch {
       throw new Error(`${path}: malformed JSON at line ${i + 1}`)
     }
   }
   return rows
+}
+
+export async function readRows<T>(path: string): Promise<T[]> {
+  return (await readRawRows(path)).map((r) => r.raw as T)
 }
 
 // Temp-plus-rename so a crash mid-write cannot truncate the store. The temp

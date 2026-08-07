@@ -70,12 +70,31 @@ export function balanceOf(record: Census): string | null {
 // legacy system really has.
 export function boundsOf(record: Census): string | null {
   if (record.kind !== 'lens' && record.kind !== 'attribute') return null
-  const counts = Object.values(record.directions).map((d) => d.count)
-  if (counts.length === 0) return null
+  const entries = Object.entries(record.directions)
+  if (entries.length === 0) return null
   const label =
     record.kind === 'lens'
       ? `lens census for ${record.surface}`
       : `attribute census for ${record.subject}`
+  // This function's own type signature promises record.directions is a
+  // Record<string, Direction>, but a hand-edited census.jsonl can still put
+  // a bare number or any other malformed value there without ever going
+  // through validateCensus. Object.values(...).map(d => d.count) on such a
+  // value silently produces undefined, which turns both max and sum into
+  // NaN, and total < NaN / total > NaN are both false in JavaScript, so the
+  // bound check would otherwise agree with a record it never actually read.
+  // check.ts's gate validates every row before calling this function, so in
+  // practice a malformed direction should never reach here, but this stays
+  // belt and braces so a future caller cannot reintroduce the silent pass by
+  // skipping that validation.
+  const counts: number[] = []
+  for (const [name, direction] of entries) {
+    const count = isRecord(direction) ? direction.count : undefined
+    if (typeof count !== 'number' || !Number.isFinite(count)) {
+      return `${label}: direction ${name} has no usable count (found ${JSON.stringify(count)})`
+    }
+    counts.push(count)
+  }
   const max = Math.max(...counts)
   const sum = counts.reduce((a, b) => a + b, 0)
   if (record.total < max) {

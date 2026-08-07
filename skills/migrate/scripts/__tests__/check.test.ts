@@ -181,6 +181,60 @@ test('a declared surface with no census record is a census violation', async () 
   expect(census[0]?.message).toContain('tables')
 })
 
+// Review round 1, Finding 1: census.jsonl is a store file readRows only
+// asserts a type onto; nothing checked its shape at gate time before this,
+// so a hand-edited row that never passed through census-cmd.ts's
+// validateCensus call could sit there silently. A single-direction lens
+// record satisfies boundsOf's arithmetic trivially (max == sum == total
+// when there is exactly one direction), and an old-shape record turns
+// boundsOf's max/sum into NaN, against which every comparison is false: both
+// reached exit 0 before this fix. This is the test whose absence let that
+// hole through, so it writes census.jsonl by hand rather than through
+// writeRows, and checks both rows are named by line and by the reason
+// validateCensus rejects each of them.
+test('a hand-edited census.jsonl with a single-direction row and an old-shape row is named by line, not silently passed through', async () => {
+  await seedClean()
+  const singleDirection = {
+    kind: 'lens',
+    surface: 'routes',
+    phase: 'enumerate',
+    directions: { code: { count: 1, evidence: 'rg -n "app.(get|post)" app.js' } },
+    total: 1,
+    in_ledger: 1,
+    added: 0,
+    skipped: [],
+    queued: [],
+    batch: 'b-1',
+  }
+  const oldShape = {
+    kind: 'lens',
+    surface: 'tables',
+    phase: 'enumerate',
+    directions: { ddl: 1, orm: 1 },
+    total: 1,
+    in_ledger: 1,
+    added: 0,
+    skipped: [],
+    queued: [],
+    batch: 'b-1',
+  }
+  await writeFile(
+    storePaths(root).census,
+    `${JSON.stringify(singleDirection)}\n${JSON.stringify(oldShape)}\n`,
+  )
+  const result = await runCheck({ root })
+  const census = result.violations.filter((v) => v.gate === 'census')
+  expect(
+    census.some(
+      (v) =>
+        v.message.includes('line 1') && v.message.includes('at least two independent directions'),
+    ),
+  ).toBe(true)
+  expect(
+    census.some((v) => v.message.includes('line 2') && v.message.includes('old bare-count shape')),
+  ).toBe(true)
+})
+
 test('a mapped disposition pointing at no requirement is a refs violation', async () => {
   await seedClean()
   await writeRows(

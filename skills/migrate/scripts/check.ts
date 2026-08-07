@@ -1,13 +1,35 @@
 import { existsSync } from 'node:fs'
-import { balanceOf, boundsOf } from './census.ts'
+import { balanceOf, boundsOf, censusKey, validateCensus } from './census.ts'
 import { resolveCitations } from './citations.ts'
 import { loadConfig } from './config.ts'
 import { scanLeaks } from './leaks.ts'
 import { storePaths } from './paths.ts'
 import { loadPhases, PHASES, type Phase } from './phases.ts'
 import { loadQueue } from './queue.ts'
-import { readRows } from './store.ts'
+import { readRawRows, readRows } from './store.ts'
 import type { Capability, Census, Delta, Element, Requirement, Violation } from './types.ts'
+import { isRecord } from './validate.ts'
+
+// A hand-edited census.jsonl never passes through census-cmd.ts's
+// validateCensus call, so this is the only label available for a row that
+// fails the check below: its 1-based position in the file, plus (when kind
+// and the field censusKey needs both parse as strings) the same key
+// census-cmd.ts uses to identify a record, so the message points at
+// something the reader can find rather than an opaque line number alone.
+function censusRowLabel(raw: unknown, line: number): string {
+  const base = `census.jsonl line ${line}`
+  if (!isRecord(raw)) return base
+  const kind = raw.kind
+  if (kind === 'lens' && typeof raw.surface === 'string')
+    return `${base} (${censusKey(raw as Census)})`
+  if (kind === 'attribute' && typeof raw.subject === 'string')
+    return `${base} (${censusKey(raw as Census)})`
+  if (kind === 'rule-sweep' && typeof raw.subject === 'string')
+    return `${base} (${censusKey(raw as Census)})`
+  if (kind === 'closer' && typeof raw.closer === 'string')
+    return `${base} (${censusKey(raw as Census)})`
+  return base
+}
 
 export type CheckResult = { summary: string; violations: Violation[] }
 
@@ -51,7 +73,14 @@ export async function runCheck(opts: {
   const requirements = await readRows<Requirement>(paths.requirements)
   const capabilities = await readRows<Capability>(paths.capabilities)
   const deltas = await readRows<Delta>(paths.deltas)
-  const census = await readRows<Census>(paths.census)
+  // Read raw, not readRows<Census>: census.jsonl is the one store file this
+  // gate cannot assume was ever written by census-cmd.ts, since nothing
+  // stops a hand edit, and readRows only asserts a type onto whatever
+  // JSON.parse returns rather than checking it. Gate 2 below runs the same
+  // validateCensus every real write goes through, so a shape that only
+  // TypeScript ever believed in gets caught here instead of quietly reaching
+  // balanceOf and boundsOf, both of which assume a well-formed record.
+  const censusRows = await readRawRows(paths.census)
   const { items: queueItems, errors: queueErrors } = await loadQueue(paths.queueDir)
 
   const violations: Violation[] = []
@@ -73,10 +102,31 @@ export async function runCheck(opts: {
   }
   const summary = `${mapped}/${elements.length} mapped, ${outOfScope} out-of-scope, ${unaccounted} unaccounted`
 
-  // Gate 2: census balance and presence.
+  // Gate 2: census shape, balance and presence. Each row is validated here,
+  // not merely read, because census.jsonl is a store file that census-cmd.ts
+  // does not own exclusively: a hand edit reaches this gate without ever
+  // passing through validateCensus first. A row that fails is named by line
+  // (and by censusKey when its identity parses) and excluded from every
+  // check below it: balanceOf and boundsOf both assume a well-formed
+  // record, so running them on one that already failed shape validation
+  // would add confusing noise on top of the real defect rather than a
+  // second independent fact; and letting an invalid row still count as "this
+  // surface has a census record" would hide the exact gap this gate exists
+  // to close.
   const surfacesWithCensus = new Set<string>()
   const closersWithCensus = new Set<string>()
-  for (const record of census) {
+  const census: Census[] = []
+  for (const { line, raw } of censusRows) {
+    const result = validateCensus(raw)
+    if (!result.ok) {
+      const label = censusRowLabel(raw, line)
+      for (const error of result.errors) {
+        violations.push({ gate: 'census', message: `${label}: ${error}` })
+      }
+      continue
+    }
+    const record = result.value
+    census.push(record)
     const imbalance = balanceOf(record)
     if (imbalance) violations.push({ gate: 'census', message: imbalance })
     const outOfBounds = boundsOf(record)
