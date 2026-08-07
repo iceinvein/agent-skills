@@ -280,6 +280,12 @@
     "quick": false
   },
   {
+    "name": "sluice",
+    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries five rules as one-liners in the router and the full treatment in references read only on friction. Claude Code only; conflicts with the superpowers plugin.",
+    "type": "prompt",
+    "version": "1.0.0"
+  },
+  {
     "name": "temporal-coupling-detector",
     "description": "Hidden ordering dependency analysis: detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
     "type": "prompt",
