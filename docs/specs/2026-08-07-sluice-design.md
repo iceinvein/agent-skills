@@ -172,8 +172,13 @@ does not route.
 
 Four are channel-assigned; `root-cause` is cross-cutting and trigger-based. Each
 reference file carries the rule, why it holds, and the specific rationalizations
-that precede breaking it. Source text is lifted from superpowers where it earns
-its place and rewritten where it does not.
+that precede breaking it.
+
+**All prose is original.** The underlying ideas are common engineering practice
+and free to state; the wording is written fresh rather than derived from
+superpowers. That keeps the skill clear of any third-party licence obligation,
+so it ships no NOTICE and attributes nothing. The cost is losing superpowers'
+eval-tuned phrasing, which is accepted deliberately.
 
 1. **`intent.md`** — Agree on what is being built before building it. Ask
    questions one at a time; propose approaches with a recommendation. Scaled to
