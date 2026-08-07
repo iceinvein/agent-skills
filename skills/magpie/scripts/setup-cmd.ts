@@ -4,6 +4,7 @@ import { fetchPr } from './gh.ts'
 import { buildIncrementalContext, findPreviousRun } from './incremental.ts'
 import { filterDiff, loadPathFilterConfig } from './path-filter.ts'
 import { type Deps, defaultDeps, preflight, renderInstallHint } from './preflight.ts'
+import { shardDiff } from './shard.ts'
 import { detectMissingTests } from './tests-check.ts'
 import { createWorktree } from './worktree.ts'
 
@@ -47,6 +48,7 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
 
   const fetched = await fetchPr({
     ghBin: deps.gh,
+    gitBin: deps.git,
     prNumber: input.prNumber,
     runDir: input.runDir,
     cwd: input.repoPath,
@@ -57,9 +59,30 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(input.runDir)
     return 4
   }
-  await logLine(input.runDir, { stage: 'fetch-pr', status: 'done' })
+  await logLine(input.runDir, {
+    stage: 'fetch-pr',
+    status: 'done',
+    source: fetched.source,
+    ...(fetched.mergeBase ? { mergeBase: fetched.mergeBase } : {}),
+  })
+  // Sidecar so the report can say where the diff came from without re-parsing
+  // log.jsonl, the same way incremental.json carries the incremental context.
+  await writeFile(
+    join(input.runDir, 'diff-source.json'),
+    `${JSON.stringify({ source: fetched.source, mergeBase: fetched.mergeBase ?? null }, null, 2)}\n`,
+  )
 
   await applyPathFilter(input.runDir, input.repoPath)
+
+  try {
+    await runShard(input.runDir)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await logLine(input.runDir, { stage: 'shard', status: 'error', error: message })
+    process.stderr.write(`magpie: ${message}\n`)
+    await cleanup(input.runDir)
+    return 6
+  }
 
   await runTestsCheck(input.runDir)
 
@@ -90,7 +113,9 @@ async function cleanup(runDir: string): Promise<void> {
     'pr.json',
     'diff.patch',
     'diff.full.patch',
+    'diff-source.json',
     'excluded-files.json',
+    'shards',
     'incremental.json',
     'findings',
     'screen',
@@ -98,6 +123,18 @@ async function cleanup(runDir: string): Promise<void> {
   ]) {
     await rm(join(runDir, name), { recursive: true, force: true }).catch(() => {})
   }
+}
+
+async function runShard(runDir: string): Promise<void> {
+  const manifest = await shardDiff(runDir)
+  await logLine(runDir, {
+    stage: 'shard',
+    status: 'done',
+    shards: manifest.shards.length,
+    budget: manifest.budget,
+    files: manifest.totalFiles,
+    lines: manifest.totalLines,
+  })
 }
 
 async function runTestsCheck(runDir: string): Promise<void> {

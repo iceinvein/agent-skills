@@ -48,12 +48,15 @@ function summarizeStages(log: Array<Record<string, unknown>>): {
     report: 'pending',
     post: 'pending',
   }
-  const specialistCounts: Record<string, number> = {
-    security: 0,
-    bugs: 0,
-    performance: 0,
-    'code-smells': 0,
-    architecture: 0,
+  // focus -> shard key -> count. Keyed by shard so a re-dispatched (focus, shard)
+  // pair replaces its own count rather than doubling it, while distinct shards
+  // of the same focus add up.
+  const perShard: Record<string, Record<string, number>> = {
+    security: {},
+    bugs: {},
+    performance: {},
+    'code-smells': {},
+    architecture: {},
   }
   for (const entry of log) {
     const stage = entry.stage as string
@@ -63,10 +66,15 @@ function summarizeStages(log: Array<Record<string, unknown>>): {
     if (stage in stages && status === 'error') stages[stage] = 'error'
     if (stage in stages && status === 'skipped') stages[stage] = 'skipped'
     if (stage === 'specialist' && typeof entry.focus === 'string') {
-      if (entry.focus in specialistCounts && typeof entry.findings === 'number') {
-        specialistCounts[entry.focus] = entry.findings
+      const bucket = perShard[entry.focus]
+      if (bucket && typeof entry.findings === 'number') {
+        bucket[String(entry.shard ?? 'all')] = entry.findings
       }
     }
+  }
+  const specialistCounts: Record<string, number> = {}
+  for (const [focus, bucket] of Object.entries(perShard)) {
+    specialistCounts[focus] = Object.values(bucket).reduce((a, b) => a + b, 0)
   }
   return { stages, specialistCounts }
 }
@@ -81,6 +89,11 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
     })
     const log = await readLog(runDir)
     const summary = summarizeStages(log)
+    const manifest = await readJson<{ shards?: unknown[] }>(
+      join(runDir, 'shards', 'manifest.json'),
+      {},
+    )
+    const shardCount = Array.isArray(manifest.shards) ? manifest.shards.length : 1
     const outPath = await nextVersionedPath(screenDir, 'progress')
     await renderProgressToDisk(
       {
@@ -89,6 +102,7 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
         branch: String(prJson.headRefName ?? '?'),
         stages: summary.stages as never,
         specialistCounts: summary.specialistCounts,
+        shardCount,
       },
       outPath,
     )
@@ -124,9 +138,14 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
   // is simply omitted.
   const brief = parseBrief(await readJson<unknown>(join(runDir, 'brief.json'), null)) ?? undefined
   const issues = parseClosingIssues(prJson)
+  const diffSource =
+    (await readJson<{ source: 'gh' | 'git'; mergeBase: string | null } | null>(
+      join(runDir, 'diff-source.json'),
+      null,
+    )) ?? undefined
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues },
+    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues, diffSource },
     outPath,
   )
   return 0

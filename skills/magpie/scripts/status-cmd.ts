@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const ORDER = [
+/** The resume ladder. Exported so `skill-lint` can assert that the diagnostic
+ *  stage names SKILL.md logs (`filter`, `tests-check`, `shard-coverage`, ...) stay
+ *  out of it: a diagnostic entry that lands on this list would move `next`. */
+export const ORDER = [
   'setup',
   'context',
   'specialists',

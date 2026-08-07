@@ -317,3 +317,36 @@ test('subsystem role and issue title escape quotes in their title="" attribute c
   // purpose escaping (already covered above) must remain intact alongside this.
   expect(html).toContain('Adds bounded retries to the upload path')
 })
+
+test('findings header notes a locally-built diff', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    diffSource: { source: 'git', mergeBase: 'a'.repeat(40) },
+    highlighter: hl,
+  })
+  expect(html).toContain('local clone')
+  expect(html).toContain('aaaaaaaaaaaa')
+})
+
+test('findings header stays quiet when the diff came from gh', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    diffSource: { source: 'gh', mergeBase: null },
+    highlighter: hl,
+  })
+  expect(html).not.toContain('local clone')
+})
+
+test('findings header stays quiet when there is no diff source at all', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    highlighter: hl,
+  })
+  expect(html).not.toContain('local clone')
+})

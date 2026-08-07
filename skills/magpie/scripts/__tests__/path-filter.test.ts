@@ -159,3 +159,30 @@ test('filterDiff: include records not-in-include reason', () => {
   })
   expect(excluded.find((e) => e.path === 'bun.lock')?.pattern).toBe('not-in-include')
 })
+
+test('DEFAULT_EXCLUDES covers generated .NET sources', () => {
+  const generated = [
+    'src/Data/Migrations/20260801_AddUsers.Designer.cs',
+    'src/Data/Migrations/AppDbContextModelSnapshot.cs',
+    'src/Generated/Api.g.cs',
+    'src/Generated/Api.g.i.cs',
+    'src/Forms/MainForm.designer.vb',
+  ]
+  for (const path of generated) {
+    expect(matchesAny(path, DEFAULT_EXCLUDES)).not.toBeNull()
+  }
+})
+
+test('DEFAULT_EXCLUDES leaves hand-written C# and docs alone', () => {
+  // The migration itself is reviewable; only its generated designer is not.
+  const reviewable = [
+    'src/Data/Migrations/20260801_AddUsers.cs',
+    'src/Services/UserService.cs',
+    'docs/architecture.md',
+    'docs/work/notes.md',
+    'README.md',
+  ]
+  for (const path of reviewable) {
+    expect(matchesAny(path, DEFAULT_EXCLUDES)).toBeNull()
+  }
+})

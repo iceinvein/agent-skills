@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -273,4 +274,103 @@ test('top-level --help surfaces the preview subcommand', async () => {
   expect(exit).toBe(0)
   expect(stdout).toContain('preview')
   expect(stdout).toContain('--help-preview')
+})
+
+test('shard rejects missing <run-dir>', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'shard'], { stdout: 'pipe', stderr: 'pipe' })
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('shard: missing <run-dir>')
+})
+
+test('shard rejects a zero, negative, or non-numeric --budget, naming the flag and value', async () => {
+  for (const bad of ['0', '-5', 'abc']) {
+    const proc = Bun.spawn(['bun', CLI, 'shard', '/tmp/does-not-matter', '--budget', bad], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const stderr = await new Response(proc.stderr).text()
+    const exit = await proc.exited
+    expect(exit).toBe(2)
+    expect(stderr).toContain(`shard: invalid --budget ${bad}`)
+  }
+})
+
+test('shard rejects an invalid --max-files, naming the flag and value', async () => {
+  const proc = Bun.spawn(['bun', CLI, 'shard', '/tmp/does-not-matter', '--max-files', '-1'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain('shard: invalid --max-files -1')
+})
+
+test('shard rejects a run directory that does not exist instead of creating it', async () => {
+  const missing = join(tmpdir(), `magpie-cli-no-run-${Date.now()}`, 'nested')
+  const proc = Bun.spawn(['bun', CLI, 'shard', missing], { stdout: 'pipe', stderr: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  const stderr = await new Response(proc.stderr).text()
+  const exit = await proc.exited
+  expect(exit).toBe(2)
+  expect(stderr).toContain(`shard: no such run directory: ${missing}`)
+  // The old behaviour mkdir -p'd the typo and reported success.
+  expect(stdout).not.toContain('shard(s)')
+  expect(existsSync(missing)).toBe(false)
+})
+
+test('--help shows the shard budget flags', async () => {
+  const proc = Bun.spawn(['bun', CLI, '--help'], { stdout: 'pipe' })
+  const stdout = await new Response(proc.stdout).text()
+  expect(await proc.exited).toBe(0)
+  expect(stdout).toContain('shard <run-dir> [--budget N] [--max-files N]')
+})
+
+test('shard with a custom --budget and --max-files reaches shardDiff with those values', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-cli-shard-'))
+  try {
+    // Two files under the same two-segment directory group ('src'), each with
+    // its own diff --git block, so a --max-files 1 cap forces the group apart
+    // into two shards regardless of --budget: proof the flags actually reach
+    // shardDiff rather than the defaults (budget 6000, max-files 80) taking
+    // over silently.
+    const diff = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      'index 0000000..1111111 100644',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1 +1 @@',
+      '-x',
+      '+y',
+      'diff --git a/src/b.ts b/src/b.ts',
+      'index 0000000..1111111 100644',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -1 +1 @@',
+      '-x',
+      '+y',
+      '',
+    ].join('\n')
+    await writeFile(join(runDir, 'diff.patch'), diff)
+
+    const proc = Bun.spawn(['bun', CLI, 'shard', runDir, '--budget', '3', '--max-files', '1'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const stdout = await new Response(proc.stdout).text()
+    const exit = await proc.exited
+    expect(exit).toBe(0)
+    expect(stdout).toContain('2 shard(s)')
+
+    const manifest = JSON.parse(
+      await readFile(join(runDir, 'shards', 'manifest.json'), 'utf8'),
+    ) as { budget: number; maxFiles: number; shards: unknown[] }
+    expect(manifest.budget).toBe(3)
+    expect(manifest.maxFiles).toBe(1)
+    expect(manifest.shards).toHaveLength(2)
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
 })

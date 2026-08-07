@@ -117,7 +117,9 @@ test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
     expect(text).not.toContain(`\`\`\`${tag}`)
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
-  expect(text.split(/\s+/).length).toBeLessThan(2600)
+  // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added:
+  // that's real, load-bearing procedure, not bloat.
+  expect(text.split(/\s+/).length).toBeLessThan(3000)
 })
 
 test('SKILL.md never instructs the agent to approve indexing', async () => {
@@ -326,4 +328,97 @@ test('the output contract tells specialists to look before they hedge', async ()
   const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
   expect(contract).toContain('Needs verification:')
   expect(contract).toMatch(/look before .*hedg/i)
+})
+
+test('the output contract documents both findings filenames', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const contract = text.slice(0, text.indexOf('```magpie-specialist-'))
+  // The pre-existing assertion must keep holding.
+  expect(contract).toMatch(/findings\/<focus>\.json/)
+  expect(contract).toMatch(/findings\/<focus>\.shard-<n>\.json/)
+})
+
+test('the run header documents the shard lines', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toContain('Shard: <n> of <N>')
+  expect(text).toContain('shards/shard-<n>.patch')
+})
+
+test('specialists are told excluded files are still reachable', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toContain('diff.full.patch')
+  expect(text).toContain('excluded-files.json')
+})
+
+test('stage 4 pins the shard field on the specialist log entry', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 4. Specialists')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('\n### 5.', start))
+  // render-cmd sums per-focus findings counts keyed on this field. Drop it from a
+  // sharded run and every shard of a focus lands in one 'all' bucket,
+  // last-write-wins, so the progress page under-reports by up to the shard count
+  // with no error anywhere. This prose is the only thing that produces the field.
+  expect(section).toMatch(/\{stage: specialist,[^}]*\bshard: <n>/)
+  // ... and the unsharded path must still omit it, or 'all' would never be used.
+  expect(section).toMatch(/omit `shard`/i)
+})
+
+test('stage 4 reconciles the expected findings files before dedupe', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 4. Specialists')
+  const section = text.slice(start, text.indexOf('\n### 5.', start))
+  // Stage 4 fails only when every specialist fails, so losing 1 of 30 agents
+  // otherwise renders a report indistinguishable from a complete one.
+  expect(section).toMatch(/findings\/<focus>\.shard-<n>\.json/)
+  expect(section).toMatch(/5 × <shard count>/)
+})
+
+test('the stage-4 gate offers only options the pipeline can carry out', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('**More than four shards')
+  expect(start).toBeGreaterThan(-1)
+  const gate = text.slice(start, text.indexOf('\n\n', start))
+  // Option 2: --max-files is what binds on a PR of many small files, so naming
+  // only --budget sends the user back to an unchanged shard count.
+  expect(gate).toContain('--budget')
+  expect(gate).toContain('--max-files')
+  // Option 3 must name a mechanism that exists. There is no unreviewed marker in
+  // the report, so the record is a diagnostic log entry, on a stage outside
+  // status-cmd's ORDER ladder and never `status: error`.
+  const { ORDER } = await import('../status-cmd.ts')
+  const stage = gate.match(/\{stage: ([a-z-]+), status: ([a-z-]+)/)
+  expect(stage?.[1]).toBeDefined()
+  expect(ORDER as readonly string[]).not.toContain(stage?.[1])
+  expect(stage?.[2]).not.toBe('error')
+  expect(gate).toMatch(/skipped/)
+})
+
+test('the excluded-files note is part of the specialist prompt, not commentary', async () => {
+  const spec = await readFile(ref('specialists.md'), 'utf8')
+  // Every other specialist-directed line lives in a fenced block; this one used to
+  // sit unfenced between two numbered assembly parts, where an assembling agent
+  // reads it as a note to itself and the specialist never sees it.
+  const fences = [...spec.matchAll(/^```[a-z-]*\n([\s\S]*?)^```/gm)].map((m) => m[1] ?? '')
+  const inFence = fences.some((body) => body.includes('diff.full.patch'))
+  expect(inFence).toBe(true)
+  // And it must be a numbered part of the assembly list, not floating text.
+  expect(spec).toMatch(/^\d+\. The excluded-files block below/m)
+})
+
+test('the specialist assembly list is numbered contiguously from 1', async () => {
+  const spec = await readFile(ref('specialists.md'), 'utf8')
+  // Anchor on the heading, not on item 3's inline `## Output Contract` reference.
+  const preamble = spec.slice(0, spec.indexOf('\n## Output Contract'))
+  const numbers = [...preamble.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]))
+  expect(numbers.length).toBeGreaterThan(4)
+  expect(numbers).toEqual(numbers.map((_, i) => i + 1))
+})
+
+test('SKILL.md documents the shard manifest and the fan-out gate', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  expect(text).toContain('shards/manifest.json')
+  expect(text).toContain('diff.patch')
+  // The confirmation gate above four shards is the design's only interactive stop.
+  expect(text).toMatch(/more than four shards/i)
 })

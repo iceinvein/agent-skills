@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { chunkPath, splitRawChunks } from './diff-chunks.ts'
 
 export type PathFilterConfig = {
   exclude: string[]
@@ -43,6 +44,12 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
   '**/*.min.js',
   '**/*.min.css',
   '**/*.map',
+  // Generated .NET / C#
+  '**/*.Designer.cs',
+  '**/*ModelSnapshot.cs',
+  '**/*.g.cs',
+  '**/*.g.i.cs',
+  '**/*.designer.vb',
   // Snapshot fixtures
   '**/*.snap',
   '**/__snapshots__/**',
@@ -113,11 +120,9 @@ export async function loadPathFilterConfig(cwd: string): Promise<PathFilterConfi
 export type ExcludedFile = { path: string; pattern: string }
 export type FilterDiffResult = { filtered: string; excluded: ExcludedFile[] }
 
-const FILE_HEADER = /^diff --git a\/(.+?) b\/(.+?)$/m
-
 export function filterDiff(rawDiff: string, config: PathFilterConfig): FilterDiffResult {
   if (!rawDiff) return { filtered: '', excluded: [] }
-  const chunks = rawDiff.split(/^(?=diff --git )/m)
+  const chunks = splitRawChunks(rawDiff)
   const kept: string[] = []
   const excluded: ExcludedFile[] = []
   for (const chunk of chunks) {
@@ -125,8 +130,7 @@ export function filterDiff(rawDiff: string, config: PathFilterConfig): FilterDif
       if (chunk.trim()) kept.push(chunk)
       continue
     }
-    const m = chunk.match(FILE_HEADER)
-    const path = m?.[2] ?? m?.[1]
+    const path = chunkPath(chunk)
     if (!path) {
       kept.push(chunk)
       continue

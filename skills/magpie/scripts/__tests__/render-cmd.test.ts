@@ -192,3 +192,98 @@ test('issue entries with a missing, zero, or negative number are dropped, not de
   expect(html).not.toContain('https://example.test/issues/zero')
   expect(html).not.toContain('https://example.test/issues/negative')
 })
+
+test('progress sums specialist counts across shards', async () => {
+  await mkdir(join(runDir, 'shards'), { recursive: true })
+  await writeFile(
+    join(runDir, 'shards', 'manifest.json'),
+    JSON.stringify({
+      budget: 6000,
+      maxFiles: 80,
+      totalFiles: 2,
+      totalLines: 20,
+      shards: [
+        { id: 1, path: 'shards/shard-1.patch', files: ['a.ts'], lines: 10 },
+        { id: 2, path: 'shards/shard-2.patch', files: ['b.ts'], lines: 10 },
+      ],
+    }),
+  )
+  await writeFile(
+    join(runDir, 'log.jsonl'),
+    [
+      JSON.stringify({ stage: 'specialists', status: 'running' }),
+      JSON.stringify({
+        stage: 'specialist',
+        focus: 'security',
+        shard: 1,
+        status: 'done',
+        findings: 2,
+      }),
+      JSON.stringify({
+        stage: 'specialist',
+        focus: 'security',
+        shard: 2,
+        status: 'done',
+        findings: 3,
+      }),
+      JSON.stringify({ stage: 'specialist', focus: 'bugs', shard: 1, status: 'done', findings: 1 }),
+    ].join('\n'),
+  )
+  const exit = await runRender(runDir, 'progress')
+  expect(exit).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
+  expect(html).toContain('Five reviewers across 2 shards')
+  // security is 2 + 3, not 3.
+  expect(html).toContain('security <span class="count">5</span>')
+})
+
+/** Log with the specialists stage in flight, which is the only state where the
+ *  shard count reaches the rendered wording. */
+async function specialistsRunning(): Promise<void> {
+  await writeFile(
+    join(runDir, 'log.jsonl'),
+    JSON.stringify({ stage: 'specialists', status: 'running' }),
+  )
+}
+
+test('a malformed shards/manifest.json degrades to the unsharded progress wording', async () => {
+  await mkdir(join(runDir, 'shards'), { recursive: true })
+  await writeFile(join(runDir, 'shards', 'manifest.json'), '{ "shards": [ truncated')
+  await specialistsRunning()
+  expect(await runRender(runDir, 'progress')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
+  expect(html).toContain('Five reviewers reading the diff in parallel')
+  expect(html).not.toMatch(/across \S+ shards/)
+})
+
+test('a manifest with shards: [] renders the unsharded progress wording', async () => {
+  // A lockfile-only PR filters down to nothing, and shardDiff writes an
+  // otherwise-normal manifest with no shards. Zero must not read as "across 0
+  // shards"; stage 4 treats it as the unsharded path.
+  await mkdir(join(runDir, 'shards'), { recursive: true })
+  await writeFile(
+    join(runDir, 'shards', 'manifest.json'),
+    JSON.stringify({ budget: 6000, maxFiles: 80, totalFiles: 0, totalLines: 0, shards: [] }),
+  )
+  await specialistsRunning()
+  expect(await runRender(runDir, 'progress')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
+  expect(html).toContain('Five reviewers reading the diff in parallel')
+  expect(html).not.toContain('across 0 shards')
+  expect(html).not.toMatch(/across \S+ shards/)
+})
+
+test('progress re-dispatch of one shard replaces rather than doubles its count', async () => {
+  await writeFile(
+    join(runDir, 'log.jsonl'),
+    [
+      JSON.stringify({ stage: 'specialists', status: 'running' }),
+      JSON.stringify({ stage: 'specialist', focus: 'bugs', shard: 1, status: 'done', findings: 4 }),
+      JSON.stringify({ stage: 'specialist', focus: 'bugs', shard: 1, status: 'done', findings: 2 }),
+    ].join('\n'),
+  )
+  const exit = await runRender(runDir, 'progress')
+  expect(exit).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
+  expect(html).toContain('bugs <span class="count">2</span>')
+})
