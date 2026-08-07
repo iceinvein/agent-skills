@@ -106,13 +106,11 @@ export async function runCheck(opts: {
   // not merely read, because census.jsonl is a store file that census-cmd.ts
   // does not own exclusively: a hand edit reaches this gate without ever
   // passing through validateCensus first. A row that fails is named by line
-  // (and by censusKey when its identity parses) and excluded from every
-  // check below it: balanceOf and boundsOf both assume a well-formed
-  // record, so running them on one that already failed shape validation
-  // would add confusing noise on top of the real defect rather than a
-  // second independent fact; and letting an invalid row still count as "this
-  // surface has a census record" would hide the exact gap this gate exists
-  // to close.
+  // (and by censusKey when its identity parses) and excluded from balanceOf,
+  // boundsOf, and the in_ledger + added reconciliation below: all three
+  // assume a well-formed record, so running them on one that already failed
+  // shape validation would add confusing noise on top of the real defect
+  // rather than a second independent fact.
   const surfacesWithCensus = new Set<string>()
   const closersWithCensus = new Set<string>()
   const census: Census[] = []
@@ -122,6 +120,23 @@ export async function runCheck(opts: {
       const label = censusRowLabel(raw, line)
       for (const error of result.errors) {
         violations.push({ gate: 'census', message: `${label}: ${error}` })
+      }
+      // A row that fails validation still ran and still named a surface or
+      // closer it claims to cover; only its shape is defective, not its
+      // existence. Registered defensively here (guarded the same way
+      // censusRowLabel is, since the row is not a trustworthy Census) so
+      // gate 2 does not also claim that surface or closer has no census
+      // record at all, which is a different and wrong accusation: that
+      // message means the lens never ran or never closed, not that it ran
+      // and produced something malformed. A row whose kind or identity
+      // field does not even parse as a string cannot make this claim, so it
+      // falls through to the genuinely-missing check below unregistered.
+      if (isRecord(raw)) {
+        if (raw.kind === 'lens' && typeof raw.surface === 'string') {
+          surfacesWithCensus.add(raw.surface)
+        } else if (raw.kind === 'closer' && typeof raw.closer === 'string') {
+          closersWithCensus.add(raw.closer)
+        }
       }
       continue
     }

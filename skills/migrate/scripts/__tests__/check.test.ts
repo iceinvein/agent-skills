@@ -192,6 +192,17 @@ test('a declared surface with no census record is a census violation', async () 
 // hole through, so it writes census.jsonl by hand rather than through
 // writeRows, and checks both rows are named by line and by the reason
 // validateCensus rejects each of them.
+//
+// Review round 2: the first version of this test asserted with .some(...),
+// which only proves the expected violations are present and says nothing
+// about extra ones. It missed that the original fix skipped both rows'
+// entire loop iteration, so neither 'routes' nor 'tables' was ever
+// registered in surfacesWithCensus, and gate 2 additionally (and wrongly)
+// reported both as having no lens census record at all -- wrong because the
+// lens did run and did write a record; only its shape is defective. Tightened
+// to assert the exact violation count, so a regression that reintroduces
+// those two extra, misleading violations fails this test instead of passing
+// it.
 test('a hand-edited census.jsonl with a single-direction row and an old-shape row is named by line, not silently passed through', async () => {
   await seedClean()
   const singleDirection = {
@@ -224,6 +235,12 @@ test('a hand-edited census.jsonl with a single-direction row and an old-shape ro
   )
   const result = await runCheck({ root })
   const census = result.violations.filter((v) => v.gate === 'census')
+  // Exactly three: the single-direction row's one shape error, plus the
+  // old-shape row's two bare-count errors (one per direction). Nothing else:
+  // in particular, no "has no lens census record" for either surface, since
+  // both rows named a real surface and a real kind, even though both were
+  // otherwise malformed.
+  expect(census).toHaveLength(3)
   expect(
     census.some(
       (v) =>
@@ -231,7 +248,49 @@ test('a hand-edited census.jsonl with a single-direction row and an old-shape ro
     ),
   ).toBe(true)
   expect(
-    census.some((v) => v.message.includes('line 2') && v.message.includes('old bare-count shape')),
+    census.filter(
+      (v) => v.message.includes('line 2') && v.message.includes('old bare-count shape'),
+    ),
+  ).toHaveLength(2)
+  expect(census.some((v) => v.message.includes('has no lens census record'))).toBe(false)
+})
+
+// Review round 2: pins the guard on the recovery above. A row with no kind
+// at all (not merely the wrong kind) cannot claim any surface, so unlike the
+// test above, both declared surfaces must still be reported missing here --
+// 'routes' because the one row that names it cannot claim to be its lens
+// census, and 'tables' because no row names it at all.
+test('a census row with no kind cannot claim a surface, so both declared surfaces are still reported missing', async () => {
+  await seedClean()
+  const noKind = {
+    surface: 'routes',
+    phase: 'enumerate',
+    directions: {
+      code: { count: 1, evidence: 'rg -n "app.(get|post)" app.js' },
+      nav: { count: 1, evidence: 'manual review of route registrations' },
+    },
+    total: 1,
+    in_ledger: 1,
+    added: 0,
+    skipped: [],
+    queued: [],
+    batch: 'b-1',
+  }
+  await writeFile(storePaths(root).census, `${JSON.stringify(noKind)}\n`)
+  const result = await runCheck({ root })
+  const census = result.violations.filter((v) => v.gate === 'census')
+  expect(
+    census.some((v) => v.message.includes('line 1') && v.message.includes('unknown kind')),
+  ).toBe(true)
+  expect(
+    census.some(
+      (v) => v.message.includes('routes') && v.message.includes('has no lens census record'),
+    ),
+  ).toBe(true)
+  expect(
+    census.some(
+      (v) => v.message.includes('tables') && v.message.includes('has no lens census record'),
+    ),
   ).toBe(true)
 })
 
