@@ -59,6 +59,7 @@ test('attribute balance is explained plus queued equals behavioral', () => {
     kind: 'attribute',
     surface: 'tables',
     subject: 'table-roster-days',
+    phase: 'enumerate',
     directions: { ddl: 14, entity: 13 },
     total: 15,
     behavioral: 7,
@@ -74,6 +75,7 @@ test('rule-sweep balance is found equals requirements plus queued', () => {
   const base: Census = {
     kind: 'rule-sweep',
     subject: 'user-management',
+    phase: 'extract',
     probes: 4,
     found: 2,
     as_requirements: 2,
@@ -88,6 +90,7 @@ test('closer balance is findings equals fixed plus queued', () => {
   const base: Census = {
     kind: 'closer',
     closer: 'read-write-symmetry',
+    phase: 'extract',
     checked: 34,
     findings: 3,
     fixed: 2,
@@ -329,6 +332,7 @@ test('queued id format validation applies to attribute, rule-sweep and closer, n
     kind: 'attribute',
     surface: 'tables',
     subject: 'table-roster-days',
+    phase: 'enumerate',
     directions: {},
     total: 15,
     behavioral: 7,
@@ -339,6 +343,7 @@ test('queued id format validation applies to attribute, rule-sweep and closer, n
   const ruleSweep = {
     kind: 'rule-sweep',
     subject: 'user-management',
+    phase: 'extract',
     probes: 4,
     found: 2,
     as_requirements: 1,
@@ -348,6 +353,7 @@ test('queued id format validation applies to attribute, rule-sweep and closer, n
   const closer = {
     kind: 'closer',
     closer: 'read-write-symmetry',
+    phase: 'extract',
     checked: 34,
     findings: 3,
     fixed: 2,
@@ -444,6 +450,7 @@ test('legitimate records still validate for all four kinds', () => {
     kind: 'attribute',
     surface: 'tables',
     subject: 'table-roster-days',
+    phase: 'enumerate',
     directions: { ddl: 14, entity: 13 },
     total: 15,
     behavioral: 7,
@@ -456,6 +463,7 @@ test('legitimate records still validate for all four kinds', () => {
   const ruleSweep = validateCensus({
     kind: 'rule-sweep',
     subject: 'user-management',
+    phase: 'extract',
     probes: 4,
     found: 2,
     as_requirements: 2,
@@ -467,6 +475,7 @@ test('legitimate records still validate for all four kinds', () => {
   const closer = validateCensus({
     kind: 'closer',
     closer: 'read-write-symmetry',
+    phase: 'extract',
     checked: 34,
     findings: 3,
     fixed: 2,
@@ -474,6 +483,20 @@ test('legitimate records still validate for all four kinds', () => {
     batch: 'b-4',
   })
   expect(closer.ok).toBe(true)
+})
+
+test('a rule-sweep census without a phase is rejected by name', () => {
+  const result = validateCensus({
+    kind: 'rule-sweep',
+    subject: 'pricing',
+    batch: 'b-rules-001',
+    probes: 4,
+    found: 2,
+    as_requirements: 2,
+    queued: [],
+  })
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors).toContain('phase is required')
 })
 
 // Critical finding 1 (shared with import-cmd.ts and queue-cmd.ts): a store

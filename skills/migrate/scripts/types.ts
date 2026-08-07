@@ -84,6 +84,7 @@ export type Census =
       kind: 'attribute'
       surface: string
       subject: string
+      phase: string
       directions: Record<string, number>
       total: number
       behavioral: number
@@ -94,6 +95,7 @@ export type Census =
   | {
       kind: 'rule-sweep'
       subject: string
+      phase: string
       probes: number
       found: number
       as_requirements: number
@@ -103,6 +105,7 @@ export type Census =
   | {
       kind: 'closer'
       closer: string
+      phase: string
       checked: number
       findings: number
       fixed: number

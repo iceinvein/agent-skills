@@ -2,6 +2,7 @@ import { balanceOf, censusKey, validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
 import { LockError, withStoreLock } from './lock.ts'
 import { assertNotUnderSource, storePaths } from './paths.ts'
+import { isPhase, PHASES, recordBatch } from './phases.ts'
 import { readJsonFile, readRows, writeRows } from './store.ts'
 import type { Census } from './types.ts'
 
@@ -51,6 +52,12 @@ export async function runCensus(opts: {
     return 2
   }
   const key = censusKey(result.value)
+  if (!isPhase(result.value.phase)) {
+    process.stderr.write(
+      `census: unknown phase ${result.value.phase}; want one of ${PHASES.join(', ')}\n`,
+    )
+    return 2
+  }
   try {
     await withStoreLock(
       opts.root,
@@ -62,6 +69,18 @@ export async function runCensus(opts: {
         const rows = existing.filter((r) => censusKey(r) !== key)
         rows.push(result.value)
         await writeRows(path, rows, cfg.source.path)
+        // A census record is the evidence that a lens closed, so recording it
+        // must leave a batch behind. This is what lets a lens that genuinely
+        // found nothing still prove it ran: the census balances at zero and
+        // the batch is committed.
+        if (isPhase(result.value.phase)) {
+          await recordBatch(
+            opts.root,
+            result.value.phase,
+            { id: result.value.batch, count: 1 },
+            cfg.source.path,
+          )
+        }
       },
       {
         cmd: 'census',

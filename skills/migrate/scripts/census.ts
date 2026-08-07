@@ -196,6 +196,7 @@ export function validateCensus(row: unknown): Validated<Census> {
   } else if (kind === 'attribute') {
     text('surface')
     text('subject')
+    text('phase')
     text('batch')
     num('total')
     num('behavioral')
@@ -203,6 +204,7 @@ export function validateCensus(row: unknown): Validated<Census> {
     queuedList('queued')
   } else if (kind === 'rule-sweep') {
     text('subject')
+    text('phase')
     text('batch')
     num('probes')
     num('found')
@@ -210,6 +212,7 @@ export function validateCensus(row: unknown): Validated<Census> {
     queuedList('queued')
   } else if (kind === 'closer') {
     text('closer')
+    text('phase')
     text('batch')
     num('checked')
     num('findings')

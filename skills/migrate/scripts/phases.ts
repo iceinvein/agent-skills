@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { withStoreLock } from './lock.ts'
 import { storePaths } from './paths.ts'
 import { writeAtomically } from './store.ts'
 
@@ -93,7 +94,16 @@ export async function setPhaseStatus(
   status: PhaseState['status'],
   sourcePath: string,
 ): Promise<void> {
-  const phases = await loadPhases(root)
-  phases[phase].status = status
-  await savePhases(root, phases, sourcePath)
+  // Same read-modify-write hazard as recordBatch. The orchestrator is the
+  // only expected caller and is serial, but the cost of holding the lock for
+  // a status flip is a few milliseconds and it removes the question.
+  await withStoreLock(
+    root,
+    async () => {
+      const phases = await loadPhases(root)
+      phases[phase].status = status
+      await savePhases(root, phases, sourcePath)
+    },
+    { cmd: 'phase' },
+  )
 }

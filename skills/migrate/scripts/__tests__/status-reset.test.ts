@@ -70,6 +70,7 @@ const ATTR_CENSUS: Census = {
   kind: 'attribute',
   surface: 'tables',
   subject: 'table-a',
+  phase: 'enumerate',
   directions: { ddl: 3 },
   total: 3,
   behavioral: 1,

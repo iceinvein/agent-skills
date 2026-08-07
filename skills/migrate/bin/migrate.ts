@@ -13,6 +13,7 @@ Subcommands:
                                   Validated bulk append to the store
   census <record.json> [--force-unlock]
                                   Record a lens accounting record
+  phase [<name>] [--status <s>]   Print phase state, or set one phase's status
   queue add <file.md>             Add a queue item
   queue list [--open]             List queue items, severity first
   queue show <id>                 Print one queue item
@@ -114,6 +115,20 @@ const HANDLERS: Record<string, Handler> = {
     const forceUnlock = args.includes('--force-unlock')
     const { runCensus } = await import('../scripts/census-cmd.ts')
     return runCensus({ root, file, ...(forceUnlock ? { forceUnlock: true } : {}) })
+  },
+  phase: async (args) => {
+    const status = readFlag(args, '--status')
+    if (status.error) {
+      process.stderr.write(`phase: ${status.error}\n`)
+      return 2
+    }
+    const name = args[0]?.startsWith('--') ? undefined : args[0]
+    const { runPhase } = await import('../scripts/phase-cmd.ts')
+    return runPhase({
+      root: process.cwd(),
+      ...(name ? { name } : {}),
+      ...(status.value ? { status: status.value } : {}),
+    })
   },
   queue: async (args) => {
     const { findStoreRoot } = await import('../scripts/paths.ts')
