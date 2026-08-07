@@ -201,9 +201,42 @@ are the same shape and are omitted here for space.)
 `import elements: 0 added, 5 updated, batch b-elements-disposition-001`
 (upsert by id, same mechanic as any other re-import). Coverage moves from
 `0/5 mapped, 0 out-of-scope, 5 unaccounted` before this batch to `4/5
-mapped, 1 out-of-scope, 0 unaccounted` after it. An `out-of-scope`
-disposition's queue id is checked for existence by the refs gate (queue.md
-covers the mechanics); it is not optional decoration.
+mapped, 1 out-of-scope, 0 unaccounted` after it.
+
+**An `out-of-scope` disposition's queue id is checked for existence by the
+refs gate, and file it before you rely on that in a check, not after.**
+`migrate check` reads the current store every time it runs; a queue id an
+element names but that has no file yet is a real, present violation the
+moment anything checks, not a future one. File it in the same pass:
+
+```markdown
+---
+id: q-legacy-admin-tool
+severity: minor
+status: open
+---
+
+## Evidence
+
+`GET /legacy-admin-tool` was found by the `code` lens (grepping controller
+attributes) but not by `nav` (it has no menu entry, no link anywhere in
+Startup.cs's route registrations). No FR describes it.
+
+## Options
+
+(a) Carry it forward as-is. (b) Mark it out of scope as dead code. (c) Ask
+the operator whether anything still calls it.
+
+## Recommendation
+
+Recommend (b); an endpoint with no nav entry and no citation anywhere else
+in the source reads as abandoned, not hidden-but-load-bearing.
+```
+
+`migrate queue add q-legacy-admin-tool.md` accepts this and prints `queue
+add: q-legacy-admin-tool [minor]` (queue.md covers the grammar this file
+must satisfy). Only after this does the coverage line above hold up against
+a real `check`, not merely against the batch import that produced it.
 
 ### The business-rule lens: rule-sweep
 
@@ -238,6 +271,42 @@ specific numbers named: submitting `found: 2` against the same
 `as_requirements`/`queued` reports `rule-sweep census for user-management
 does not balance: found 2 but as_requirements 0 + queued 1 = 1`, run
 against a real store.
+
+File the queue item this record names, in the same pass, even though (the
+attribute section below explains why) no gate will ever check that you
+did:
+
+```markdown
+---
+id: q-account-lockout-scope
+severity: moderate
+status: open
+---
+
+## Evidence
+
+`Controllers/AuthController.cs:8` carries a `TODO: lock the account after 5
+failed attempts; not implemented yet` comment directly above `Login`. The
+rule-sweep found this as a probe hit; it is not implemented, so it cannot
+become a requirement describing current behavior, and it duplicates the
+same open question `q-users-islocked-semantics` (below) raises about the
+`IsLocked` column.
+
+## Options
+
+(a) Write it as a requirement for the target anyway, since it is documented
+intent. (b) Leave it out of scope entirely; the legacy system never enforced
+it. (c) Fold it into `q-users-islocked-semantics` and let the operator rule
+on both at once.
+
+## Recommendation
+
+Recommend (c); both items are one open question (does lockout exist or
+not), not two.
+```
+
+`migrate queue add q-account-lockout-scope.md` accepts this and prints
+`queue add: q-account-lockout-scope [moderate]`.
 
 **A rule-sweep with nothing to report still needs a record**, the same
 zero-findings discipline enumerate.md states for a lens: `probes: N,
@@ -304,6 +373,38 @@ enumeration`), and an imbalanced record is rejected naming the exact
 mismatch (`attribute census for table-users does not balance: behavioral 3
 but explained 1 + queued 1 = 2`).
 
+File the item this record names, the same as rule-sweep's above:
+
+```markdown
+---
+id: q-users-islocked-semantics
+severity: moderate
+status: open
+---
+
+## Evidence
+
+The `Users` table's `IsLocked` column is not an identity key, an audit
+stamp, or a tenant discriminator, so it is not on the attribute lens's
+exemption list, and it is not written or read anywhere in
+`AuthController.cs`. The `Login` method's own comment says account lockout
+"is not implemented yet."
+
+## Options
+
+(a) Treat it as dead state and drop it from the target schema. (b) Treat it
+as a real but unenforced rule and implement lockout in the target. (c) Ask
+the operator which one matches actual production behavior.
+
+## Recommendation
+
+Recommend (c); the column and the comment disagree about whether lockout
+exists, and only the operator can say which one is true today.
+```
+
+`migrate queue add q-users-islocked-semantics.md` accepts this and prints
+`queue add: q-users-islocked-semantics [moderate]`.
+
 **The honest limit: nothing checks that every attribute-bearing element
 actually got an attribute census, or that every capability actually got a
 rule-sweep.** Verified directly: a store with both records stripped out of
@@ -367,6 +468,42 @@ enumerate.md documents: `closer census must declare phase "extract", the
 only phase gate 10 (run-state) checks its batch against; found
 "enumerate"`.
 
+File the item this closer named:
+
+```markdown
+---
+id: q-reset-token-verify-missing
+severity: critical
+status: open
+---
+
+## Evidence
+
+`read-write-symmetry` checked every write path against a matching read
+path. `ResetPassword` writes a reset token via `GenerateResetToken` and
+emails it, but no controller in the source reads or verifies a submitted
+token: there is no `POST /api/password-reset/confirm` or equivalent. Either
+the verification endpoint exists somewhere this pass did not look, or reset
+tokens are issued and never checked.
+
+## Options
+
+(a) Widen the search (other controllers, an area folder, a separate
+service) before concluding it is missing. (b) Treat it as a real gap and
+flag it for the target to fix, not replicate. (c) Ask the operator directly
+whether reset ever worked end-to-end in production.
+
+## Recommendation
+
+Recommend (c); a write with no matching read is exactly what this closer
+exists to catch, and only the operator can say whether it is a real defect
+or evidence this pass has not looked far enough yet.
+```
+
+`migrate queue add q-reset-token-verify-missing.md` accepts this and
+prints `queue add: q-reset-token-verify-missing [critical]` (queue.md's
+own worked grammar example is built on this exact file).
+
 A declared closer with no record at all fails `census`, run against a
 store where extract was reset before any closer census was recorded:
 
@@ -391,12 +528,17 @@ across two agents' capabilities without anyone noticing the seam.
 ## What closes it
 
 Every capability mined, every element disposed, every declared closer
-recorded. `migrate check --phase extract` will not read as clean mid-run,
+recorded, every queue item this phase's own findings named already filed
+(above). `migrate check --phase extract` will not read as clean mid-run,
 which is expected: the census gate reads the whole store regardless of
 `--phase`, so it still names every surface this scratch run never
 enumerated (`jobs`, `reports`, `screens`, `integrations`, `workflows`,
-`settings`). Run for real, right before flipping the phase, against a
-store with exactly the rows this manual's examples built:
+`settings`). `refs` does not appear below only because `q-legacy-admin-tool`
+was already filed above; skip that step and it reappears here, naming
+`route-get-legacy-admin-tool`, exactly the way enumerate.md's and seam.md's
+own noisy-but-expected checks name what is genuinely still missing rather
+than padding the count. Run for real, right before flipping the phase,
+against a store with exactly the rows this manual's examples built:
 
 ```
 4/5 mapped, 1 out-of-scope, 0 unaccounted

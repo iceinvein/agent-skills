@@ -74,6 +74,42 @@ added, 3 updated, batch b-reqs-parity-001`: this is the write-back
 disposition write-back. `parity` has exactly one writer, this import; the
 phase-status flip at the end of this phase does not touch it.
 
+**A sub-high rubric's queue id is checked by the refs gate, so file it in
+the same pass, before any check that would otherwise name it dangling.**
+UM-003's `moderate` level named `q-parity-um-003-reset-flow`; file it now:
+
+```markdown
+---
+id: q-parity-um-003-reset-flow
+severity: moderate
+status: open
+---
+
+## Evidence
+
+`UM-003` (password reset) has `confidence: inferred`: the source shows a
+link is emailed and that account existence is not leaked, but nothing in
+`AuthController.cs` shows what the token looks like, how long it lives, or
+what happens when it is submitted. There is no fixture that can play back a
+real reset end-to-end, so neither `golden-master` nor `differential` has
+anything to run against.
+
+## Options
+
+(a) Ship a `rubric:low` plan now and revisit once the token-verification
+question resolves. (b) Block parity on this FR until that question
+resolves. (c) Ship `rubric:moderate`: enough is observable (email is sent,
+no account-existence leak) to check by hand, but not enough for an
+executable oracle.
+
+## Recommendation
+
+Recommend (c); `rubric:moderate` matches what is actually known today.
+```
+
+`migrate queue add q-parity-um-003-reset-flow.md` accepts this and prints
+`queue add: q-parity-um-003-reset-flow [moderate]`.
+
 **Show the substitution, because nothing else will.** `{capability}` is the
 capability's own `slug` from `capabilities.jsonl`, already known.
 `{fr_slug}` has no deriving code anywhere in this CLI: it is a short,
@@ -171,9 +207,12 @@ discipline connects them.
 
 `migrate check --phase parity` mid-run reads the same way extract's did:
 noisy on the surfaces this scratch run never enumerated, and quiet on
-everything parity itself owns once every non-queued requirement has a plan
-and every delta is signed. Run for real, right after the delta above was
-signed:
+everything parity itself owns once every non-queued requirement has a plan,
+`q-parity-um-003-reset-flow` is filed (above), and every delta is signed.
+Skip filing that queue item and `refs` reappears here, naming `UM-003` via
+`parity.queue`, the same way `q-legacy-admin-tool` reappears in extract.md's
+own check if that one is skipped. Run for real, right after the delta above
+was signed:
 
 ```
 4/5 mapped, 1 out-of-scope, 0 unaccounted
