@@ -70,10 +70,27 @@ What you read instead:
    is what makes the rest of the run track a non-.NET source honestly
    instead of forcing it through a shape that does not fit.
 
+   Element ids derive from the surface name with a trailing `s` stripped
+   (`tables` -> `table-...`). If a declared surface is already singular but
+   ends in `s` anyway (`status`, stripped naively to `statu-...`), add an
+   entry to `[surfaces.singular]` to override it, for example
+   `status = "status"`. `enumerate.md`'s Inputs section reads this table
+   when it derives ids; probe is the only phase that ever writes
+   `config.toml`, so an override missed here has no later phase to catch it
+   in.
+
    `[target.layout]` and `[target.commands]` have the same property:
    `init` writes them as an empty table and three placeholder `echo`
    commands respectively, and nothing else fills them in. Hand-edit the
    interview answers from step 3 into both before enumerate starts.
+   `target.parity_test_path` is different: `init` already writes a real
+   default, `tests/parity/{capability}/{fr_slug}.test.ts`, not a
+   placeholder, so it needs no edit when the operator's answer matches it.
+   When it does not (a different path convention, a different test file
+   extension), hand-edit `target.parity_test_path` in `[target]` the same
+   way, since nothing else will. Neither `SKILL.md` nor `docs/reference.md`
+   names this field, so this paragraph is its only documented home; the
+   parity phase is what reads it back.
 
 ## What closes it
 
