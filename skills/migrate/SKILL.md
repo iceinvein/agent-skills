@@ -23,8 +23,9 @@ order just produces a violation you undo later.
 ### 0. Probe
 
 Produces `.migrate/config.toml` (detected source stack, `runnable` or
-`source-only` basis, the target profile) and `.migrate/parity-basis.md`, the
-detection evidence as prose.
+`source-only` basis, the target profile), written by `migrate init`, plus
+`.migrate/parity-basis.md`: hand-written prose carrying the detection
+evidence, since no command writes it either.
 
 Read `references/phases/probe.md` before dispatching anything.
 
@@ -51,8 +52,10 @@ migrate phase enumerate --status done
 
 ### 2. Seam
 
-Produces `capabilities.jsonl` (hand-written; there is no import path for it
-yet), `seam.json`, and `seam.md`, the validators' raw evidence.
+Produces `capabilities.jsonl` (the seam partition), `seam.json` (run-level
+seam metadata), and `seam.md` (the validators' raw evidence). All three are
+hand-written: there is no `seam` verb, so nothing in the CLI writes any of
+them.
 
 Read `references/phases/seam.md` before dispatching anything.
 
@@ -71,9 +74,14 @@ Fanout unit: one agent per capability.
 
 ```
 migrate import reqs <batch.json>
+migrate import elements <batch.json>
 migrate census <record.json>
 migrate phase extract --status done
 ```
+
+The second import carries the resolved `disposition` (`mapped` or
+`out-of-scope`); it is the only writer of that field, so this line is the
+ledger write-back itself, not something the phase-status flip does for you.
 
 ### 4. Parity
 
@@ -84,8 +92,12 @@ Read `references/phases/parity.md` before dispatching anything.
 
 ```
 migrate import deltas <batch.json>
+migrate import reqs <batch.json>
 migrate phase parity --status done
 ```
+
+The second import carries the resolved `parity` value; as in extract, it is
+the only writer of that field, and this line is the write-back itself.
 
 ### 5. Queue
 
@@ -152,9 +164,10 @@ progress from before the crash is not lost by retrying it.
 ## Aborting
 
 There is no run directory to delete: the store lives at `.migrate/` inside the
-target repo, checkpointed by a git commit after every batch, so an aborted run
+target repo. `references/run-ops.md` holds the batch-checkpoint discipline (a
+git commit after every `migrate import`); if it was followed, an aborted run
 leaves behind exactly whatever the last commit captured. Leave `.migrate/` in
-place. Discard only uncommitted scratch files, such as a `batch.json` you
-built but never imported. `.migrate/.env`, if a runtime lens created one, is
-already gitignored by `init` and must never be committed regardless of how the
-run ends.
+place either way. Discard only uncommitted scratch files, such as a
+`batch.json` you built but never imported. `.migrate/.env`, if a runtime lens
+created one, is already gitignored by `init` and must never be committed
+regardless of how the run ends.
