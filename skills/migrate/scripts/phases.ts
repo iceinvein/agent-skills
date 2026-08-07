@@ -93,6 +93,7 @@ export async function setPhaseStatus(
   phase: Phase,
   status: PhaseState['status'],
   sourcePath: string,
+  forceUnlock?: boolean,
 ): Promise<void> {
   // Same read-modify-write hazard as recordBatch. The orchestrator is the
   // only expected caller and is serial, but the cost of holding the lock for
@@ -104,6 +105,6 @@ export async function setPhaseStatus(
       phases[phase].status = status
       await savePhases(root, phases, sourcePath)
     },
-    { cmd: 'phase' },
+    { cmd: 'phase', ...(forceUnlock ? { force: true } : {}) },
   )
 }

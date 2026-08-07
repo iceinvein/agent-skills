@@ -68,11 +68,19 @@ export async function runCensus(opts: {
         // subject.
         const rows = existing.filter((r) => censusKey(r) !== key)
         rows.push(result.value)
-        await writeRows(path, rows, cfg.source.path)
-        // A census record is the evidence that a lens closed, so recording it
-        // must leave a batch behind. This is what lets a lens that genuinely
-        // found nothing still prove it ran: the census balances at zero and
-        // the batch is committed.
+        // The batch is committed before the census row is written, not after.
+        // A census record is the evidence that a lens closed, so a census row
+        // on disk with no batch behind it is exactly the defect this
+        // mechanism exists to close. The other order of failure is the safe
+        // one: a batch entry with no census row behind it is inert, since
+        // nothing treats phases.json's batch list as meaningful except as
+        // corroboration for a census row that is also expected to exist. If
+        // one of the two writes below has to be missing when this throws
+        // partway through, it must be the row, not the batch.
+        // isPhase is checked again here, not only above before the lock: the
+        // guard above already proved this true, but TypeScript cannot carry
+        // that narrowing of result.value.phase across the closure boundary,
+        // so the runtime-redundant check satisfies the type checker.
         if (isPhase(result.value.phase)) {
           await recordBatch(
             opts.root,
@@ -81,6 +89,7 @@ export async function runCensus(opts: {
             cfg.source.path,
           )
         }
+        await writeRows(path, rows, cfg.source.path)
       },
       {
         cmd: 'census',

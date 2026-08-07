@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, unlinkSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -65,6 +65,35 @@ test('refuses immediately when the holder pid is not running, naming --force-unl
   })
 })
 
+// Regression: readHolder and alive() are separated by an await boundary, so
+// a holder that finishes, unlinks the lock, and exits in that gap used to
+// make alive() return false for a pid that no longer matters, reported as a
+// stale lock even though the lock was actually free. The alive hook's own
+// side effect stands in for that race deterministically: it removes the lock
+// file at the exact moment withStoreLock asks whether the holder it just read
+// is still alive, so the confirming re-read must see the lock gone and retry
+// rather than concluding pid 4242 is a dead holder.
+test('a holder that releases the lock in the gap between the read and the liveness check is retried, not reported stale', async () => {
+  await writeFile(
+    lockPath(root),
+    JSON.stringify({ pid: 4242, startedAt: '2026-08-07T02:58:03.000Z', cmd: 'import' }),
+  )
+  let calls = 0
+  const result = await withStoreLock(root, async () => 'ran', {
+    cmd: 'import',
+    alive: (pid) => {
+      calls += 1
+      if (pid === 4242) unlinkSync(lockPath(root))
+      return false
+    },
+  })
+  expect(result).toBe('ran')
+  // Called exactly once: the confirming re-read found the lock gone and the
+  // retry went straight to acquiring it, never asking alive() about a second
+  // holder.
+  expect(calls).toBe(1)
+})
+
 test('times out while a live holder keeps the lock, naming the holder', async () => {
   await writeFile(
     lockPath(root),
@@ -111,6 +140,24 @@ test('a lock file that never becomes readable is reported as stale, not waited o
     expect(e).toBeInstanceOf(LockError)
     expect((e as LockError).kind).toBe('stale')
     expect((e as LockError).message).toContain('unreadable')
+  })
+})
+
+// A lock file left empty forever (its creator crashed after the O_EXCL
+// create but before it ever wrote a holder record) must not hang: an empty
+// read is deliberately excluded from UNREADABLE_TOLERANCE (see readHolder),
+// since counting it there is what caused real contention to misreport a
+// live handoff as corruption, so the only remaining backstop is the overall
+// deadline. This confirms that backstop actually fires instead of looping.
+test('a lock file that stays empty forever times out rather than looping', async () => {
+  await writeFile(lockPath(root), '')
+  const attempt = withStoreLock(root, async () => 'unreachable', {
+    cmd: 'import',
+    timeoutMs: 120,
+  })
+  await attempt.catch((e) => {
+    expect(e).toBeInstanceOf(LockError)
+    expect((e as LockError).kind).toBe('timeout')
   })
 })
 

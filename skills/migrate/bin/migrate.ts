@@ -13,7 +13,8 @@ Subcommands:
                                   Validated bulk append to the store
   census <record.json> [--force-unlock]
                                   Record a lens accounting record
-  phase [<name>] [--status <s>]   Print phase state, or set one phase's status
+  phase [<name>] [--status <s>] [--force-unlock]
+                                  Print phase state, or set one phase's status
   queue add <file.md>             Add a queue item
   queue list [--open]             List queue items, severity first
   queue show <id>                 Print one queue item
@@ -123,11 +124,19 @@ const HANDLERS: Record<string, Handler> = {
       return 2
     }
     const name = args[0]?.startsWith('--') ? undefined : args[0]
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('phase: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const forceUnlock = args.includes('--force-unlock')
     const { runPhase } = await import('../scripts/phase-cmd.ts')
     return runPhase({
-      root: process.cwd(),
+      root,
       ...(name ? { name } : {}),
       ...(status.value ? { status: status.value } : {}),
+      ...(forceUnlock ? { forceUnlock: true } : {}),
     })
   },
   queue: async (args) => {

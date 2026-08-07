@@ -26,10 +26,11 @@ export type LockOptions = {
 // than merely busy.
 const DEFAULT_TIMEOUT_MS = 30_000
 
-// A lock file exists for a moment after O_EXCL create and before its holder
-// record is written, so a reader can legitimately observe it empty. Waiting
-// out a handful of consecutive unreadable reads distinguishes that window
-// from a genuinely corrupt lock nobody will ever release.
+// Five consecutive corrupt reads (see readHolder below for what counts as
+// corrupt, as distinct from the merely transient absent state that never
+// reaches this counter at all) is well past what a fluctuating filesystem
+// state could produce by chance, so it means the lock file itself is broken,
+// not merely between holders.
 const UNREADABLE_TOLERANCE = 5
 
 // signal 0 performs the permission and existence checks without delivering
@@ -48,13 +49,36 @@ export function lockPath(root: string): string {
   return `${storePaths(root).dir}/.lock`
 }
 
-async function readHolder(path: string): Promise<LockHolder | null> {
+// A lock file passes through two ordinary transient states that are not
+// evidence of anything wrong: missing (ENOENT, the gap between one holder's
+// unlink and the next one's create) and present-but-empty (the gap between
+// O_EXCL create and the holder record actually being written). Both are
+// reported as 'absent' here and must never spend any of
+// UNREADABLE_TOLERANCE's budget: under real contention with several
+// short-lived holders cycling quickly, a handful of unlucky consecutive
+// polls landing in one gap or the other is ordinary noise, not a stuck lock,
+// and charging it against the same counter a genuinely corrupt file uses
+// produced exactly that false positive. A file that exists, is non-empty,
+// and still fails to parse (or parses to something with no numeric pid) is
+// the only state that means a lock nobody will ever finish writing or
+// clean up, so that is the only state 'corrupt' covers.
+type HolderRead = { status: 'present'; holder: LockHolder } | { status: 'absent' | 'corrupt' }
+
+async function readHolder(path: string): Promise<HolderRead> {
+  let text: string
   try {
-    const parsed = JSON.parse(await readFile(path, 'utf8')) as LockHolder
-    return typeof parsed?.pid === 'number' ? parsed : null
+    text = await readFile(path, 'utf8')
   } catch {
-    return null
+    return { status: 'absent' }
   }
+  if (text.length === 0) return { status: 'absent' }
+  try {
+    const parsed = JSON.parse(text) as LockHolder
+    if (typeof parsed?.pid === 'number') return { status: 'present', holder: parsed }
+  } catch {
+    // falls through to 'corrupt' below
+  }
+  return { status: 'corrupt' }
 }
 
 // Serialises the read-modify-write that `import` and `census` both perform
@@ -102,8 +126,8 @@ export async function withStoreLock<T>(
       }
     }
 
-    const holder = await readHolder(path)
-    if (holder === null) {
+    const read = await readHolder(path)
+    if (read.status === 'corrupt') {
       unreadable += 1
       if (unreadable >= UNREADABLE_TOLERANCE) {
         throw new LockError(
@@ -111,26 +135,52 @@ export async function withStoreLock<T>(
           'stale',
         )
       }
-    } else {
+    } else if (read.status === 'present') {
       unreadable = 0
+      const holder = read.holder
       if (!alive(holder.pid)) {
-        throw new LockError(
-          `store lock held by pid ${holder.pid}, which is not running. Re-run with --force-unlock after confirming no other agent is writing`,
-          'stale',
-        )
-      }
-      if (!announced) {
+        // The holder read above may have already finished, unlinked the lock
+        // and exited by the time this check runs: that is a live release, not
+        // a stale one, and it must not be reported as the holder's pid being
+        // dead. Re-reading before concluding otherwise tells the two apart.
+        // If the file is now gone, or now names a different holder, the lock
+        // was released (or handed off) in the gap between the two reads, and
+        // the right move is to fall through and retry on the next iteration,
+        // not to throw about a holder that no longer holds anything. Only a
+        // second read that still shows the exact same dead pid means the
+        // holder actually exited without releasing.
+        const confirm = await readHolder(path)
+        if (confirm.status === 'present' && confirm.holder.pid === holder.pid) {
+          throw new LockError(
+            `store lock held by pid ${holder.pid}, which is not running. Re-run with --force-unlock after confirming no other agent is writing`,
+            'stale',
+          )
+        }
+      } else if (!announced) {
         opts.onWait?.(
           `waiting for store lock (held by pid ${holder.pid} since ${holder.startedAt})`,
         )
         announced = true
       }
-      if (Date.now() >= deadline) {
-        throw new LockError(
-          `timed out after ${timeoutMs}ms waiting for the store lock held by pid ${holder.pid} since ${holder.startedAt}`,
-          'timeout',
-        )
-      }
+    }
+    // read.status === 'absent' falls straight through to here: see
+    // readHolder's comment for why this must not touch `unreadable`.
+    //
+    // The deadline applies unconditionally, not only while a live holder is
+    // in view: a lock file stuck 'absent' or 'corrupt' for the whole timeout
+    // (its creator crashed after the O_EXCL create but before writing, say)
+    // must still surface as a timeout rather than loop forever, since
+    // neither status alone throws on its own schedule the way a confirmed
+    // dead holder or five straight corrupt reads do. The message names the
+    // holder when one was last seen, and falls back to naming the lock path
+    // when the wait never got that far.
+    if (Date.now() >= deadline) {
+      throw new LockError(
+        read.status === 'present'
+          ? `timed out after ${timeoutMs}ms waiting for the store lock held by pid ${read.holder.pid} since ${read.holder.startedAt}`
+          : `timed out after ${timeoutMs}ms waiting for the store lock at ${path}`,
+        'timeout',
+      )
     }
     await Bun.sleep(delay)
     delay = Math.min(Math.ceil(delay * 1.5), 250)

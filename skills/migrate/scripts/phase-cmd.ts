@@ -1,4 +1,5 @@
 import { loadConfig } from './config.ts'
+import { LockError } from './lock.ts'
 import { isPhase, loadPhases, PHASES, type PhaseState, setPhaseStatus } from './phases.ts'
 
 const STATUSES: readonly PhaseState['status'][] = ['pending', 'running', 'blocked', 'done']
@@ -14,6 +15,7 @@ export async function runPhase(opts: {
   root: string
   name?: string
   status?: string
+  forceUnlock?: boolean
 }): Promise<number> {
   const phases = await loadPhases(opts.root)
   if (!opts.name) {
@@ -36,7 +38,26 @@ export async function runPhase(opts: {
     return 2
   }
   const cfg = await loadConfig(opts.root)
-  await setPhaseStatus(opts.root, name, opts.status as PhaseState['status'], cfg.source.path)
+  try {
+    await setPhaseStatus(
+      opts.root,
+      name,
+      opts.status as PhaseState['status'],
+      cfg.source.path,
+      opts.forceUnlock,
+    )
+  } catch (e) {
+    // A lock failure is neither a bad status value nor an unknown phase: the
+    // request is fine and would succeed on retry, so it gets the same
+    // dedicated exit code census-cmd.ts and import-cmd.ts already use for it
+    // (3), not the generic usage-error code (2) a thrown LockError would
+    // otherwise fall through to in main()'s catch-all.
+    if (e instanceof LockError) {
+      process.stderr.write(`phase: ${e.message}\n`)
+      return 3
+    }
+    throw e
+  }
   process.stdout.write(`phase: ${name} is now ${opts.status}\n`)
   return 0
 }
