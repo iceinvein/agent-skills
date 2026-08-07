@@ -10,22 +10,28 @@ real migration campaign, where this mixing was the norm rather than the
 exception.
 
 Every probe uses `rg` (ripgrep). If it is not installed, `grep -rnE
---include='*.ext' '<pattern>' <path>` finds the same matches, checked against
-the BSD `grep` macOS ships; the one exception is noted where it occurs
-(tables' raw-ADO probe). Replace `<source>` with the checkout root. These are
-starting points, not a fixed script: adapt the glob and the pattern to how a
-real source actually lays things out, and the surface's lens census is what
-decides whether the result is complete, not this file. See
-`references/recipes/README.md` for the contract this file fills in, and
-`references/phases/enumerate.md` for the contract itself.
+--include='*.ext' '<pattern>' <path>` finds the same matches on real BSD
+`grep`; the one place the exact pattern text has to differ between the two
+tools is noted where it occurs (tables' raw-ADO probe). Replace `<source>`
+with the checkout root. These are starting points, not a fixed script:
+adapt the glob and the pattern to how a real source actually lays things
+out, and the surface's lens census is what decides whether the result is
+complete, not this file. See `references/recipes/README.md` for the
+contract this file fills in, and `references/phases/enumerate.md` for the
+contract itself.
 
-Every probe below was run against two throwaway ASP.NET-shaped trees built
-independently of each other (different directory layouts, different C#
-formatting, different edge cases in the same construct) before being written
-down. Where a probe missed something planted in one of those trees, the
-probe was fixed and both trees were re-checked; where it cannot be fixed
-(noted per-direction below), the gap is stated rather than the claim
-weakened around it.
+Every probe below was run against three throwaway ASP.NET-shaped trees
+built independently of each other (different directory layouts, different
+C# formatting, different edge cases in the same construct, including
+partial-class controllers, multi-part and bracket-quoted SQL identifiers,
+and WebForms master pages) before being written down. Where a probe missed
+something planted in one of those trees, or, worse, returned a name that
+did not correspond to a real element, the probe was fixed and every tree
+was re-checked; where a gap cannot be closed (noted per-direction below),
+it is stated rather than the claim weakened around it. Independent review
+against trees built without sight of these fixtures has twice found gaps
+these trees did not exercise; each is folded into the fixes and disclosures
+below rather than only into this file's revision history.
 
 ## routes
 
@@ -41,17 +47,39 @@ weakened around it.
   (`// see [Route] above`), since the probe reads text, not parsed syntax.
   That is a classification-time false positive for the enumerating agent to
   skip, not something the regex can rule out.
-- **Convention routing (code)**: public action methods on a `*Controller.cs`
-  class. A convention-routed action carries no attribute at all, so the
-  registration statement is not a stand-in for it: counting `MapRoute` /
-  `MapHttpRoute` calls instead of actions undercounts by orders of
-  magnitude, because one registration statement can service every
+- **Convention routing (code)**: public action methods on a class whose name
+  contains `Controller`. A convention-routed action carries no attribute at
+  all, so the registration statement is not a stand-in for it: counting
+  `MapRoute` / `MapHttpRoute` calls instead of actions undercounts by orders
+  of magnitude, because one registration statement can service every
   conventionally-routed action in the project. The count this direction
   reports has to be actions, since that is the unit `routes` is counting.
-  Probe: `rg -n -g '*Controller.cs' 'public\s+\S+\s+\w+\s*\(' <source>`
+  The glob is `*Controller*.cs`, not the narrower `*Controller.cs`: a
+  partial class split across `ReportsController.cs` and
+  `ReportsController.Extra.cs` has actions in both files, and the narrower
+  glob never reaches the second one, which undercounts in exactly the way
+  that breaks `total <= sum(directions)` when nothing else is there to mask
+  it.
+  Probe: `rg -n -g '*Controller*.cs' 'public\s+\S+\s+\w+\s*\(' <source>`
   Supporting evidence, not the count: `rg -n -g '*.cs' '\.MapRoute\(|MapHttpRoute\(' <source>`
   confirms a conventional route table is actually registered, which is
   worth knowing even though it does not say how many actions it serves.
+  Known gap, overlap: this probe's matches overlap the attribute-routing
+  direction above, because an attribute-routed action is still a public
+  method in a `*Controller*.cs` file. The two directions are not
+  independent counts of disjoint evidence; they are two ways of finding
+  some of the same actions plus each other's blind spots (attributes this
+  probe cannot see are named here, and conventionally-routed actions the
+  other probe cannot see are named there). Do not sum the two raw counts
+  into `total`: dedupe by action identity (class plus method, or the
+  resolved URL) the same way `enumerate.md`'s merge step already requires
+  whenever two directions both name the same real element, and record the
+  deduped count. Known gap, false positives: the widened glob also matches
+  a file like `UsersControllerTests.cs`, and the pattern itself matches a
+  comment or string shaped like a method signature, the same class of
+  false positive the attribute-routing direction discloses above; both are
+  classification-time calls for the enumerating agent, not something the
+  probe can rule out.
 - **WebForms filesystem**: a `.aspx` page or `.ashx` handler is its own route
   by virtue of existing on disk; there is no registration to grep for.
   Probe: `find <source> -type f \( -name '*.aspx' -o -name '*.ashx' \)`
@@ -71,21 +99,49 @@ weakened around it.
   Probe: `rg -n -g '*.cs' 'DbSet<|\[Table\(' <source>`
 - **Raw ADO command text**: table names embedded in `SqlCommand` /
   `CommandText` strings, for code that never goes through the ORM at all.
-  This resolves a schema-qualified name to the table, not the schema
-  (`UPDATE dbo.Invoices` yields `Invoices`), by capturing the identifier
-  after an optional `schema.` prefix instead of the first word-run after
-  the SQL verb.
-  Probe: `rg -n -o -r '$2' -g '*.cs' '(FROM|INTO|UPDATE)\s+(?:\w+\.)?(\w+)' <source>`
-  Known gap: a table name built by string interpolation or concatenation
-  (`FROM {tableName}`, `FROM " + tbl`) cannot be resolved by any static
-  grep; the identifier a probe would need to report is not in the source
-  text at all. `rg -n -g '*.cs' '(FROM|INTO|UPDATE)\s+\{' <source>` at least
-  flags the call site for a person to trace by hand; it does not name the
-  table, and no probe here can close that gap. The `grep -rE --include`
-  fallback for the resolving probe above also degrades: BSD `grep -o` prints
-  the whole match, schema prefix included, not an isolated capture group, so
-  reading the table name off a schema-qualified hit is manual with the
-  fallback tool.
+  This probe does not extract a name at all: an earlier version stripped the
+  match down to a single capture group (`-o -r '$2'`), and that convenience
+  is what let it fabricate a table name that never existed. A stray `UPDATE`
+  or `FROM` inside a comment (`// ... no FROM/INTO/UPDATE verb in the
+  command`) extracted the next bare word as if it were a real identifier,
+  and a three-part name (`FROM ReportingServer.dbo.Orders`) resolved to the
+  middle qualifier (`dbo`) instead of the table, the same bug Finding 4
+  closed one level down. A fabricated name is worse than a miss: it enters
+  the ledger looking exactly like a real one, and nothing downstream can
+  tell the difference. So this probe prints the whole matched line instead,
+  and a person or agent reads the actual table name out of it rather than
+  trusting an auto-extracted token.
+  Probe: `rg -n -g '*.cs' '(FROM|INTO|UPDATE)\s+((\[[^]]+\]|\w+)\.)*(\[[^]]+\]|\w+)' <source> | grep -Ev '^[^:]+:[0-9]+:[[:space:]]*//'`
+  The pattern itself also had to change to stop under-matching: `\w+` alone
+  cannot start on a bracket, so `UPDATE [dbo].[Invoices]`, the ordinary
+  SQL Server style for tooling-generated code, matched nothing at all
+  before this fix. The alternation `\[[^]]+\]|\w+` accepts either a
+  bracket-quoted segment or a plain identifier for every part of the name,
+  and `(...)*` repeats that for as many dot-separated qualifiers as the
+  source actually has (schema, database, linked server, or more), not just
+  one. The trailing `grep -Ev` drops any hit whose line is a whole-line `//`
+  comment, which is what would have caught the fabrication case above; it
+  only catches a comment that starts the line, not a trailing `// ...`
+  after real code on the same line, which still shows up and still needs a
+  human's judgment.
+  Known gap, precisely: bracket-quoted (`[dbo].[Invoices]`) and plain
+  identifiers are handled, with any number of dot-separated qualifier
+  segments. Double-quoted ANSI identifiers (`"dbo"."Invoices"`) are not.
+  Stored-procedure calls (`SqlCommand("EXEC dbo.RecalculateLeadScore",
+  conn)`, or a `CommandType.StoredProcedure` command with the name set
+  separately) name a procedure, not a table, and carry none of the
+  `SELECT`/`INSERT`/`UPDATE` verb shapes this probe looks for, so they are
+  invisible to it by construction, not by an oversight this probe could
+  close. A table name built by string interpolation or concatenation
+  (`FROM {tableName}`, `FROM " + tbl`) is the same kind of construction gap:
+  the identifier a probe would need to report is not in the source text at
+  all. `rg -n -g '*.cs' '(FROM|INTO|UPDATE)\s+\{' <source>` at least flags
+  that call site for a person to trace by hand; it does not name the table.
+  The `grep -rE --include` fallback for the primary probe above matches
+  identically on real BSD `grep`, with one substitution: BSD grep does not
+  accept `\]` as an escaped literal inside a negated bracket expression
+  (`[^\]]` fails outright), so the class must be written `[^]]`, with the
+  `]` placed first, which both `rg` and BSD `grep` accept the same way.
 
 ## jobs
 
@@ -94,6 +150,12 @@ weakened around it.
   Probe: `rg -n -g '*.cs' 'IJob\b|JobBuilder\.Create|ScheduleJob\(' <source>`
 - **Hangfire**: `RecurringJob` and `BackgroundJob` call sites.
   Probe: `rg -n -g '*.cs' 'RecurringJob\.|BackgroundJob\.' <source>`
+  Known gap: a job registered through DI (`services.AddHangfire(...)`,
+  an injected `IRecurringJobManager`'s `.AddOrUpdate(...)`) never calls the
+  static `RecurringJob`/`BackgroundJob` methods this probe looks for, so it
+  is invisible to a static-call-only probe. A separate probe for
+  `AddHangfire\(|IRecurringJobManager\b` would find the registration site,
+  not the job itself, and this recipe does not attempt that second probe.
 - **OS/config scheduling**: exported Windows Task Scheduler XML, and
   scheduling-flavored `web.config` `appSettings` entries (a cron string, an
   interval key), for jobs that were never wired through a .NET scheduler
@@ -105,13 +167,20 @@ weakened around it.
 - **Definitions on disk**: SSRS `.rdl` and `.rdlc` files.
   Probe: `find <source> -type f \( -name '*.rdl' -o -name '*.rdlc' \)`
 - **Menu and navigation entries**: report links in a site map, a Razor
-  layout, or a nav/menu partial. Scoping to `*.sitemap` alone misses an MVC
-  application's ordinary navigation, which lives in `_Layout.cshtml` or a
-  partial like `_Nav.cshtml`, not a sitemap file; a checkout mixing WebForms
-  and MVC, which this recipe's own preamble says is the common case, needs
-  both globs. These can also name a report the checkout no longer ships an
-  `.rdl` for.
-  Probe: `rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>`
+  layout, a WebForms master page, or a nav/menu partial. Scoping to
+  `*.sitemap` alone misses an MVC application's ordinary navigation, which
+  lives in `_Layout.cshtml`, and misses a WebForms application's, which
+  lives in a `.master` page; a checkout mixing WebForms and MVC, which this
+  recipe's own preamble says is the common case, needs all of these globs,
+  not just the sitemap. These can also name a report the checkout no
+  longer ships an `.rdl` for.
+  Probe: `rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>`
+  Known gap: a menu built entirely from a database table (a `Menus` or
+  `NavigationItems` row set rendered at runtime, with no report name ever
+  written into any file this probe reads) is unreachable by any grep
+  probe, the same class of gap as the string-interpolated table name
+  disclosed under `tables` above: the identifier does not exist in the
+  source text.
 - **Report-builder registrations**: a catalog class or config section that
   maps a report key to its `.rdl` / `.rdlc` path, independent of both
   directions above.
@@ -124,11 +193,19 @@ weakened around it.
   it apart from an actual screen is the enumerating agent's classification
   call, not something a filename pattern can make for it.
   Probe: `find <source> -type f \( -name '*.aspx' -o -name '*.cshtml' \)`
-- **Sitemap/nav registration**: entries in `Web.sitemap`, a Razor layout, or
-  a nav/menu partial. Same scoping gap as the reports direction above: an
-  MVC application's real navigation usually lives in `_Layout.cshtml`, not
-  a sitemap, so a probe scoped to `*.sitemap` alone finds nothing there.
-  Probe: `rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*Nav*.cshtml' -g '*Menu*.cshtml' 'url="~/|Html\.ActionLink\(|Url\.Action\(' <source>`
+- **Sitemap/nav registration**: entries in `Web.sitemap`, a Razor layout, a
+  WebForms master page, or a nav/menu partial. Same scoping gap as the
+  reports direction above, in both dimensions: an MVC application's real
+  navigation usually lives in `_Layout.cshtml`, and a WebForms
+  application's in a `.master` page, neither a sitemap; the content pattern
+  also has to cover a plain WebForms anchor (`href="~/..."`) or server nav
+  control (`NavigateUrl="~/..."`), not only the sitemap's XML `url=`
+  attribute or MVC's `Html.ActionLink`/`Url.Action`, since a `.master` page
+  almost never uses the latter two.
+  Probe: `rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' '(url|href|NavigateUrl)="~/|Html\.ActionLink\(|Url\.Action\(' <source>`
+  Known gap: the same database-driven menu gap disclosed under `reports`
+  above applies here identically, since both directions read the same
+  files for the same reason.
 
 ## integrations
 
