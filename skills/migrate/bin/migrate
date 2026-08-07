@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Resolve symlinks so we find the real migrate.ts even when invoked via
+# a /usr/local/bin or ~/.local/bin symlink.
+SCRIPT="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT" ]; do
+  DIR="$(cd -P "$(dirname "$SCRIPT")" && pwd)"
+  TARGET="$(readlink "$SCRIPT")"
+  if [[ "$TARGET" = /* ]]; then
+    SCRIPT="$TARGET"
+  else
+    SCRIPT="$DIR/$TARGET"
+  fi
+done
+DIR="$(cd -P "$(dirname "$SCRIPT")" && pwd)"
+exec bun "$DIR/migrate.ts" "$@"

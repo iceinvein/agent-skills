@@ -1,0 +1,31 @@
+{
+  "name": "migrate",
+  "version": "0.1.0",
+  "description": "Source-agnostic legacy migration mapping. Enumerates the legacy surface from two independent directions per lens, derives a capability seam empirically, extracts cited functional requirements, plans parity, and routes every ambiguity to a batch decision queue. Coverage arithmetic and citation resolution are enforced by a bundled Bun CLI rather than self-reported. Use when the user asks to migrate, re-specify, or map a legacy system.",
+  "author": "iceinvein",
+  "type": "prompt",
+  "tools": ["claude"],
+  "files": { "prompt": "SKILL.md" },
+  "bundle": {
+    "include": [
+      "bin",
+      "references",
+      "scripts",
+      "templates",
+      "fixtures/tiny-express",
+      "install.sh",
+      "uninstall.sh",
+      "package.json",
+      "README.md"
+    ],
+    "exclude": ["scripts/__tests__/"]
+  },
+  "install": {
+    "claude": {
+      "prompt": ".claude/skills/migrate/SKILL.md",
+      "bundleRoot": ".claude/skills/migrate",
+      "postinstall": "install.sh",
+      "postremove": "uninstall.sh"
+    }
+  }
+}

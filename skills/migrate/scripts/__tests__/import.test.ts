@@ -1,0 +1,155 @@
+import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { writeConfig } from '../config.ts'
+import { runImport } from '../import-cmd.ts'
+import { storePaths } from '../paths.ts'
+import { loadPhases } from '../phases.ts'
+import { readRows } from '../store.ts'
+import type { Element } from '../types.ts'
+
+let root: string
+
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'migrate-import-'))
+  await mkdir(join(root, '.migrate'), { recursive: true })
+  await writeConfig(root, { sourcePath: join(root, 'legacy'), scope: 'all', targetName: 'newapp' })
+})
+
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true })
+})
+
+async function batch(rows: unknown[], phase = 'enumerate', id = 'b-1'): Promise<string> {
+  const path = join(root, 'batch.json')
+  await writeFile(path, JSON.stringify({ batch: id, phase, rows }))
+  return path
+}
+
+const ELEMENT = {
+  id: 'route-get-api-users',
+  surface: 'routes',
+  element: 'GET /api/users',
+  found_by: ['code'],
+  disposition: { kind: 'unaccounted' },
+  refs: [{ kind: 'src', path: 'Controllers/UsersController.cs', lines: [42, 58] }],
+  lens: 'code',
+  notes: '',
+}
+
+test('a valid element batch lands in the store and records the batch', async () => {
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT]) })
+  expect(code).toBe(0)
+  const rows = await readRows<Element>(storePaths(root).elements)
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.batch).toBe('b-1')
+  const phases = await loadPhases(root)
+  expect(phases.enumerate.batches.map((b) => b.id)).toEqual(['b-1'])
+})
+
+test('an element whose id does not match its surface is rejected', async () => {
+  const bad = { ...ELEMENT, id: 'table-users' }
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([bad]) })
+  expect(code).toBe(1)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('an element on an undeclared surface is rejected', async () => {
+  const bad = { ...ELEMENT, id: 'gizmo-a', surface: 'gizmos' }
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([bad]) })
+  expect(code).toBe(1)
+})
+
+test('a batch is all-or-nothing: one bad row writes none', async () => {
+  const bad = { ...ELEMENT, id: 'route-b', found_by: [] }
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT, bad]) })
+  expect(code).toBe(1)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('re-importing the same batch does not duplicate rows', async () => {
+  await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT]) })
+  await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT]) })
+  expect(await readRows(storePaths(root).elements)).toHaveLength(1)
+})
+
+test('a requirement with no citations is rejected', async () => {
+  const req = {
+    id: 'UM-001',
+    cap: 'user-management',
+    requirement: 'User logs in',
+    actors: 'User',
+    objects: 'Credentials',
+    rules: '-',
+    origin: 'intended',
+    confidence: { kind: 'confirmed' },
+    citations: [],
+    parity: { kind: 'rubric', level: 'high' },
+  }
+  const code = await runImport({ root, kind: 'reqs', batchFile: await batch([req], 'extract') })
+  expect(code).toBe(1)
+})
+
+test('a sub-high rubric parity without a queue id is rejected', async () => {
+  const req = {
+    id: 'UM-002',
+    cap: 'user-management',
+    requirement: 'User logs out',
+    actors: 'User',
+    objects: 'Session',
+    rules: '-',
+    origin: 'intended',
+    confidence: { kind: 'confirmed' },
+    citations: [{ kind: 'ledger', id: 'route-get-api-users' }],
+    parity: { kind: 'rubric', level: 'moderate' },
+  }
+  const code = await runImport({ root, kind: 'reqs', batchFile: await batch([req], 'parity') })
+  expect(code).toBe(1)
+})
+
+test('a batch file whose top-level JSON is null is rejected, not thrown', async () => {
+  const path = join(root, 'null-batch.json')
+  await writeFile(path, 'null')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('a duplicate id within one batch is rejected and nothing is written', async () => {
+  const dup = { ...ELEMENT, element: 'GET /api/users, second copy' }
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT, dup]) })
+  expect(code).toBe(1)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('a syntactically malformed batch file is rejected with a clean diagnostic', async () => {
+  const path = join(root, 'malformed.json')
+  await writeFile(path, '{ this is not json')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+test('a batch file that does not exist is rejected with a clean diagnostic', async () => {
+  const path = join(root, 'does-not-exist.json')
+  const code = await runImport({ root, kind: 'elements', batchFile: path })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
+
+// Critical finding 1 (shared with census-cmd.ts and queue-cmd.ts): a store
+// whose configured source.path resolves to include the store's own target
+// path (e.g. source.path pointing at the project root itself, which the
+// store also lives under) must not crash. assertNotUnderSource throws by
+// design (writeRows's own contract, see store.test.ts); import-cmd.ts must
+// catch that throw and report a clean diagnostic with a deliberate exit
+// code instead of letting it escape as an uncaught stack trace. See the
+// report for the full argument for exit code 2 over 1.
+
+test('import refuses to write when the store sits inside its own configured source tree, as a clean usage error (2), not a crash', async () => {
+  await writeConfig(root, { sourcePath: root, scope: 'all', targetName: 'newapp' })
+  const code = await runImport({ root, kind: 'elements', batchFile: await batch([ELEMENT]) })
+  expect(code).toBe(2)
+  expect(await readRows(storePaths(root).elements)).toEqual([])
+})
