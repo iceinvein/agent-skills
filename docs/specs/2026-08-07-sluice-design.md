@@ -67,7 +67,7 @@ skills/sluice/
   references/
     intent.md         ~300 tok   agree on intent, decompose multi-subsystem asks
     visual.md         ~350 tok   show it when showing beats telling (via Artifact)
-    test-first.md     ~380 tok   write the failing test, watch it fail
+    test-first.md     ~400 tok   write the failing test, watch it fail
     root-cause.md     ~360 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
     review.md         ~350 tok   fresh-context review, diff handed over as a file
