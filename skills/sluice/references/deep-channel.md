@@ -12,7 +12,7 @@
   test-first ritual per step; `references/test-first.md` owns it.
 - Include code only where exact text matters: signatures, magic strings,
   test cases, commands. Specify prose deliverables by their claims and
-  budget, not reproduced.
+  budget, not by reproducing them.
 - No placeholders: no TBD, no "similar to Task N", no reference to an
   undefined type or function. Each is a plan failure.
 
@@ -66,12 +66,16 @@ small to earn one. Cap this at three rounds. One still open after three
 is structural: stop and report it.
 
 **A finding surviving two rounds may be a defect in the criterion, not the
-work.** Before a third round, ask whether any output could satisfy it;
-fixing it is your partner's call.
+work.** Before a third round, ask whether any output could satisfy it. A
+criterion that rejects every attempt for the same reason never converges,
+and the work degrades with each round as it contorts toward a test with no
+passing answer. Fixing the criterion is your partner's call.
 
-Never fix findings yourself while coordinating: it burns context the
-remaining tasks need. There are two buckets: fix it now, or record it for
-the final review. No severity grades.
+Never fix findings yourself while coordinating: it skips review entirely
+and burns context the remaining tasks need. There are two buckets: fix it
+now, or record it in the task's `TaskCreate` entry for the final review. A
+reviewer may still describe severity in words; what's banned is a third
+disposition or a formal adjudication step.
 
 The final review covers cross-task integration and anything deferred, not
 lines a per-task review cleared.
