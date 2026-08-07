@@ -16,7 +16,8 @@
       "install.sh",
       "uninstall.sh",
       "package.json",
-      "README.md"
+      "README.md",
+      "docs/reference.md"
     ],
     "exclude": ["scripts/__tests__/"]
   },

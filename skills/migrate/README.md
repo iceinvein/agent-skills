@@ -12,6 +12,17 @@ command, proven end to end against a fixture source. The phase walkthrough
 and the stack recipe packs that drive an actual migration are Milestone 2;
 see `SKILL.md`.
 
+## Documentation
+
+- **[docs/reference.md](docs/reference.md)** is what you need to drive the CLI:
+  the batch-file and census formats with worked examples, the row schemas and
+  their grammars, what each of the nine gates enforces, and the exit-code
+  convention. Ships with the installed skill.
+- **[docs/architecture.md](docs/architecture.md)** is for working on the skill
+  itself: the module map, the rule that decides what belongs in the CLI rather
+  than the prompt, how to add a gate or a surface type, the testing
+  conventions, and the known limits.
+
 ## Store layout
 
 The store lives at `.migrate/` in the target repo and is committed.
