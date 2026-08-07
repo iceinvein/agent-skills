@@ -1,10 +1,15 @@
 import { balanceOf, censusKey, validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
+import { LockError, withStoreLock } from './lock.ts'
 import { assertNotUnderSource, storePaths } from './paths.ts'
 import { readJsonFile, readRows, writeRows } from './store.ts'
 import type { Census } from './types.ts'
 
-export async function runCensus(opts: { root: string; file: string }): Promise<number> {
+export async function runCensus(opts: {
+  root: string
+  file: string
+  forceUnlock?: boolean
+}): Promise<number> {
   const cfg = await loadConfig(opts.root)
   let parsed: unknown
   try {
@@ -45,13 +50,32 @@ export async function runCensus(opts: { root: string; file: string }): Promise<n
     process.stderr.write(`census: ${(e as Error).message}\n`)
     return 2
   }
-  const existing = await readRows<Census>(path)
   const key = censusKey(result.value)
-  // A re-run of the same census subject replaces its record rather than
-  // stacking a second one, so the gate never sees two answers for one subject.
-  const rows = existing.filter((r) => censusKey(r) !== key)
-  rows.push(result.value)
-  await writeRows(path, rows, cfg.source.path)
+  try {
+    await withStoreLock(
+      opts.root,
+      async () => {
+        const existing = await readRows<Census>(path)
+        // A re-run of the same census subject replaces its record rather than
+        // stacking a second one, so the gate never sees two answers for one
+        // subject.
+        const rows = existing.filter((r) => censusKey(r) !== key)
+        rows.push(result.value)
+        await writeRows(path, rows, cfg.source.path)
+      },
+      {
+        cmd: 'census',
+        ...(opts.forceUnlock ? { force: true } : {}),
+        onWait: (m) => process.stderr.write(`census: ${m}\n`),
+      },
+    )
+  } catch (e) {
+    if (e instanceof LockError) {
+      process.stderr.write(`census: ${e.message}\n`)
+      return 3
+    }
+    throw e
+  }
   process.stdout.write(`census: recorded ${key}\n`)
   return 0
 }

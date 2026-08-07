@@ -1,2 +1,5 @@
 node_modules/
 .installed-cli-path
+
+# The store lock is runtime state, never committed.
+.migrate/.lock

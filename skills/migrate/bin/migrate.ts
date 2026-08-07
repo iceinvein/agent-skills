@@ -9,9 +9,10 @@ const USAGE = `Usage: migrate <subcommand> [args]
 Subcommands:
   init --source <path> --scope <text> --name <target>
                                   Write .migrate/config.toml
-  import <elements|reqs|deltas> <batch.json>
+  import <elements|reqs|deltas> <batch.json> [--force-unlock]
                                   Validated bulk append to the store
-  census <record.json>            Record a lens accounting record
+  census <record.json> [--force-unlock]
+                                  Record a lens accounting record
   queue add <file.md>             Add a queue item
   queue list [--open]             List queue items, severity first
   queue show <id>                 Print one queue item
@@ -89,8 +90,14 @@ const HANDLERS: Record<string, Handler> = {
       process.stderr.write('import: no .migrate store found above the cwd\n')
       return 2
     }
+    const forceUnlock = args.includes('--force-unlock')
     const { runImport } = await import('../scripts/import-cmd.ts')
-    return runImport({ root, kind, batchFile: file })
+    return runImport({
+      root,
+      kind,
+      batchFile: file,
+      ...(forceUnlock ? { forceUnlock: true } : {}),
+    })
   },
   census: async (args) => {
     const file = args[0]
@@ -104,8 +111,9 @@ const HANDLERS: Record<string, Handler> = {
       process.stderr.write('census: no .migrate store found above the cwd\n')
       return 2
     }
+    const forceUnlock = args.includes('--force-unlock')
     const { runCensus } = await import('../scripts/census-cmd.ts')
-    return runCensus({ root, file })
+    return runCensus({ root, file, ...(forceUnlock ? { forceUnlock: true } : {}) })
   },
   queue: async (args) => {
     const { findStoreRoot } = await import('../scripts/paths.ts')

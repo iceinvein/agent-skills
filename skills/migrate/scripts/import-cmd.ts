@@ -1,4 +1,5 @@
 import { loadConfig } from './config.ts'
+import { LockError, withStoreLock } from './lock.ts'
 import { assertNotUnderSource, storePaths } from './paths.ts'
 import { isPhase, recordBatch } from './phases.ts'
 import { readJsonFile, readRows, upsertRows, writeRows } from './store.ts'
@@ -13,6 +14,7 @@ export async function runImport(opts: {
   root: string
   kind: ImportKind
   batchFile: string
+  forceUnlock?: boolean
 }): Promise<number> {
   const cfg = await loadConfig(opts.root)
   let raw: unknown
@@ -96,10 +98,41 @@ export async function runImport(opts: {
     return 2
   }
 
-  const existing = await readRows<Element | Requirement | Delta>(target)
-  const merged = upsertRows(existing as { id: string }[], validated)
-  await writeRows(target, merged.rows, cfg.source.path)
-  await recordBatch(opts.root, phase, { id: batchId, count: validated.length }, cfg.source.path)
+  // The read, the upsert, the rewrite, and the batch record are one critical
+  // section. Splitting them lets a second importer read this one's base,
+  // rewrite the file from it, and silently drop every row written in between.
+  let merged: { added: number; updated: number }
+  try {
+    merged = await withStoreLock(
+      opts.root,
+      async () => {
+        const existing = await readRows<Element | Requirement | Delta>(target)
+        const result = upsertRows(existing as { id: string }[], validated)
+        await writeRows(target, result.rows, cfg.source.path)
+        await recordBatch(
+          opts.root,
+          phase,
+          { id: batchId, count: validated.length },
+          cfg.source.path,
+        )
+        return { added: result.added, updated: result.updated }
+      },
+      {
+        cmd: 'import',
+        ...(opts.forceUnlock ? { force: true } : {}),
+        onWait: (m) => process.stderr.write(`import: ${m}\n`),
+      },
+    )
+  } catch (e) {
+    // A lock failure is neither bad batch content (1) nor a malformed request
+    // (2): the request is fine and would succeed on retry, so it gets its own
+    // class a caller can branch on.
+    if (e instanceof LockError) {
+      process.stderr.write(`import: ${e.message}\n`)
+      return 3
+    }
+    throw e
+  }
 
   process.stdout.write(
     `import ${opts.kind}: ${merged.added} added, ${merged.updated} updated, batch ${batchId}\n`,
