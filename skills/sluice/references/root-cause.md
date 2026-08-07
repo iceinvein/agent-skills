@@ -1,34 +1,38 @@
 # Root cause
 
-No fix without investigation first. A patch that treats the symptom
-returns, usually worse.
+This rule is trigger-based, not channel-assigned. A crash, a test that just
+turned red, output nobody can account for: anything the code does that
+nobody intended fires it, in every channel, `bypass` included.
 
-This rule is trigger-based, not channel-assigned: any bug, test failure, or
-unexpected behaviour fires it, in every channel including `bypass`.
+It rules out patching first and understanding later. A change aimed at the
+symptom buys quiet, and the quiet ends: the defect comes back, usually
+worse.
 
-**Understand before touching anything.** Read the error completely, not
-just its first line. Reproduce it reliably. Check what changed recently: a
-commit, a dependency bump. Trace the bad value to where it originates and
-fix it there, not wherever it surfaced; set the broken path next to
-similar working code so every difference stands out, down to the ones
-that look irrelevant, since the one you wave off often matters most.
+**Reproduce it first of all.** A fault you cannot trigger on demand
+is not something you can fix, only guess at. Then read the error to the end,
+stack trace and all; the part you skim is often the part naming the cause.
 
-**One hypothesis, one change.** State it plainly, then test it with the
-smallest change that would confirm or kill it, one variable at a time;
-change two things and a working fix tells you nothing about which one did
-it.
+**Find the origin, not the blast site.** Follow the bad value back to
+whatever produced it and repair it there. Two things shorten the walk: what
+moved recently, a commit or a dependency bump, and a nearby case that works.
+Set the working one beside the broken one and list every way they diverge,
+the ways you are sure do not matter included, since that is usually where it
+hides.
 
-**Prove it, then harden it.** Write the failing test that reproduces the
-bug, make the one change your hypothesis predicts, then verify. Once the
-cause is actually fixed, add validation at the layers that let the bad
-value through, so the next variant fails loudly instead of silently.
+**One hypothesis, written down.** Alter two things at once and a green
+result cannot say which earned it, so state the theory plainly, pick the
+smallest change that would confirm or kill it, and change exactly that.
 
-Three failed fixes points at the design, not your guesswork. Stop and
-raise it instead of trying a fourth.
+**The fix travels with a test that would have caught it.** Write it, see it
+fail, make the single change your hypothesis called for, then run it again.
+With the cause dead, put validation on the layers that let the bad value
+pass, so its next variant trips something loud instead of slipping by.
 
-**Condition-based waiting.** A test that sleeps for a fixed duration will
-flake; poll for the condition it depends on and fail on a timeout.
+Three failed fixes point at the design, not your guesswork. Stop and raise
+it rather than trying a fourth.
+
+A test that waits by sleeping a fixed duration will flake eventually. Poll
+for the condition it is really waiting on and fail on a timeout.
 
 The friction line: "I have seen this exact error before, I know the fix."
-Recognising the pattern skips the step where you check it still applies
-here.
+Recognising the pattern skips the step where you check it still applies here.

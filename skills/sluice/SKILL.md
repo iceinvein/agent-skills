@@ -28,30 +28,32 @@ are examples, not fixed copy, and a channel with a two-part signal should say
 which part applied. `bypass` says nothing at all, because a question that gets
 announced stops being a question.
 
-**`root-cause` and `finish` are not channel-assigned.** A bug, test failure, or
-unexpected behaviour triggers the first, in every channel including `bypass`.
-An integration event, merging, pushing, or opening a PR, triggers the second.
+**`root-cause` and `finish` are not channel-assigned.** The code misbehaving
+triggers the first: a bug report, a red test, behaviour you cannot account
+for. An integration event, merging, pushing, or opening a PR, triggers the
+second. Both fire in every channel, `bypass` included.
 
 ## The rules
 
 One line each. Read the reference only on friction: the moment you notice
-yourself wanting to skip the rule, or arguing that this case is different.
+yourself wanting to skip the rule, or arguing that this one is the exception.
 
 - **Agree intent** before building. One question at a time. Propose approaches
   with a recommendation, not a survey. `main` agrees in a message, `deep` writes
   it down. `references/intent.md`
-- **Test first.** Write the failing test, watch it fail, then the minimal code.
-  Skip the watching and a passing test is just an unchecked guess.
+- **Test first.** The test comes before the code; run it while it should
+  still be failing, then write the least code that turns it green. Skip that
+  watching step and a green result is only an unchecked guess.
   `references/test-first.md`
 - **Root cause** before fix. A fix that only hides the symptom has not fixed
-  anything. Three failed fixes points at the design, not your guesswork.
+  anything. Three failed fixes point at the design, not your guesswork.
   `references/root-cause.md`
-- **Verify** before claiming. Run the command in this turn, read the output,
-  then make the claim. How sure you feel is not something anyone else can
-  check. `references/verify.md`
-- **Review** before merge. Dispatch a reviewer with fresh context and hand it the
-  diff as a file, so it lands in their context and not yours.
-  `references/review.md`
+- **Verify** before claiming. Run the command in this turn and read its
+  output; the claim comes after that, never before. How sure you feel is not
+  something anyone else can check. `references/verify.md`
+- **Review** before merge. Dispatch a reviewer with fresh context and put the
+  diff on disk for it to read, so those bytes fill their context instead of
+  yours. `references/review.md`
 - **Finish** deliberately. Green suite first, then let your partner pick
   merge, PR, or leave it. Never pick for them. `references/finish.md`
 
@@ -74,6 +76,6 @@ two implementers at once, and review is tiered, not automatic.
 
 ## Conflicts
 
-Sluice cannot run alongside the superpowers plugin: superpowers mandates its
-own pipeline before any creative work, and that pipeline overrides this
-router entirely. The two cannot be installed together.
+Sluice cannot run alongside the superpowers plugin. Superpowers puts its own
+fixed pipeline in front of every change to a codebase, and that pipeline
+overrides this router outright, so the two cannot be installed together.
