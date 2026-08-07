@@ -119,14 +119,28 @@ below rather than only into this file's revision history.
   bracket-quoted segment or a plain identifier for every part of the name,
   and `(...)*` repeats that for as many dot-separated qualifiers as the
   source actually has (schema, database, linked server, or more), not just
-  one. The trailing `grep -Ev` drops any hit whose line is a whole-line `//`
-  comment, which is what would have caught the fabrication case above; it
-  only catches a comment that starts the line, not a trailing `// ...`
-  after real code on the same line, which still shows up and still needs a
-  human's judgment.
+  one. The trailing `grep -Ev` drops a line whose first non-space character
+  is `//`, which is what would have caught the fabrication case above, and
+  nothing else: a trailing `// ...` after real code on the same line
+  survives, and so does any `/* ... */` block comment, whether it is a
+  standalone line or a continuation line inside a multi-line block (a line
+  starting with ` * `, the ordinary XML-doc and block-comment continuation
+  style, has no `//` at all and is not touched by this filter). Verified
+  directly: both a one-line `/* ... */` mentioning `UPDATE` and a
+  continuation line reading `* Continuation line mentioning UPDATE
+  dbo.Invoices...` inside a multi-line `/* */` block both pass through
+  unfiltered, each shown as its own real, unmodified line. That does not
+  reopen the fabrication this probe was fixed to close, since the full line
+  is still what is shown, but it is a hit a reader has to recognise as a
+  comment rather than one the pipeline discards for them.
   Known gap, precisely: bracket-quoted (`[dbo].[Invoices]`) and plain
   identifiers are handled, with any number of dot-separated qualifier
   segments. Double-quoted ANSI identifiers (`"dbo"."Invoices"`) are not.
+  SQL-looking text inside an ordinary, verbatim, or interpolated string
+  literal that is not actually a `SqlCommand` argument (a log message, a
+  test fixture string, a piece of sample data) also matches and is shown as
+  a hit; it is an honest line, not a fabricated name, but a reader
+  classifying output will meet it and should expect to.
   Stored-procedure calls (`SqlCommand("EXEC dbo.RecalculateLeadScore",
   conn)`, or a `CommandType.StoredProcedure` command with the name set
   separately) name a procedure, not a table, and carry none of the
@@ -140,8 +154,9 @@ below rather than only into this file's revision history.
   The `grep -rE --include` fallback for the primary probe above matches
   identically on real BSD `grep`, with one substitution: BSD grep does not
   accept `\]` as an escaped literal inside a negated bracket expression
-  (`[^\]]` fails outright), so the class must be written `[^]]`, with the
-  `]` placed first, which both `rg` and BSD `grep` accept the same way.
+  (`[^\]]` silently matches nothing, with no error message), so the class
+  must be written `[^]]`, with the `]` placed first, which both `rg` and BSD
+  `grep` accept the same way.
 
 ## jobs
 
