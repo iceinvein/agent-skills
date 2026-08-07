@@ -20,7 +20,10 @@ announcement is how your human partner redirects you without being asked.
 | `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." |
 | `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
 
-`bypass` says nothing. A question that gets announced at stops being a question.
+Name the channel and the signal that actually routed you there. The strings above
+are examples, not fixed copy, and a channel with a two-part signal should say
+which part applied. `bypass` says nothing at all, because a question that gets
+announced stops being a question.
 
 **`root-cause` is not channel-assigned.** Any bug, test failure, or unexpected
 behaviour triggers it, in every channel including `bypass`.
