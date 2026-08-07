@@ -70,7 +70,7 @@ skills/sluice/
     root-cause.md     ~300 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
     review.md         ~350 tok   fresh-context review, diff handed over as a file
-    deep-channel.md   ~450 tok   plan format and dispatch rules (deep channel only)
+    deep-channel.md   ~650 tok   plan format, dispatch rules, review policy (deep only)
 ```
 
 This matches `skills/magpie/`'s layout in this repo (SKILL.md + `references/`).
@@ -145,9 +145,50 @@ entry point and two warnings, so `fast` and `main` work never pays for it.
 - Model matched to the task: cheap for mechanical work, stronger for judgment.
 - `git diff <base> <head> > <file>`; the reviewer receives the path, never a
   pasted diff. Base is the commit before the task started, never `HEAD~1`.
-- Review before the next task. Findings return to the same agent, capped at
-  three rounds; still open after three is structural and stops the run.
 - The coordinator never fixes findings itself.
+
+### Review is tiered, not automatic
+
+Superpowers' review loop is its most expensive part and the one users report as
+the bottleneck. Measured from the plugin: `task-reviewer-prompt.md` is 1954
+tokens before any diff, `re-review-prompt.md` is 1075, `code-reviewer.md` is
+1303, and each sits on top of a brief, a report, and the full diff. A ten-task
+plan where six tasks need one fix round costs sixteen review dispatches, plus a
+final whole-branch review that re-reads every line the per-task reviews already
+cleared. A review costs roughly what the implementation cost, so reviewing every
+task unconditionally doubles the plan.
+
+Uniform review depth also contradicts sluice's own premise. Channels size
+process to the work; the review loop must do the same.
+
+Spec compliance is free and always performed: the coordinator holds the plan, so
+confirming a task produced its `Produces` entries and touched only its declared
+`Files` is a `git diff --stat` read. Only quality judgment needs a fresh agent.
+
+| Task shape | Review |
+|------------|--------|
+| Only touched files it created, tests pass, matches its Interfaces block | No dispatch; coordinator reads the diff stat |
+| Modified existing code, or later tasks build on it | One reviewer dispatch |
+| Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch, stronger model |
+
+Three further cuts:
+
+- **Small fixes are self-verified.** The coordinator reads the fix diff and
+  confirms the named covering test ran. A scoped re-review is dispatched only
+  when the fix changed logic substantially. Re-review dispatches are most of a
+  loop's cost and most fixes are too small to earn one.
+- **Two buckets for findings**, not three plus adjudication: fix it now, or
+  record it in the task entry and move on. Recorded findings surface at the
+  final review.
+- **The final review is scoped** to cross-task integration and recorded
+  deferrals. It does not re-read lines a per-task review already cleared.
+
+On a ten-task plan this is roughly sixteen dispatches down to five or eight.
+
+**The accepted risk:** a task confined to its own new files ships without fresh
+eyes. A bad internal abstraction inside such a task survives until the final
+review. That is the trade, taken deliberately: the tasks that can compound
+into other tasks are exactly the ones that still get a reviewer.
 
 No ledger file, and none of the `sdd-workspace` / `task-brief` / `review-package`
 scripts. The Task tools cover progress tracking and the Agent tool covers
