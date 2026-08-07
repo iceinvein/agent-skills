@@ -283,7 +283,7 @@ Kept from superpowers' `writing-plans`:
 - **Interfaces block** (consumes / produces, exact signatures) — what makes a
   context-free agent viable
 - The no-placeholders rule
-- A Global Constraints section
+- A Ground Rules section
 
 Dropped: the five boilerplate TDD steps written out per task, full code blocks for
 every step, the "which execution mode?" menu, and the mandatory announce string.
