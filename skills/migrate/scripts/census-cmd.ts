@@ -1,4 +1,4 @@
-import { balanceOf, censusKey, validateCensus } from './census.ts'
+import { balanceOf, boundsOf, censusKey, validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
 import { LockError, withStoreLock } from './lock.ts'
 import { assertNotUnderSource, storePaths } from './paths.ts'
@@ -34,7 +34,7 @@ export async function runCensus(opts: {
   // The record is structurally sound; balance is the one substantive domain
   // claim this task exists to check, so it gets its own exit-code class (1,
   // an operation failure) instead of being folded into shape validation.
-  const imbalance = balanceOf(result.value)
+  const imbalance = balanceOf(result.value) ?? boundsOf(result.value)
   if (imbalance) {
     process.stderr.write(`census: ${imbalance}\n`)
     return 1

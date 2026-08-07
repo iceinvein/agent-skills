@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { balanceOf, validateCensus } from '../census.ts'
+import { balanceOf, boundsOf, validateCensus } from '../census.ts'
 import { runCensus } from '../census-cmd.ts'
 import { writeConfig } from '../config.ts'
 import { storePaths } from '../paths.ts'
@@ -25,7 +25,10 @@ const LENS: Census = {
   kind: 'lens',
   surface: 'tables',
   phase: 'enumerate',
-  directions: { ddl: 43, orm: 40 },
+  directions: {
+    ddl: { count: 43, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+    orm: { count: 40, evidence: 'rg -n "\\[Table\\(" --type cs | wc -l' },
+  },
   total: 45,
   in_ledger: 44,
   added: 1,
@@ -60,7 +63,10 @@ test('attribute balance is explained plus queued equals behavioral', () => {
     surface: 'tables',
     subject: 'table-roster-days',
     phase: 'enumerate',
-    directions: { ddl: 14, entity: 13 },
+    directions: {
+      ddl: { count: 14, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+      entity: { count: 13, evidence: 'rg -n "\\[Table\\(" --type cs | wc -l' },
+    },
     total: 15,
     behavioral: 7,
     explained: 6,
@@ -451,7 +457,10 @@ test('legitimate records still validate for all four kinds', () => {
     surface: 'tables',
     subject: 'table-roster-days',
     phase: 'enumerate',
-    directions: { ddl: 14, entity: 13 },
+    directions: {
+      ddl: { count: 14, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+      entity: { count: 13, evidence: 'rg -n "\\[Table\\(" --type cs | wc -l' },
+    },
     total: 15,
     behavioral: 7,
     explained: 6,
@@ -513,4 +522,119 @@ test('runCensus refuses to write when the store sits inside its own configured s
   await writeFile(file, JSON.stringify(LENS))
   expect(await runCensus({ root, file })).toBe(2)
   expect(await readRows(storePaths(root).census)).toEqual([])
+})
+
+function lens(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    kind: 'lens',
+    surface: 'tables',
+    phase: 'enumerate',
+    directions: {
+      ddl: { count: 43, evidence: 'rg -n "CREATE TABLE" schema.sql | wc -l' },
+      orm: { count: 40, evidence: 'rg -n "\\[Table\\(" --type cs | wc -l' },
+    },
+    total: 45,
+    in_ledger: 45,
+    added: 0,
+    skipped: [],
+    queued: [],
+    batch: 'b-tables-census-001',
+    ...overrides,
+  }
+}
+
+test('a well-formed two-direction record with evidence validates', () => {
+  const result = validateCensus(lens())
+  expect(result.ok).toBe(true)
+})
+
+test('a bare-count direction is rejected with the shape it needs', () => {
+  const result = validateCensus(lens({ directions: { ddl: 43, orm: 40 } }))
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    expect(result.errors.join('\n')).toContain('old bare-count shape')
+    expect(result.errors.join('\n')).toContain('"count": 43')
+  }
+})
+
+test('a direction with an empty evidence string is rejected by name', () => {
+  const result = validateCensus(
+    lens({
+      directions: {
+        ddl: { count: 43, evidence: 'rg CREATE TABLE' },
+        orm: { count: 40, evidence: '   ' },
+      },
+    }),
+  )
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join('\n')).toContain('directions.orm.evidence is required')
+})
+
+test('a single direction is rejected against the lens contract', () => {
+  const result = validateCensus(
+    lens({ directions: { ddl: { count: 45, evidence: 'rg CREATE TABLE' } } }),
+  )
+  expect(result.ok).toBe(false)
+  if (!result.ok) expect(result.errors.join('\n')).toContain('at least two independent directions')
+})
+
+test('total below the largest direction count fails bounds', () => {
+  const result = validateCensus(lens({ total: 40, in_ledger: 40 }))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    const message = boundsOf(result.value)
+    expect(message).toContain('below the largest direction count 43')
+  }
+})
+
+test('total above the sum of direction counts fails bounds', () => {
+  const result = validateCensus(lens({ total: 90, in_ledger: 90 }))
+  expect(result.ok).toBe(true)
+  if (result.ok) {
+    const message = boundsOf(result.value)
+    expect(message).toContain('exceeds the 83 findings')
+  }
+})
+
+test('total exactly at each bound passes', () => {
+  for (const total of [43, 83]) {
+    const result = validateCensus(lens({ total, in_ledger: total }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(boundsOf(result.value)).toBeNull()
+  }
+})
+
+test('bounds apply to attribute records too', () => {
+  const result = validateCensus({
+    kind: 'attribute',
+    surface: 'tables',
+    subject: 'users',
+    phase: 'enumerate',
+    directions: {
+      schema: { count: 12, evidence: 'psql \\d users' },
+      code: { count: 9, evidence: 'rg "users\\." --type cs' },
+    },
+    total: 30,
+    behavioral: 8,
+    explained: 8,
+    queued: [],
+    batch: 'b-users-attr-001',
+  })
+  expect(result.ok).toBe(true)
+  if (result.ok) expect(boundsOf(result.value)).toContain('exceeds the 21 findings')
+})
+
+test('bounds say nothing about kinds that carry no directions', () => {
+  const result = validateCensus({
+    kind: 'closer',
+    closer: 'scope-injection',
+    phase: 'extract',
+    batch: 'b-closer-001',
+    checked: 3,
+    findings: 0,
+    fixed: 0,
+    queued: [],
+  })
+  expect(result.ok).toBe(true)
+  if (result.ok) expect(boundsOf(result.value)).toBeNull()
 })

@@ -57,7 +57,10 @@ const LENS_CENSUS: Census = {
   kind: 'lens',
   surface: 'routes',
   phase: 'enumerate',
-  directions: { code: 1 },
+  directions: {
+    code: { count: 1, evidence: 'rg -n "app.(get|post)" app.js' },
+    nav: { count: 1, evidence: 'manual review of route registrations' },
+  },
   total: 1,
   in_ledger: 1,
   added: 0,
@@ -71,7 +74,10 @@ const ATTR_CENSUS: Census = {
   surface: 'tables',
   subject: 'table-a',
   phase: 'enumerate',
-  directions: { ddl: 3 },
+  directions: {
+    ddl: { count: 3, evidence: 'rg -n "CREATE TABLE" schema.sql' },
+    code: { count: 3, evidence: 'rg -n "table-a" app.js' },
+  },
   total: 3,
   behavioral: 1,
   explained: 1,

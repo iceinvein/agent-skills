@@ -91,7 +91,10 @@ test('a lens census naming an uncommitted batch is named', async () => {
       kind: 'lens',
       surface: 'routes',
       phase: 'enumerate',
-      directions: { code: 0, nav: 0 },
+      directions: {
+        code: { count: 0, evidence: 'rg -n "app.(get|post)" app.js' },
+        nav: { count: 0, evidence: 'manual review of route registrations' },
+      },
       total: 0,
       in_ledger: 0,
       added: 0,

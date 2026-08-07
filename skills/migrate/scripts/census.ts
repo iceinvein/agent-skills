@@ -1,5 +1,5 @@
 import { isValidSlug } from './ids.ts'
-import type { Census, Skipped } from './types.ts'
+import type { Census, Direction, Skipped } from './types.ts'
 import type { Validated } from './validate.ts'
 import { isRecord } from './validate.ts'
 
@@ -61,6 +61,32 @@ export function balanceOf(record: Census): string | null {
   return null
 }
 
+// total is the deduped union of what the directions found. It cannot be
+// smaller than the largest single direction (dedup removes duplicates, never
+// originals), and it cannot exceed their concatenation (dedup can only
+// shrink). Neither bound needs the source, and together they close the two
+// ways a total can be padded arithmetically. total remains unverifiable in
+// principle: nothing on this side of the source can know how many tables the
+// legacy system really has.
+export function boundsOf(record: Census): string | null {
+  if (record.kind !== 'lens' && record.kind !== 'attribute') return null
+  const counts = Object.values(record.directions).map((d) => d.count)
+  if (counts.length === 0) return null
+  const label =
+    record.kind === 'lens'
+      ? `lens census for ${record.surface}`
+      : `attribute census for ${record.subject}`
+  const max = Math.max(...counts)
+  const sum = counts.reduce((a, b) => a + b, 0)
+  if (record.total < max) {
+    return `${label}: total ${record.total} is below the largest direction count ${max}; a deduped union cannot be smaller than one of its inputs`
+  }
+  if (record.total > sum) {
+    return `${label}: total ${record.total} exceeds the ${sum} findings its directions reported; a deduped union cannot exceed their concatenation`
+  }
+  return null
+}
+
 export function validateCensus(row: unknown): Validated<Census> {
   // A row must be a JSON object with a recognized kind before any field is
   // dereferenced. A null, a string, a number or an array must be rejected
@@ -86,6 +112,51 @@ export function validateCensus(row: unknown): Validated<Census> {
       return ''
     }
     return v
+  }
+  // The lens contract requires at least two independent directions, and the
+  // count each one produced is only auditable if the record also says how it
+  // was produced. Both are checked here rather than left to the phase manual,
+  // because a discipline the tool can enforce should not be a discipline the
+  // agent maintains.
+  const directionsMap = (k: string): Record<string, Direction> => {
+    const v = r[k]
+    if (!isRecord(v)) {
+      errors.push(`${k} must be an object mapping each direction name to {count, evidence}`)
+      return {}
+    }
+    const out: Record<string, Direction> = {}
+    for (const [name, raw] of Object.entries(v)) {
+      if (typeof raw === 'number') {
+        errors.push(
+          `${k}.${name} uses the old bare-count shape; write {"count": ${raw}, "evidence": "<the command or method that produced this count>"}`,
+        )
+        continue
+      }
+      if (!isRecord(raw)) {
+        errors.push(`${k}.${name} must be an object with count and evidence`)
+        continue
+      }
+      const count = raw.count
+      const evidence = raw.evidence
+      let valid = true
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+        errors.push(`${k}.${name}.count must be a non-negative integer`)
+        valid = false
+      }
+      if (typeof evidence !== 'string' || evidence.trim().length === 0) {
+        errors.push(
+          `${k}.${name}.evidence is required: name the command or method that produced this count`,
+        )
+        valid = false
+      }
+      if (valid) out[name] = { count: count as number, evidence: evidence as string }
+    }
+    if (Object.keys(v).length < 2) {
+      errors.push(
+        `${k} needs at least two independent directions; the lens contract does not admit a single-direction enumeration`,
+      )
+    }
+    return out
   }
   // Every queued entry must be a well-formed queue id, not merely a
   // non-empty string: a bare id-shaped check let a duplicate survive under a
@@ -176,6 +247,7 @@ export function validateCensus(row: unknown): Validated<Census> {
     num('total')
     num('in_ledger')
     num('added')
+    directionsMap('directions')
     const skipped = skippedList('skipped')
     const queued = queuedList('queued')
     // queued ids and skipped element names are different namespaces (a
@@ -201,6 +273,7 @@ export function validateCensus(row: unknown): Validated<Census> {
     num('total')
     num('behavioral')
     num('explained')
+    directionsMap('directions')
     queuedList('queued')
   } else if (kind === 'rule-sweep') {
     text('subject')

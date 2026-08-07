@@ -67,12 +67,19 @@ export type Delta = {
 
 export type Skipped = { element: string; reason: string }
 
+// A direction records both how many findings it produced and how that count
+// was produced. The evidence is free text because some directions are
+// judgment walks rather than commands, so the gate is presence, not
+// executability; the field exists so a reviewer can retrace a count, and so a
+// later re-run verb has somewhere to read the command from.
+export type Direction = { count: number; evidence: string }
+
 export type Census =
   | {
       kind: 'lens'
       surface: string
       phase: string
-      directions: Record<string, number>
+      directions: Record<string, Direction>
       total: number
       in_ledger: number
       added: number
@@ -85,7 +92,7 @@ export type Census =
       surface: string
       subject: string
       phase: string
-      directions: Record<string, number>
+      directions: Record<string, Direction>
       total: number
       behavioral: number
       explained: number

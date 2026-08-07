@@ -106,7 +106,10 @@ test('init, import, census, check, report over the fixture source', async () => 
       kind: 'lens',
       surface: 'routes',
       phase: 'enumerate',
-      directions: { code: 2 },
+      directions: {
+        code: { count: 2, evidence: 'rg -n "app.(get|post)" app.js' },
+        nav: { count: 2, evidence: 'manual review of app.js route registrations' },
+      },
       total: 2,
       in_ledger: 2,
       added: 0,
@@ -118,7 +121,10 @@ test('init, import, census, check, report over the fixture source', async () => 
       kind: 'lens',
       surface: 'tables',
       phase: 'enumerate',
-      directions: { ddl: 1 },
+      directions: {
+        ddl: { count: 1, evidence: 'rg -n "CREATE TABLE" schema.sql' },
+        code: { count: 1, evidence: 'rg -n "users" app.js' },
+      },
       total: 1,
       in_ledger: 1,
       added: 0,

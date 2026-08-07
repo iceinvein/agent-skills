@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { balanceOf } from './census.ts'
+import { balanceOf, boundsOf } from './census.ts'
 import { resolveCitations } from './citations.ts'
 import { loadConfig } from './config.ts'
 import { scanLeaks } from './leaks.ts'
@@ -79,6 +79,8 @@ export async function runCheck(opts: {
   for (const record of census) {
     const imbalance = balanceOf(record)
     if (imbalance) violations.push({ gate: 'census', message: imbalance })
+    const outOfBounds = boundsOf(record)
+    if (outOfBounds) violations.push({ gate: 'census', message: outOfBounds })
     if (record.kind === 'lens') {
       surfacesWithCensus.add(record.surface)
       // balanceOf only checks that the record's own numbers add up

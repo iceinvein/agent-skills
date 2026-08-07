@@ -67,7 +67,10 @@ function lensCensus(surface: string, total: number, inLedger: number): Census {
     kind: 'lens',
     surface,
     phase: 'enumerate',
-    directions: { code: total },
+    directions: {
+      code: { count: total, evidence: `rg -n "${surface}" app.js | wc -l` },
+      nav: { count: total, evidence: 'manual review of route registrations' },
+    },
     total,
     in_ledger: inLedger,
     added: 0,

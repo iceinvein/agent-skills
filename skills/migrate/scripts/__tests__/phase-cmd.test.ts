@@ -87,7 +87,10 @@ test('recording a census commits its batch under the record phase', async () => 
       kind: 'lens',
       surface: 'routes',
       phase: 'enumerate',
-      directions: { code: 2, nav: 2 },
+      directions: {
+        code: { count: 2, evidence: 'rg -n "app.(get|post)" app.js' },
+        nav: { count: 2, evidence: 'read views/index.html link targets' },
+      },
       total: 2,
       in_ledger: 0,
       added: 2,
