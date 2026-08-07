@@ -9,7 +9,7 @@ A skill that routes work by change shape into four channels, each mandating only
 the rules that channel needs. It replaces the superpowers plugin's single
 mandatory pipeline, which charges every task the cost of the largest task.
 
-Target: ~20 tokens always-on, ~600 tokens on invoke, no forced user round-trips
+Target: ~20 tokens always-on, ~785 tokens on invoke, no forced user round-trips
 below the deep channel.
 
 ## Name
@@ -57,12 +57,12 @@ are all short. Everything else is scaffolding around them.
 
 ## Architecture
 
-One skill directory. The router is the SKILL.md; the five rules and the plan
-template are reference files loaded on demand.
+One skill directory. The router is the SKILL.md; the five rules, the plan format
+and the dispatch rules are reference files loaded on demand.
 
 ```
 skills/sluice/
-  SKILL.md            ~600 tok   router: channel table, one-line rules, deep-channel exec
+  SKILL.md            ~785 tok   router: channel table, one-line rules, deep-channel entry
   skill.json                     manifest + claudeHookDirective
   references/
     intent.md         ~250 tok   agree on intent before building
@@ -70,7 +70,7 @@ skills/sluice/
     root-cause.md     ~300 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
     review.md         ~350 tok   fresh-context review, diff handed over as a file
-    plan-template.md  ~250 tok   plan artifact shape (deep channel only)
+    deep-channel.md   ~450 tok   plan format and dispatch rules (deep channel only)
 ```
 
 This matches `skills/magpie/`'s layout in this repo (SKILL.md + `references/`).
@@ -86,14 +86,20 @@ This is what makes the fast channel cheap. Most fast-channel work reads the rout
 and nothing else. It also isolates the expensive, repetitive content to the moment
 it is needed, rather than paying for it on every invocation.
 
+The same principle governs the deep channel: its plan format and dispatch rules
+sit in `references/deep-channel.md`, not the router, because `fast` and `main`
+work would otherwise pay for orchestration it never performs. An earlier draft
+inlined them and pushed the router to ~1190 tokens, which is what surfaced the
+rule.
+
 ### Channel table
 
 | Channel | Signal | Rules | Announce | Typical cost |
 |---------|--------|-------|----------|--------------|
 | `bypass` | No code change | none — just answer | nothing | ~15 tok |
-| `fast` | Existing interfaces, one subsystem | test-first, verify | "Fast channel. Test first, then implement." | ~600 tok |
-| `main` | New interface, or crosses subsystems | + agree intent, review before merge | "Main channel — new interface. Agreeing the shape first." | ~600 tok |
-| `deep` | Several subsystems, or user asks for a plan | + written design and plan | "Deep channel — several subsystems. Design before code." | ~600 tok + refs on friction |
+| `fast` | Existing interfaces, one subsystem | test-first, verify | "Fast channel. Test first, then implement." | ~785 tok |
+| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." | ~785 tok |
+| `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." | ~785 tok + refs on friction |
 
 `bypass` announces nothing. Silence is what keeps a question a question — it fixes
 a specific superpowers failure, whose `using-superpowers` rationalization table
@@ -127,15 +133,31 @@ the moment it must decide.
 
 ### Deep-channel execution
 
-Replaces `subagent-driven-development` (7.0k) with roughly 150 tokens:
+Replaces `subagent-driven-development` (7.0k) with roughly 250 tokens, living in
+`references/deep-channel.md` rather than the router. The router carries only the
+entry point and two warnings, so `fast` and `main` work never pays for it.
 
-- One `TaskCreate` entry per task.
+- One `TaskCreate` entry per task, marked in progress and complete as you go.
 - Fresh `Agent` per task, given the task text rather than session history.
-- `git diff > file`; the reviewer receives the path, never a pasted diff.
-- Review before starting the next task.
+- Never two implementers at once. They collide in the same files, and this
+  harness actively encourages batching parallel agent calls, so the rule has to
+  be stated rather than assumed.
+- Model matched to the task: cheap for mechanical work, stronger for judgment.
+- `git diff <base> <head> > <file>`; the reviewer receives the path, never a
+  pasted diff. Base is the commit before the task started, never `HEAD~1`.
+- Review before the next task. Findings return to the same agent, capped at
+  three rounds; still open after three is structural and stops the run.
+- The coordinator never fixes findings itself.
 
 No ledger file, and none of the `sdd-workspace` / `task-brief` / `review-package`
-scripts. The Task tools cover progress tracking and the Agent tool covers dispatch.
+scripts. The Task tools cover progress tracking and the Agent tool covers
+dispatch.
+
+**One unverified assumption:** dropping the ledger assumes `TaskCreate` state is
+harness-managed and survives context compaction, unlike conversation content.
+Superpowers calls losing track after compaction "the single most expensive
+failure observed", so if the assumption is wrong the deep channel needs a durable
+progress record. Verified during implementation, not before.
 
 ### Document locations
 
@@ -196,10 +218,11 @@ eval-tuned phrasing, which is accepted deliberately.
    over the diff as a file so it lands in the reviewer's context and not the
    coordinator's.
 
-## The plan template
+## The deep-channel reference
 
-`references/plan-template.md` is an artifact shape, not a sixth rule, which is why
-it sits outside the five. It is read only when the deep channel reaches planning.
+`references/deep-channel.md` holds the plan format and the dispatch rules. Both
+are artifact and procedure rather than behavioural rules, which is why they sit
+outside the five. Read only when the deep channel starts.
 
 It is load-bearing rather than decorative: deep-channel execution dispatches a
 fresh `Agent` per task with the task text and no session history, and an agent
@@ -249,7 +272,7 @@ every step, the "which execution mode?" menu, and the mandatory announce string.
    round-trips and no written documents.
 2. A multi-subsystem request still produces a design and a plan before code.
 3. Always-on session cost is under 50 tokens.
-4. Fast-channel invocation cost is under 800 tokens.
+4. Fast-channel invocation cost is under 900 tokens.
 5. `bun run skill:audit` passes clean.
 6. The agent states its channel on every code-changing request, stays silent on
    `bypass`, and re-states when escalating.
