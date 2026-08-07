@@ -70,7 +70,7 @@ skills/sluice/
     test-first.md     ~400 tok   write the failing test, watch it fail
     root-cause.md     ~360 tok   root cause before fix; 3 fixes = architecture
     verify.md         ~250 tok   evidence before completion claims
-    review.md         ~350 tok   fresh-context review, diff handed over as a file
+    review.md         ~380 tok   fresh-context review, diff handed over as a file
     finish.md         ~300 tok   green suite, then the human picks the ending
     deep-channel.md   ~750 tok   plan format, dispatch rules, review policy (deep only)
 ```
