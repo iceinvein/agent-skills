@@ -6,8 +6,8 @@
   rules are the limits the whole plan answers to, each recorded at its literal
   value, and each one binds every task without being repeated in it.
 - No implementer sees a neighbouring task, so each task carries a
-  **Contract**: a symbol absent from it does not exist for whoever builds
-  the task. Not optional. `Needs` names what this task calls but another
+  **Contract**, not optional: a symbol absent from it does not exist for
+  whoever builds the task. `Needs` names what this task calls but another
   task defines; `Offers` names what later tasks will call. Both sides are
   spelled out whole, argument lists and return shapes.
 - A **Touches** line lists the exact paths the task creates, edits and tests.
@@ -87,7 +87,8 @@ patch as the one nobody reviewed, bought with context the later tasks are
 going to need. A finding has two destinations: fixed now by the agent that
 wrote it, or recorded in the task's `TaskCreate` entry for the final review.
 A reviewer may describe severity in words; a third disposition is not
-available, and neither is any step for adjudicating findings into one.
+available, and neither is a step that adjudicates findings and sorts them
+into one.
 
 The final review covers cross-task integration and anything deferred, not
 lines a per-task review cleared.

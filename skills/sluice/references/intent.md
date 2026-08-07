@@ -21,8 +21,8 @@ Scale with channel. `main` agrees in one message and writes nothing. `deep`
 writes the design and gets sign-off before code. `fast` and `bypass` never
 reach this rule.
 
-Some questions need a picture rather than a paragraph;
-`references/show-or-say.md` owns those. Do not restate it here.
+Some questions are better shown than told; `references/show-or-say.md`
+decides which. Do not restate it here.
 
 The friction line: "I already know what they want." You know the goal,
 not the constraints, and the shape in your head rarely matches theirs. One

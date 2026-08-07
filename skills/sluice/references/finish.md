@@ -16,7 +16,7 @@ costs far more than asking would have.
 With the suite green and the base confirmed, put exactly three options to
 your partner: merge it locally, push it and open a PR, or leave the branch
 as it stands. Those three exhaust what you may offer. Your partner may still
-ask for something off the list, scrapping the branch above all, but the
+ask for something off the list, most notably scrapping the branch, but the
 request has to originate with them and be unmistakable. Then stop. Which of
 the three it is belongs to them, however obvious the choice looks from where
 you are standing, so nothing moves until they say.
