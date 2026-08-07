@@ -25,8 +25,9 @@ are examples, not fixed copy, and a channel with a two-part signal should say
 which part applied. `bypass` says nothing at all, because a question that gets
 announced stops being a question.
 
-**`root-cause` is not channel-assigned.** Any bug, test failure, or unexpected
-behaviour triggers it, in every channel including `bypass`.
+**`root-cause` and `finish` are not channel-assigned.** A bug, test failure, or
+unexpected behaviour triggers the first, in every channel including `bypass`.
+Work that is finished and ready to integrate triggers the second.
 
 ## The rules
 

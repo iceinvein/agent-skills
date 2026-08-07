@@ -1,5 +1,8 @@
 # Finish
 
+`finish` is not channel-assigned. It fires whenever work is finished and
+ready to integrate, in every channel.
+
 Run the project's full suite before anything else. A red suite stops here;
 there is no menu after a failure. A green run from earlier in the session
 does not count, because it only proves the tree it ran on then.

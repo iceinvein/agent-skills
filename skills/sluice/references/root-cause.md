@@ -3,7 +3,7 @@
 No fix without investigation first. A patch that treats the symptom
 returns, usually worse.
 
-This rule is trigger-based, not channel-scoped: any bug, test failure, or
+This rule is trigger-based, not channel-assigned: any bug, test failure, or
 unexpected behaviour fires it, in every channel including `bypass`.
 
 **Investigate.** Read the error completely, not just its first line.
