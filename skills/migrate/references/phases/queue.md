@@ -41,7 +41,8 @@ order, case-sensitive and line-anchored (`## Evidence`, `## Options`,
 and empty are reported as distinguishable errors, not folded into one
 generic complaint, so the fix is obvious from the message alone.
 
-A worked example, run against a real store, built on `templates/queue-item.md`:
+A worked example, the same file extract.md filed (built, in turn, on
+`templates/queue-item.md`), run against a real store:
 
 ```markdown
 ---
@@ -55,13 +56,16 @@ status: open
 `read-write-symmetry` checked every write path against a matching read
 path. `ResetPassword` writes a reset token via `GenerateResetToken` and
 emails it, but no controller in the source reads or verifies a submitted
-token: there is no `POST /api/password-reset/confirm` or equivalent.
+token: there is no `POST /api/password-reset/confirm` or equivalent. Either
+the verification endpoint exists somewhere this pass did not look, or reset
+tokens are issued and never checked.
 
 ## Options
 
-(a) Widen the search before concluding it is missing. (b) Treat it as a
-real gap and flag it for the target to fix, not replicate. (c) Ask the
-operator directly whether reset ever worked end-to-end in production.
+(a) Widen the search (other controllers, an area folder, a separate
+service) before concluding it is missing. (b) Treat it as a real gap and
+flag it for the target to fix, not replicate. (c) Ask the operator directly
+whether reset ever worked end-to-end in production.
 
 ## Recommendation
 
@@ -112,8 +116,8 @@ that one pass through the whole list is actually plausible; a queue item
 that takes a page to explain a one-line decision has failed its own point
 just as much as one with no evidence at all.
 
-A worked example, run against a real store with five items filed across
-extract.md and parity.md's examples:
+A worked example: `migrate queue list`, run against a real store with five
+items filed across extract.md and parity.md's examples, prints:
 
 ```
 q-reset-token-verify-missing	critical	open
@@ -141,28 +145,31 @@ is `queued`; `disposition.queue` on an element whose `disposition.kind` is
 anything else, because the obvious-sounding generalization is wrong: a
 census record's own `queued` array (on a `lens`, `attribute`, `rule-sweep`,
 or `closer` record) is never cross-checked against a real queue file by any
-gate. Verified directly, run against a real store: a store carrying
-attribute, rule-sweep, and closer records whose `queued` arrays name ids
-with no file behind any of them still passes `migrate check` with zero
-`refs` violations for those ids. Filing the file anyway is still this
+gate. Verified on a disposable copy of the store, taken before extract.md's
+own queue items were filed: a census record whose `queued` array names an
+id with no file behind it still passes `migrate check` with zero `refs`
+violations for that id, on that copy. Filing the file anyway is still this
 manual's discipline, exactly as extract.md says, even though nothing
 downstream will ever catch you if you skip it there.
 
-A worked example of what the gate does check, run against a real store: a
-requirement with `confidence: {"kind": "queued", "queue":
-"q-bulk-import-scope"}` and no such file on disk yet.
+A worked example of what the gate does check, run on a disposable copy so
+the extra requirement and queue item below never enter the running example
+(which by this point already has all five of its own items filed and would
+otherwise read as six): a requirement with `confidence: {"kind": "queued",
+"queue": "q-bulk-import-scope"}` and no such file on disk yet.
 
 ```
 refs:
     UM-005 references queue item q-bulk-import-scope via confidence.queue, which does not exist
 ```
 
-`migrate queue add q-bulk-import-scope.md` files the missing item; the very
-next `migrate check` no longer names it, with no other change to the store.
-The message names which field the reference came from
-(`disposition.queue`, `confidence.queue`, or `parity.queue`) precisely so
-that one requirement dangling from two different fields at once reads as
-two separate things to fix, not one ambiguous-looking duplicate.
+`migrate queue add q-bulk-import-scope.md`, on that same disposable copy,
+files the missing item; the very next `migrate check` no longer names it,
+with no other change to that copy. The message names which field the
+reference came from (`disposition.queue`, `confidence.queue`, or
+`parity.queue`) precisely so that one requirement dangling from two
+different fields at once reads as two separate things to fix, not one
+ambiguous-looking duplicate.
 
 ## What closes it
 

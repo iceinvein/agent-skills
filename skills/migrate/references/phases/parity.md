@@ -118,8 +118,10 @@ kebab-case name you choose by hand for what the requirement actually is
 the test tree nothing). This is hand work the same way writing
 `capabilities.jsonl` itself is hand work in seam.md: nothing imports a
 parity plan's `ref` against the template, checks that it resolves to a real
-file, or even checks that it looks like the template at all. Verified
-directly, run against a real store: a `golden-master` row with
+file, or even checks that it looks like the template at all. Verified on a
+disposable copy of the store, not the running example (overwriting UM-001's
+real plan here just to prove this point would only recreate the exact kind
+of drift this manual exists to prevent): a `golden-master` row with
 `"ref": "this/path/does/not/exist/anywhere.test.ts"`, matching neither the
 template nor any real file, imports cleanly and passes `migrate check`
 without a single violation. The convention is entirely this manual's
@@ -155,7 +157,8 @@ differs for reasons that have nothing to do with correctness.
 `migrate import deltas batch.json` accepts this (`owner_signed: null` is a
 valid value while a delta is proposed but not yet ratified) and prints
 `import deltas: 1 added, 0 updated, batch b-deltas-001`. Unsigned, it fails
-its own gate, run for real:
+its own gate; `migrate check --phase parity`, run for real right now,
+reports:
 
 ```
 deltas:
@@ -190,10 +193,16 @@ value; a `queued` requirement is exempt.** The exemption exists because a
 queued requirement's entire content, not just its oracle, is still
 provisional: assigning it a parity plan before an owner has even confirmed
 the requirement is real would be planning a test for something that might
-not exist. Verified directly: a requirement with `confidence: {kind:
-queued, ...}` and `parity: null` produces no `parity` gate violation,
-run against a real store; the same row with `confidence: confirmed` and
-`parity: null` produces exactly one, naming the requirement's id.
+not exist. Verified on a disposable copy of the store, using an extra
+requirement never added to the running example: a requirement with
+`confidence: {kind: queued, ...}` and `parity: null` produces no `parity`
+gate violation; the same row with `confidence: confirmed` and
+`parity: null` produces exactly one, naming the requirement's id. The
+running example already shows this in the other direction, without needing
+a separate copy: extract.md's own "What closes it" transcript names
+`UM-001`, `UM-002`, and `UM-003` under `parity`, one line each, at the point
+where all three are `confirmed` or `inferred` (never `queued`) and none yet
+has a plan.
 
 **The honest limit: a parity plan on record is a commitment, not a proof.**
 `check`'s parity gate is satisfied once `parity` is a well-formed value; it

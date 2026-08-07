@@ -147,8 +147,9 @@ breaking one. `citations` runs by default (`--no-citations` opts out) and
 resolves every `src` citation against the read-only source checkout,
 line ranges included.
 
-A worked failure, run against a real store: a requirement citing a
-controller that was never part of the checkout.
+A worked failure, run on a disposable copy of the store so this defective
+row never enters the running example: a requirement citing a controller
+that was never part of the checkout.
 
 ```json
 { "kind": "src", "path": "Controllers/SessionController.cs", "lines": [10, 20] }
@@ -193,9 +194,11 @@ carried out of scope:
 ]
 ```
 
-(again, the `rows` array; the other three rows in the real batch, for
-`route-get-api-users`, `route-post-api-password-reset`, and `table-users`,
-are the same shape and are omitted here for space.)
+(again, the `rows` array; the other three rows in the real batch are the
+same shape and are omitted here for space: `route-get-api-users` mapped to
+`UM-002`, `route-post-api-password-reset` mapped to `UM-003`, and
+`table-users` mapped to `UM-001`, the table backing the credentials check
+UM-001 describes.)
 
 `migrate import elements batch.json` accepts the full batch and prints
 `import elements: 0 added, 5 updated, batch b-elements-disposition-001`
@@ -407,8 +410,9 @@ exists, and only the operator can say which one is true today.
 
 **The honest limit: nothing checks that every attribute-bearing element
 actually got an attribute census, or that every capability actually got a
-rule-sweep.** Verified directly: a store with both records stripped out of
-`census.jsonl` still passes `migrate check` clean, because gate 2 only
+rule-sweep.** Verified on a disposable copy of the store: stripping both
+kinds of record out of `census.jsonl` there still passes `migrate check`
+clean, because gate 2 only
 tracks completeness for `lens` (against `[surfaces].types`) and `closer`
 (against `[closers].set`); `attribute` and `rule-sweep` records are
 balance-checked when present but never counted against any declared list.
@@ -443,9 +447,58 @@ The default three, and what each looks for:
   verification endpoint exists somewhere this pass did not look), because
   the alternative is a defect nobody ever went looking for.
 
-A worked example, run against a real store: `ResetPassword` writes a reset
-token and emails it, but no controller in the checkout reads or verifies a
-submitted token.
+Three worked examples, run against the same real store, one per closer,
+each closing on the shape its own finding actually took: no finding at
+all, a finding fixed on the spot, and a finding that needed the queue.
+
+**cross-capability-workflow finds nothing here, and that is a real,
+closeable answer, not a skip.** This run has exactly one capability
+(`user-management`), so no workflow inside it can possibly cross into a
+second one; a closer whose whole job is catching a cross-capability seam
+correctly reports zero findings on a single-capability run, checked or not.
+
+```json
+{
+  "kind": "closer",
+  "closer": "cross-capability-workflow",
+  "phase": "extract",
+  "checked": 2,
+  "findings": 0,
+  "fixed": 0,
+  "queued": [],
+  "batch": "b-closer-cross-capability-001"
+}
+```
+
+`migrate census closer-cross-capability.json` accepts this and prints
+`census: recorded closer:cross-capability-workflow`.
+
+**scope-injection catches a finding and fixes it on the spot, no queue
+needed.** A draft of UM-003 originally asserted that the reset token
+expires after 15 minutes; nothing in `AuthController.cs` shows any
+expiry logic at all, so the closer flagged the claim and the sentence was
+trimmed out of the requirement before it was ever imported. `fixed` records
+exactly this: a finding this pass could resolve itself, without an owner.
+
+```json
+{
+  "kind": "closer",
+  "closer": "scope-injection",
+  "phase": "extract",
+  "checked": 3,
+  "findings": 1,
+  "fixed": 1,
+  "queued": [],
+  "batch": "b-closer-scope-injection-001"
+}
+```
+
+`migrate census closer-scope-injection.json` accepts this and prints
+`census: recorded closer:scope-injection`.
+
+**read-write-symmetry finds something it cannot resolve itself, so it goes
+to the queue.** `ResetPassword` writes a reset token and emails it, but no
+controller in the checkout reads or verifies a submitted token.
 
 ```json
 {
@@ -504,8 +557,9 @@ or evidence this pass has not looked far enough yet.
 prints `queue add: q-reset-token-verify-missing [critical]` (queue.md's
 own worked grammar example is built on this exact file).
 
-A declared closer with no record at all fails `census`, run against a
-store where extract was reset before any closer census was recorded:
+A declared closer with no record at all fails `census`, run on a
+disposable copy with extract reset before any closer census was recorded
+(never reset the running example itself just to see this message):
 
 ```
 census:
@@ -537,8 +591,9 @@ enumerated (`jobs`, `reports`, `screens`, `integrations`, `workflows`,
 was already filed above; skip that step and it reappears here, naming
 `route-get-legacy-admin-tool`, exactly the way enumerate.md's and seam.md's
 own noisy-but-expected checks name what is genuinely still missing rather
-than padding the count. Run for real, right before flipping the phase,
-against a store with exactly the rows this manual's examples built:
+than padding the count. Run `migrate check --phase extract` for real,
+right before flipping the phase, against a store with exactly the rows
+this manual's examples built:
 
 ```
 4/5 mapped, 1 out-of-scope, 0 unaccounted
