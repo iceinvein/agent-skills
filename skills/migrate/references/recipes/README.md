@@ -93,9 +93,9 @@ structure.
   Probe: `rg -n -g '*.cs' 'Session\[|TempData\[' <source>`
 ```
 
-Every probe in `aspnet.md` was run against a throwaway ASP.NET-shaped tree
-while writing it, so this excerpt is proven content, not an invented
-template.
+Every probe in `aspnet.md` was run against two throwaway ASP.NET-shaped
+trees, built independently of each other, while writing it, so this excerpt
+is proven content, not an invented template.
 
 ## Probes are a starting point
 
