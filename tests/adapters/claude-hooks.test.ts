@@ -178,6 +178,40 @@ test("claudeAdapter.install does not wire hook when activation is session", asyn
   expect(existsSync(join(TMP, ".claude/settings.json"))).toBe(false);
 });
 
+test("wireSessionStartHook is idempotent for a directive that never mentions the skill name", async () => {
+  // Regression for the sluice bug: matchesSkillDirective used to require the
+  // literal phrase "Activate <name> skill" inside the directive text. sluice's
+  // directive never says "Activate sluice skill", so the old matcher never
+  // found its own hook and every re-install appended a duplicate.
+  const directive = "Before acting on a request that changes code, pick a sluice channel and state which one.";
+  await wireSessionStartHook(SETTINGS, "sluice", directive);
+  await wireSessionStartHook(SETTINGS, "sluice", directive);
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+});
+
+test("wireSessionStartHook recognises a legacy terse-shaped hook already on disk", async () => {
+  // Hooks wired before the identity marker existed (e.g. terse on real
+  // machines) have no marker at all, only the directive text baked into the
+  // command. A fresh install for a different skill must not disturb that
+  // entry, and re-wiring terse itself must still recognise it as its own.
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: {
+      SessionStart: [
+        { hooks: [{ type: "command", command: "echo 'Activate terse skill at tight level for this session.'" }] },
+      ],
+    },
+  }));
+
+  await wireSessionStartHook(SETTINGS, "sluice", "Before acting on a request that changes code, pick a sluice channel and state which one.");
+  await wireSessionStartHook(SETTINGS, "terse", "Activate terse skill at tight level for this session.");
+
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(2);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toContain("Activate terse skill");
+  expect(contents.hooks.SessionStart[1].hooks[0].command).toContain("sluice channel");
+});
+
 test("claudeAdapter.remove unwires hook", async () => {
   const settingsPath = join(TMP, ".claude/settings.json");
   mkdirSync(join(TMP, ".claude"), { recursive: true });
