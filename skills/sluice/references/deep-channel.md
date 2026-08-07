@@ -6,24 +6,28 @@
   exact-value, project-wide requirements every task inherits.
 - Each task states exact paths: what it creates, modifies, and tests.
 - Each task carries an **Interfaces** block, **Consumes** and **Produces**,
-  with exact signatures. The implementer sees only its task, so this is
-  how it learns its neighbours' names and types. Not optional.
+  with exact signatures: the implementer never reads another task, so this
+  is its only source for their names and types. Not optional.
+- A task may carry a **Review** field naming why it needs the stronger tier
+  (auth, data, money, concurrency); otherwise the table below decides.
 - Steps are checkboxes: an action, and the proof it worked. Skip the
   test-first ritual per step; `references/test-first.md` owns it.
 - Include code only where exact text matters: signatures, magic strings,
   test cases, commands. Specify prose deliverables by their claims and
   budget, not by reproducing them.
-- No placeholders: no TBD, no "similar to Task N", no reference to an
-  undefined type or function. Each is a plan failure.
+- Every step needs real content of its own: no TBD, no pointing at another
+  task instead of writing it out, no name for a type or function no task
+  defines.
 
 ```
 # Plan: <topic>
 ## Global Constraints
 - <exact value>
 ### Task N: <name>
-**Files:** Create: <path>
 **Interfaces:** Consumes: <sig> | Produces: <sig>
-- [ ] Step 1: <action>. Result: <proof>.
+**Touches:** <path> (new) | <path> (edit) | <path> (test)
+**Review:** <reason, or omit>
+- [ ] <action> -> <proof>
 ```
 
 ## Dispatch rules
@@ -37,45 +41,45 @@
   agent per question, dispatched in one message so they run concurrently.
   The test: could two agents touch the same file?
 - Isolate the workspace before a multi-task plan: use the harness's
-  worktree tool over `git worktree`, and never start on main without your
+  worktree tool, not `git worktree`; never start on main without your
   partner's OK.
 - Match the model to the task: cheap for mechanical work, stronger for
-  design judgment and final review.
+  judgment and final review.
 
 ## Review policy
 
 A review costs about what the implementation cost, so reviewing every task
 doubles the plan. Checking that Produces landed and only declared Files
-changed is free, a `git diff --stat` read, not a dispatch; only quality
-judgment needs one.
+changed is free, a `git diff --stat` read; only quality judgment needs a
+dispatch.
 
 | Task shape | Review |
 |------------|--------|
 | Only touched files it created, tests pass, matches its Interfaces block | No dispatch. Read the diff stat yourself. |
 | Modified existing code, or later tasks build on it | One reviewer dispatch |
 | Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch, stronger model |
+| No executable test covers it: prose, config, docs | One reviewer dispatch; a diff stat can't confirm the words are right |
 
 Hand the reviewer a file: `git diff <base> <head> > <file>`. Base is the
-task's starting commit, never `HEAD~1`, which captures only the last
-commit and silently omits most of a multi-commit task's diff. Findings
+commit the task actually started from: step back one commit from HEAD
+and a five-commit task collapses to its last commit alone. Findings
 return to its author.
 
 **Verify small fixes yourself:** read the diff and confirm the named test
-ran. Re-review only for substantial logic changes; most fixes are too
-small to earn one. Cap this at three rounds. One still open after three
-is structural: stop and report it.
+ran; re-review only for substantial logic changes. Cap this at three
+rounds; one still open after that is structural: stop and report it.
 
 **A finding surviving two rounds may be a defect in the criterion, not the
 work.** Before a third round, ask whether any output could satisfy it. A
-criterion that rejects every attempt for the same reason never converges,
-and the work degrades with each round as it contorts toward a test with no
-passing answer. Fixing the criterion is your partner's call.
+criterion that rejects every attempt the same way never converges, and the
+work degrades each round as it contorts toward an unpassable test. Fixing
+the criterion is your partner's call.
 
-Never fix findings yourself while coordinating: it skips review entirely
-and burns context the remaining tasks need. There are two buckets: fix it
-now, or record it in the task's `TaskCreate` entry for the final review. A
-reviewer may still describe severity in words; what's banned is a third
-disposition or a formal adjudication step.
+Never fix findings yourself while coordinating: it skips review and burns
+context the remaining tasks need. Two buckets only: fix it now, or record
+it in the task's `TaskCreate` entry for the final review. A reviewer may
+describe severity in words; a third disposition or formal adjudication
+step is banned.
 
 The final review covers cross-task integration and anything deferred, not
 lines a per-task review cleared.

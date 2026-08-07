@@ -6,30 +6,29 @@ returns, usually worse.
 This rule is trigger-based, not channel-assigned: any bug, test failure, or
 unexpected behaviour fires it, in every channel including `bypass`.
 
-**Investigate.** Read the error completely, not just its first line.
-Reproduce it reliably. Check what changed recently: a commit, a dependency
-bump. Trace the bad value back to where it originates and fix it there,
-not where it surfaced.
+**Understand before touching anything.** Read the error completely, not
+just its first line. Reproduce it reliably. Check what changed recently: a
+commit, a dependency bump. Trace the bad value to where it originates and
+fix it there, not wherever it surfaced; set the broken path next to
+similar working code so every difference stands out, down to the ones
+that look irrelevant, since the one you wave off often matters most.
 
-**Compare.** Find similar working code and list every difference from the
-broken path, however small; the one you dismiss often matters most.
+**One hypothesis, one change.** State it plainly, then test it with the
+smallest change that would confirm or kill it, one variable at a time;
+change two things and a working fix tells you nothing about which one did
+it.
 
-**Hypothesize.** State one hypothesis. Test it with the smallest change you
-can make, one variable at a time; change two at once and a working fix
-tells you nothing about which one did it.
+**Prove it, then harden it.** Write the failing test that reproduces the
+bug, make the one change your hypothesis predicts, then verify. Once the
+cause is actually fixed, add validation at the layers that let the bad
+value through, so the next variant fails loudly instead of silently.
 
-**Fix.** Write the failing test that reproduces the bug first. Make the one
-change your hypothesis predicts. Verify.
-
-Three failed fixes means the architecture is wrong, not your hypothesis.
-Stop and raise it instead of trying a fourth.
-
-**Defense in depth.** Once you fix the root cause, add validation at the
-layers that let the bad value through, so the next variant fails loudly,
-not silently.
+Three failed fixes points at the design, not your guesswork. Stop and
+raise it instead of trying a fourth.
 
 **Condition-based waiting.** A test that sleeps for a fixed duration will
 flake; poll for the condition it depends on and fail on a timeout.
 
-The friction line: "it is probably X, let me just try that." Seeing the
-symptom is not understanding the cause.
+The friction line: "I have seen this exact error before, I know the fix."
+Recognising the pattern skips the step where you check it still applies
+here.

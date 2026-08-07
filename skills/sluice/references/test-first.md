@@ -21,13 +21,15 @@ does on the paths you are not exercising directly. A mock that skips a real
 side effect turns a broken change into a green test.
 
 Keep helpers that exist only for tests inside the test files. If a
-production class grows a method whose only caller is a test reaching inside
-it, the test has already started reshaping your design.
+production class grows a method whose only caller is a test reaching
+inside it, the test has started reshaping your design.
 
-Ask before skipping this rule for a throwaway prototype, generated code, or
-a config file. These are the exceptions, not a general escape.
+Ask before skipping this rule for code you did not hand-write (generated
+or scaffolded), a config file with no logic in it, or a prototype headed
+for the trash before anyone sees it. These are exceptions, not a general
+escape.
 
-The friction line: "I will test after." A test written once the code
-already works confirms what you already believe about it. You have
-stopped looking for cases you did not think of, so a test written now will
-not find them either.
+The friction line: "this case is obvious enough to skip straight to the
+code." A test written once the code already works confirms what you
+already believe about it; a test written now won't find the cases you
+never thought of, because you've stopped looking for them.

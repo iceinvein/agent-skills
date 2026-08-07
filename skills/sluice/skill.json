@@ -1,7 +1,7 @@
 {
   "name": "sluice",
   "version": "1.0.0",
-  "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries five rules as one-liners in the router and the full treatment in references read only on friction. Claude Code only; conflicts with the superpowers plugin.",
+  "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries six rules as one-liners in the router and the full treatment in references read only on friction. Claude Code only; conflicts with the superpowers plugin.",
   "author": "iceinvein",
   "type": "prompt",
   "tools": [

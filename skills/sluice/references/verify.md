@@ -1,30 +1,27 @@
 # Verify
 
-No completion claim without fresh evidence. If you did not run the command
-in this turn, you cannot say it passes, no matter how confident the last
-run left you.
+No completion claim without evidence from this turn: a run you did not
+personally watch happen backs up nothing you say next, however sure the
+earlier one left you.
 
-The gate: identify the command that actually proves the claim, run it in
-full, read the output and the exit code, then make the claim with that
-evidence in hand.
+Name the one command that actually proves the claim, not the one that
+would make it feel true. Run it in full, this turn, and read the output
+and exit code before forming an opinion; evidence you did not just watch
+has no place in the claim.
 
-Match the claim to its evidence:
-
-| Claim | Evidence |
+| Evidence in hand | What it lets you say |
 |---|---|
-| Tests pass | test output, zero failures |
-| Build succeeds | exit 0, not a clean linter |
-| Bug fixed | the original symptom, retested |
-| Subagent finished | the VCS diff, not its own report |
+| the original symptom, retested and gone | "bug fixed" |
+| the actual diff, not its own status report | "subagent finished" |
+| a fresh full run, zero failures, exit code checked | "tests pass" |
+| a real build command at exit 0, not a clean linter | "build succeeds" |
 
-Regression tests get the red-green check: revert the fix, confirm the test
-fails, restore the fix, confirm it passes. A test that never failed never
+Regression tests get the red-green check: revert the fix, confirm it
+fails, restore it, confirm it passes. A test that never failed never
 proved anything.
 
-This covers paraphrase and implication, not only the exact words.
-Expressing satisfaction before verifying is the same violation as
-claiming completion: "looks right", "should be good", "that's sorted",
-and "that should be fixed now" all claim it as much as "it passes" does,
-and need the same evidence before you say them.
+This covers paraphrase, not just exact words: "looks right", "should be
+good", and "that's sorted" claim completion as much as "it passes" does,
+and need the same evidence first.
 
-The friction line: "it should work now." Run it.
+The friction line: "the change was too small to need a full run." Run it.

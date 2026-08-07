@@ -1,28 +1,31 @@
 # Finish
 
-`finish` is not channel-assigned. It fires whenever work is finished and
-ready to integrate, in every channel.
+`finish` fires at an integration event, merging, pushing, or opening a PR,
+in every channel. A commit made in passing during `fast` channel work is
+not one of those: the branch as a whole has to be about to leave your
+hands.
 
-Run the project's full suite before anything else. A red suite stops here;
-there is no menu after a failure. A green run from earlier in the session
-does not count, because it only proves the tree it ran on then.
+Start here: run every test the project has, not a sample of them. A red
+result stops the process; there is no menu after a failure. A pass from
+earlier in the session doesn't count: the tree has changed since, and
+only a run against what's here now proves anything.
 
-Confirm the base branch instead of assuming it. Merging into the wrong base
-is expensive to undo.
+Confirm the base branch instead of assuming it; untangling a wrong merge
+costs far more than asking would have.
 
-With a green suite and a confirmed base, present exactly three options and
-wait: merge locally, push and open a PR, or leave the branch as it is. The
-integration decision belongs to your human partner, not you, however
-obvious the answer looks from where you sit.
+Once the suite is green and the base is confirmed, lay out the choice and
+wait: merge it locally, push it and open a PR, or leave it as is.
+Whether to merge, PR, or wait is your partner's call, not yours, however
+obvious it looks to you.
 
-After a local merge, re-run the suite on the merged result before deleting
-anything. A failure there stops the cleanup, and since nothing has been
-pushed yet, it is still recoverable.
+After a local merge, re-run the suite on the merged result before
+deleting anything. A failure there stops the cleanup; you haven't pushed
+anything yet, so you can still walk it back.
 
-Once a PR is open, keep the workspace; that is where review feedback gets
-addressed. Discarding work needs an explicit ask from your human partner,
-confirmed before anything is deleted. Clean up only the workspaces the
-tooling created, not anything belonging to the host environment.
+Once a PR is open, keep the workspace; that's where review feedback gets
+addressed. Discarding needs an explicit, confirmed ask from your partner.
+This tooling removes only the workspaces it created; anything else
+stays put.
 
-The friction line: "they obviously want this merged." Obvious to you is
-not consent from them. Wait for the answer.
+The friction line: "picking for them saves everyone a turn." Saving a
+turn is not the same as having their answer. Wait for it.

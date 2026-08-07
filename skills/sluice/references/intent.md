@@ -3,10 +3,10 @@
 Ask one question at a time. Use multiple choice when the answer set is
 bounded.
 
-Offer two or three approaches, never a survey. Lead with the one you
-recommend and say why. Cut every feature YAGNI would cut before you present
-any of them; a lean option judged against a padded one is not a fair
-comparison.
+Offer two or three approaches, never a survey. Put your top pick first
+and explain what makes it the better bet. Cut every feature YAGNI would
+cut before you present any of them; a lean option judged against a
+padded one is not a fair comparison.
 
 Check decomposition before design starts. If the request is really several
 independent subsystems, say so first. Split it into pieces that ship on

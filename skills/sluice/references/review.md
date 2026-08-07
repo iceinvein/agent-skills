@@ -1,35 +1,37 @@
 # Review
 
-Review fires in `main` and `deep`, before merge and after any change big
-enough to earn them.
+Review fires in `main` and `deep`, before merge: the shape signals that
+routed work there are what earn it a reviewer.
 
 Hand the reviewer a file, never a pasted diff: `git diff <base> <head> >
-<file>`, then give the path; it belongs in their context, not yours. Use
-the real base commit, never `HEAD~1`, which drops every commit but the
-last on a multi-commit change. Tell them what was built, what it should
-do, and the diff path, not your session history.
+<file>`, then give the path, not your session history. Use the actual
+base commit: step back one commit from HEAD and several commits
+collapse into just the last one. Tell them what was built and what it
+should do.
 
-Do not pre-judge: never tell a reviewer not to flag something. A finding
-that looks wrong still gets raised, then argue it.
+Leave every finding open to the reviewer; steering them away from an
+issue first is the same mistake as reviewing it yourself. A finding that
+looks wrong still gets raised, then argued.
 
-Findings get graded Critical, Important, or Minor, but what you do next
-has only two options: fix it now, or record it and move on. Fix Critical
-and Important before proceeding; record Minor for the final review. Do
-not add a third disposition, such as a separate adjudication step; it
-costs more to run than the findings it would sort.
+Findings are graded Critical, Important, or Minor, but only two things
+happen next: fix now, or record for later. Fix Critical and Important
+before proceeding; record Minor for the final review. Skip a third
+disposition, like a separate adjudication step; it costs more than what
+it sorts.
 
-Send findings back to the agent that wrote the code: its context is
-intact, yours may not be. Cap this at three rounds; one still open after
-that is structural, not a review problem: stop and report it.
+Send findings back to the agent that wrote the code: it already holds
+the task and its reasoning, memory you'd rebuild otherwise. Cap this at
+three rounds; one still open after is structural: stop and report it.
 
-Receiving a finding: verify it against the codebase before acting, and
-push back with technical reasoning when it is wrong. No performative
-agreement.
+Receiving a finding: check it against the codebase before acting, and
+argue back with specifics when it is wrong. Agreeing just to move things
+along doesn't count as engaging with it.
 
-For a small fix, read the fix diff and confirm the covering test ran;
-re-review only when the fix changed logic substantially. Never fix
-findings yourself when coordinating: a controller fix skips review and
-burns context the plan needs.
+For a small fix, read the diff and confirm the covering test ran;
+re-review only for substantial logic changes. Never fix findings
+yourself while coordinating: a controller fix skips review and burns
+context the plan needs.
 
-The friction line: "I will just read the diff myself." That burns context
-you need to keep coordinating, and self-review is not review.
+The friction line: "dispatching a reviewer for this is overkill."
+Skipping the dispatch doesn't skip the cost, it just moves the cost onto
+you, and self-review is not review.
