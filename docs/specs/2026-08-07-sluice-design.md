@@ -72,7 +72,7 @@ skills/sluice/
     verify.md         ~250 tok   evidence before completion claims
     review.md         ~380 tok   fresh-context review, diff handed over as a file
     finish.md         ~300 tok   green suite, then the human picks the ending
-    deep-channel.md   ~750 tok   plan format, dispatch rules, review policy (deep only)
+    deep-channel.md   ~800 tok   plan format, dispatch rules, review policy (deep only)
 ```
 
 This matches `skills/magpie/`'s layout in this repo (SKILL.md + `references/`).
