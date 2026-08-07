@@ -27,8 +27,7 @@ it, the test has already started reshaping your design.
 Ask before skipping this rule for a throwaway prototype, generated code, or
 a config file. These are the exceptions, not a general escape.
 
-The friction line: "I will test after." By the time the code in front of
-you works, you have already stopped hunting for where it breaks and
-started hoping it doesn't; a test written from that stance confirms the
-answer you expect instead of chasing the one you would have gone looking
-for before you knew it.
+The friction line: "I will test after." A test written once the code
+already works confirms what you already believe about it. You have
+stopped looking for cases you did not think of, so a test written now will
+not find them either.
