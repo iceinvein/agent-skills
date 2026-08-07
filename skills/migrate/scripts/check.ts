@@ -4,6 +4,7 @@ import { resolveCitations } from './citations.ts'
 import { loadConfig } from './config.ts'
 import { scanLeaks } from './leaks.ts'
 import { storePaths } from './paths.ts'
+import { loadPhases, PHASES, type Phase } from './phases.ts'
 import { loadQueue } from './queue.ts'
 import { readRows } from './store.ts'
 import type { Capability, Census, Delta, Element, Requirement, Violation } from './types.ts'
@@ -20,6 +21,7 @@ export const GATE_ORDER = [
   'citations',
   'leaks',
   'source',
+  'run-state',
 ] as const
 
 async function sourceIsDirty(sourcePath: string, gitBin: string): Promise<boolean> {
@@ -39,6 +41,7 @@ export async function runCheck(opts: {
   citations?: boolean
   leaks?: boolean
   gitBin?: string
+  phase?: Phase
 }): Promise<CheckResult> {
   const cfg = await loadConfig(opts.root)
   const paths = storePaths(opts.root)
@@ -221,8 +224,11 @@ export async function runCheck(opts: {
     }
   }
 
-  // Gate 7: citations, opt-in.
-  if (opts.citations) {
+  // Gate 7: citations. Citations are on unless explicitly disabled. An FR
+  // citing a path that does not exist is the never-fabricate rule's only
+  // mechanical expression, so it should not be something a run has to
+  // remember to ask for.
+  if (opts.citations !== false) {
     violations.push(...(await resolveCitations(requirements, cfg.source.path)))
   }
 
@@ -237,6 +243,63 @@ export async function runCheck(opts: {
       gate: 'source',
       message: `the source checkout at ${cfg.source.path} has uncommitted changes; it must stay read-only`,
     })
+  }
+
+  // Gate 10: run-state. Every other gate proves the store is internally
+  // consistent, which an empty store satisfies. This one asks whether the run
+  // that was supposed to fill it actually happened, which is the only reason
+  // exit 0 can mean "complete" rather than "nothing contradicts anything".
+  const phases = await loadPhases(opts.root)
+  const terminus = opts.phase ? PHASES.indexOf(opts.phase) : PHASES.length - 1
+  const terminusName = PHASES[terminus]
+  for (let i = 0; i <= terminus; i++) {
+    const p = PHASES[i]
+    if (!p) continue
+    const status = phases[p].status
+    if (status !== 'done') {
+      violations.push({
+        gate: 'run-state',
+        message: `phase ${p} is ${status}; every phase through ${terminusName} must be done`,
+      })
+    }
+  }
+  // Checked across all eight phases, not just up to the terminus: a later
+  // phase marked done over a pending predecessor is hand-edited state, and it
+  // is worth naming whether or not the caller asked about that phase.
+  for (let i = 1; i < PHASES.length; i++) {
+    const current = PHASES[i]
+    const previous = PHASES[i - 1]
+    if (!current || !previous) continue
+    if (phases[current].status === 'done' && phases[previous].status === 'pending') {
+      violations.push({
+        gate: 'run-state',
+        message: `phase ${current} is done while ${previous} is still pending`,
+      })
+    }
+  }
+  // A census record naming a batch phases.json never committed means the two
+  // disagree about what happened. Only checked when the record exists, since
+  // gate 2 already names a declared surface or closer that has none.
+  const committedIn = (phase: Phase): Set<string> => new Set(phases[phase].batches.map((b) => b.id))
+  const enumerateBatches = committedIn('enumerate')
+  for (const surface of cfg.surfaces) {
+    const record = census.find((r) => r.kind === 'lens' && r.surface === surface)
+    if (record && !enumerateBatches.has(record.batch)) {
+      violations.push({
+        gate: 'run-state',
+        message: `lens census for ${surface} names batch ${record.batch}, which phases.json has no record of committing in enumerate`,
+      })
+    }
+  }
+  const extractBatches = committedIn('extract')
+  for (const closer of cfg.closers) {
+    const record = census.find((r) => r.kind === 'closer' && r.closer === closer)
+    if (record && !extractBatches.has(record.batch)) {
+      violations.push({
+        gate: 'run-state',
+        message: `closer census for ${closer} names batch ${record.batch}, which phases.json has no record of committing in extract`,
+      })
+    }
   }
 
   const order = new Map(GATE_ORDER.map((g, i) => [g as string, i]))

@@ -217,7 +217,18 @@ test('init, import, census, check, report over the fixture source', async () => 
   })
   expect((await migrate(['import', 'elements', mapped])).code).toBe(0)
 
-  const clean = await migrate(['check', '--citations'])
+  // Milestone 1 has no verbs for probe, seam, parity or queue: an
+  // orchestrator marks each done by hand once it decides there is nothing
+  // further to do there, the same way it would for enumerate and extract if
+  // recordBatch had not already moved them to 'running'. adjudicate and
+  // handoff are left pending on purpose, since neither has a verb at all
+  // yet, which is why the clean check below is bound to --phase queue
+  // rather than the full run.
+  for (const name of ['probe', 'enumerate', 'seam', 'extract', 'parity', 'queue']) {
+    expect((await migrate(['phase', name, '--status', 'done'])).code).toBe(0)
+  }
+
+  const clean = await migrate(['check', '--phase', 'queue', '--citations'])
   expect(clean.out).toContain('3/3 mapped, 0 out-of-scope, 0 unaccounted')
   expect(clean.code).toBe(0)
 

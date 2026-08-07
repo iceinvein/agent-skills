@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { runCheck } from '../check.ts'
 import { writeConfig } from '../config.ts'
 import { storePaths } from '../paths.ts'
+import { savePhases } from '../phases.ts'
 import { writeRows } from '../store.ts'
 import type { Census, Element, Requirement } from '../types.ts'
 
@@ -88,9 +89,36 @@ async function seedClean(): Promise<void> {
   await writeRows(p.census, [lensCensus('routes', 1, 1), lensCensus('tables', 0, 0)], source)
 }
 
+// The run-state gate now checks whether the run actually happened, so a
+// store seeded by writeRows alone (bypassing import/census's recordBatch)
+// carries no evidence that probe or enumerate ran. Advancing phase state
+// directly with savePhases (rather than via the CLI, since this suite talks
+// to runCheck's own API) and bounding the check at --phase enumerate keeps
+// this test about the nine other gates: it only has to prove enough phase
+// history exists for run-state to agree the census batch it seeded was
+// committed, not simulate the rest of a Milestone 2 run this fixture never
+// performs.
+async function markThroughEnumerate(): Promise<void> {
+  await savePhases(
+    root,
+    {
+      probe: { status: 'done', batches: [], pending: [] },
+      enumerate: { status: 'done', batches: [{ id: 'b-1', count: 1 }], pending: [] },
+      seam: { status: 'pending', batches: [], pending: [] },
+      extract: { status: 'pending', batches: [], pending: [] },
+      parity: { status: 'pending', batches: [], pending: [] },
+      queue: { status: 'pending', batches: [], pending: [] },
+      adjudicate: { status: 'pending', batches: [], pending: [] },
+      handoff: { status: 'pending', batches: [], pending: [] },
+    },
+    source,
+  )
+}
+
 test('a clean store passes with the summary line', async () => {
   await seedClean()
-  const result = await runCheck({ root })
+  await markThroughEnumerate()
+  const result = await runCheck({ root, phase: 'enumerate' })
   expect(result.violations).toEqual([])
   expect(result.summary).toBe('1/1 mapped, 0 out-of-scope, 0 unaccounted')
 })
@@ -207,16 +235,17 @@ test('an unsigned delta is a deltas violation', async () => {
   ).toBe(true)
 })
 
-test('citations are only resolved when asked', async () => {
+test('citations run by default and are only skipped when explicitly disabled', async () => {
   await seedClean()
   await writeRows(
     storePaths(root).requirements,
     [{ ...REQUIREMENT, citations: [{ kind: 'src', path: 'Ghost.cs' }] }],
     source,
   )
-  expect((await runCheck({ root })).violations.filter((v) => v.gate === 'citations')).toEqual([])
-  const withCitations = await runCheck({ root, citations: true })
-  expect(withCitations.violations.some((v) => v.gate === 'citations')).toBe(true)
+  const byDefault = await runCheck({ root })
+  expect(byDefault.violations.some((v) => v.gate === 'citations')).toBe(true)
+  const disabled = await runCheck({ root, citations: false })
+  expect(disabled.violations.filter((v) => v.gate === 'citations')).toEqual([])
 })
 
 test('a dirty source checkout is a source violation', async () => {

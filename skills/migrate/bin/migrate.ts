@@ -18,7 +18,9 @@ Subcommands:
   queue add <file.md>             Add a queue item
   queue list [--open]             List queue items, severity first
   queue show <id>                 Print one queue item
-  check [--citations] [--leaks]   Run the gates
+  check [--phase <p>] [--no-citations] [--leaks]
+                                  Run the gates; without --phase, exit 0 means
+                                  the whole migration is complete
   status                          Phase state, counts, resume pointer
   reset --phase <phase>           Clear one phase's derived rows
   report [--out <dir>]            Render markdown views
@@ -150,6 +152,18 @@ const HANDLERS: Record<string, Handler> = {
     return runQueue({ root, args })
   },
   check: async (args) => {
+    const phase = readFlag(args, '--phase')
+    if (phase.error) {
+      process.stderr.write(`check: ${phase.error}\n`)
+      return 2
+    }
+    const { isPhase, PHASES } = await import('../scripts/phases.ts')
+    if (phase.value && !isPhase(phase.value)) {
+      process.stderr.write(
+        `check: unknown phase ${phase.value}; want one of ${PHASES.join(', ')}\n`,
+      )
+      return 2
+    }
     const { findStoreRoot } = await import('../scripts/paths.ts')
     const root = await findStoreRoot(process.cwd())
     if (!root) {
@@ -159,8 +173,12 @@ const HANDLERS: Record<string, Handler> = {
     const { runCheckCmd } = await import('../scripts/check-cmd.ts')
     return runCheckCmd({
       root,
-      citations: args.includes('--citations'),
+      // --citations is accepted and ignored: citations are on by default now,
+      // and silently rejecting the old flag would break every invocation
+      // written against Milestone 1.
+      citations: !args.includes('--no-citations'),
       leaks: args.includes('--leaks'),
+      ...(phase.value && isPhase(phase.value) ? { phase: phase.value } : {}),
     })
   },
   status: async () => {
