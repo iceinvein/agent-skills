@@ -22,6 +22,6 @@ reach this rule.
 When a question would land better shown than described, `references/visual.md`
 covers how. Do not restate it here.
 
-The rationalization: "I already know what they want." You know the goal,
+The friction line: "I already know what they want." You know the goal,
 not the constraints, and the shape in your head rarely matches theirs. One
 question costs a turn. A wrong build costs the task.

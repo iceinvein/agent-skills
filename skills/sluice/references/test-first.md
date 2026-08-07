@@ -27,7 +27,8 @@ it, the test has already started reshaping your design.
 Ask before skipping this rule for a throwaway prototype, generated code, or
 a config file. These are the exceptions, not a general escape.
 
-The friction line: "I will test after." A test written after the code
-passes immediately, which tells you nothing, and it is shaped by the code
-you already wrote rather than the cases you would have found by writing the
-test first.
+The friction line: "I will test after." Once the code works, you skip the
+one run that proves anything: watching it fail. A test that could not fail
+proves nothing by passing. It also traces what you remember doing, not
+what the feature needs, so coverage follows the implementation, not the
+requirement.
