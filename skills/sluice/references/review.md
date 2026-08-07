@@ -12,10 +12,11 @@ do, and the diff path, not your session history.
 Do not pre-judge: never tell a reviewer not to flag something. A finding
 that looks wrong still gets raised, then argue it.
 
-Findings get graded Critical, Important, or Minor, but disposition is
-binary: fix now, or record and move on. Fix Critical and Important before
-proceeding; record Minor for the final review. Grading a third bucket
-costs more than the findings it would sort.
+Findings get graded Critical, Important, or Minor, but what you do next
+has only two options: fix it now, or record it and move on. Fix Critical
+and Important before proceeding; record Minor for the final review. Do
+not add a third disposition, such as a separate adjudication step; it
+costs more to run than the findings it would sort.
 
 Send findings back to the agent that wrote the code: its context is
 intact, yours may not be. Cap this at three rounds; one still open after

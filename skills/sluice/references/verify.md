@@ -21,8 +21,10 @@ Regression tests get the red-green check: revert the fix, confirm the test
 fails, restore the fix, confirm it passes. A test that never failed never
 proved anything.
 
-This covers paraphrase and implication, not only the exact words. "That
-should be fixed now" claims completion just as much as "it passes" does,
-and needs the same evidence before you say it.
+This covers paraphrase and implication, not only the exact words.
+Expressing satisfaction before verifying is the same violation as
+claiming completion: "looks right", "should be good", "that's sorted",
+and "that should be fixed now" all claim it as much as "it passes" does,
+and need the same evidence before you say them.
 
 The friction line: "it should work now." Run it.

@@ -21,14 +21,15 @@ tells you nothing about which one did it.
 **Fix.** Write the failing test that reproduces the bug first. Make the one
 change your hypothesis predicts. Verify.
 
-Three failed fixes means your model of the system is wrong, not your
-latest guess. Stop and raise it instead of trying a fourth.
+Three failed fixes means the architecture is wrong, not your hypothesis.
+Stop and raise it instead of trying a fourth.
 
-Two techniques: defense in depth, and condition-based waiting. Once you
-fix the root cause, add validation at the layers that let the bad value
-through, so the next variant fails loudly, not silently. A test that
-sleeps for a fixed duration will flake; poll for the condition it depends
-on and fail on a timeout.
+**Defense in depth.** Once you fix the root cause, add validation at the
+layers that let the bad value through, so the next variant fails loudly,
+not silently.
+
+**Condition-based waiting.** A test that sleeps for a fixed duration will
+flake; poll for the condition it depends on and fail on a timeout.
 
 The friction line: "it is probably X, let me just try that." Seeing the
 symptom is not understanding the cause.
