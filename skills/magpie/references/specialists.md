@@ -145,7 +145,7 @@ If you have no findings, write []. Return as your final tool result a single lin
 
 ## Codebase intelligence
 
-Include this block as part 4 only when the context stage logged `codeIntelligence: true`.
+Include this block as part 5 only when the context stage logged `codeIntelligence: true`.
 
 ```magpie-codebase-intelligence
 ## Codebase intelligence
