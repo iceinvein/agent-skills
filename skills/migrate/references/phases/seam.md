@@ -38,8 +38,28 @@ accept a partition (the one-validator exception is below).
    history: only the ledger, which by construction always exists once
    enumerate has run. That makes it the fallback validator when the other
    three cannot run at all, and a fourth opinion checking the other three
-   when they can. The concrete method, and a worked example run against a
-   real store, are below.
+   when they can. The acceptance rule follows immediately below; the
+   concrete method and a worked example come after it.
+
+**Triangulate.** Accept a partition when two of the validators that ran
+agree with each other, at modularity Q >= 0.3 on the agreed partition.
+Disagreement (no two agree) or low Q on the best candidate both escalate to
+the queue: name the evidence, the disagreeing outputs or the Q figure, list
+the real options, and recommend one. **Vertical-slice-only** (one
+capability per user journey, no cross-cutting split) is the ratified
+fallback option in that queue item. It is offered for an owner to choose,
+never picked silently in its place.
+
+When fewer than two validators can run at all (the fully degraded case:
+no schema, no parseable call graph, and no VCS, so only surface-affinity
+is left), there is no pair to agree with. That lone validator's own Q
+against the 0.3 floor is what "validator of last resort" means in
+practice: Q >= 0.3 on its own is accepted with no second opinion behind
+it, and Q below 0.3 escalates the same as any other low-Q result. This is
+the only path that lets one validator's own number close the phase by
+itself; every other case still needs the two-agree rule above, including
+every case where surface-affinity is merely one of several validators
+that ran rather than the only one.
 
 ### Surface-affinity clustering, worked
 
@@ -61,7 +81,7 @@ assumed either. Confirm the split with modularity, using the textbook
 formula directly rather than a library call:
 
 ```
-Q = sum over communities c of [ (edges_within_c / m) - (degree_sum_c / 2m)^2 ]
+Q = sum over communities c of [ (edges_within_c / m) - (degree_sum_c / (2m))^2 ]
 ```
 
 where `m` is the total edge count and `degree_sum_c` is the sum of every
@@ -69,12 +89,11 @@ node's degree inside community `c`. `edges_within_c` is just every edge
 whose both ends fall inside `c`; when the communities are exactly the
 connected components, that is every edge each node has, since a connected
 component has no edge leaving it by definition. If one connected component
-is still large and its
-internal structure is not obviously one capability, the same formula
-supports going further with a standard greedy modularity merge (repeatedly
-join whichever two sub-groups raise Q the most, stop when no join helps);
-that refinement was not needed for the worked example below because
-connected components alone already cleared the 0.3 floor.
+is still large and its internal structure is not obviously one capability,
+the same formula supports going further with a standard greedy modularity
+merge (repeatedly join whichever two sub-groups raise Q the most, stop when
+no join helps); that refinement was not needed for the worked example below
+because connected components alone already cleared the 0.3 floor.
 
 **Project onto capabilities.** Every node in one community, regardless of
 which surface it came from, becomes that capability's `elements` array,
@@ -83,9 +102,13 @@ list mixing a route id and a table id (as in the `capabilities.jsonl`
 example already shown) is exactly what a community looks like once you
 stop distinguishing surfaces.
 
-A worked example, run against a real store. Six elements, imported as one
-batch: two routes and a table that only they touch, and a route and a job
-that only a different table touches.
+A worked example, run against a real store, of the fully degraded case
+above: assume this source has no relational schema, no statically
+parseable code, and no VCS history at all, so surface-affinity is the
+only validator that can run, and the one-validator exception is what will
+license accepting its result. Six elements, imported as one batch: two
+routes and a table that only they touch, and a route and a job that only a
+different table touches.
 
 ```json
 {"id": "route-get-api-users", "surface": "routes", "refs": [{"kind": "ledger", "id": "table-users"}], "...": "..."}
@@ -109,8 +132,11 @@ m (total edges) = 4
 modularity Q = 0.5
 ```
 
-`0.5 >= 0.3`: accept the split. Each community becomes one capability, its
-node set copied straight into `elements`:
+`0.5 >= 0.3`, and since no schema, call graph, or VCS history exists for
+this source, surface-affinity is the only validator that ran: the
+one-validator exception above, not the ordinary two-agree rule, is what
+licenses accepting this split on that number alone. Each community becomes
+one capability, its node set copied straight into `elements`:
 
 ```json
 {"slug": "user-management", "title": "User Management", "ns": "UM", "elements": ["route-get-api-users", "route-post-api-login", "table-users"]}
@@ -118,22 +144,10 @@ node set copied straight into `elements`:
 ```
 
 Both lines, appended to `.migrate/capabilities.jsonl`, are accepted as-is.
-
-**Triangulate.** Accept a partition when two of the validators that ran
-agree with each other, at modularity Q >= 0.3 on the agreed partition.
-Disagreement (no two agree) or low Q on the best candidate both escalate to
-the queue: name the evidence, the disagreeing outputs or the Q figure, list
-the real options, and recommend one. **Vertical-slice-only** (one
-capability per user journey, no cross-cutting split) is the ratified
-fallback option in that queue item. It is offered for an owner to choose,
-never picked silently in its place.
-
-When fewer than two validators can run at all (the fully degraded case:
-no schema, no parseable call graph, and no VCS, so only surface-affinity
-is left), there is no pair to agree with. That lone validator's own Q
-against the 0.3 floor is what "validator of last resort" means in
-practice: Q >= 0.3 on its own is accepted with no second opinion behind
-it, and Q below 0.3 escalates the same as any other low-Q result.
+Had this source had a schema or a parseable call graph to try as well, or
+had any second validator disagreed with this one, the ordinary two-agree
+rule above would govern instead, and this Q alone would not have been
+enough.
 
 **Evidence.** Every validator's script (the actual command or program run,
 not a description of it) and its raw output goes into `.migrate/seam.md`,
