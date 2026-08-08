@@ -101,19 +101,42 @@ test('init, import, census, check, report over the fixture source', async () => 
   expect(beforeMapping.code).toBe(1)
   expect(beforeMapping.out).toContain('0/3 mapped, 0 out-of-scope, 3 unaccounted')
 
+  // Every count below was produced by re-running the exact command in its own
+  // `evidence` string against fixtures/tiny-express, and every one of them
+  // counts the whole fixture rather than the three-row subset this test
+  // imports. That difference is the point: this test deliberately imports two
+  // of the fixture's three routes and one of its two tables, and the census's
+  // own `skipped` list is the mechanism for saying so. Declaring counts that
+  // matched the subset instead would mean quoting a probe command that does
+  // not produce them, which is the one thing this tool exists to make
+  // impossible -- and the balance rule (total == in_ledger + added + skipped +
+  // queued) then checks the reconciliation rather than leaving it asserted.
+  //
+  // The tables `code` direction that used to sit here ran `rg -n "users"
+  // app.js` and reported 1. app.js contains no SQL and no database access
+  // whatsoever (see the file): every one of its three matches is a `/api/users`
+  // URL path segment, so that direction evidenced zero real table references
+  // and passed only because the surface set is narrowed here. Replaced with
+  // the report definition's own query, which is a real read of a real table.
   for (const record of [
     {
       kind: 'lens',
       surface: 'routes',
       phase: 'enumerate',
       directions: {
-        code: { count: 2, evidence: 'rg -n "app.(get|post)" app.js' },
-        nav: { count: 2, evidence: 'manual review of app.js route registrations' },
+        // 3 matches: app.js lines 8, 10 and 18.
+        code: { count: 3, evidence: 'rg -n "app.(get|post)" app.js' },
+        nav: { count: 3, evidence: 'manual walk of route registrations in app.js' },
       },
-      total: 2,
+      total: 3,
       in_ledger: 2,
       added: 0,
-      skipped: [],
+      skipped: [
+        {
+          element: 'GET /api/users/:id/welcome',
+          reason: "out of this test's two-route slice; carried by e2e-express.test.ts",
+        },
+      ],
       queued: [],
       batch: 'b-1',
     },
@@ -122,13 +145,20 @@ test('init, import, census, check, report over the fixture source', async () => 
       surface: 'tables',
       phase: 'enumerate',
       directions: {
-        ddl: { count: 1, evidence: 'rg -n "CREATE TABLE" schema.sql' },
-        code: { count: 1, evidence: 'rg -n "users" app.js' },
+        // 2 matches: schema.sql lines 1 (users) and 7 (audit_log).
+        ddl: { count: 2, evidence: 'rg -n "CREATE TABLE" schema.sql' },
+        // 1 match: reports/daily-users.json line 4, SELECT COUNT(*) FROM users.
+        query: { count: 1, evidence: 'rg -n "FROM [a-z_]+" reports/*.json' },
       },
-      total: 1,
+      total: 2,
       in_ledger: 1,
       added: 0,
-      skipped: [],
+      skipped: [
+        {
+          element: 'audit_log',
+          reason: "out of this test's one-table slice; carried by e2e-express.test.ts",
+        },
+      ],
       queued: [],
       batch: 'b-1',
     },
