@@ -44,8 +44,14 @@ would likely succeed on retry.
 
 ## Batch files
 
-`migrate import` is the only supported way rows enter the store. It takes one
-JSON file holding an envelope and an array of rows:
+`migrate import` is the only supported way rows enter `elements.jsonl`,
+`requirements.jsonl`, or `deltas.jsonl`. `census.jsonl` rows are written
+directly by `migrate census` instead (see Census records, below), and
+`capabilities.jsonl`, `seam.json`, and `seam.md` have no CLI writer that
+authors their content at all; they are hand-written, and `migrate reset
+--phase seam` only clears or deletes them (see Seam artifacts, below).
+`migrate import` takes one JSON file holding an envelope and an array of
+rows:
 
 ```json
 {

@@ -334,4 +334,5 @@ migrate phase seam --status done
 `queue add` runs only when triangulation disagrees or Q stays below 0.3;
 `capabilities.jsonl`, `seam.json`, and `seam.md` are written by hand
 regardless, with no command that authors their content (`migrate reset
---phase seam` clears them; it does not write them).
+--phase seam` clears `capabilities.jsonl` and deletes the other two; it
+authors none of them).
