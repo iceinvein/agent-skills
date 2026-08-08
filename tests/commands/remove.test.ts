@@ -52,7 +52,7 @@ test("removeSkill deletes installed files and updates lockfile", async () => {
 // executables, and the next install layered a new version on top of it.
 const bundleManifest: SkillManifest = {
   name: "sluice",
-  version: "1.1.0",
+  version: "0.1.1",
   description: "Routes work by change shape",
   author: "iceinvein",
   type: "prompt",
