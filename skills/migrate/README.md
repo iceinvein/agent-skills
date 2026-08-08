@@ -1,15 +1,16 @@
 # migrate
 
 Source-agnostic legacy migration mapping. `migrate` walks a legacy codebase
-through eight phases, probe, enumerate, seam, extract, parity, queue,
-adjudicate, handoff, building an auditable requirements ledger with mandatory
-citations instead of a self-reported one. It enumerates the legacy surface
-from two independent directions per lens, derives a capability seam
-empirically rather than by guesswork, extracts cited functional requirements,
-plans parity against the source, and routes every ambiguity to a batch
-decision queue for a human to adjudicate. The coverage arithmetic, citation
-resolution, and phase ordering are enforced by a bundled Bun CLI instead of
-being self-reported.
+through probe, enumerate, seam, extract, parity, and queue, building an
+auditable requirements ledger with mandatory citations instead of a
+self-reported one. It enumerates the legacy surface from two independent
+directions per lens, derives a capability seam empirically rather than by
+guesswork, extracts cited functional requirements, plans parity against the
+source, and routes every ambiguity to a batch decision queue for a human to
+adjudicate. The coverage arithmetic, citation resolution, and phase ordering
+are enforced by a bundled Bun CLI instead of being self-reported. Two more
+phases, adjudicate and handoff, complete the walkthrough but ship no CLI verb
+yet; see the phases table below.
 
 ## Using it
 
@@ -134,7 +135,7 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `migrate init --source <path> --scope <text> --name <target>` | Writes `.migrate/config.toml` |
 | `migrate import <elements\|reqs\|deltas> <batch.json>` | Validated bulk append to the store |
 | `migrate census <record.json>` | Records a lens accounting record |
-| `migrate phase [<name>] [--status <s>]` | Prints phase state, or sets one phase's status; the only writer of phase state |
+| `migrate phase [<name>] [--status <s>]` | Prints phase state, or sets one phase's status directly, the only command that does |
 | `migrate queue add <file.md>` | Adds a queue item |
 | `migrate queue list [--open]` | Lists queue items, severity first |
 | `migrate queue show <id>` | Prints one queue item |
@@ -143,9 +144,12 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `migrate reset --phase <phase>` | Clears one phase's derived rows |
 | `migrate report [--out <dir>]` | Renders markdown views |
 
-Run `migrate --help` for the same list from the CLI itself. A lock failure on
-`import`, `census`, or `phase --status` exits `3`; pass `--force-unlock` once
-you have confirmed no other agent is actually writing.
+Run `migrate --help` for the same list from the CLI itself. `phase --status
+<s>` is the only command that sets a phase's status directly; `import` and
+`census` also touch `phases.json` incidentally, each moving a phase to
+`running` (unless it is already `done`) when they record a batch. A lock
+failure on `import`, `census`, or `phase --status` exits `3`; pass
+`--force-unlock` once you have confirmed no other agent is actually writing.
 
 ## Install
 
