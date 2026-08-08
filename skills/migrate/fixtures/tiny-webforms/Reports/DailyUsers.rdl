@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <DataSets>
+    <DataSet Name="DailyUsers">
+      <Query>
+        <CommandText>SELECT COUNT(*) AS ActiveUsers FROM Users WHERE IsActive = 1</CommandText>
+      </Query>
+    </DataSet>
+  </DataSets>
+  <Description>Daily count of active users</Description>
+</Report>

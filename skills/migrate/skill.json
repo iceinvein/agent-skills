@@ -13,6 +13,7 @@
       "scripts",
       "templates",
       "fixtures/tiny-express",
+      "fixtures/tiny-webforms",
       "install.sh",
       "uninstall.sh",
       "package.json",

@@ -47,6 +47,15 @@ below rather than only into this file's revision history.
   (`// see [Route] above`), since the probe reads text, not parsed syntax.
   That is a classification-time false positive for the enumerating agent to
   skip, not something the regex can rule out.
+  Known gap, overcounting: a class-level `[RoutePrefix("...")]` line matches
+  too, and it names a prefix applied to every action underneath it, not an
+  action of its own, the same non-action match convention routing's own
+  bullet already discloses for a `MapRoute`/`MapHttpRoute` registration
+  statement. Run against a controller with one `RoutePrefix` and three
+  attribute-routed actions, this probe returns four matched lines; the
+  count this direction reports has to be actions (deduplicated by the
+  action they annotate, the same unit convention routing counts), which
+  here is three, not the raw four matched lines.
 - **Convention routing (code)**: public action methods on a class whose name
   contains `Controller`. A convention-routed action carries no attribute at
   all, so the registration statement is not a stand-in for it: counting
