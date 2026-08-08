@@ -186,9 +186,12 @@ leaves behind exactly whatever the last commit captured. Leave `.migrate/` in
 place either way. Discard only uncommitted scratch files, such as a
 `batch.json` you built but never imported. `.migrate/.env`, if a runtime lens
 created one, must never be committed regardless of how the run ends. `init`
-takes care of the ignore entry either way and says on stdout which it did:
-`init: appended .migrate/.env to <path>` when the target already had a
-`.gitignore`, or `init: created <path> with .migrate/.env` when it had none.
-If you edited `.gitignore` after `init` ran, check the entry is still there
-before committing anything, because nothing re-checks it: the `leaks` gate
-that would catch a committed value is opt-in (`migrate check --leaks`).
+takes care of the ignore entry in all three cases, and says on stdout when it
+changed something: `init: created <path> with .migrate/.env` when the target
+had no `.gitignore`, `init: appended .migrate/.env to <path>` when it had one
+without the entry, and **nothing at all** when the entry was already there,
+since there was nothing to change. Silence from `init` on this is the
+already-correct case, not a skipped one. If you edited `.gitignore` after
+`init` ran, check the entry is still there before committing anything, because
+nothing re-checks it: the `leaks` gate that would catch a committed value is
+opt-in (`migrate check --leaks`).

@@ -40,7 +40,7 @@ scripts/
   config.ts            config.toml load and write, TOML escaping
   store.ts             JSONL read, atomic write, id upsert, file readers
   lock.ts              store lock: serialises the read-modify-write in import,
-                       census and phase --status
+                       census, phase --status and reset
   phases.ts            phases.json state and committed batches
   validate.ts          per-row shape validation shared by import and check
   census.ts            census kinds, balance and bounds invariants, subject identity
@@ -79,20 +79,31 @@ guards every writer. It resolves real paths, so a symlinked `.migrate` cannot
 sneak a write in, and it handles case-insensitive volumes. `citations.ts` shares
 the same `isContained` predicate for the read side.
 
-If you add a writer, it has to pass through that guard, and there are exactly
-two ways to do it. Most writers get it for free by going through `writeRows` or
-`writeAtomically`, which call it themselves; prefer that, since it also buys
-temp-plus-rename. The two writers that cannot are `init`'s, and both call
-`assertNotUnderSource` directly instead: `config.ts`'s `writeConfig`, because
-whether the config it is rendering is usable is `init`'s decision rather than
-this function's (routing it through the guard would also make the hand-edited
-config those downstream guards exist for unconstructible through that API), and
-the `.gitignore` append, because an append is not a whole-file write and there
-is nothing atomic to do with it. `init-cmd.ts` checks all three of its write
-targets up front, before creating anything, so a refusal leaves the tree as it
-was found. What is not negotiable is that a new writer reaches the guard one
-way or the other; a raw `writeFile` with neither is the bug this rule exists to
-stop, and `init` shipped exactly that bug in Milestone 2.
+If you add a writer, it has to reach that guard, and there are exactly two ways
+it can. Almost every writer gets there for free by going through `writeRows` or
+`writeAtomically`, which call `assertNotUnderSource` themselves; prefer that,
+since it also buys temp-plus-rename. Prefer it especially because the second
+way is a command checking its own targets up front, and exactly one command
+does: `init-cmd.ts` calls `assertNotUnderSource` on `config.toml`, `queue/` and
+`.gitignore` before it creates anything, which covers all three of `init`'s
+writes at once. None of those three calls the guard for itself:
+
+- `config.ts`'s `writeConfig` is a plain `writeFile`. Deliberate: whether the
+  config it renders is usable is `init`'s decision, not this function's, and
+  routing it through the guard would make the hand-edited config those
+  downstream guards exist for unconstructible through that API.
+- The `.gitignore` **append** is `appendFile`. It could not be `writeAtomically`
+  in any case: an append is not a whole-file write, so there is nothing to
+  temp-and-rename.
+- The `.gitignore` **create** is a plain `writeFile`. This one could have gone
+  through `writeAtomically` and does not; it is a small, brand-new file in a
+  fresh target, and the up-front check already covers containment. Worth
+  revisiting if that file ever grows.
+
+So the guard holds for every writer, but only the helpers give atomicity, and
+`init`'s three writes have none of it. What is not negotiable is the guard: a
+raw `writeFile` reached by neither route is the bug this rule exists to stop,
+and `init` shipped exactly that bug in Milestone 2.
 
 **Writes are atomic.** `writeAtomically` writes to a randomly-named sibling then
 renames, and cleans up the temp file on failure without masking the original
@@ -103,10 +114,14 @@ do one. `import` and `census` each read a whole store file, upsert or replace
 rows, and rewrite the whole file; both also commit a batch into `phases.json`,
 via `recordBatch`, inside the same lock. `phase --status` does its own
 read-modify-write on `phases.json` alone. `reset` does the widest one of the
-four: it rewrites `elements.jsonl` and `census.jsonl` from what it read, then
-`phases.json`. Atomic writes alone do not make any of that safe under a
-concurrent caller: two callers can still read the same base and one rename can
-still discard the other's rows.
+four, and which files it touches depends on the phase named: `elements.jsonl`
+and `census.jsonl` for `enumerate`, `capabilities.jsonl` plus removal of
+`seam.json` and `seam.md` for `seam`, `requirements.jsonl` and `census.jsonl`
+and `elements.jsonl` again for `extract`, `deltas.jsonl` and
+`requirements.jsonl` for `parity`, and `phases.json` for every phase including
+the four that clear nothing else. Atomic writes alone do not make any of that
+safe under a concurrent caller: two callers can still read the same base and
+one rename can still discard the other's rows.
 
 `withStoreLock` is **not reentrant**, so a helper called from inside a critical
 section must not take it. That is why `savePhases` and `recordBatch` are
@@ -124,7 +139,7 @@ orphan census row would be worse: a record naming a batch that was never
 actually committed, which is exactly the mismatch the run-state gate exists to
 catch.
 
-`lock.ts`'s `withStoreLock` wraps each of these three write paths in one lock
+`lock.ts`'s `withStoreLock` wraps each of these four write paths in one lock
 file for the whole store (`.migrate/.lock`, `O_EXCL` create, bounded retry with
 backoff). It distinguishes a lock file that is merely absent or momentarily
 empty (never counted against a corruption budget) from one that is genuinely

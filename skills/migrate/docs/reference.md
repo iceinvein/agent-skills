@@ -537,9 +537,11 @@ Optional: `--source-stack`, `--target-stack`, `--basis <runnable|source-only>`.
 Creates `.migrate/` and `.migrate/queue/`, writes `config.toml`, and makes sure
 `.migrate/.env` is gitignored: it appends the entry to an existing `.gitignore`
 exactly once, and **creates a `.gitignore` containing it when the target has
-none**. It says which it did on stdout (`init: appended .migrate/.env to
-<path>` or `init: created <path> with .migrate/.env`), so a file written
-outside `.migrate/` is never written in silence.
+none**. It says on stdout when it changed something (`init: appended
+.migrate/.env to <path>` or `init: created <path> with .migrate/.env`), so a
+file written outside `.migrate/` is never written in silence. A target whose
+`.gitignore` already lists the entry gets neither line, because nothing was
+written.
 
 Refuses an existing config at 1, and a source path that is missing or not a
 directory at 2. Refuses at 2, before creating anything at all, if any of its

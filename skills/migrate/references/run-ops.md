@@ -118,8 +118,10 @@ resuming a crashed run a read rather than a recollection.
 
 Enforced. Every claim in this section was run.
 
-`import`, `census`, and `phase --status` each take one lock over the whole
-store (`.migrate/.lock`) for the length of their read-modify-write. Without
+`import`, `census`, `phase --status`, and `reset` each take one lock over the
+whole store (`.migrate/.lock`) for the length of their read-modify-write. Those
+four are the whole set; every other command either only reads the store, or
+does not touch it. Without
 it, two agents importing at once each read the same base file, and whichever
 one rewrites last silently discards the other's rows. The default wait is 30
 seconds, polling with backoff (25ms, growing by roughly 1.5x each attempt, up
@@ -131,8 +133,10 @@ merely held, ends in exit `3`.
 from `1` (a content or domain failure: your batch or query was well-formed
 and the answer is no) and `2` (a malformed request: a bad flag, a missing
 file). A lock failure says the request itself was fine; there is nothing
-about your `batch.json` to go back and inspect, regardless of which of the
-three ways below the lock failed.
+about your `batch.json`, or about the `--phase` you named, to go back and
+inspect, regardless of which of the three ways below the lock failed. (Three
+ways the lock can fail, not three commands that take it: four commands do,
+listed above.)
 
 That said, "retry" resolves the three underlying causes differently, and only
 one of them clears on its own. Verified against a scratch store: a lock held
@@ -148,8 +152,8 @@ attempt, immediately, because nothing about the file is different the second
 time. Retry is the right first move for exit `3` in general; only
 `--force-unlock`, after confirming safety, moves a stale lock forward.
 
-**What a waiting agent sees.** `import` and `census` announce the wait on
-stderr, once, the first time they see a live holder. Verified against a
+**What a waiting agent sees.** `import`, `census`, and `reset` announce the
+wait on stderr, once, the first time they see a live holder. Verified against a
 scratch store, holding the lock with a real running process and then
 attempting an import produced (path and pid shortened for readability; the
 message text is exact):
@@ -158,12 +162,18 @@ message text is exact):
 import: waiting for store lock (held by pid 51234 since 2026-08-07T09:14:02.001Z)
 ```
 
-`phase --status` does not print this line. It waits on the same lock with
-the same backoff, silently: run against a scratch store with a live holder
-released two seconds in, `migrate phase enumerate --status running` printed
-nothing at all until it succeeded, 1.85 seconds later. If the wait for any of
-the three ends in a timeout instead, all three report it the same way, with
-their own command name prefixed:
+`phase --status` is the one that does not print this line. It waits on the
+same lock with the same backoff, silently: run against a scratch store with a
+live holder released two seconds in, `migrate phase enumerate --status running`
+printed nothing at all until it succeeded, 1.85 seconds later. `reset` does
+print it, verified the same way against a live holder released two seconds in:
+
+```
+reset: waiting for store lock (held by pid 74987 since 2026-08-08T00:00:00.000Z)
+```
+
+If the wait for any of the four ends in a timeout instead, all four report it
+the same way, with their own command name prefixed:
 
 ```
 import: timed out after 30000ms waiting for the store lock held by pid 51234 since 2026-08-07T09:14:02.001Z
@@ -203,7 +213,11 @@ what you read here matches what you'll see on screen exactly.
 
 **`--force-unlock` is only appropriate after confirming the named pid is not
 running and no other agent is mid-write.** It exists on `import`, `census`,
-and `phase`. What it actually does is blunt: it unlinks the lock file
+`phase`, and `reset`, the same four commands that take the lock at all.
+Verified against a scratch store holding a dead holder's lock: each of the four
+exits `3` without the flag and `0` with it. `reset` matters most here of the
+four, since it is the one whose whole job is deleting rows. What it actually
+does is blunt: it unlinks the lock file
 unconditionally, before this process even checks who, if anyone, holds it.
 The CLI does not verify staleness for you when you pass this flag; the
 message says "after confirming no other agent is writing" because that
