@@ -159,7 +159,7 @@ otherwise read as six): a requirement with `confidence: {"kind": "queued",
 "queue": "q-bulk-import-scope"}` and no such file on disk yet.
 
 ```
-refs:
+  refs:
     UM-005 references queue item q-bulk-import-scope via confidence.queue, which does not exist
 ```
 
@@ -208,7 +208,7 @@ verb yet, so their phases stay `pending` forever this milestone, and
 `run-state` names both by hand:
 
 ```
-run-state:
+  run-state:
     phase adjudicate is pending; every phase through handoff must be done
     phase handoff is pending; every phase through handoff must be done
 ```

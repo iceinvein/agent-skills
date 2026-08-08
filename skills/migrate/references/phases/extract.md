@@ -159,7 +159,7 @@ that was never part of the checkout.
 existence), but `migrate check` reports it under its own gate, by name:
 
 ```
-citations:
+  citations:
     UM-004 cites Controllers/SessionController.cs, which does not exist in the source tree
 ```
 
@@ -564,7 +564,7 @@ disposable copy with extract reset before any closer census was recorded
 (never reset the running example itself just to see this message):
 
 ```
-census:
+  census:
     declared closer cross-capability-workflow has no census record
     declared closer scope-injection has no census record
     declared closer read-write-symmetry has no census record

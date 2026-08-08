@@ -124,6 +124,57 @@ list mixing a route id and a table id (as in the `capabilities.jsonl`
 example already shown) is exactly what a community looks like once you
 stop distinguishing surfaces.
 
+**Edgeless elements, and where they land.** An element carrying no `ledger`
+ref, and named by none, is its own connected component: a singleton with no
+edges at all. Expect a real share of them, not a handful; both committed
+fixtures are about a quarter edgeless (three of `tiny-express`'s twelve,
+four of `tiny-webforms`'s sixteen). Two facts about them, in the order they
+matter:
+
+1. **They do not move Q, in either direction.** A singleton community has
+   no within-community edge and zero total degree, so its term in the
+   formula above is `0 - 0`. Leave them out of the component listing and
+   the arithmetic; including them changes nothing but the line count. This
+   is why a fixture can be a quarter edgeless and still clear the floor.
+2. **They must still land in exactly one capability, and nothing computes
+   which.** The graph holds no information about a node with no edges,
+   which is what being edgeless means, so this is a judgment call made once
+   by hand and written down. Assign each edgeless element to the capability
+   already holding what it sits closest to in the source: the same file,
+   the same directory, the same feature area, the same configuration block.
+   Name the capability and the basis in `seam.md`, one line per edgeless
+   element, beside the validators' output.
+
+Two things this rule is not.
+
+It is not **one capability per edgeless element**. A capability per orphan
+is not a partition of anything; it defeats the fanout the seam exists to
+produce, since extract dispatches one agent per capability and would then
+dispatch one per stray settings key.
+
+It is not **leave it out of every capability**. Nothing here catches that:
+no gate reads `capabilities.jsonl`'s `elements` array at all, at any phase.
+`check.ts` reads that file only for the `slug` set, to reject duplicate
+slugs and to resolve each requirement's `cap`. So an element in no
+capability passes every gate this phase and the next one have, and then
+surfaces two phases later in the most expensive possible way: extract fans
+out per capability, an element in no capability gets no agent, no agent
+writes it a disposition, and the coverage gate fails on an `unaccounted`
+element with nothing in the message pointing back at the seam decision that
+caused it.
+
+The one exception is deliberate rather than accidental. When no capability
+is a defensible home (a connection string every capability's data path
+reads, a setting genuinely shared by all of them), that is a seam finding,
+not an element problem: file a queue item naming the element, the
+capabilities with a partial claim, and the real options, and leave it out
+of every capability on purpose. Extract then disposes of it `out-of-scope`
+citing that same item, which is the one route by which an element reaches a
+terminal disposition without belonging to a capability, and the `refs` gate
+does check that queue id resolves. Deliberate and recorded; the failure
+above is silent and unrecorded, and that is the whole difference between
+them.
+
 A worked example, run against a real store, of the fully degraded case
 above: assume this source has no relational schema, no statically
 parseable code, and no VCS history at all, so surface-affinity is the
@@ -142,7 +193,9 @@ different table touches.
 ```
 
 `migrate import elements` accepts all six (`import elements: 6 added, 0
-updated`). A short standard-library script (no `pip install`, no graph
+updated, batch b-seam-example-001`; the `, batch <id>` suffix is
+unconditional, since the importer writes the batch id onto every row). A
+short standard-library script (no `pip install`, no graph
 package) reads the four `ledger` refs as edges, finds connected
 components by breadth-first search, and computes Q with the formula
 above. Its real output, unedited:
@@ -226,6 +279,31 @@ components-only figure, and merging whole components (the no-op the clause
 above warns against) would only have found the wrong answer, not a
 conservative one.
 
+The four edgeless elements are still owed a home, per the rule above, and
+the graph has nothing to say about any of them. Assigned by hand, each on
+the source proximity the rule names, and recorded here because nothing
+computes it:
+
+- `route-default-aspx` joins `{route-post-api-users, screen-default,
+  setting-welcome-email-enabled, workflow-signup-welcome}`. It *is*
+  `Default.aspx`, and `screen-default` is the same file's rendered half.
+- `route-users-aspx` joins `{integration-billing-sync,
+  route-get-api-users-id-welcome, screen-users}`, for the same reason
+  against `Users.aspx`.
+- `setting-nightly-digest-cutoff-days` joins `{job-nightly-digest,
+  table-audit-log}`: `Jobs/NightlyDigestJob.cs:13` is the only line in the
+  source that reads it, and that job is the whole of that community.
+- `setting-default-connection` joins nothing, deliberately, and is the
+  exception the rule names. `Controllers/UsersController.cs:17` and
+  `Jobs/NightlyDigestJob.cs:14` both read it, and those two lines serve
+  three of the four communities between them, so no capability has a claim
+  the others do not. It gets a queue item instead, and extract disposes of
+  it `out-of-scope` citing that item.
+
+`scripts/__tests__/e2e-webforms.test.ts` drives exactly this partition,
+these four assignments included, so a change to either has to be a change
+to both.
+
 **Evidence.** Every validator's script (the actual command or program run,
 not a description of it) and its raw output goes into `.migrate/seam.md`,
 verbatim, so a reviewer can retrace exactly what ran and what it found.
@@ -265,8 +343,8 @@ check` does. A real run against a store where `enumerate` was still
 `running` when `seam` was flipped to `done` reported:
 
 ```
-run-state:
-  phase enumerate is running; every phase through seam must be done
+  run-state:
+    phase enumerate is running; every phase through seam must be done
 ```
 
 That is the mechanism behind `SKILL.md`'s "do not skip ahead": nothing

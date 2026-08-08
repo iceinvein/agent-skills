@@ -163,7 +163,7 @@ its own gate; `migrate check --phase parity`, run for real right now,
 reports:
 
 ```
-deltas:
+  deltas:
     delta-async-email-delivery is not owner-signed
 ```
 
