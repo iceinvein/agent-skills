@@ -232,14 +232,16 @@ verbatim, so a reviewer can retrace exactly what ran and what it found.
 This is prose because it is an audit trail, not a count anything balances.
 
 **Write the partition by hand.** There is no `seam` verb: nothing in the
-CLI writes `capabilities.jsonl`, `seam.json`, or `seam.md`. All three are
-hand-written, the same way `parity-basis.md` is in phase 0. Whichever
-validator produced the accepted partition (the worked examples above show
-surface-affinity; a schema-clustering or call-graph result is written the
-same way), each community becomes one line. The gate checks the file for
-duplicate slugs (the only structural check it gets, since there is no
-importer to validate it at write time) and later, in extract, for every
-requirement's `cap` resolving to one of these slugs.
+CLI authors `capabilities.jsonl`, `seam.json`, or `seam.md`. All three are
+hand-written, the same way `parity-basis.md` is in phase 0. (`migrate reset
+--phase seam` does touch these paths, clearing `capabilities.jsonl` and
+deleting the other two, but that undoes the phase rather than writing its
+content.) Whichever validator produced the accepted partition (the worked
+examples above show surface-affinity; a schema-clustering or call-graph
+result is written the same way), each community becomes one line. The gate
+checks the file for duplicate slugs (the only structural check it gets,
+since there is no importer to validate it at write time) and later, in
+extract, for every requirement's `cap` resolving to one of these slugs.
 
 `seam.json`'s shape is in `docs/reference.md`'s store artifacts section.
 Unlike `capabilities.jsonl`, no gate reads `seam.json` or `seam.md` at
@@ -331,4 +333,5 @@ migrate phase seam --status done
 
 `queue add` runs only when triangulation disagrees or Q stays below 0.3;
 `capabilities.jsonl`, `seam.json`, and `seam.md` are written by hand
-regardless, with no command for either.
+regardless, with no command that authors their content (`migrate reset
+--phase seam` clears them; it does not write them).

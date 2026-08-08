@@ -54,8 +54,10 @@ migrate phase enumerate --status done
 
 Produces `capabilities.jsonl` (the seam partition), `seam.json` (run-level
 seam metadata), and `seam.md` (the validators' raw evidence). All three are
-hand-written: there is no `seam` verb, so nothing in the CLI writes any of
-them.
+hand-written: there is no `seam` verb, so nothing in the CLI authors their
+content. (`migrate reset --phase seam` does write to these paths, clearing
+`capabilities.jsonl` and deleting the other two, but that undoes the phase
+rather than authoring it.)
 
 Read `references/phases/seam.md` before dispatching anything.
 

@@ -169,15 +169,17 @@ own message naming the requirement and the exact problem.
 
 ### Writing the disposition back
 
-**`disposition` has exactly one writer past enumerate: the elements batch
-you import here.** Nothing about writing a requirement changes an
+**Past enumerate, the elements batch you import here is the only writer of
+a *resolved* `disposition`.** Nothing about writing a requirement changes an
 element's disposition by itself; every element the requirement accounts
 for needs its own row in an elements batch, disposition set to `mapped`
 with the requirement's id, or to `out-of-scope` with a queue id if it is
 being carried forward unmapped on purpose. This is the write-back
 `SKILL.md` calls out as load-bearing: a review found the walkthrough could
 not clear its own coverage gate without this second import, because
-nothing else in the run ever revisits an element's disposition.
+nothing else moves an element toward a terminal disposition once enumerate
+ends. (`migrate reset --phase extract` also writes this field, but only
+back to `unaccounted`, undoing the phase rather than progressing it.)
 
 A worked example, run against the same store, four elements mapped and one
 carried out of scope:

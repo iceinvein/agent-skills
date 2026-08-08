@@ -71,8 +71,10 @@ against, and the `moderate` level needs the queue id it names.
 `migrate import reqs batch.json` accepts this and prints `import reqs: 0
 added, 3 updated, batch b-reqs-parity-001`: this is the write-back
 `SKILL.md` calls out as load-bearing, in the same shape as extract's
-disposition write-back. `parity` has exactly one writer, this import; the
-phase-status flip at the end of this phase does not touch it.
+disposition write-back. This import is the only writer of a *resolved*
+`parity` value; the phase-status flip at the end of this phase does not
+touch it, and neither does anything else short of `migrate reset --phase
+parity`, which clears it back to `null` rather than resolving it.
 
 **A sub-high rubric's queue id is checked by the refs gate, so file it in
 the same pass, before any check that would otherwise name it dangling.**
