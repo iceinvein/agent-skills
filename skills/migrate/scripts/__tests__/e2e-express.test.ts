@@ -84,11 +84,22 @@ function groupBySurface(rows: GroundTruthRow[]): Map<string, GroundTruthRow[]> {
 // directions per surface, supplied by the agent instead of a recipe file.
 // Both directions below find exactly the fixture's own elements, since this
 // is a fixture small enough that a real agent's two directions would too.
+// Every evidence string below names a command actually re-run against the
+// fixture (not merely a plausible-sounding description) to confirm it
+// produces the count this surface's rows carry; nothing downstream executes
+// these strings, so an unverified one would sit undetected the same way a
+// stale src citation's line range does.
+//
+// Six of the eight (routes, jobs, reports, screens, integrations, workflows)
+// have both directions read the same single file; only tables and settings
+// cross-reference a second one. That is a property of a fixture this small,
+// not evidence of stronger independent triangulation than it actually
+// carries, and nobody should cite it as the latter.
 const DIRECTIONS: Record<string, [string, string]> = {
   routes: ['grep "app.(get|post)" across app.js', 'manual walk of route registrations in app.js'],
   tables: [
     'grep "CREATE TABLE" across schema.sql',
-    'manual review of table names referenced in app.js and reports/',
+    'manual review of table names referenced in app.js, cron.js and reports/',
   ],
   jobs: ['grep "cron.schedule" across cron.js', 'manual review of cron.js'],
   reports: ['ls reports/*.json', 'manual review of report definitions under reports/'],
@@ -98,7 +109,10 @@ const DIRECTIONS: Record<string, [string, string]> = {
     'manual review of state stored and later consumed across app.js handlers',
     'grep "pendingWelcomes" across app.js',
   ],
-  settings: ['grep "settings\\." across app.js', 'manual review of settings.json keys'],
+  settings: [
+    'grep "settings\\." across app.js, excluding the require line',
+    'manual review of settings.json keys',
+  ],
 }
 
 const QUEUE_ID = 'q-tiny-express-enumerate-scaffold'
