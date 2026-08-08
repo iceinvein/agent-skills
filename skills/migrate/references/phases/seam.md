@@ -39,7 +39,7 @@ accept a partition (the one-validator exception is below).
    enumerate has run. That makes it the fallback validator when the other
    three cannot run at all, and a fourth opinion checking the other three
    when they can. The acceptance rule follows immediately below; the
-   concrete method and a worked example come after it.
+   concrete method and worked examples come after it.
 
 **Triangulate.** Accept a partition when two of the validators that ran
 agree with each other, at modularity Q >= 0.3 on the agreed partition.
@@ -194,13 +194,18 @@ components-only Q = 0.180
 
 `0.18 < 0.3`: on connected components alone, this seam would escalate. The
 ten-node component is the one that is "still large and its internal
-structure is not obviously one capability" (five different surfaces mixed
-with no visible split); the two-node component is left alone, since a job
-and the one table it purges is already obviously one capability. Every node
-in the ten-node component starts as its own group, per the clause above,
-and the standard greedy merge runs from there. Its real output, unedited:
+structure is not obviously one capability" (seven different surfaces mixed
+together, every declared surface but jobs, with no visible split); the
+two-node component is left alone, since a job and the one table it purges
+is already obviously one capability. Every node in the ten-node component
+starts as its own group, per the clause above, while the two-node component
+stays whole; exploded to eleven groups like that, the partition starts at
+`Q = -0.015`, below even the components-only figure, since none of the ten
+singletons has counted a same-group edge yet. The standard greedy merge
+runs from there. Its real output, unedited:
 
 ```
+starting Q (ten-node component exploded to singletons) = -0.015
 merge 1: {report-daily-users} + {table-users} -> Q = 0.070
 merge 2: {route-post-api-users} + {screen-default} -> Q = 0.155
 merge 3: {setting-welcome-email-enabled} + {workflow-signup-welcome} -> Q = 0.240
@@ -229,7 +234,7 @@ This is prose because it is an audit trail, not a count anything balances.
 **Write the partition by hand.** There is no `seam` verb: nothing in the
 CLI writes `capabilities.jsonl`, `seam.json`, or `seam.md`. All three are
 hand-written, the same way `parity-basis.md` is in phase 0. Whichever
-validator produced the accepted partition (the worked example above shows
+validator produced the accepted partition (the worked examples above show
 surface-affinity; a schema-clustering or call-graph result is written the
 same way), each community becomes one line. The gate checks the file for
 duplicate slugs (the only structural check it gets, since there is no
