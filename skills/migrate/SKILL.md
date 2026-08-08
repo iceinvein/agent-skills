@@ -80,8 +80,10 @@ migrate phase extract --status done
 ```
 
 The second import carries the resolved `disposition` (`mapped` or
-`out-of-scope`); it is the only writer of that field, so this line is the
-ledger write-back itself, not something the phase-status flip does for you.
+`out-of-scope`); it is the only writer of a *resolved* value there, so this
+line is the ledger write-back itself, not something the phase-status flip
+does for you. `migrate reset --phase extract` also writes this field, but
+only back to `unaccounted`; it clears, it does not resolve.
 
 ### 4. Parity
 
@@ -97,7 +99,9 @@ migrate phase parity --status done
 ```
 
 The second import carries the resolved `parity` value; as in extract, it is
-the only writer of that field, and this line is the write-back itself.
+the only writer of a *resolved* value, and this line is the write-back
+itself. `migrate reset --phase parity` also writes this field, but only
+back to `null`; it clears, it does not resolve.
 
 ### 5. Queue
 
