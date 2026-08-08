@@ -7,9 +7,11 @@ file formats and gate behaviour, see [reference.md](reference.md).
 
 Three parts, one rule that decides which part gets a given piece of work.
 
-- **The skill** (`SKILL.md`, and the phase manuals arriving in Milestone 2)
-  holds judgment: what to look for in a legacy codebase, how to decide a
-  requirement is confirmed rather than inferred, when to escalate to the queue.
+- **The skill** (`SKILL.md`, plus the six phase manuals under
+  `references/phases/` and the cross-cutting `references/run-ops.md`, all
+  landed in Milestone 2) holds judgment: what to look for in a legacy codebase,
+  how to decide a requirement is confirmed rather than inferred, when to
+  escalate to the queue.
 - **The CLI** (`bin/`, `scripts/`) holds anything that must not be
   self-reported: the store, the arithmetic, the gates.
 - **The references** are loaded just in time, so a run pays only for the phase
@@ -75,20 +77,42 @@ readable artifact without anyone hand-maintaining one.
 **Nothing writes into the source tree.** `assertNotUnderSource` in `paths.ts`
 guards every writer. It resolves real paths, so a symlinked `.migrate` cannot
 sneak a write in, and it handles case-insensitive volumes. `citations.ts` shares
-the same `isContained` predicate for the read side. If you add a writer, route
-it through `writeRows` or `writeAtomically` rather than calling `writeFile`.
+the same `isContained` predicate for the read side.
+
+If you add a writer, it has to pass through that guard, and there are exactly
+two ways to do it. Most writers get it for free by going through `writeRows` or
+`writeAtomically`, which call it themselves; prefer that, since it also buys
+temp-plus-rename. The two writers that cannot are `init`'s, and both call
+`assertNotUnderSource` directly instead: `config.ts`'s `writeConfig`, because
+whether the config it is rendering is usable is `init`'s decision rather than
+this function's (routing it through the guard would also make the hand-edited
+config those downstream guards exist for unconstructible through that API), and
+the `.gitignore` append, because an append is not a whole-file write and there
+is nothing atomic to do with it. `init-cmd.ts` checks all three of its write
+targets up front, before creating anything, so a refusal leaves the tree as it
+was found. What is not negotiable is that a new writer reaches the guard one
+way or the other; a raw `writeFile` with neither is the bug this rule exists to
+stop, and `init` shipped exactly that bug in Milestone 2.
 
 **Writes are atomic.** `writeAtomically` writes to a randomly-named sibling then
 renames, and cleans up the temp file on failure without masking the original
 error. A fixed temp name was tried first and lost data under concurrent writes.
 
-**The read-modify-write around a store file is lock-serialised.** `import` and
-`census` each read a whole store file, upsert or replace rows, and rewrite the
-whole file; both also commit a batch into `phases.json`, via `recordBatch`,
-inside the same lock. `phase --status` does its own read-modify-write on
-`phases.json` alone. Atomic writes alone do not make any of that safe under a
+**The read-modify-write around a store file is lock-serialised.** Four commands
+do one. `import` and `census` each read a whole store file, upsert or replace
+rows, and rewrite the whole file; both also commit a batch into `phases.json`,
+via `recordBatch`, inside the same lock. `phase --status` does its own
+read-modify-write on `phases.json` alone. `reset` does the widest one of the
+four: it rewrites `elements.jsonl` and `census.jsonl` from what it read, then
+`phases.json`. Atomic writes alone do not make any of that safe under a
 concurrent caller: two callers can still read the same base and one rename can
 still discard the other's rows.
+
+`withStoreLock` is **not reentrant**, so a helper called from inside a critical
+section must not take it. That is why `savePhases` and `recordBatch` are
+lock-free while `setPhaseStatus` is not, and why `reset-cmd.ts` calls
+`savePhases` rather than `setPhaseStatus` to move its phase back to `pending`.
+Check this before adding a call inside any of the four.
 
 `census-cmd.ts` orders its two writes deliberately: it commits the batch into
 `phases.json` first, and writes `census.jsonl` second. If the process is
@@ -195,12 +219,38 @@ with cosmetic duplicates, defeating containment with a symlink, breaking a
 markdown table with a pipe, injecting a TOML key through a scope string. None
 was visible in a diff.
 
-Fixtures live in `fixtures/`. `tiny-express` is deliberately small, two routes
-and one table, with its ground truth committed beside it in `GROUND-TRUTH.md`.
-`e2e.test.ts` copies it to a temp directory and drives the real CLI through
-`init`, `import`, `census` and `check`, showing the gate failing on unaccounted
-elements before it passes. That arc is the point: a test that only demonstrates
-the passing state would be worth much less.
+Fixtures live in `fixtures/`, two of them, each with its ground truth committed
+beside it in `GROUND-TRUTH.md`.
+
+`tiny-express` is a small Express/Node app: twelve elements across all eight
+default surfaces. Its stack (`express`) matches no file in
+`references/recipes/`, so it is the contract-only path, where the enumerating
+agent derives its own two directions per surface. `tiny-webforms` is a small
+ASP.NET Web Forms app, sixteen elements across the same eight surfaces, and its
+stack matches `references/recipes/aspnet.md`, so it is that recipe's run
+against committed code rather than against the throwaway trees it was written
+against.
+
+Three tests drive them, all copying the fixture to a temp directory and running
+the real binary as a subprocess so argument parsing and exit codes are covered
+too:
+
+- `e2e.test.ts` takes a deliberately narrow slice of `tiny-express` (two
+  surfaces, three elements) and shows the gate failing on unaccounted elements
+  before it passes. That arc is the point: a test that only demonstrates the
+  passing state would be worth much less.
+- `e2e-express.test.ts` and `e2e-webforms.test.ts` drive the whole of each
+  fixture probe through queue: `init`, `import`, `census`, `phase`, `queue
+  add`, `queue list`, and `check`, ending green at `migrate check --phase
+  queue` and then asserting plain `migrate check` fails on exactly `adjudicate`
+  and `handoff`. Both parse `GROUND-TRUTH.md` for their element rows rather
+  than hand-copying them, so fixture and test cannot drift, and both close on a
+  mutation showing the terminus assertion is load-bearing.
+
+When you change a fixture, the tests that read it will tell you; when you
+change a manual the tests follow (`seam.md`'s clustering procedure,
+`extract.md`'s citation rules, `parity.md`'s test-path template), they will
+not, so re-run them deliberately.
 
 ## Known limits
 

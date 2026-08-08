@@ -29,9 +29,13 @@ recipe is an input to that contract, not a second copy of it.
 ## Selection
 
 `[source].stack` is written once, in phase 0 (`references/phases/probe.md`),
-from what `migrate init` detects in the source checkout. Enumerate reads it
-back (`enumerate.md`'s Inputs section) to decide which file in this
-directory, if any, names this run's directions.
+by `migrate init`. It is not detected: `init` detects exactly one thing, `vcs`,
+from whether the source has a `.git` directory. `stack` is whatever
+`--source-stack` was passed, and `unknown` when it was not. Detecting the
+stack is the probing agent's own job, per `probe.md`'s Procedure step 1, which
+is also where `unknown` is stated to be a valid answer rather than a failure.
+Enumerate reads the value back (`enumerate.md`'s Inputs section) to decide
+which file in this directory, if any, names this run's directions.
 
 The convention is one file per stack family, named `<family>.md`. A stack
 value that names or clearly belongs to a family with a file here
@@ -93,9 +97,13 @@ structure.
   Probe: `rg -n -g '*.cs' 'Session\[|TempData\[' <source>`
 ```
 
-Every probe in `aspnet.md` was run against two throwaway ASP.NET-shaped
-trees, built independently of each other, while writing it, so this excerpt
-is proven content, not an invented template.
+Every probe in `aspnet.md` was run against four throwaway ASP.NET-shaped
+trees, built independently of each other across three review rounds while it
+was written, so this excerpt is proven content, not an invented template. All
+twenty-one of its directions have since been run against a committed fixture
+too, `fixtures/tiny-webforms`, by `scripts/__tests__/e2e-webforms.test.ts`,
+which records each direction's count and the recipe's own probe command as
+that count's evidence.
 
 ## Probes are a starting point
 

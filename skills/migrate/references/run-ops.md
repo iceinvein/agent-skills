@@ -74,19 +74,41 @@ row in that same batch was not written either, because the batch is the unit.
 
 **The batch id lands in `phases.json`, which is what makes the checkpoint
 mechanical rather than remembered.** A successful import appends the batch's
-id and row count to that phase's `batches` array. Real content of
-`.migrate/phases.json` after two imports into `enumerate`:
+id and row count to that phase's `batches` array. `savePhases` writes the file
+with `JSON.stringify(file, null, 2)`, so every phase nests under a top-level
+`"phases"` key beside a `"version"`, and each batch object spreads across four
+lines rather than sitting on one. Real content of `.migrate/phases.json` after
+two imports into `enumerate`, copied out of the file unedited, indentation
+included:
 
 ```json
-"enumerate": {
-  "status": "running",
-  "batches": [
-    { "id": "b-routes-code-001", "count": 1 },
-    { "id": "b-routes-code-002", "count": 1 }
-  ],
-  "pending": []
-}
+{
+  "version": 1,
+  "phases": {
+    "probe": {
+      "status": "pending",
+      "batches": [],
+      "pending": []
+    },
+    "enumerate": {
+      "status": "running",
+      "batches": [
+        {
+          "id": "b-routes-code-001",
+          "count": 1
+        },
+        {
+          "id": "b-routes-code-002",
+          "count": 1
+        }
+      ],
+      "pending": []
+    },
 ```
+
+(the remaining six phases follow in the same shape, each still `pending` with
+an empty `batches`, and are cut here for length; nothing about them differs
+from `probe` above.)
 
 Nobody has to remember which batches already landed: `migrate status` and
 `migrate phase enumerate` both read this array back, which is what makes

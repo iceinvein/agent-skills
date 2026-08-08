@@ -16,7 +16,7 @@ For how it is built and how to extend it, see [architecture.md](architecture.md)
 | `0` | Success |
 | `1` | A content or domain failure in a well-formed request. The request was serviceable and the answer is no: a gate found violations, a census does not balance, a queue file is unparseable. |
 | `2` | A malformed or unusable request. The command could not begin: a missing flag value, an unknown phase, a file that is absent or not valid JSON, no store above the cwd, a config that will not load. |
-| `3` | The store lock is unavailable: another process holds it, a holder looks stale, or the lock file has failed to parse across five consecutive reads, and force-unlocking was not requested. `import`, `census`, and `phase --status` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
+| `3` | The store lock is unavailable: another process holds it, a holder looks stale, or the lock file has failed to parse across five consecutive reads, and force-unlocking was not requested. `import`, `census`, `phase --status`, and `reset` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
 
 The split matters because an orchestrating agent should be able to tell "your
 generator is broken" from "your numbers are wrong" from "try again" without
@@ -30,9 +30,9 @@ mirror them exactly so there is no serialization layer.
 resolves inside `source.path`, following symlinks and case-insensitive volumes,
 and exits 2.
 
-**The store lock.** `import`, `census`, and `phase --status` each hold one lock
-(`.migrate/.lock`) across their read-modify-write of the store, so two agents
-writing at once cannot silently drop each other's rows. A waiting caller polls
+**The store lock.** `import`, `census`, `phase --status`, and `reset` each hold
+one lock (`.migrate/.lock`) across their read-modify-write of the store, so two
+agents writing at once cannot silently drop each other's rows. A waiting caller polls
 with backoff for up to 30 seconds by default. A holder confirmed no longer
 running is reported as stale rather than waited out further; so is a lock file
 that fails to parse on five consecutive reads (a lock file that is merely
@@ -300,9 +300,18 @@ second, so the gate never sees two answers for one subject. Subject identity is
 `lens:<surface>`, `attribute:<subject>`, `rule-sweep:<subject>` or
 `closer:<closer>`.
 
-Within `skipped` and `queued`, duplicates are rejected, compared after trimming
-and case folding. Otherwise an imbalanced record could be padded into passing by
-repeating an entry.
+Within `skipped` and `queued`, duplicates are rejected, otherwise an imbalanced
+record could be padded into passing by repeating an entry. The two compare
+differently, because they hold different kinds of string. A `skipped` element
+name is free text, so it is compared after trimming and case folding, and
+`" ORDERS "` beside `"orders"` is refused as the same entry twice. A `queued`
+id has a format, `q-` followed by a lowercase slug, and a case or whitespace
+variant of one never reaches the duplicate check at all: it is rejected a step
+earlier as malformed, by index (`queued[1] must be a valid queue id: q-
+followed by a lowercase slug`). Every id that does reach the duplicate check is
+therefore already canonical, and comparing those exactly is enough. A `skipped`
+element whose text matches a `queued` id is caught by its own separate check,
+on the same normalized form the `skipped` side uses.
 
 **`phase` is required on every kind**, one of the eight phase names (see below).
 A `lens` record must declare `enumerate`; a `closer` record must declare
@@ -525,11 +534,24 @@ which a command sets on request; an agent that runs `migrate phase <p>
 
 **`migrate init --source <path> --scope <text> --name <target>`**
 Optional: `--source-stack`, `--target-stack`, `--basis <runnable|source-only>`.
-Creates `.migrate/` and `.migrate/queue/`, writes `config.toml`, and appends
-`.migrate/.env` to an existing `.gitignore` exactly once. Refuses an existing
-config at 1, and a source path that is missing or not a directory at 2. Values
-you pass are escaped, so a scope containing quotes or backslashes round-trips
-intact. `vcs` is detected from the presence of `.git` in the source.
+Creates `.migrate/` and `.migrate/queue/`, writes `config.toml`, and makes sure
+`.migrate/.env` is gitignored: it appends the entry to an existing `.gitignore`
+exactly once, and **creates a `.gitignore` containing it when the target has
+none**. It says which it did on stdout (`init: appended .migrate/.env to
+<path>` or `init: created <path> with .migrate/.env`), so a file written
+outside `.migrate/` is never written in silence.
+
+Refuses an existing config at 1, and a source path that is missing or not a
+directory at 2. Refuses at 2, before creating anything at all, if any of its
+three write targets (`config.toml`, `queue/`, `.gitignore`) resolves inside
+`source.path`; a refusal leaves the tree exactly as it found it. Values you
+pass are escaped, so a scope containing quotes or backslashes round-trips
+intact.
+
+`vcs` is the only thing `init` detects, from the presence of `.git` in the
+source. `stack` is not detected: it is whatever `--source-stack` supplied, and
+`unknown` otherwise. Detecting the stack is the probing agent's job; see
+`references/phases/probe.md`.
 
 **`migrate phase [<name>] [--status <s>]`**
 With no arguments, prints all eight phases: status and batch count, one line
@@ -547,8 +569,14 @@ Clears only what that phase owns: `enumerate` clears elements and lens census
 records; `seam` clears capabilities and deletes `seam.json` and `seam.md`;
 `extract` clears requirements, the attribute, rule-sweep and closer census
 records, and returns every element disposition to `unaccounted`; `parity`
-clears deltas and nulls every requirement's parity. Other phases reset
-state only. **Queue items are never cleared by any phase.**
+clears deltas and nulls every requirement's parity. Every phase, including the
+four with nothing else to clear, also sets its own status back to `pending` and
+empties its `batches` list. **Queue items are never cleared by any phase.**
+
+The whole mutation runs inside the store lock, the same way `import` and
+`census` do and for the same reason: it is a read-modify-write over whole store
+files. A lock failure exits 3, and `--force-unlock` removes a lock believed
+stale before retrying.
 
 **`migrate report [--out <dir>]`**
 Writes `ledger.md`, `requirements.md` and `queue.md`, defaulting to

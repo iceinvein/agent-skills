@@ -60,11 +60,14 @@ export async function loadPhases(root: string): Promise<Record<Phase, PhaseState
   return state
 }
 
-// Reads and writes phases.json atomically using temp-plus-rename. If multiple
-// callers record batches concurrently, read-modify-write race conditions can
-// lose updates on the last rename. This is acceptable until orchestration
-// actually uses concurrent callers; the resolution is a design decision for
-// the orchestrator and belongs in Milestone 2.
+// Writes phases.json atomically using temp-plus-rename. Atomicity alone does
+// not make a read-modify-write safe: two callers can still read the same base
+// and one rename still discards the other's batches. That is closed by the
+// store lock, not here. This function deliberately does not take it, because
+// every caller already holds it -- recordBatch runs inside import's and
+// census's critical sections, setPhaseStatus takes it itself, and reset-cmd.ts
+// wraps its whole mutation in it -- and withStoreLock is not reentrant, so a
+// lock taken here would deadlock all three.
 export async function savePhases(
   root: string,
   phases: Record<Phase, PhaseState>,

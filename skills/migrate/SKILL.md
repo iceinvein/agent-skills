@@ -78,8 +78,14 @@ Fanout unit: one agent per capability.
 migrate import reqs <batch.json>
 migrate import elements <batch.json>
 migrate census <record.json>
+migrate queue add <item.md>
 migrate phase extract --status done
 ```
+
+`queue add` is not optional here. An `out-of-scope` disposition's queue id
+and a `queued` confidence's queue id are both checked by the `refs` gate, and
+a queue id with no file behind it is a violation the moment anything checks,
+not a future one. File each item in the same pass that names it.
 
 The second import carries the resolved `disposition` (`mapped` or
 `out-of-scope`); it is the only writer of a *resolved* value there, so this
@@ -97,8 +103,12 @@ Read `references/phases/parity.md` before dispatching anything.
 ```
 migrate import deltas <batch.json>
 migrate import reqs <batch.json>
+migrate queue add <item.md>
 migrate phase parity --status done
 ```
+
+Same rule as phase 3: a `rubric` plan below `high` must carry a queue id, and
+the `refs` gate checks it resolves, so file the item in this pass.
 
 The second import carries the resolved `parity` value; as in extract, it is
 the only writer of a *resolved* value, and this line is the write-back
@@ -175,5 +185,10 @@ git commit after every `migrate import`); if it was followed, an aborted run
 leaves behind exactly whatever the last commit captured. Leave `.migrate/` in
 place either way. Discard only uncommitted scratch files, such as a
 `batch.json` you built but never imported. `.migrate/.env`, if a runtime lens
-created one, is already gitignored by `init` and must never be committed
-regardless of how the run ends.
+created one, must never be committed regardless of how the run ends. `init`
+takes care of the ignore entry either way and says on stdout which it did:
+`init: appended .migrate/.env to <path>` when the target already had a
+`.gitignore`, or `init: created <path> with .migrate/.env` when it had none.
+If you edited `.gitignore` after `init` ran, check the entry is still there
+before committing anything, because nothing re-checks it: the `leaks` gate
+that would catch a committed value is opt-in (`migrate check --leaks`).

@@ -20,8 +20,9 @@ complete, not this file. See `references/recipes/README.md` for the
 contract this file fills in, and `references/phases/enumerate.md` for the
 contract itself.
 
-Every probe below was run against three throwaway ASP.NET-shaped trees
-built independently of each other (different directory layouts, different
+Every probe below was run against four throwaway ASP.NET-shaped trees,
+built independently of each other across three review rounds (different
+directory layouts, different
 C# formatting, different edge cases in the same construct, including
 partial-class controllers, multi-part and bracket-quoted SQL identifiers,
 and WebForms master pages) before being written down. Where a probe missed
@@ -31,7 +32,11 @@ was re-checked; where a gap cannot be closed (noted per-direction below),
 it is stated rather than the claim weakened around it. Independent review
 against trees built without sight of these fixtures has twice found gaps
 these trees did not exercise; each is folded into the fixes and disclosures
-below rather than only into this file's revision history.
+below rather than only into this file's revision history. Every direction
+below has since been run against a committed fixture as well,
+`fixtures/tiny-webforms`, by `scripts/__tests__/e2e-webforms.test.ts`, which
+records each one's count with the probe command beside it as that count's
+evidence, zero-finding directions included.
 
 ## routes
 

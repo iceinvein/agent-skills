@@ -92,9 +92,19 @@ end:
 
 `scripts/__tests__/e2e-express.test.ts` and
 `scripts/__tests__/e2e-webforms.test.ts` copy the respective fixture to a
-temp directory and drive the real CLI as a subprocess through `init`,
-`import`, `census`, `phase`, and `check`, reconciling every row against the
-fixture's ground truth and showing the gates fail before they pass.
+temp directory and drive the real CLI as a subprocess, probe through queue,
+through `init`, `import`, `census`, `phase`, `queue add`, `queue list`, and
+`check`, reconciling every row against the fixture's ground truth. Both end at
+`migrate check --phase queue` on exit 0, and then show plain `migrate check`
+failing on exactly `adjudicate` and `handoff`, the two phases with no verb in
+this version.
+
+Both show gates in both directions. Failing before they pass: the mid-run check
+after enumerate names the three closer records extract has not written yet, and
+the `deltas` gate names the sanctioned difference each run files unsigned
+before an owner signs it. Failing after they pass: each run closes green, then
+mutates the store (nulling every parity plan, then removing an element row) and
+asserts the gate that should catch it does.
 
 ## Documentation
 
@@ -123,7 +133,6 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `.migrate/phases.json` | object | per-phase status, batches, resume pointers |
 | `.migrate/seam.md` | prose | validator scripts and their raw output |
 | `.migrate/parity-basis.md` | prose | runnable-versus-source-only detection evidence |
-| `.migrate/forecast-assumptions.md` | prose | owner-attested forecast inputs, opt-in |
 | `.migrate/queue/q-<slug>.md` | prose | evidence, options, recommendation |
 | `.migrate/.env` | secrets | runtime-lens credentials, gitignored |
 | `docs/migrate/*.md` | generated | human-readable views, written by `migrate report` |
@@ -135,21 +144,28 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `migrate init --source <path> --scope <text> --name <target>` | Writes `.migrate/config.toml` |
 | `migrate import <elements\|reqs\|deltas> <batch.json>` | Validated bulk append to the store |
 | `migrate census <record.json>` | Records a lens accounting record |
-| `migrate phase [<name>] [--status <s>]` | Prints phase state, or sets one phase's status directly, the only command that does |
+| `migrate phase [<name>] [--status <s>]` | Prints phase state, or sets one phase's status to any value you name |
 | `migrate queue add <file.md>` | Adds a queue item |
 | `migrate queue list [--open]` | Lists queue items, severity first |
 | `migrate queue show <id>` | Prints one queue item |
 | `migrate check [--phase <p>] [--no-citations] [--leaks]` | Runs the gates |
 | `migrate status` | Phase state, counts, resume pointer |
-| `migrate reset --phase <phase>` | Clears one phase's derived rows |
+| `migrate reset --phase <phase>` | Clears one phase's derived rows and returns it to `pending` |
 | `migrate report [--out <dir>]` | Renders markdown views |
 
-Run `migrate --help` for the same list from the CLI itself. `phase --status
-<s>` is the only command that sets a phase's status directly; `import` and
-`census` also touch `phases.json` incidentally, each moving a phase to
-`running` (unless it is already `done`) when they record a batch. A lock
-failure on `import`, `census`, or `phase --status` exits `3`; pass
-`--force-unlock` once you have confirmed no other agent is actually writing.
+Run `migrate --help` for the same list from the CLI itself.
+
+**Four commands write a phase's status, each to a different extent.** `phase
+--status <s>` is the only one that writes any value you ask for, and the only
+one whose whole purpose is that write. `reset --phase <p>` also writes it
+directly, but only ever to `pending`, and it empties that phase's `batches`
+list at the same time. `import` and `census` touch `phases.json` incidentally,
+each moving a phase to `running` (unless it is already `done`) when they record
+a batch. Nothing else writes it at all.
+
+A lock failure on `import`, `census`, `phase --status`, or `reset` exits `3`;
+pass `--force-unlock` once you have confirmed no other agent is actually
+writing.
 
 ## Install
 
