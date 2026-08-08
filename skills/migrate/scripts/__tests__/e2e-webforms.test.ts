@@ -87,26 +87,33 @@ function groupBySurface(rows: GroundTruthRow[]): Map<string, GroundTruthRow[]> {
 // disclosed supporting-probe) command, copied verbatim from aspnet.md, not a
 // paraphrase of it: that is what ties this test to the recipe rather than to
 // a generic enumeration, and it is also what a reviewer re-checks the count
-// against. Every count below was produced by actually running that exact
-// command against this fixture (see task-13-report.md for the full 24-probe
-// table), not assumed from reading the recipe.
+// against. Every count below was produced by running that exact command
+// against this fixture, not assumed from reading the recipe, and every raw
+// match count that differs from the reported one is disclosed in a comment
+// beside it rather than left for a reader to rediscover.
 //
-// Several surfaces carry more than the two-direction floor, which is
-// aspnet.md's own preamble ("several surfaces below name more than the
-// two-direction floor") made concrete: routes alone has three, because a
-// WebForms app mixing in a Web API layer is exactly the case that preamble
-// names. Site.master gives both nav probes (reports and screens) a real
-// master page to find real content in, not an absence to report against: a
-// real WebForms app ships a master page, and this fixture's screens/nav
-// direction has to discriminate a real screen link from a real report link
-// sitting in the same file, not merely report zero because none exist. A
-// direction whose probe found nothing on this fixture (hangfire,
-// migrationBuilder, WCF, multi-step controller flow) is still recorded as a
-// real zero, per enumerate.md's zero-findings rule, not omitted: this
-// fixture simply does not use Hangfire, EF migrations, WCF, or MVC-style
-// wizard actions, and the recipe says as much about several of these
-// already (jobs' Hangfire direction is a documented gap for DI-registered
-// jobs, which this fixture is not).
+// **All twenty-one of aspnet.md's named directions are here**, not a chosen
+// subset. Several surfaces therefore carry more than the two-direction floor,
+// which is aspnet.md's own preamble ("several surfaces below name more than
+// the two-direction floor") made concrete. Site.master gives both nav probes
+// (reports and screens) a real master page to find real content in, not an
+// absence to report against: a real WebForms app ships a master page, and this
+// fixture's screens/nav direction has to discriminate a real screen link from
+// a real report link sitting in the same file, not merely report zero because
+// none exist.
+//
+// Seven directions find nothing here, and every one is recorded as a real
+// zero rather than omitted, per enumerate.md's zero-findings rule: jobs'
+// hangfire and osconfig, tables' orm, reports' builder, integrations' wcf and
+// configured, and workflows' multistep. This fixture simply uses none of
+// Hangfire, Windows Task Scheduler, EF, an .rdlc catalog, WCF, configured
+// service endpoints, or MVC-style wizard actions. A zero costs one line and
+// says the direction ran; leaving it out would say only that somebody chose
+// not to look.
+//
+// A zero-count direction cannot break a census either way: the bound is
+// max(directions) <= total <= sum(directions), and adding a zero moves
+// neither end of it.
 const DIRECTIONS: Record<string, Record<string, { count: number; evidence: string }>> = {
   routes: {
     // Raw match count is 7 (1 RoutePrefix + 2 lines per action x 3 actions,
@@ -141,8 +148,17 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
       evidence:
         "rg -n -g '*.cs' '(FROM|INTO|UPDATE)\\s+((\\[[^]]+\\]|\\w+)\\.)*(\\[[^]]+\\]|\\w+)' <source> | grep -Ev '^[^:]+:[0-9]+:[[:space:]]*//'",
     },
+    // Zero: this fixture uses raw ADO throughout and has no DbContext and no
+    // [Table(...)] attribute anywhere. The recipe pairs a second probe with
+    // this direction's DDL half, for migrationBuilder.CreateTable, which finds
+    // nothing here for the same reason.
+    orm: { count: 0, evidence: "rg -n -g '*.cs' 'DbSet<|\\[Table\\(' <source>: no matches" },
   },
   jobs: {
+    // Raw match count is 3, all in Jobs/NightlyDigestJob.cs and all naming the
+    // same single job: the IJob class declaration at line 9, the
+    // JobBuilder.Create that builds it at 29, and the ScheduleJob that
+    // registers it at 30. Deduped to the one job they describe, that is 1.
     quartz: {
       count: 1,
       evidence: "rg -n -g '*.cs' 'IJob\\b|JobBuilder\\.Create|ScheduleJob\\(' <source>",
@@ -150,6 +166,11 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
     hangfire: {
       count: 0,
       evidence: "rg -n -g '*.cs' 'RecurringJob\\.|BackgroundJob\\.' <source>: no matches",
+    },
+    osconfig: {
+      count: 0,
+      evidence:
+        "rg -n -g '*.xml' -g '*.config' -i 'cron|schedule|<Task version' <source>: no matches",
     },
   },
   reports: {
@@ -164,6 +185,10 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
       evidence:
         "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>",
     },
+    // Zero: nothing in this fixture registers a report through code. The .rdl
+    // is picked up off disk and linked from the master page, which is the whole
+    // of how this app knows about it.
+    builder: { count: 0, evidence: "rg -n -g '*.cs' '\\.rdlc?\"' <source>: no matches" },
   },
   screens: {
     filesystem: {
@@ -191,12 +216,20 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
       evidence:
         "rg -n -g '*.cs' 'ClientBase<|ChannelFactory<|\\[ServiceContract\\]' <source>: no matches",
     },
+    // Zero: web.config declares appSettings and connectionStrings, and no
+    // <endpoint> element at all. The one outbound call this app makes is
+    // hardcoded in BillingClient.cs, not configured.
+    configured: { count: 0, evidence: "rg -n -g '*.config' '<endpoint\\b' <source>: no matches" },
   },
   workflows: {
     multistep: {
       count: 0,
       evidence: "rg -n -g '*.cs' 'ActionResult Step[0-9]+' <source>: no matches",
     },
+    // Raw match count is 2, both in Controllers/UsersController.cs and both on
+    // the same session key: the write at line 49 and the read at 57. A write
+    // and the read that consumes it are the two ends of one workflow, not two
+    // workflows, so this reports 1.
     statecarriers: {
       count: 1,
       evidence: "rg -n -g '*.cs' 'Session\\[|TempData\\[' <source>",
@@ -204,6 +237,11 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
   },
   settings: {
     storage: { count: 3, evidence: "rg -n -g '*.config' '<add (key|name)=' <source>" },
+    // Raw match count is 4: UsersController.cs:17 and NightlyDigestJob.cs:14
+    // both read DefaultConnection, UsersController.cs:58 reads
+    // WelcomeEmailEnabled, and NightlyDigestJob.cs:13 reads
+    // NightlyDigestCutoffDays. Deduped by the setting named rather than by the
+    // read site, that is 3 distinct settings, matching what storage found.
     readsites: {
       count: 3,
       evidence: "rg -n -g '*.cs' 'ConfigurationManager\\.(AppSettings|ConnectionStrings)' <source>",
@@ -959,9 +997,18 @@ test('aspnet recipe run driven probe through queue, ending green at check --phas
     expect(result.code).toBe(0)
   }
 
+  // aspnet.md names twenty-one directions across these eight surfaces, and
+  // seven of them find nothing on this fixture. Both numbers are counted here
+  // rather than claimed in a comment, so dropping a direction or quietly
+  // omitting a zero is a test failure rather than something a reader has to
+  // notice.
+  const declaredDirections = Object.values(DIRECTIONS).flatMap((d) => Object.values(d))
+  expect(declaredDirections.length).toBe(21)
+  expect(declaredDirections.filter((d) => d.count === 0).length).toBe(7)
+
   // 5. migrate census, one balanced lens record per surface, directions named
   // by aspnet.md for that surface, evidence set to the recipe's own probe
-  // command, total within the two-of-two-directions-found bounds.
+  // command, total within the bounds those directions imply.
   for (const [surface, surfaceRows] of groups) {
     const count = surfaceRows.length
     const directions = DIRECTIONS[surface]
