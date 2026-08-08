@@ -79,6 +79,31 @@ test('an unknown status is a usage error naming the valid set', async () => {
   expect(result.err).toContain('blocked')
 })
 
+// Final-review finding, Minor 3: `phase --force-unlock <name> --status <s>`
+// put a flag in the slot the phase name is read from, so the name came back
+// undefined, the write silently became a read, and the command exited 0
+// having moved nothing. `import` and `census` both reject the identical
+// flag-ordering mistake at 2, because their first positional is load-bearing
+// too.
+test('a write-intent flag before the phase name is a usage error, not a silent listing', async () => {
+  // Set a status the correct way first, so phases.json exists and carries a
+  // value the mis-ordered invocation below would visibly overwrite if it were
+  // still being serviced as a write.
+  expect((await migrate(['phase', 'probe', '--status', 'running'])).code).toBe(0)
+
+  const result = await migrate(['phase', '--force-unlock', 'probe', '--status', 'done'])
+  expect(result.code).toBe(2)
+  expect(result.err).toContain('want <name> before --status/--force-unlock')
+  const phases = JSON.parse(await readFile(join(target, '.migrate', 'phases.json'), 'utf8'))
+  expect(phases.phases.probe.status).toBe('running')
+})
+
+test('--status with no phase name at all is the same usage error', async () => {
+  const result = await migrate(['phase', '--status', 'done'])
+  expect(result.code).toBe(2)
+  expect(result.err).toContain('want <name> before --status/--force-unlock')
+})
+
 test('recording a census commits its batch under the record phase', async () => {
   const record = join(target, 'census.json')
   await writeFile(

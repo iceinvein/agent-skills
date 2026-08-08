@@ -139,3 +139,26 @@ test('a dead holder is refused with exit 3 and cleared by --force-unlock', async
   const forced = await migrate(['import', 'elements', batchPath, '--force-unlock'])
   expect(forced.code).toBe(0)
 })
+
+// Final-review finding, Important 3: `reset` does the same read-modify-write
+// over whole store files that import and census do -- it rewrites
+// elements.jsonl, census.jsonl and phases.json from what it read -- and was
+// the one such command with no lock and no lock.ts import at all. A command
+// that does not take the lock cannot report that it could not get it, so exit
+// 3 here is the whole assertion: before the fix both invocations below exited
+// 0 and cleared the store out from under whatever held the lock.
+test('reset refuses a dead holder with exit 3 and clears it with --force-unlock', async () => {
+  await writeFile(
+    join(target, '.migrate', '.lock'),
+    JSON.stringify({ pid: 999999, startedAt: '2026-08-07T02:58:03.000Z', cmd: 'import' }),
+  )
+
+  const blocked = await migrate(['reset', '--phase', 'enumerate'])
+  expect(blocked.code).toBe(3)
+  expect(blocked.err).toContain('999999')
+  expect(blocked.err).toContain('--force-unlock')
+
+  const forced = await migrate(['reset', '--phase', 'enumerate', '--force-unlock'])
+  expect(forced.code).toBe(0)
+  expect(forced.out).toContain('reset enumerate')
+})

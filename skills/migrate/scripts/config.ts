@@ -222,5 +222,16 @@ export async function writeConfig(root: string, init: ConfigInit): Promise<void>
     '{{TARGET_STACK}}',
     escapeTomlString(init.targetStack ?? 'unknown', 'target.stack'),
   )
+  // Deliberately a plain writeFile, not writeAtomically. Routing it through
+  // that helper would make writeConfig itself refuse to render a config whose
+  // declared source.path contains the store, which sounds right but is the
+  // wrong layer for the decision: this function renders a declaration, and
+  // whether the declaration is usable is init-cmd.ts's call, made there
+  // against all three of init's write targets before anything is created.
+  // Putting the refusal here as well would also make the one state those
+  // downstream guards exist for -- a config.toml hand-edited after the fact to
+  // point at a source containing its own store -- unconstructible through this
+  // API, and it is that hand-edit, not init, that reaches them in practice.
+  // The containment invariant still holds: init-cmd.ts guards this path.
   await writeFile(storePaths(root).config, rendered)
 }

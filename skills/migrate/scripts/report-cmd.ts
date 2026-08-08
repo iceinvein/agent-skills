@@ -1,11 +1,11 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { runCheck } from './check.ts'
 import { loadConfig } from './config.ts'
 import { assertNotUnderSource, storePaths } from './paths.ts'
 import { loadQueue } from './queue.ts'
 import { renderLedger, renderQueueReport, renderRequirements } from './report.ts'
-import { readRows } from './store.ts'
+import { readRows, writeAtomically } from './store.ts'
 import type { Element, Requirement } from './types.ts'
 
 export async function runReport(opts: { root: string; outDir?: string }): Promise<number> {
@@ -27,9 +27,15 @@ export async function runReport(opts: { root: string; outDir?: string }): Promis
   for (const e of errors) process.stderr.write(`report: ${e}\n`)
   const { summary } = await runCheck({ root: opts.root })
 
-  await writeFile(join(outDir, 'ledger.md'), `${renderLedger(elements)}\n${summary}\n`)
-  await writeFile(join(outDir, 'requirements.md'), renderRequirements(requirements))
-  await writeFile(join(outDir, 'queue.md'), renderQueueReport(items))
+  // Through writeAtomically rather than writeFile, so the three rendered views
+  // get temp-plus-rename like every store file: a report is what a human opens
+  // to read the run, and a truncated one is worse than a stale one. The
+  // explicit assertNotUnderSource on outDir above is still needed regardless,
+  // because the mkdir happens before any of these three run.
+  const src = cfg.source.path
+  await writeAtomically(join(outDir, 'ledger.md'), `${renderLedger(elements)}\n${summary}\n`, src)
+  await writeAtomically(join(outDir, 'requirements.md'), renderRequirements(requirements), src)
+  await writeAtomically(join(outDir, 'queue.md'), renderQueueReport(items), src)
 
   process.stdout.write(`report: wrote ledger.md, requirements.md, queue.md to ${outDir}\n`)
   // A malformed queue item is a content failure on an otherwise well-formed

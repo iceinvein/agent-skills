@@ -22,7 +22,8 @@ Subcommands:
                                   Run the gates; without --phase, exit 0 means
                                   the whole migration is complete
   status                          Phase state, counts, resume pointer
-  reset --phase <phase>           Clear one phase's derived rows
+  reset --phase <phase> [--force-unlock]
+                                  Clear one phase's derived rows
   report [--out <dir>]            Render markdown views
   --version                       Print the migrate version
   --help                          Show this message`
@@ -125,7 +126,21 @@ const HANDLERS: Record<string, Handler> = {
       process.stderr.write(`phase: ${status.error}\n`)
       return 2
     }
+    // args[0] is the phase name only when it is a positional. A flag sitting
+    // in that slot (`phase --force-unlock enumerate --status done`) leaves the
+    // name undefined, which used to silently downgrade a write to a read:
+    // every phase's line printed, exit 0, nothing moved. `import` and `census`
+    // both reject the identical flag-ordering mistake at 2, because their
+    // first positional is load-bearing too. Any write-intent flag with no
+    // phase name to apply it to is that same mistake, so it is refused here
+    // rather than serviced as a listing nobody asked for.
     const name = args[0]?.startsWith('--') ? undefined : args[0]
+    if (!name && (status.value !== undefined || args.includes('--force-unlock'))) {
+      process.stderr.write(
+        'phase: want <name> before --status/--force-unlock, as in `phase enumerate --status done`\n',
+      )
+      return 2
+    }
     const { findStoreRoot } = await import('../scripts/paths.ts')
     const root = await findStoreRoot(process.cwd())
     if (!root) {
@@ -208,8 +223,9 @@ const HANDLERS: Record<string, Handler> = {
       process.stderr.write('reset: no .migrate store found above the cwd\n')
       return 2
     }
+    const forceUnlock = args.includes('--force-unlock')
     const { runReset } = await import('../scripts/reset-cmd.ts')
-    return runReset({ root, phase })
+    return runReset({ root, phase, ...(forceUnlock ? { forceUnlock: true } : {}) })
   },
   report: async (args) => {
     const result = readFlag(args, '--out')
