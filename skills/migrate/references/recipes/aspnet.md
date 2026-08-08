@@ -47,15 +47,30 @@ below rather than only into this file's revision history.
   (`// see [Route] above`), since the probe reads text, not parsed syntax.
   That is a classification-time false positive for the enumerating agent to
   skip, not something the regex can rule out.
-  Known gap, overcounting: a class-level `[RoutePrefix("...")]` line matches
-  too, and it names a prefix applied to every action underneath it, not an
-  action of its own, the same non-action match convention routing's own
-  bullet already discloses for a `MapRoute`/`MapHttpRoute` registration
-  statement. Run against a controller with one `RoutePrefix` and three
-  attribute-routed actions, this probe returns four matched lines; the
-  count this direction reports has to be actions (deduplicated by the
-  action they annotate, the same unit convention routing counts), which
-  here is three, not the raw four matched lines.
+  Known gap, overcounting (RoutePrefix): a class-level `[RoutePrefix("...")]`
+  line matches too, and it annotates no action at all: it is a prefix
+  applied to every action underneath it, not a route of its own. Exclude it
+  entirely before counting anything; it is not a case of one action
+  matched twice, it is a line that never named an action to begin with.
+  This differs from convention routing's disclosed `MapRoute`/
+  `MapHttpRoute` gap in one important way: `MapRoute` is a separately
+  labelled supporting probe, run outside the regex this direction counts,
+  so nothing about it was ever in the tally to subtract from. `RoutePrefix`
+  is matched by the very regex this direction counts, so it has to be
+  subtracted from that count directly, a stronger and easier-to-miss
+  burden on the reader than a probe whose result was never combined with
+  this one's in the first place.
+  Known gap, overcounting (split attributes): the verb attribute and the
+  `Route` attribute frequently sit on separate lines rather than combined
+  in one bracket (`[HttpGet]` on one line, `[Route("...")]` on the next),
+  and both lines match, naming the same action twice. Run against a
+  controller with one `RoutePrefix` and three actions, each written with
+  its verb and `Route` attributes on separate lines, this probe returns
+  seven matched lines: one `RoutePrefix` plus two lines per action.
+  Excluding the `RoutePrefix` line (the paragraph above) leaves six;
+  deduplicating each action's two lines down to the one action they both
+  annotate leaves three, the count this direction reports, the same unit
+  convention routing counts, not the raw seven matched lines.
 - **Convention routing (code)**: public action methods on a class whose name
   contains `Controller`. A convention-routed action carries no attribute at
   all, so the registration statement is not a stand-in for it: counting

@@ -14,7 +14,7 @@ namespace TinyWebForms.Jobs
       var connStr = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
       using (var conn = new SqlConnection(connStr))
       {
-        var cmd = new SqlCommand("DELETE FROM AuditLog WHERE CreatedAt < @cutoff", conn);
+        var cmd = new SqlCommand("DELETE FROM dbo.AuditLog WHERE CreatedAt < @cutoff", conn);
         cmd.Parameters.AddWithValue("@cutoff", DateTime.UtcNow.AddDays(-cutoffDays));
         conn.Open();
         cmd.ExecuteNonQuery();

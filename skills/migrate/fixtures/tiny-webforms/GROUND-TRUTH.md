@@ -26,7 +26,7 @@ workflow, 3 settings.
 
 ## Element-to-element touches
 
-Six of these elements touch another element already in this table, the
+Eight of these elements touch another element already in this table, the
 kind of touch `references/phases/enumerate.md`'s Procedure (step 4) tells a
 lens to record as a `{"kind": "ledger", "id": ...}` ref, and the only edge
 data `references/phases/seam.md`'s surface-affinity clustering has to
@@ -42,3 +42,9 @@ lens would, rather than by reading this section.
 - `report-daily-users` queries `table-users`.
 - `workflow-signup-welcome` spans `route-post-api-users`,
   `route-get-api-users-id-welcome`, and `setting-welcome-email-enabled`.
+- `screen-default` posts to `route-post-api-users`: `Default.aspx.cs`'s
+  signup button handler calls `UsersController.CreateUser` directly, the
+  screen-that-posts-to-a-route example `enumerate.md`'s step 4 names as its
+  own canonical case.
+- `screen-users` checks `route-get-api-users-id-welcome`: `Users.aspx.cs`'s
+  `Page_Load` calls `UsersController.GetWelcomeStatus` directly.

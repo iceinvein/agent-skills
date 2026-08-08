@@ -1,0 +1,16 @@
+<%@ Master Language="C#" %>
+<!-- Nav lives here, not in a sitemap or _Layout.cshtml: the WebForms half of this mixed app. -->
+<!DOCTYPE html>
+<html>
+<head><title>Tiny WebForms</title></head>
+<body>
+  <form runat="server">
+    <nav>
+      <asp:HyperLink runat="server" NavigateUrl="~/Default.aspx">Home</asp:HyperLink>
+      <asp:HyperLink runat="server" NavigateUrl="~/Users.aspx">Users</asp:HyperLink>
+      <a href="~/Reports/DailyUsers">Daily active users report</a>
+    </nav>
+    <asp:ContentPlaceHolder ID="MainContent" runat="server" />
+  </form>
+</body>
+</html>

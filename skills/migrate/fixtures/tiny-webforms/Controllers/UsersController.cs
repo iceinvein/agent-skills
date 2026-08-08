@@ -20,17 +20,23 @@ namespace TinyWebForms.Controllers
       return conn;
     }
 
-    [HttpGet, Route("")]
+    [HttpGet]
+    [Route("")]
     public IHttpActionResult GetUsers()
     {
       using (var conn = OpenConnection())
       {
-        var cmd = new SqlCommand("SELECT Id, Email FROM Users WHERE IsActive = 1", conn);
+        var cmd = new SqlCommand("SELECT Id, Email FROM [dbo].[Users] WHERE IsActive = 1", conn);
         return Ok(cmd.ExecuteReader());
       }
     }
 
-    [HttpPost, Route("")]
+    /*
+     * Historical note: an earlier draft issued a raw UPDATE LegacyUsers SET
+     * migrated = 1 statement here before the API layer replaced it.
+     */
+    [HttpPost]
+    [Route("")]
     public IHttpActionResult CreateUser(UserSignupRequest request)
     {
       using (var conn = OpenConnection())
@@ -44,7 +50,8 @@ namespace TinyWebForms.Controllers
       return Ok(new { id });
     }
 
-    [HttpGet, Route("{id}/welcome")]
+    [HttpGet]
+    [Route("{id}/welcome")]
     public IHttpActionResult GetWelcomeStatus(long id)
     {
       var email = HttpContext.Current.Session["PendingWelcome_" + id] as string;

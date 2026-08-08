@@ -95,15 +95,25 @@ function groupBySurface(rows: GroundTruthRow[]): Map<string, GroundTruthRow[]> {
 // aspnet.md's own preamble ("several surfaces below name more than the
 // two-direction floor") made concrete: routes alone has three, because a
 // WebForms app mixing in a Web API layer is exactly the case that preamble
-// names. A direction whose probe found nothing on this fixture (hangfire,
-// migrationBuilder, the two nav/sitemap probes, WCF, multi-step controller
-// flow) is recorded as a real zero, per enumerate.md's zero-findings rule,
-// not omitted: this fixture simply does not use Hangfire, EF migrations, a
-// sitemap or master page, WCF, or MVC-style wizard actions, and the recipe
-// says as much about several of these already (jobs' Hangfire direction is
-// a documented gap for DI-registered jobs, which this fixture is not).
+// names. Site.master gives both nav probes (reports and screens) a real
+// master page to find real content in, not an absence to report against: a
+// real WebForms app ships a master page, and this fixture's screens/nav
+// direction has to discriminate a real screen link from a real report link
+// sitting in the same file, not merely report zero because none exist. A
+// direction whose probe found nothing on this fixture (hangfire,
+// migrationBuilder, WCF, multi-step controller flow) is still recorded as a
+// real zero, per enumerate.md's zero-findings rule, not omitted: this
+// fixture simply does not use Hangfire, EF migrations, WCF, or MVC-style
+// wizard actions, and the recipe says as much about several of these
+// already (jobs' Hangfire direction is a documented gap for DI-registered
+// jobs, which this fixture is not).
 const DIRECTIONS: Record<string, Record<string, { count: number; evidence: string }>> = {
   routes: {
+    // Raw match count is 7 (1 RoutePrefix + 2 lines per action x 3 actions,
+    // since every action here uses the split verb-attribute-then-Route-attribute
+    // form): excluding the RoutePrefix line (it annotates no action) leaves 6,
+    // and deduping each action's two lines down to the one action they both
+    // annotate leaves 3, the real count this direction reports.
     attribute: {
       count: 3,
       evidence:
@@ -120,6 +130,12 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
   },
   tables: {
     ddl: { count: 2, evidence: "rg -n -g '*.sql' -i '^\\s*CREATE TABLE' <source>" },
+    // Raw match count is 4: a bracket-quoted [dbo].[Users] read, a plain
+    // INSERT INTO Users, a schema-qualified DELETE FROM dbo.AuditLog, and one
+    // block-comment continuation line naming a table that does not exist
+    // (LegacyUsers) which survives the probe's // -only comment filter (it
+    // starts with " * ", not "//") and must be excluded by classification,
+    // not by the regex. 2 real tables, both already known from DDL.
     raw_ado: {
       count: 2,
       evidence:
@@ -141,10 +157,12 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
       count: 1,
       evidence: "find <source> -type f \\( -name '*.rdl' -o -name '*.rdlc' \\)",
     },
+    // Site.master's nav carries a real "Daily active users report" link: 1
+    // real match, already known from the disk direction above.
     nav: {
-      count: 0,
+      count: 1,
       evidence:
-        "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>: no matches",
+        "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>",
     },
   },
   screens: {
@@ -152,10 +170,15 @@ const DIRECTIONS: Record<string, Record<string, { count: number; evidence: strin
       count: 2,
       evidence: "find <source> -type f \\( -name '*.aspx' -o -name '*.cshtml' \\)",
     },
+    // Raw match count is 3: Site.master's Home and Users NavigateUrl links
+    // (2 real screens, both already known from the filesystem direction) and
+    // one href pointing at the reports nav entry above, which names a report
+    // path, not a screen, and must be excluded by classification. 2 real
+    // screens.
     nav: {
-      count: 0,
+      count: 2,
       evidence:
-        "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' '(url|href|NavigateUrl)=\"~/|Html\\.ActionLink\\(|Url\\.Action\\(' <source>: no matches",
+        "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' '(url|href|NavigateUrl)=\"~/|Html\\.ActionLink\\(|Url\\.Action\\(' <source>",
     },
   },
   integrations: {
@@ -206,6 +229,13 @@ const REFS: Record<string, LedgerRef[]> = {
     { kind: 'ledger', id: 'route-get-api-users-id-welcome' },
     { kind: 'ledger', id: 'setting-welcome-email-enabled' },
   ],
+  // enumerate.md step 4's own canonical example: "a screen that posts to a
+  // route" (route-post-api-users, wired for real via Default.aspx.cs calling
+  // UsersController.CreateUser directly) and the analogous read-side case
+  // (route-get-api-users-id-welcome, wired via Users.aspx.cs calling
+  // UsersController.GetWelcomeStatus directly).
+  'screen-default': [{ kind: 'ledger', id: 'route-post-api-users' }],
+  'screen-users': [{ kind: 'ledger', id: 'route-get-api-users-id-welcome' }],
 }
 
 // Builds the same graph seam.md's surface-affinity clustering builds: one
@@ -368,6 +398,8 @@ test('aspnet recipe enumerate over every declared surface, with a census reconci
     ['workflow-signup-welcome', 'route-post-api-users'],
     ['workflow-signup-welcome', 'route-get-api-users-id-welcome'],
     ['workflow-signup-welcome', 'setting-welcome-email-enabled'],
+    ['screen-default', 'route-post-api-users'],
+    ['screen-users', 'route-get-api-users-id-welcome'],
   ].map(([a, b]) => [a, b].sort().join('|'))
   for (const edge of expectedEdges) {
     expect(edges.has(edge)).toBe(true)
