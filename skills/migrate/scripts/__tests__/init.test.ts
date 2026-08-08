@@ -1,11 +1,26 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadConfig } from '../config.ts'
 import { runInit } from '../init-cmd.ts'
 import { storePaths } from '../paths.ts'
+
+async function captureStdout(fn: () => Promise<number>): Promise<{ code: number; text: string }> {
+  const out: string[] = []
+  const original = process.stdout.write.bind(process.stdout)
+  process.stdout.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    const code = await fn()
+    return { code, text: out.join('') }
+  } finally {
+    process.stdout.write = original
+  }
+}
 
 let root: string
 let source: string
@@ -92,4 +107,86 @@ test('init does not mistake a commented-out mention for a real .gitignore entry'
   const lines = text.split('\n').map((l) => l.trim())
   expect(lines).toContain('.migrate/.env')
   expect(lines.filter((l) => l === '.migrate/.env')).toHaveLength(1)
+})
+
+// Final-review finding, Important 1: init was the one writer with no
+// containment guard. `migrate init --source .` inside a source tree created
+// config.toml, made queue/, and appended to the source's own .gitignore; every
+// later command then exited 2 on the guard those writers do have, leaving a
+// store nothing could write to. SKILL.md, docs/reference.md and
+// docs/architecture.md all claimed this was impossible.
+
+test('init refuses to build a store inside the read-only source tree, writing nothing', async () => {
+  const result = await runInit({ ...BASE(), sourcePath: root })
+  expect(result).toBe(2)
+  expect(existsSync(storePaths(root).dir)).toBe(false)
+  expect(existsSync(join(root, '.gitignore'))).toBe(false)
+})
+
+// The three write targets init checks share a parent for an ordinary target
+// root, so a plain path comparison can never tell them apart. A symlink can:
+// here .migrate resolves into the source tree while the target root itself is
+// nowhere near it, so only the store-path legs of the check fire. The guard
+// resolves real paths, which is what makes this reachable at all.
+test('init refuses when only the store directory resolves into the source tree', async () => {
+  const stash = join(source, 'stash')
+  await mkdir(stash, { recursive: true })
+  await symlink(stash, storePaths(root).dir)
+  expect(await runInit(BASE())).toBe(2)
+  expect(existsSync(join(stash, 'config.toml'))).toBe(false)
+  expect(existsSync(join(stash, 'queue'))).toBe(false)
+})
+
+// The mirror image, and the leg the store-path checks alone would miss: the
+// store is fine, but the target's .gitignore is a symlink into the source, so
+// the append would edit a file in the read-only checkout. Refused before
+// anything is created, so the planted file is byte-identical afterwards.
+test('init refuses when only the .gitignore resolves into the source tree', async () => {
+  const planted = join(source, '.gitignore')
+  await writeFile(planted, 'node_modules/\n')
+  await symlink(planted, join(root, '.gitignore'))
+  expect(await runInit(BASE())).toBe(2)
+  expect(await readFile(planted, 'utf8')).toBe('node_modules/\n')
+  expect(existsSync(storePaths(root).dir)).toBe(false)
+})
+
+// Final-review finding, Important 2: the append was guarded by
+// `if (existsSync(gitignore))`, so a target repo with no .gitignore of its own
+// got no ignore entry at all and `git add -A` staged .migrate/.env on the
+// first commit of the run. The `leaks` gate that would catch the committed
+// result is opt-in, so nothing else stood behind this.
+
+test('init creates a .gitignore listing the env file when the target has none, and says so', async () => {
+  const { code, text } = await captureStdout(() => runInit(BASE()))
+  expect(code).toBe(0)
+  const gitignore = join(root, '.gitignore')
+  expect(await readFile(gitignore, 'utf8')).toBe('.migrate/.env\n')
+  expect(text).toContain(`init: created ${gitignore} with .migrate/.env`)
+})
+
+test('init reports the append when the target already has a .gitignore', async () => {
+  const gitignore = join(root, '.gitignore')
+  await writeFile(gitignore, 'node_modules/\n')
+  const { code, text } = await captureStdout(() => runInit(BASE()))
+  expect(code).toBe(0)
+  expect(text).toContain(`init: appended .migrate/.env to ${gitignore}`)
+})
+
+// The claim the two tests above exist to make is not really about file
+// content, it is that git will not stage the env file. Asserted against real
+// git rather than by reading the ignore text, since the ignore text being
+// right and git still staging the file is precisely the failure that shipped.
+test('git does not stage .migrate/.env after init, on a target that had no .gitignore', async () => {
+  await Bun.spawn(['git', 'init', '-q'], { cwd: root, stdout: 'ignore', stderr: 'ignore' }).exited
+  expect(await runInit(BASE())).toBe(0)
+  await writeFile(storePaths(root).env, 'API_TOKEN=super-secret\n')
+  const proc = Bun.spawn(['git', 'check-ignore', '.migrate/.env'], {
+    cwd: root,
+    stdout: 'pipe',
+    stderr: 'ignore',
+  })
+  const listed = await new Response(proc.stdout).text()
+  await proc.exited
+  expect(proc.exitCode).toBe(0)
+  expect(listed.trim()).toBe('.migrate/.env')
 })
