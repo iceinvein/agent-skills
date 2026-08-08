@@ -1,7 +1,7 @@
 {
   "name": "migrate",
-  "version": "0.1.0",
-  "description": "Source-agnostic legacy migration mapping. Enumerates the legacy surface from two independent directions per lens, derives a capability seam empirically, extracts cited functional requirements, plans parity, and routes every ambiguity to a batch decision queue. Coverage arithmetic and citation resolution are enforced by a bundled Bun CLI rather than self-reported. Use when the user asks to migrate, re-specify, or map a legacy system.",
+  "version": "0.2.0",
+  "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, and queue, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, or to resume, check, or report on a mapping run already under way.",
   "author": "iceinvein",
   "type": "prompt",
   "tools": ["claude"],
