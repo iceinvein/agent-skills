@@ -544,11 +544,11 @@ the cwd, not by trusting the cwd itself.
 
 **`migrate reset --phase <phase>`**
 Clears only what that phase owns: `enumerate` clears elements and lens census
-records; `seam` clears capabilities, `seam.json` and `seam.md`; `extract` clears
-requirements, the attribute, rule-sweep and closer census records, and returns
-every element disposition to `unaccounted`; `parity` clears deltas and nulls
-every requirement's parity. Other phases reset state only. **Queue items are
-never cleared by any phase.**
+records; `seam` clears capabilities and deletes `seam.json` and `seam.md`;
+`extract` clears requirements, the attribute, rule-sweep and closer census
+records, and returns every element disposition to `unaccounted`; `parity`
+clears deltas and nulls every requirement's parity. Other phases reset
+state only. **Queue items are never cleared by any phase.**
 
 **`migrate report [--out <dir>]`**
 Writes `ledger.md`, `requirements.md` and `queue.md`, defaulting to
