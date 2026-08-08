@@ -55,11 +55,15 @@ no schema, no parseable call graph, and no VCS, so only surface-affinity
 is left), there is no pair to agree with. That lone validator's own Q
 against the 0.3 floor is what "validator of last resort" means in
 practice: Q >= 0.3 on its own is accepted with no second opinion behind
-it, and Q below 0.3 escalates the same as any other low-Q result. This is
-the only path that lets one validator's own number close the phase by
-itself; every other case still needs the two-agree rule above, including
-every case where surface-affinity is merely one of several validators
-that ran rather than the only one.
+it, and Q below 0.3 escalates the same as any other low-Q result. Q here
+means whatever the clustering step actually produced, the refinement below
+included when a component needed it, never the components-only figure by
+default; a lone validator's number that skipped a refinement it needed is
+not this case, it is just an unfinished run. This is the only path that
+lets one validator's own number close the phase by itself; every other
+case still needs the two-agree rule above, including every case where
+surface-affinity is merely one of several validators that ran rather than
+the only one.
 
 ### Surface-affinity clustering, worked
 
@@ -101,8 +105,17 @@ component has no edge leaving it by definition. If one connected component
 is still large and its internal structure is not obviously one capability,
 the same formula supports going further with a standard greedy modularity
 merge (repeatedly join whichever two sub-groups raise Q the most, stop when
-no join helps); that refinement was not needed for the worked example below
-because connected components alone already cleared the 0.3 floor.
+no join helps). A sub-group here is a single node inside the component
+being refined, not a whole component: every node in that component starts
+as its own group, and the merges run only among those. Merging whole
+components together, by contrast, can never raise Q, since components
+share no edges: the within-community edge count stays exactly what it
+was while the squared-degree term only grows. A reader who tries that and
+watches Q fall on the first join has learned only that components were the
+wrong thing to merge, not that the partition is already the best
+available. The first worked example below clears the 0.3 floor on
+connected components alone and does not need this refinement; the second,
+right after it, does, and runs it to completion.
 
 **Project onto capabilities.** Every node in one community, regardless of
 which surface it came from, becomes that capability's `elements` array,
@@ -157,6 +170,56 @@ Had this source had a schema or a parseable call graph to try as well, or
 had any second validator disagreed with this one, the ordinary two-agree
 rule above would govern instead, and this Q alone would not have been
 enough.
+
+A second worked example, where connected components alone do not clear the
+floor and the refinement above does: `fixtures/tiny-webforms`, built from
+the refs `GROUND-TRUTH.md`'s "Element-to-element touches" section documents
+and `scripts/__tests__/e2e-webforms.test.ts` records by hand, the same way a
+lens would. Twelve of this fixture's sixteen elements carry or receive a
+ref; the other four have none and drop out as edgeless singleton
+components, which contribute nothing to Q, so they are left out of the
+listing below. `m = 10` edges. A standard-library script builds the graph
+from those refs, finds components by breadth-first search, and computes Q
+with the formula above. Its real output, unedited:
+
+```
+component 1 (n=10): integration-billing-sync, report-daily-users,
+  route-get-api-users, route-get-api-users-id-welcome, route-post-api-users,
+  screen-default, screen-users, setting-welcome-email-enabled, table-users,
+  workflow-signup-welcome
+component 2 (n=2): job-nightly-digest, table-audit-log
+m (total edges) = 10
+components-only Q = 0.180
+```
+
+`0.18 < 0.3`: on connected components alone, this seam would escalate. The
+ten-node component is the one that is "still large and its internal
+structure is not obviously one capability" (five different surfaces mixed
+with no visible split); the two-node component is left alone, since a job
+and the one table it purges is already obviously one capability. Every node
+in the ten-node component starts as its own group, per the clause above,
+and the standard greedy merge runs from there. Its real output, unedited:
+
+```
+merge 1: {report-daily-users} + {table-users} -> Q = 0.070
+merge 2: {route-post-api-users} + {screen-default} -> Q = 0.155
+merge 3: {setting-welcome-email-enabled} + {workflow-signup-welcome} -> Q = 0.240
+merge 4: {integration-billing-sync} + {route-get-api-users-id-welcome} -> Q = 0.325
+merge 5: {route-get-api-users} + {report-daily-users, table-users} -> Q = 0.405
+merge 6: {screen-users} + {integration-billing-sync, route-get-api-users-id-welcome} -> Q = 0.485
+merge 7: {route-post-api-users, screen-default} + {setting-welcome-email-enabled, workflow-signup-welcome} -> Q = 0.505
+no further join raises Q; stopping
+```
+
+Final partition: `{job-nightly-digest, table-audit-log}`,
+`{report-daily-users, route-get-api-users, table-users}`,
+`{integration-billing-sync, route-get-api-users-id-welcome,
+screen-users}`, `{route-post-api-users, screen-default,
+setting-welcome-email-enabled, workflow-signup-welcome}`, at `Q = 0.505`.
+`0.505 >= 0.3`: the refinement is what clears the floor here, not the
+components-only figure, and merging whole components (the no-op the clause
+above warns against) would only have found the wrong answer, not a
+conservative one.
 
 **Evidence.** Every validator's script (the actual command or program run,
 not a description of it) and its raw output goes into `.migrate/seam.md`,
@@ -232,8 +295,11 @@ status: open
 Neither a relational schema nor statically parseable code exists in this
 source (COBOL delivered as a flat-file export, no VCS history). Surface
 affinity clustering, the only validator that could run at all, produced
-modularity Q = 0.21 against its own partition, below the 0.3 floor. There
-is no second opinion available to triangulate against.
+modularity Q = 0.21 on connected components; the largest component was
+still large and not obviously one capability, so the greedy refinement
+above was run against it too, and stopped at the same Q = 0.21, no join
+raising it. That figure, not a components-only one, is below the 0.3
+floor, and there is no second opinion available to triangulate against.
 
 ## Options
 
