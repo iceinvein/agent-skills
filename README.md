@@ -97,6 +97,14 @@ Skills for producing job application materials that read like a human wrote them
 | **cover-letter-rewrite** | Reviser | Audit-driven targeted rewrite of an existing letter. Focus modes: humanize, align, tighten, structure, tone. Preserves voice where it already works. |
 | **cover-letter-persona** | Voice profile | Reusable writing personas using the NNGroup 4-dimension tone framework (funny-serious, formal-casual, respectful-irreverent, enthusiastic-matter-of-fact) adapted for professional correspondence. |
 
+### Workflow
+
+Skills that shape how work gets done rather than analyzing code.
+
+| Skill | What it does |
+|-------|--------------|
+| **sluice** | Routes work by change shape into four channels (`bypass`, `fast`, `main`, `deep`) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Six rules live as one-liners in the router; the full treatment sits in references read only on friction. Claude Code only. Conflicts with the superpowers plugin, which requires its own fixed pipeline up front for anything that adds to or changes what the software does, not just code edits; disable superpowers before installing. |
+
 ### Orchestration
 
 Skills that compose the other audit skills into higher-level workflows.
@@ -151,10 +159,12 @@ To pin to the current version, do nothing: skills are not auto-updated. `update`
 
 ## Activation Modes (Claude Code)
 
-Some skills (like `terse`) support activation modes. Pick one at install time:
+Some skills (like `terse` and `sluice`) support activation modes. Pick one at install time:
 
-- **session** (default): invoke the skill manually with `/<skill>` each session
+- **session**: invoke the skill manually with `/<skill>` each session
 - **global**: auto-activate every Claude Code session via a `SessionStart` hook in `.claude/settings.json`
+
+Each skill declares its own default: `terse` defaults to session, `sluice` defaults to global because a router that is not always on does not route.
 
 If a skill declares activation support and you're installing for Claude Code interactively, the CLI prompts you. Use `--activation session` or `--activation global` for scripted installs. `remove` strips the hook cleanly; `update` preserves your choice across version bumps.
 
