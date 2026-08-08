@@ -19,12 +19,23 @@ function runScript(scriptPath: string, cwd: string): { ok: boolean; code: number
   return { ok: result.exitCode === 0, code: result.exitCode ?? 1 };
 }
 
-type HookEntry = { type: "command"; command: string };
+type HookEntry = { type: "command"; command: string; skill?: string };
 type HookGroup = { hooks: HookEntry[] };
 type Settings = Record<string, any>;
 
-function matchesSkillDirective(command: string, skillName: string): boolean {
-  return command.includes(`Activate ${skillName} skill`);
+// Identifies whether a SessionStart hook entry belongs to `skillName`.
+//
+// New entries carry an explicit `skill` field, written by wireSessionStartHook
+// below, so identity never depends on what the directive text happens to say.
+// Entries wired before this field existed (for example terse's hook on real
+// machines today) carry no such field. Those are recognised by the substring
+// heuristic this file used exclusively before: it only ever worked because
+// terse's directive happens to contain the phrase "Activate terse skill", and
+// it silently failed for any directive that does not, which is the bug this
+// marker fixes.
+function matchesSkillDirective(hook: HookEntry, skillName: string): boolean {
+  if (hook.skill !== undefined) return hook.skill === skillName;
+  return hook.command.includes(`Activate ${skillName} skill`);
 }
 
 export async function wireSessionStartHook(
@@ -44,12 +55,12 @@ export async function wireSessionStartHook(
   // Idempotency: skip if any existing entry already matches this skill
   for (const group of settings.hooks.SessionStart as HookGroup[]) {
     for (const hook of group.hooks ?? []) {
-      if (matchesSkillDirective(hook.command, skillName)) return;
+      if (matchesSkillDirective(hook, skillName)) return;
     }
   }
 
   settings.hooks.SessionStart.push({
-    hooks: [{ type: "command", command }],
+    hooks: [{ type: "command", command, skill: skillName }],
   });
 
   mkdirSync(dirname(settingsPath), { recursive: true });
@@ -68,7 +79,7 @@ export async function unwireSessionStartHook(
 
   const filteredGroups = sessionStart
     .map((group) => ({
-      hooks: (group.hooks ?? []).filter((h) => !matchesSkillDirective(h.command, skillName)),
+      hooks: (group.hooks ?? []).filter((h) => !matchesSkillDirective(h, skillName)),
     }))
     .filter((group) => group.hooks.length > 0);
 
