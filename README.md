@@ -103,7 +103,7 @@ Skills that shape how work gets done rather than analyzing code.
 
 | Skill | What it does |
 |-------|--------------|
-| **sluice** | Routes work by change shape into four channels (`bypass`, `fast`, `main`, `deep`) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Six rules live as one-liners in the router; the full treatment sits in references read only on friction. Claude Code only. Conflicts with the superpowers plugin, which requires its own fixed pipeline up front for anything that adds to or changes what the software does, not just code edits; disable superpowers before installing. |
+| **sluice** | Routes work by change shape into four channels (`bypass`, `fast`, `main`, `deep`) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Seven rules live as one-liners in the router; the full treatment sits in references read only on friction. Each run closes with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only. Conflicts with the superpowers plugin, which requires its own fixed pipeline up front for anything that adds to or changes what the software does, not just code edits; disable superpowers before installing. |
 
 ### Orchestration
 

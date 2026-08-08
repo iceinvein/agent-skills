@@ -281,9 +281,9 @@
   },
   {
     "name": "sluice",
-    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries six rules as one-liners in the router and the full treatment in references read only on friction. Claude Code only; conflicts with the superpowers plugin.",
+    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries seven rules as one-liners in the router and the full treatment in references read only on friction, and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only; conflicts with the superpowers plugin.",
     "type": "prompt",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   {
     "name": "temporal-coupling-detector",

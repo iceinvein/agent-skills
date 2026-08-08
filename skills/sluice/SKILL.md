@@ -21,17 +21,20 @@ announcement is how your partner redirects you without being asked.
 | `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
 
 `bypass`, `fast`, and `main` proceed without stopping for approval; only
-`deep` stops, for design sign-off before code.
+`deep` stops, for design sign-off before code, and again for the plan when
+agents rather than you will carry it out.
 
 Name the channel and the signal that actually routed you there. The strings above
 are examples, not fixed copy, and a channel with a two-part signal should say
 which part applied. `bypass` says nothing at all, because a question that gets
 announced stops being a question.
 
-**`root-cause` and `finish` are not channel-assigned.** The code misbehaving
-triggers the first: a bug report, a red test, behaviour you cannot account
-for. An integration event, merging, pushing, or opening a PR, triggers the
-second. Both fire in every channel, `bypass` included.
+**`root-cause`, `finish` and `meter` are not channel-assigned.** The code
+misbehaving triggers the first: a bug report, a red test, behaviour you cannot
+account for. An integration event, merging, pushing, or opening a PR, triggers
+the second. Handing the work back triggers the third, whether or not it ever
+reaches an integration event. The first two fire in every channel, `bypass`
+included; `meter` cannot, because `bypass` announces nothing to measure from.
 
 ## The rules
 
@@ -56,6 +59,10 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
   yours. `references/review.md`
 - **Finish** deliberately. Green suite first, then let your partner pick
   merge, PR, or leave it. Never pick for them. `references/finish.md`
+- **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the
+  ledger out of the session transcript: elapsed, tools, tokens, and what each
+  dispatched agent cost. A summary you assemble from memory is the one that
+  flatters you. `references/meter.md`
 
 ## Changing channel
 
@@ -70,9 +77,15 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
+The plan needs sign-off as well whenever agents will execute it, because each
+one sees only its own task and so nobody ever reads the plan whole. Executing
+it yourself makes it a worklist instead: write it and carry on.
+
 Then read `references/deep-channel.md` for the plan format, the dispatch rules,
-and when a task actually needs a reviewer. Two that catch people out: never run
-two implementers at once, and review is tiered, not automatic.
+and when a task actually needs a reviewer. Three that catch people out: never
+run two implementers at once, review is tiered rather than automatic, and a
+`deep` run that cannot dispatch has to replace the review tier with something,
+not quietly ship without one.
 
 ## Conflicts
 

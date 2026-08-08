@@ -50,6 +50,26 @@
 - Match model to task: cheap for mechanical work, stronger for judgment
   and final review.
 
+## When dispatch is unavailable
+
+A session may forbid subagents outright. `deep` then loses most of the
+machinery this file describes, and the place to say so is the routing
+announcement, where your partner can still act on it, not the summary at the
+end where it reads as an excuse.
+
+Three things change. The plan becomes your own worklist and needs no sign-off,
+since you are the only one who will ever read it. Task isolation is gone, so
+`TaskCreate` now carries all of the state that outlives compaction and matters
+more, not less. And fresh context is unavailable, which was the entire thing
+review was buying.
+
+One thing does not change: the work still owes a review. Reading your own diff
+is not one, and the table below still names which tasks needed the stronger
+tier. List those tasks when you hand back, as review outstanding rather than
+review passed. A `deep` run that ships with nobody having read it has become a
+`fast` run with a design document attached, and your partner is entitled to
+know that before they decide anything.
+
 ## Review policy
 
 A review costs about what the implementation cost, so reviewing every task
