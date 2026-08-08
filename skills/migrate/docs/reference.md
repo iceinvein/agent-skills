@@ -242,7 +242,13 @@ variant; unknown kinds are rejected.
 `lines` is optional; when present it must be `[start, end]` with `start <= end`.
 Only `src` refs are resolved against the source tree, and only by the
 `citations` gate (on by default; skipped under `--no-citations`). A `ledger`
-ref is checked by the `refs` gate instead.
+entry inside a requirement's `citations` is resolved by the `refs` gate,
+which checks it names a real element. The same `{"kind": "ledger", ...}`
+shape inside an element's own `refs` is a different case entirely: nothing
+checks it, on either end, at any phase. `refs` and `citations` share this
+grammar but not this enforcement; `references/phases/enumerate.md`'s
+Procedure (step 4) and `references/phases/seam.md` explain why an
+element's `refs` is exempt, and what depends on it anyway.
 
 **Disposition** (on elements)
 

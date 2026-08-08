@@ -22,7 +22,7 @@ workflow, 2 settings.
 
 ## Element-to-element touches
 
-Four of these elements touch another element already in this table, the
+Five of these elements touch another element already in this table, the
 kind of touch `references/phases/enumerate.md`'s Procedure (step 4) tells a
 lens to record as a `{"kind": "ledger", "id": ...}` ref, and the only edge
 data `references/phases/seam.md`'s surface-affinity clustering has to
