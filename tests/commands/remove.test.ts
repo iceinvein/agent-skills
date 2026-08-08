@@ -45,6 +45,65 @@ test("removeSkill deletes installed files and updates lockfile", async () => {
   expect(lock.skills["design-review"]).toBeUndefined();
 });
 
+// Orphaned-bundle regression: the manifest path built its file list from
+// config.prompt and config.supporting only, with no clause for bundleRoot, so
+// every bundled file was filtered out before the adapter saw it. Removing a
+// skill left its whole references/ and scripts/ tree on disk, including
+// executables, and the next install layered a new version on top of it.
+const bundleManifest: SkillManifest = {
+  name: "sluice",
+  version: "1.1.0",
+  description: "Routes work by change shape",
+  author: "iceinvein",
+  type: "prompt",
+  tools: ["claude"],
+  files: { prompt: "SKILL.md" },
+  bundle: { include: ["references", "scripts"] },
+  install: {
+    claude: {
+      prompt: ".claude/skills/sluice/SKILL.md",
+      bundleRoot: ".claude/skills/sluice",
+    },
+  },
+};
+
+function mockManifestFetch(manifest: SkillManifest) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock(async () => new Response(JSON.stringify(manifest), { status: 200 })) as any;
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
+test("removeSkill deletes bundled files, not just the prompt", async () => {
+  const files = new Map([
+    ["SKILL.md", "# Sluice"],
+    ["references/meter.md", "# Meter the run"],
+    ["references/finish.md", "# Finish"],
+    ["scripts/run-stats.sh", "#!/usr/bin/env bash\necho hi\n"],
+  ]);
+  await installSkill(TMP, bundleManifest, files, ["claude"]);
+
+  // Everything landed, so the removal below is testing removal.
+  for (const rel of files.keys()) {
+    expect(existsSync(join(TMP, ".claude/skills/sluice", rel))).toBe(true);
+  }
+
+  const restoreFetch = mockManifestFetch(bundleManifest);
+  try {
+    const result = await removeSkill(TMP, "sluice");
+    expect(result.ok).toBe(true);
+
+    for (const rel of files.keys()) {
+      expect(existsSync(join(TMP, ".claude/skills/sluice", rel))).toBe(false);
+    }
+    // No empty shell left behind for the next install to layer on top of.
+    expect(existsSync(join(TMP, ".claude/skills/sluice"))).toBe(false);
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("removeSkill returns error for skill not in lockfile", async () => {
   const result = await removeSkill(TMP, "nonexistent");
   expect(result.ok).toBe(false);

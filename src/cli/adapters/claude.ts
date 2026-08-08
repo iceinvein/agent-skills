@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, rmdirSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ActivationMode, SkillManifest } from "../types";
 
@@ -217,7 +217,12 @@ export const claudeAdapter: Adapter = {
         let dir = dirname(fullPath);
         const stopAt = config.bundleRoot ? join(cwd, config.bundleRoot, "..") : cwd;
         while (dir !== stopAt && dir !== "/" && dir.startsWith(cwd)) {
-          try { rmSync(dir, { recursive: false }); } catch { break; }
+          // rmdirSync, not rmSync: rmSync on a directory throws unless it is
+          // recursive, so this walk used to break on its first step and leave
+          // the skill's directory standing empty after every removal. rmdirSync
+          // deletes only an empty directory and refuses a populated one, which
+          // is exactly the guard this loop wants.
+          try { rmdirSync(dir); } catch { break; }
           dir = dirname(dir);
         }
       }

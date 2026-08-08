@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, rmdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Adapter } from "./claude";
 
@@ -56,7 +56,11 @@ export const cursorAdapter: Adapter = {
       const fullPath = join(cwd, file);
       if (existsSync(fullPath)) {
         unlinkSync(fullPath);
-        try { rmSync(dirname(fullPath), { recursive: false }); } catch {}
+        // rmdirSync, not rmSync: rmSync on a directory throws unless it is
+        // recursive, so this swallowed its own error every time and left the
+        // emptied directory standing. rmdirSync removes an empty directory and
+        // refuses a populated one, which is the intent here.
+        try { rmdirSync(dirname(fullPath)); } catch {}
       }
     }
 

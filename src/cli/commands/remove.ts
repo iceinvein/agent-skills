@@ -62,6 +62,12 @@ export async function removeSkill(cwd: string, skillName: string): Promise<Remov
         if (!config) return false;
         if (config.prompt && f === config.prompt) return true;
         if (config.supporting && Object.values(config.supporting).includes(f)) return true;
+        // Bundled trees (references/, scripts/) install under bundleRoot but
+        // were never named here, so removal walked straight past them and left
+        // the whole tree on disk, executables included. The shared-config guard
+        // still applies: a bundleRoot high enough to contain settings.json must
+        // not drag it out with the skill.
+        if (config.bundleRoot && f.startsWith(`${config.bundleRoot}/`) && !isSharedConfigFile(f)) return true;
         if (config.mcpServers && (f.includes(".claude/settings") || f.includes(".cursor/mcp") || f.includes(".gemini/settings"))) return true;
         return false;
       });

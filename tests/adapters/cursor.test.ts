@@ -1,6 +1,6 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { cursorAdapter } from "../../src/cli/adapters/cursor";
-import { mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { SkillManifest } from "../../src/cli/types";
 
@@ -74,4 +74,17 @@ test("remove deletes prompt file", async () => {
 
   const exists = await Bun.file(join(TMP, ".cursor/rules/design-review.mdc")).exists();
   expect(exists).toBe(false);
+});
+
+// The empty-directory cleanup called rmSync without `recursive`, which throws
+// on a directory, so the swallowed error meant the rules directory was never
+// removed and every uninstall left an empty shell behind.
+test("remove cleans up the directory it emptied", async () => {
+  const files = new Map([["SKILL.md", "# Design Review"]]);
+  await cursorAdapter.install(TMP, promptManifest, files);
+  expect(existsSync(join(TMP, ".cursor/rules/design-review.mdc"))).toBe(true);
+
+  await cursorAdapter.remove(TMP, promptManifest, [".cursor/rules/design-review.mdc"]);
+  expect(existsSync(join(TMP, ".cursor/rules/design-review.mdc"))).toBe(false);
+  expect(existsSync(join(TMP, ".cursor/rules"))).toBe(false);
 });

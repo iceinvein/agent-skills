@@ -1,6 +1,6 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { geminiAdapter } from "../../src/cli/adapters/gemini";
-import { mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdirSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { SkillManifest } from "../../src/cli/types";
 
@@ -43,4 +43,17 @@ test("remove deletes prompt file", async () => {
 
   const exists = await Bun.file(join(TMP, ".gemini/skills/design-review.md")).exists();
   expect(exists).toBe(false);
+});
+
+// The empty-directory cleanup called rmSync without `recursive`, which throws
+// on a directory, so the swallowed error meant the skills directory was never
+// removed and every uninstall left an empty shell behind.
+test("remove cleans up the directory it emptied", async () => {
+  const files = new Map([["SKILL.md", "# Design Review"]]);
+  await geminiAdapter.install(TMP, promptManifest, files);
+  expect(existsSync(join(TMP, ".gemini/skills/design-review.md"))).toBe(true);
+
+  await geminiAdapter.remove(TMP, promptManifest, [".gemini/skills/design-review.md"]);
+  expect(existsSync(join(TMP, ".gemini/skills/design-review.md"))).toBe(false);
+  expect(existsSync(join(TMP, ".gemini/skills"))).toBe(false);
 });
