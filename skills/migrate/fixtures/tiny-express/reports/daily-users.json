@@ -1,0 +1,6 @@
+{
+  "name": "daily-users",
+  "description": "Count of active users, run once a day",
+  "query": "SELECT COUNT(*) FROM users WHERE is_active = 1",
+  "schedule": "daily"
+}

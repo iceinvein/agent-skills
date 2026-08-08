@@ -3,3 +3,10 @@ CREATE TABLE users (
   email TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE audit_log (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
