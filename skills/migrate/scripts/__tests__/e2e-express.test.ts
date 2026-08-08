@@ -115,6 +115,45 @@ const DIRECTIONS: Record<string, [string, string]> = {
   ],
 }
 
+// Ledger refs a lens would record per enumerate.md's Procedure, step 4:
+// an element that touches one already in the ledger gets a
+// {"kind": "ledger", "id": ...} entry naming it. See GROUND-TRUTH.md's
+// "Element-to-element touches" section, which this map matches by hand,
+// the same relationship DIRECTIONS above has to the fixture's source
+// files: this is fixture metadata the test asserts against, not something
+// parsed off disk.
+type LedgerRef = { kind: 'ledger'; id: string }
+const REFS: Record<string, LedgerRef[]> = {
+  'route-get-api-users': [{ kind: 'ledger', id: 'table-users' }],
+  'route-post-api-users': [{ kind: 'ledger', id: 'table-users' }],
+  'job-purge-audit-log': [{ kind: 'ledger', id: 'table-audit-log' }],
+  'report-daily-users': [{ kind: 'ledger', id: 'table-users' }],
+  'workflow-welcome-email': [
+    { kind: 'ledger', id: 'route-post-api-users' },
+    { kind: 'ledger', id: 'route-get-api-users-id-welcome' },
+    { kind: 'ledger', id: 'setting-welcome-email-enabled' },
+  ],
+}
+
+// Builds the same graph seam.md's surface-affinity clustering builds: one
+// edge per {"kind": "ledger", ...} ref on any element, connecting it to the
+// id it names. An edge is an unordered pair, stored as its two ids sorted
+// and joined, so a-touches-b and b-touches-a (were both ever recorded)
+// would collapse to one edge rather than count twice.
+type StoredElement = { id: string; refs: { kind: string; id?: string }[] }
+
+function buildAffinityEdges(elements: StoredElement[]): Set<string> {
+  const edges = new Set<string>()
+  for (const el of elements) {
+    for (const ref of el.refs) {
+      if (ref.kind === 'ledger' && ref.id) {
+        edges.add([el.id, ref.id].sort().join('|'))
+      }
+    }
+  }
+  return edges
+}
+
 const QUEUE_ID = 'q-tiny-express-enumerate-scaffold'
 
 const QUEUE_ITEM = `---
@@ -193,7 +232,7 @@ test('contract-only enumerate over every declared surface, with a census reconci
         element: row.element,
         found_by: ['code'],
         disposition: { kind: 'out-of-scope', queue: QUEUE_ID },
-        refs: [],
+        refs: REFS[row.id] ?? [],
         lens: 'code',
         notes: '',
       })),
@@ -229,11 +268,44 @@ test('contract-only enumerate over every declared surface, with a census reconci
   // 5. migrate phase enumerate --status done.
   expect((await migrate(['phase', 'enumerate', '--status', 'done'])).code).toBe(0)
 
-  // 6. migrate check --phase enumerate exits 0 with no violations.
+  // 6. migrate check --phase enumerate exits 0 with no violations. Note
+  // that this passes despite the workflows batch (imported before the
+  // settings batch, in GROUND-TRUTH.md's row order) citing
+  // setting-welcome-email-enabled before that element exists yet: nothing
+  // in `import elements` or `check` resolves a `ledger` ref against the
+  // ledger, so a dangling one mid-run is silently tolerated, exactly as
+  // enumerate.md's step 4 says. It has resolved by the time this check
+  // runs, since every surface has imported by now.
   const clean = await migrate(['check', '--phase', 'enumerate'])
   expect(clean.out).toContain(`0/${rows.length} mapped, ${rows.length} out-of-scope, 0 unaccounted`)
   expect(clean.out).not.toContain('Violations')
   expect(clean.code).toBe(0)
+
+  // 6b. Surface-affinity clustering's graph, built straight from the store
+  // the same way seam.md's worked example builds it. This is the assertion
+  // that would fail if enumerate's ref-recording step were skipped: an
+  // empty REFS map above would leave every element's refs empty, and this
+  // graph would have zero edges, which is exactly the defect this task
+  // exists to close.
+  const elementsForAffinity = (await readFile(join(target, '.migrate', 'elements.jsonl'), 'utf8'))
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as StoredElement)
+  const edges = buildAffinityEdges(elementsForAffinity)
+  expect(edges.size).toBeGreaterThan(0)
+  const expectedEdges = [
+    ['route-get-api-users', 'table-users'],
+    ['route-post-api-users', 'table-users'],
+    ['job-purge-audit-log', 'table-audit-log'],
+    ['report-daily-users', 'table-users'],
+    ['workflow-welcome-email', 'route-post-api-users'],
+    ['workflow-welcome-email', 'route-get-api-users-id-welcome'],
+    ['workflow-welcome-email', 'setting-welcome-email-enabled'],
+  ].map(([a, b]) => [a, b].sort().join('|'))
+  for (const edge of expectedEdges) {
+    expect(edges.has(edge)).toBe(true)
+  }
+  expect(edges.size).toBe(expectedEdges.length)
 
   // 7. Removing one element row breaks the census reconciliation for its
   // surface, and only that: `in_ledger + added` on the surviving census

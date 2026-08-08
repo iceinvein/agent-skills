@@ -72,6 +72,15 @@ to be, since a job or a screen can touch a table exactly the same way a
 route does. No library is required to build it; it is a plain adjacency
 map from parsing `elements.jsonl`.
 
+These refs are not something this phase produces itself: they come from
+`references/phases/enumerate.md`'s Procedure, step 4, which is where a
+lens records that an element it just found touches one already in the
+ledger. If that step was skipped for real touches that exist in the
+source, this graph has no edge for them, silently; there is no check here
+or anywhere else that notices a missing ref, only one (in `enumerate.md`'s
+own step 4) that notices a `ledger` ref pointing at an id the ledger does
+not yet have.
+
 **Cluster it.** Connected components: two elements with no path of `refs`
 between them cannot possibly share a capability, so start by splitting the
 graph into its connected pieces. This needs nothing beyond a breadth-first
@@ -163,6 +172,12 @@ same way), each community becomes one line. The gate checks the file for
 duplicate slugs (the only structural check it gets, since there is no
 importer to validate it at write time) and later, in extract, for every
 requirement's `cap` resolving to one of these slugs.
+
+`seam.json`'s shape is in `docs/reference.md`'s store artifacts section.
+Unlike `capabilities.jsonl`, no gate reads `seam.json` or `seam.md` at
+all, not for duplicate slugs, not for anything: `check.ts` contains no
+mention of either file. Both are trusted entirely on the strength of
+whoever wrote them, the same as `parity-basis.md`.
 
 ## What closes it
 

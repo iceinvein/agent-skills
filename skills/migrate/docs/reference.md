@@ -168,6 +168,63 @@ directly, one JSON object per line:
 Because hand-editing is the only route, the gate checks for duplicate slugs
 explicitly.
 
+### Seam artifacts
+
+`seam.json` and `seam.md` have **no import path either, and no gate at
+all**: `check.ts` contains no mention of either file, so nothing checks
+their shape, their content, or that they even exist. Both are hand-written
+run-level records of how the seam phase (`references/phases/seam.md`)
+reached its partition, trusted entirely on the strength of whoever wrote
+them, the same as `parity-basis.md` in phase 0.
+
+`seam.md` is prose: every validator's script and its raw output, verbatim,
+so a reviewer can retrace exactly what ran and what it found. `seam.json`
+is the structured summary of that same run: which validators ran, the
+modularity figure, and the resulting status. Its shape is derived from
+what `seam.md` actually instructs recording, not from a separate schema:
+
+```json
+{
+  "validators": {
+    "schema-clustering": { "ran": false, "reason": "no relational schema" },
+    "call-graph": { "ran": false, "reason": "code is not statically parseable" },
+    "change-coupling": { "ran": false, "reason": "no VCS history" },
+    "surface-affinity": { "ran": true, "modularity": 0.5 }
+  },
+  "agreement": ["surface-affinity"],
+  "modularity": 0.5,
+  "status": "accepted"
+}
+```
+
+A validator that did not run names why, in the same free-text style as a
+lens's `not-applicable` reason in `enumerate.md`. `agreement` names which
+validators' partitions were accepted together (two, under the ordinary
+triangulation rule) or the single validator licensed by the one-validator
+exception when fewer than two could run at all. An escalated run instead
+of an accepted one looks like this, `modularity` reflecting the best
+candidate considered rather than an accepted one:
+
+```json
+{
+  "validators": {
+    "schema-clustering": { "ran": false, "reason": "no relational schema" },
+    "call-graph": { "ran": false, "reason": "code is not statically parseable" },
+    "change-coupling": { "ran": false, "reason": "no VCS history" },
+    "surface-affinity": { "ran": true, "modularity": 0.21 }
+  },
+  "agreement": [],
+  "modularity": 0.21,
+  "status": "escalated",
+  "queue": "q-seam-low-modularity"
+}
+```
+
+Nothing parses or checks either shape above; both are illustrative of the
+convention, not a contract any command enforces. Treat what you write here
+with the same care as `capabilities.jsonl` gets from the gate that does
+exist, since here there is no gate at all standing behind it.
+
 ## Grammars
 
 These discriminated unions appear inside rows. The `kind` field selects the

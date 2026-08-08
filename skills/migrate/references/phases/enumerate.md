@@ -52,7 +52,38 @@ subtraction, not you.
    out-of-scope by design, and so on), or **queue** it (open a queue item
    when the right disposition is not yours to decide alone).
 
-4. **Declare `"phase": "enumerate"` on the record, not the batch's phase or
+4. **Record what an added element touches.** When a lens finds an element
+   that reads, writes, or otherwise depends on an element already in the
+   ledger, add a `{"kind": "ledger", "id": "<the other element's id>"}`
+   entry to this element's `refs`. A route that reads a table records a ref
+   to that table's id. A job that writes one does the same. A screen that
+   posts to a route does the same.
+
+   State plainly what this is for, because it reads like bookkeeping
+   otherwise, and gets skipped: this is the only edge data the seam phase's
+   fallback validator, surface-affinity clustering, has to build a graph
+   from (`references/phases/seam.md`). It clusters the ledger against
+   itself using exactly these refs and nothing else. A lens that finds a
+   real touch and does not record it does not just weaken that validator,
+   it disarms it outright: the graph it builds has no edges at all if no
+   lens ever writes one.
+
+   **Ordering is not a reason to skip this.** A lens enumerating routes may
+   find a route touching a table whose element the tables lens has not
+   added yet. Record the ref anyway, pointing at the id you expect that
+   table to receive (`<singular>-<slug>`, the same convention every element
+   id follows). A `ledger` ref naming an id not yet in the ledger is
+   expected mid-enumerate, and resolves once the other lens's batch lands.
+   Nothing rejects it on either end at this phase: `migrate import
+   elements` validates that a `ledger` ref carries a string `id`, not that
+   the id already exists, and `check.ts`'s `refs` gate resolves a `ledger`
+   *citation* on a requirement against the ledger, but never reads an
+   element's own `refs` at all, so nothing checks that one element's ref
+   resolves to another. That is a real gap, not a guarantee in disguise;
+   this manual does not add a check to close it, and seam is where a
+   dangling ref would first actually matter.
+
+5. **Declare `"phase": "enumerate"` on the record, not the batch's phase or
    any other.** A lens census must declare `enumerate`; nothing else is
    accepted. This is enforced at write time, by name: `migrate census`
    rejects `"phase": "extract"` on a `lens` record with `lens census must
@@ -63,7 +94,7 @@ subtraction, not you.
    (`extract`), never the record's own `phase` field, so the constraint at
    write time is what keeps the two from disagreeing later.
 
-5. **Sanity-check the arithmetic before you submit.** Two checks the CLI
+6. **Sanity-check the arithmetic before you submit.** Two checks the CLI
    will run for you, so run them yourself first and you will not get
    rejected:
 
