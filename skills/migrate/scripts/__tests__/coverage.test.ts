@@ -148,3 +148,45 @@ test('a store with no confirmed requirements reports zero rather than dividing b
   expect(r.confirmed).toBe(0)
   expect(renderCoverage(r)).toContain('built 0/0 confirmed requirements (0%)')
 })
+
+test('a capability the emitted order omits is counted and named as stale', () => {
+  // A stale handoff.json used to narrow both numerator and denominator
+  // silently, reporting 100% while confirmed requirements sat unbuilt in a
+  // capability that appeared nowhere in the output.
+  const r = computeCoverage({
+    requirements: REQS,
+    handoff: { ...HANDOFF, basis: { confirmed: 3, emitted: 5, order: ['user-management'] } },
+    throughput: through([
+      { fr: 'UM-001', doneAt: '2026-08-12' },
+      { fr: 'UM-002', doneAt: '2026-08-13' },
+    ]),
+  })
+  expect(r.confirmed).toBe(3)
+  expect(r.built).toBe(2)
+  expect(r.stale).toEqual(['billing'])
+  expect(r.caps.map((c) => c.slug)).toEqual(['user-management', 'billing'])
+  expect(renderCoverage(r)).toContain('stale: 1 capability(ies) not in the emitted work (billing)')
+})
+
+test('the percentage never contradicts the fraction beside it', () => {
+  const at = (built: number, confirmed: number): string => {
+    const reqs = Array.from({ length: confirmed }, (_, i) => req(`X-${i}`, 'billing', CONFIRMED))
+    return renderCoverage(
+      computeCoverage({
+        requirements: reqs,
+        handoff: {
+          ...HANDOFF,
+          items: [],
+          basis: { confirmed, emitted: confirmed, order: ['billing'] },
+        },
+        throughput: through(
+          Array.from({ length: built }, (_, i) => ({ fr: `X-${i}`, doneAt: '2026-08-12' })),
+        ),
+      }),
+    )
+  }
+  expect(at(199, 200)).toContain('built 199/200 confirmed requirements (99%)')
+  expect(at(1, 250)).toContain('built 1/250 confirmed requirements (1%)')
+  expect(at(200, 200)).toContain('(100%)')
+  expect(at(0, 200)).toContain('(0%)')
+})

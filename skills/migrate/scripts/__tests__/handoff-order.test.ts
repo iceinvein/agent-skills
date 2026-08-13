@@ -128,3 +128,29 @@ test('buildWorkItems emits a capability with no requirements at weight zero', ()
   expect(items[0]?.weight).toBe(0)
   expect(items[0]?.frs).toEqual([])
 })
+
+test('only genuine cycle members are reported, and what follows a cycle still sorts', () => {
+  // "Everything left is in a cycle" was false: anything transitively blocked
+  // by one was reported as a member too, and its satisfiable placement was
+  // thrown away. Here yin and yang cycle; alpha depends on yin and zulu on
+  // alpha, so both have a valid position after the cycle is broken.
+  const caps = [
+    cap('yin', ['el-y']),
+    cap('yang', ['el-z']),
+    cap('alpha', ['el-a']),
+    cap('zulu', ['el-u']),
+  ]
+  const reqs = [
+    req('YI-001', 'yin', ['el-z']),
+    req('YA-001', 'yang', ['el-y']),
+    req('AL-001', 'alpha', ['el-y']),
+    req('ZU-001', 'zulu', ['el-a']),
+  ]
+  const { ordered, cycle } = dependencyOrder(caps, reqs)
+  expect(cycle).toEqual(['yang', 'yin'])
+  // alpha comes after the cycle it depends on, and zulu after alpha.
+  const at = (slug: string): number => slugs(ordered).indexOf(slug)
+  expect(at('alpha')).toBeGreaterThan(at('yin'))
+  expect(at('zulu')).toBeGreaterThan(at('alpha'))
+  expect(slugs(ordered).sort()).toEqual(['alpha', 'yang', 'yin', 'zulu'])
+})

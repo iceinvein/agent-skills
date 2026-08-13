@@ -237,3 +237,54 @@ test('a capability file the target rejects fails apply with the target’s own m
   expect(check.code).toBe(1)
   expect(check.err).toContain('missing field')
 })
+
+test("the team's own lines under ## Proposed survive a handoff", async () => {
+  // The previous version stripped every `- [something]` line under the
+  // heading before adding its own, on the assumption that shape meant
+  // ownership. `- [W07]` is exactly the notation the target's own WORK.md
+  // teaches, so a team keeping a shortlist there lost it on the first run.
+  const workPath = join(root, 'docs', 'WORK.md')
+  await writeFile(
+    workPath,
+    [
+      '# Work',
+      '',
+      '## Proposed',
+      '',
+      '- [W07] Replace the auth provider',
+      '- [W08] Split the reporting service',
+      '',
+      'Notes: W07 is blocked until Q3.',
+      '',
+      '### Detail',
+      '',
+      'Some prose.',
+      '',
+      '# Appendix',
+      '',
+      '- [A1] An appendix item',
+      '',
+    ].join('\n'),
+  )
+
+  await flow.apply(buildWorkItems(CAPS, REQS), input())
+  const after = await readFile(workPath, 'utf8')
+
+  for (const kept of [
+    '- [W07] Replace the auth provider',
+    '- [W08] Split the reporting service',
+    'Notes: W07 is blocked until Q3.',
+    '### Detail',
+    '# Appendix',
+    '- [A1] An appendix item',
+  ]) {
+    expect(after).toContain(kept)
+  }
+  expect(after).toContain('- [billing] Billing (1 FRs)')
+
+  // And a second run replaces only its own fenced block rather than stacking.
+  await flow.apply(buildWorkItems(CAPS, REQS), input())
+  const twice = await readFile(workPath, 'utf8')
+  expect(twice.match(/- \[billing\]/g)).toHaveLength(1)
+  expect(twice).toContain('- [W07] Replace the auth provider')
+})

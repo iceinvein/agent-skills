@@ -246,8 +246,39 @@ test('handoff refuses a requirement blocked by an open item, naming both', async
     ],
     queueStatus: 'open',
   })
-  const code = await runHandoff({ root })
+  // Asserting the message, not just the exit code. Gate 11 already fails an
+  // open queue item, so a test that only checked `code === 1` passed even with
+  // blockedRequirements stubbed out to return nothing, and the "naming both"
+  // in this test's own name went unverified.
+  const written: string[] = []
+  const original = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((chunk: string) => {
+    written.push(String(chunk))
+    return true
+  }) as typeof process.stderr.write
+  let code: number
+  try {
+    code = await runHandoff({ root })
+  } finally {
+    process.stderr.write = original
+  }
   expect(code).toBe(1)
+  expect(written.join('')).toContain('UM-002 blocked by q-open-question')
+})
+
+test('a corrupt handoff.json is a violation, not a crash', async () => {
+  await store()
+  await writeFile(join(root, '.migrate', 'handoff.json'), '{"items": "not an array"}')
+  const { runCheck } = await import('../check.ts')
+  // Bounded checks must still work: the file is read only for the gate that
+  // needs it, so a corrupt one cannot break `check --phase probe`, `status` or
+  // `report`.
+  const early = await runCheck({ root, phase: 'probe' })
+  expect(early.violations.filter((v) => v.gate === 'handoff')).toEqual([])
+  const full = await runCheck({ root })
+  const named = full.violations.filter((v) => v.gate === 'handoff')
+  expect(named.length).toBeGreaterThan(0)
+  expect(named[0]?.message).toContain('handoff.json')
 })
 
 test('--dry-run runs the preflight and writes nothing', async () => {

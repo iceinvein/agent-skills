@@ -163,6 +163,27 @@ async function store(
   }
 }
 
+// Marks every phase up to and including `last` as done and the rest pending.
+async function setPhasesThrough(last: string): Promise<void> {
+  const phases: Record<string, unknown> = {}
+  for (const p of PHASES) {
+    phases[p] = {
+      status: PHASES.indexOf(p) <= PHASES.indexOf(last) ? 'done' : 'pending',
+      batches:
+        p === 'enumerate'
+          ? [{ id: 'b-routes-1', count: 1 }]
+          : p === 'extract'
+            ? [{ id: 'b-extract-1', count: 2 }]
+            : [],
+      pending: [],
+    }
+  }
+  await writeFile(
+    join(root, '.migrate', 'phases.json'),
+    JSON.stringify({ version: 1, phases }, null, 2),
+  )
+}
+
 const of = (violations: Violation[], gate: string): string[] =>
   violations.filter((v) => v.gate === gate).map((v) => v.message)
 
@@ -256,6 +277,10 @@ test('gate 12 counts only confirmed requirements in the basis denominator', asyn
 
 test('both gates are skipped below their phase and fire at it', async () => {
   await store({ handoff: null, queueStatus: 'open' })
+  // The phases past `queue` must be pending for the skip to apply at all: a
+  // store whose own state file claims it reached handoff cannot hide an
+  // unemitted handoff by being checked at an earlier terminus.
+  await setPhasesThrough('queue')
 
   // At --phase queue neither gate describes work the run claims to have
   // reached, so neither fires. This is what keeps mid-run checking usable.
@@ -278,23 +303,7 @@ test('a store that stops at the queue still passes check --phase queue', async (
   // The Milestone 2 posture: no adjudication, no handoff, and the phases after
   // queue still pending. Adding two gates must not narrow this.
   await store({ handoff: null, queueStatus: 'open' })
-  const phases: Record<string, unknown> = {}
-  for (const p of PHASES) {
-    phases[p] = {
-      status: PHASES.indexOf(p) <= PHASES.indexOf('queue') ? 'done' : 'pending',
-      batches:
-        p === 'enumerate'
-          ? [{ id: 'b-routes-1', count: 1 }]
-          : p === 'extract'
-            ? [{ id: 'b-extract-1', count: 2 }]
-            : [],
-      pending: [],
-    }
-  }
-  await writeFile(
-    join(root, '.migrate', 'phases.json'),
-    JSON.stringify({ version: 1, phases }, null, 2),
-  )
+  await setPhasesThrough('queue')
   const { violations } = await runCheck({ root, phase: 'queue' })
   expect(violations).toEqual([])
 })

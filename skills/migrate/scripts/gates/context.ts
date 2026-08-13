@@ -1,5 +1,5 @@
 import type { Config } from '../config.ts'
-import type { HandoffFile } from '../handoff.ts'
+import type { LoadedHandoff } from '../handoff.ts'
 import type { StorePaths } from '../paths.ts'
 import type { Phase, PhaseState } from '../phases.ts'
 import type {
@@ -55,8 +55,10 @@ export type GateContext = {
   capabilities: Capability[]
   deltas: Delta[]
   censusRows: CensusRow[]
-  // null when handoff has never run. Gate 12 reads it; nothing else does.
-  handoff: HandoffFile | null
+  // Loaded lazily, immediately before the handoff gate runs, because it is the
+  // only gate that reads it and a corrupt file must not break the others.
+  // `undefined` means "not loaded yet"; every other state is a LoadedHandoff.
+  handoff: LoadedHandoff | undefined
   queueItems: QueueItem[]
   queueErrors: string[]
   phases: Record<Phase, PhaseState>

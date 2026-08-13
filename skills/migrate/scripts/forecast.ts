@@ -1,5 +1,6 @@
 import type { Assumptions } from './assumptions.ts'
 import type { CapCoverage } from './coverage.ts'
+import { isCalendarDate } from './dates.ts'
 import type { Completion, Rate } from './types.ts'
 
 const DAY_MS = 86_400_000
@@ -64,18 +65,37 @@ const UNMEASURED = 'not enough dated completions to measure a rate; one point is
 // only. Undated completions contribute to neither: they are counted as built
 // by coverage and say nothing about pace.
 export function velocities(completions: Completion[], today: string): { asIs: Rate; active: Rate } {
+  // A date that is not a real calendar day is dropped rather than parsed. Left
+  // in, `Date.parse` returns NaN, `Math.max(1, NaN)` is NaN, and because
+  // `NaN !== null` the whole null-propagation contract disengages and a rate
+  // of NaN gets printed where a number belongs.
   const dates = completions
     .map((c) => c.doneAt)
-    .filter((d): d is string => d !== null)
+    .filter((d): d is string => d !== null && isCalendarDate(d))
     .sort()
   if (dates.length < 2) {
     return { asIs: { value: null, basis: UNMEASURED }, active: { value: null, basis: UNMEASURED } }
   }
   const first = dates[0] as string
-  const eraDays = Math.max(
-    1,
-    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / DAY_MS,
-  )
+  const last = dates[dates.length - 1] as string
+  // The era is counted INCLUSIVELY, and runs to the later of today and the
+  // last completion. Both halves matter, and getting either wrong inverts the
+  // uncertainty band rather than merely shifting it.
+  //
+  // Inclusive because `activeDays` counts distinct dates, which is inclusive by
+  // construction: ten completions on ten consecutive days ending today gave an
+  // exclusive era of nine, so `asIs` (10/9) came out FASTER than `active`
+  // (10/10). asIs is the pessimistic floor and active the optimistic ceiling,
+  // so that made the band print its optimistic bound later than its
+  // pessimistic one. Counted inclusively, activeDays <= eraDays always holds,
+  // because every active day falls inside the era.
+  //
+  // Running to `max(today, last)` because a completion dated ahead of today is
+  // otherwise clamped to a one-day era, which turns a typo or a timezone edge
+  // into an enormous measured velocity. Extending the era is the honest
+  // reading: the run demonstrably spans that date.
+  const end = last > today ? last : today
+  const eraDays = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / DAY_MS + 1
   const activeDays = new Set(dates).size
   return {
     asIs: {
@@ -218,8 +238,12 @@ export function renderForecast(input: {
       lines.push('  not projected: no measured rate to extrapolate from')
     } else {
       lines.push(`  ${p.perDay.toFixed(2)} requirement(s)/day`)
-      lines.push(`  raw       ${p.finishRaw ?? 'omitted'} (${p.daysRaw ?? 0} day(s))`)
-      lines.push(`  weighted  ${p.finishWeighted ?? 'omitted'} (${p.daysWeighted ?? 0} day(s))`)
+      lines.push(
+        `  raw       ${p.finishRaw === null ? 'omitted' : `${p.finishRaw} (${p.daysRaw} day(s))`}`,
+      )
+      lines.push(
+        `  weighted  ${p.finishWeighted === null ? 'omitted' : `${p.finishWeighted} (${p.daysWeighted} day(s))`}`,
+      )
       if (p.band) {
         lines.push(
           `  band      ${p.band.optimistic ?? 'omitted'} to ${p.band.pessimistic ?? 'omitted'}`,

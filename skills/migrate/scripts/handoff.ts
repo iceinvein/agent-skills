@@ -3,6 +3,7 @@ import type { Config } from './config.ts'
 import { storePaths } from './paths.ts'
 import { readJsonFile, writeAtomically } from './store.ts'
 import type { ApplyResult, Capability, Delta, Requirement, Throughput, WorkItem } from './types.ts'
+import { isRecord } from './validate.ts'
 
 export type HandoffInput = {
   requirements: Requirement[]
@@ -75,6 +76,29 @@ function dependencyEdges(caps: Capability[], reqs: Requirement[]): Map<string, S
   return deps
 }
 
+// Whether `from` can reach `to` following dependency edges within `scope`.
+// Used to tell a genuine cycle member (it reaches itself) from a capability
+// that is merely blocked by one.
+function reaches(
+  from: string,
+  to: string,
+  deps: Map<string, Set<string>>,
+  scope: Set<string>,
+): boolean {
+  const seen = new Set<string>()
+  const stack = [...(deps.get(from) ?? [])].filter((d) => scope.has(d))
+  while (stack.length > 0) {
+    const next = stack.pop() as string
+    if (next === to) return true
+    if (seen.has(next)) continue
+    seen.add(next)
+    for (const d of deps.get(next) ?? []) {
+      if (scope.has(d)) stack.push(d)
+    }
+  }
+  return false
+}
+
 // Kahn's algorithm over slug-sorted candidates. When a pass emits nothing,
 // every remaining capability is in a cycle: they are emitted in slug order and
 // returned in `cycle` so the caller can report it. Deterministic in both
@@ -104,7 +128,16 @@ export function dependencyOrder(
       progress = true
     }
     if (progress) continue
-    for (const slug of [...remaining].sort()) {
+    // Nothing could be emitted, so at least one cycle blocks the rest. Only the
+    // members of a cycle are broken out, and only one pass' worth, after which
+    // the loop resumes: dumping everything remaining reported capabilities that
+    // were merely downstream of a cycle as cycle members, and threw away a
+    // perfectly satisfiable order for them. A capability that depends on a
+    // cycle should still be emitted after it, not alongside it.
+    const stuck = [...remaining].sort()
+    const inCycle = stuck.filter((slug) => reaches(slug, slug, deps, remaining))
+    const release = inCycle.length > 0 ? inCycle : stuck
+    for (const slug of release) {
       const capability = bySlug.get(slug)
       if (capability) {
         ordered.push(capability)
@@ -182,10 +215,90 @@ export function blockedRequirements(
   return blocked
 }
 
-export async function loadHandoff(root: string): Promise<HandoffFile | null> {
+// handoff.json was the only store file in this codebase read through an
+// unchecked cast, and this milestone gave it three consumers (the gate,
+// coverage, forecast). `readRows` carries the same warning and every census row
+// goes through `validateCensus` for exactly this reason: nothing stops a hand
+// edit, a merge-conflict resolution, or a half-written file. Without this, `{}`
+// or a truncated write reached `handoff.items.map` and crashed `migrate check`
+// with an internal TypeError at exit 2, which claims the request was malformed
+// when in fact a well-formed request found a bad store file.
+export function validateHandoff(
+  raw: unknown,
+): { ok: true; value: HandoffFile } | { ok: false; errors: string[] } {
+  const errors: string[] = []
+  if (!isRecord(raw)) return { ok: false, errors: ['is not a JSON object'] }
+  const rec: Record<string, unknown> = raw
+  if (typeof rec.adapter !== 'string' || (rec.adapter as string).length === 0) {
+    errors.push('adapter must be a non-empty string')
+  }
+  if (!Array.isArray(rec.items)) errors.push('items must be an array')
+  else {
+    ;(rec.items as unknown[]).forEach((item: unknown, i: number) => {
+      if (!isRecord(item)) {
+        errors.push(`items[${i}] is not an object`)
+        return
+      }
+      if (typeof item.key !== 'string' || item.key.length === 0) {
+        errors.push(`items[${i}].key must be a non-empty string`)
+      }
+      if (typeof item.title !== 'string') errors.push(`items[${i}].title must be a string`)
+      if (!Array.isArray(item.frs) || (item.frs as unknown[]).some((f) => typeof f !== 'string')) {
+        errors.push(`items[${i}].frs must be an array of strings`)
+      }
+      if (
+        !Array.isArray(item.dependsOn) ||
+        (item.dependsOn as unknown[]).some((d) => typeof d !== 'string')
+      ) {
+        errors.push(`items[${i}].dependsOn must be an array of strings`)
+      }
+      if (typeof item.weight !== 'number' || !Number.isFinite(item.weight)) {
+        errors.push(`items[${i}].weight must be a number`)
+      }
+    })
+  }
+  if (!isRecord(rec.refs)) errors.push('refs must be an object')
+  else if (Object.values(rec.refs as Record<string, unknown>).some((v) => typeof v !== 'string')) {
+    errors.push('every refs value must be a string')
+  }
+  if (!isRecord(rec.basis)) errors.push('basis must be an object')
+  else {
+    for (const k of ['confirmed', 'emitted']) {
+      const v = (rec.basis as Record<string, unknown>)[k]
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        errors.push(`basis.${k} must be a number`)
+      }
+    }
+    const order = (rec.basis as Record<string, unknown>).order
+    if (!Array.isArray(order) || order.some((o) => typeof o !== 'string')) {
+      errors.push('basis.order must be an array of strings')
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors }
+  return { ok: true, value: rec as unknown as HandoffFile }
+}
+
+export type LoadedHandoff =
+  | { kind: 'absent' }
+  | { kind: 'ok'; value: HandoffFile }
+  | { kind: 'invalid'; errors: string[] }
+
+// Never throws. A file that cannot be read, parsed or validated comes back as
+// `invalid` with the reason, so a caller can report it as a violation instead
+// of dying on it.
+export async function loadHandoff(root: string): Promise<LoadedHandoff> {
   const path = storePaths(root).handoff
-  if (!existsSync(path)) return null
-  return (await readJsonFile(path)) as HandoffFile
+  if (!existsSync(path)) return { kind: 'absent' }
+  let raw: unknown
+  try {
+    raw = await readJsonFile(path)
+  } catch (e) {
+    return { kind: 'invalid', errors: [(e as Error).message] }
+  }
+  const result = validateHandoff(raw)
+  return result.ok
+    ? { kind: 'ok', value: result.value }
+    : { kind: 'invalid', errors: result.errors }
 }
 
 // Written with sorted `refs` keys and a fixed field order, so two apply() runs

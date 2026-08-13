@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { applyRuling, renderReviewSheet } from '../adjudicate-cmd.ts'
+import { parseQueueItem } from '../queue.ts'
 import type { QueueItem } from '../types.ts'
 
 const CLI = join(import.meta.dir, '..', '..', 'bin', 'migrate.ts')
@@ -266,4 +267,66 @@ test('adjudicate reports a queue file that will not parse as a content failure',
   const broken = await migrate(['adjudicate', 'q-alpha', '--ruling', 'x'])
   expect(broken.code).toBe(1)
   expect(broken.err).toContain('q-alpha')
+})
+
+test('an indented --- inside the frontmatter is refused, not silently mis-fenced', () => {
+  // queue.ts closes the block at any line STARTING with ---, so a line that
+  // only looks like a fence after trimming is body to the parser and was a
+  // fence here. The owned keys landed above the real fence, the parser's
+  // last-key-wins read still saw `status: open`, and the command reported
+  // success over an item that stayed open forever.
+  const before = `---
+id: q-x
+  ---
+severity: minor
+status: open
+---
+
+## Evidence
+
+e
+
+## Options
+
+o
+
+## Recommendation
+
+r
+`
+  const after = applyRuling(before, 'settled', '2026-08-13')
+  // Whatever this produces, it must read back as adjudicated through the
+  // parser every other command uses.
+  const reparsed = parseQueueItem(after, 'q-x.md')
+  expect(reparsed.ok && reparsed.value.status).toBe('adjudicated')
+})
+
+test('a nested key named status is left alone', () => {
+  const before = `---
+id: q-x
+severity: minor
+status: open
+meta:
+  status: draft
+  ruling: none yet
+---
+
+## Evidence
+
+e
+
+## Options
+
+o
+
+## Recommendation
+
+r
+`
+  const after = applyRuling(before, 'settled', '2026-08-13')
+  const fm = after.slice(4, after.indexOf('\n---', 3))
+  expect(fm).toContain('  status: draft')
+  expect(fm).toContain('  ruling: none yet')
+  expect(fm.match(/^status:/gm)).toHaveLength(1)
+  expect(fm.match(/^ruling:/gm)).toHaveLength(1)
 })

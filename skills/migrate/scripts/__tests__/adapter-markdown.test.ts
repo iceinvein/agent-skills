@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { markdown } from '../adapters/markdown.ts'
+import { markdown, parseRoadmap } from '../adapters/markdown.ts'
 import type { Config } from '../config.ts'
 import { buildWorkItems, type HandoffInput } from '../handoff.ts'
 import type { Capability, Requirement } from '../types.ts'
@@ -117,7 +117,7 @@ test('re-applying preserves every ticked box and its date', async () => {
     before
       .replace(
         '- [ ] UM-001 Authenticate a user against stored credentials',
-        '- [x] UM-001 (2026-08-12) Authenticate a user against stored credentials',
+        '- [x] UM-001 <!-- done:2026-08-12 --> Authenticate a user against stored credentials',
       )
       .replace('- [ ] BI-001 ', '- [x] BI-001 '),
   )
@@ -128,7 +128,7 @@ test('re-applying preserves every ticked box and its date', async () => {
 
   const after = await readFile(roadmapPath(), 'utf8')
   expect(after).toContain(
-    '- [x] UM-001 (2026-08-12) Authenticate a user against stored credentials',
+    '- [x] UM-001 <!-- done:2026-08-12 --> Authenticate a user against stored credentials',
   )
   expect(after).toContain('- [x] BI-001 Raise an invoice for a completed booking')
   expect(after).toContain('- [ ] UM-003 Expire a session after idle time')
@@ -141,7 +141,7 @@ test('throughput reads ticked boxes, with a null date for an undated tick', asyn
   await writeFile(
     roadmapPath(),
     before
-      .replace('- [ ] UM-001 ', '- [x] UM-001 (2026-08-12) ')
+      .replace('- [ ] UM-001 ', '- [x] UM-001 <!-- done:2026-08-12 --> ')
       .replace('- [ ] BI-001 ', '- [x] BI-001 '),
   )
 
@@ -171,4 +171,13 @@ test('plan is apply-free: it writes nothing', async () => {
   const items = await markdown.plan(input())
   expect(items.map((i) => i.key)).toEqual(['billing', 'user-management'])
   expect(await Bun.file(roadmapPath()).exists()).toBe(false)
+})
+
+test('a requirement whose text opens with a parenthesised date is not read as dated', () => {
+  // The date lives in an HTML comment precisely so ordinary requirement prose
+  // cannot fabricate one. Parenthesised, this parsed as a completion date and
+  // fed a number nobody recorded into the measured velocity.
+  const roadmap = '- [x] BI-001 (2026-08-12) Raise an invoice\n'
+  const state = parseRoadmap(roadmap)
+  expect(state.get('BI-001')).toEqual({ checked: true, date: null })
 })

@@ -1,3 +1,4 @@
+import { isCalendarDate } from './dates.ts'
 import type { HandoffFile } from './handoff.ts'
 import type { Requirement, Throughput } from './types.ts'
 
@@ -23,6 +24,9 @@ export type CoverageReport = {
   // caller treats it as a failure.
   unknown: string[]
   nonConfirmed: { slug: string; count: number }[]
+  // Capabilities the store has requirements in that the emitted order does not
+  // name: the handoff predates them, so the emitted work is out of date.
+  stale: string[]
   basis: string
 }
 
@@ -53,14 +57,25 @@ export function computeCoverage(input: {
       continue
     }
     builtIds.add(c.fr)
-    if (c.doneAt === null) undated++
+    // A date that is not a real calendar day cannot date anything, so it is
+    // reported the same way a missing one is rather than counted as dated.
+    if (c.doneAt === null || !isCalendarDate(c.doneAt)) undated++
   }
 
   const titleOf = new Map(handoff.items.map((i) => [i.key, i.title]))
   const caps: CapCoverage[] = []
   const nonConfirmed: { slug: string; count: number }[] = []
 
-  for (const slug of handoff.basis.order) {
+  // Every capability the STORE has requirements in, not only those the emitted
+  // order happens to name. Walking `basis.order` alone let a stale handoff.json
+  // narrow both numerator and denominator silently: a store with three
+  // confirmed requirements in a capability absent from `order` reported
+  // "built 7/7 confirmed requirements (100%)" while three were unbuilt and the
+  // capability appeared nowhere in the output. The order still decides the
+  // display sequence; anything it omits is appended and named as stale.
+  const inStore = [...new Set(requirements.map((r) => r.cap))]
+  const stale = inStore.filter((slug) => !handoff.basis.order.includes(slug)).sort()
+  for (const slug of [...handoff.basis.order, ...stale]) {
     const own = requirements.filter((r) => r.cap === slug)
     const confirmed = own.filter((r) => r.confidence.kind === 'confirmed')
     const coveredIds = confirmed.filter((r) => builtIds.has(r.id)).map((r) => r.id)
@@ -88,7 +103,7 @@ export function computeCoverage(input: {
   // does not report it again; it only avoids counting it.
   void byId
 
-  return { caps, built, confirmed, undated, unknown, nonConfirmed, basis: throughput.basis }
+  return { caps, built, confirmed, undated, unknown, stale, nonConfirmed, basis: throughput.basis }
 }
 
 function pad(text: string, width: number): string {
@@ -96,7 +111,17 @@ function pad(text: string, width: number): string {
 }
 
 export function renderCoverage(r: CoverageReport): string {
-  const pct = r.confirmed === 0 ? 0 : Math.round((r.built / r.confirmed) * 100)
+  // Never round to a number the fraction beside it contradicts. Math.round
+  // printed 199/200 as 100% and 1/250 as 0%, and the percentage is the figure
+  // that gets quoted onward while the fraction stays behind.
+  const pct =
+    r.confirmed === 0
+      ? 0
+      : r.built === r.confirmed
+        ? 100
+        : r.built === 0
+          ? 0
+          : Math.min(99, Math.max(1, Math.round((r.built / r.confirmed) * 100)))
   const lines = [
     `built ${r.built}/${r.confirmed} confirmed requirements (${pct}%)`,
     `evidence: ${r.basis}`,
@@ -110,6 +135,11 @@ export function renderCoverage(r: CoverageReport): string {
     const total = r.nonConfirmed.reduce((n, e) => n + e.count, 0)
     const detail = r.nonConfirmed.map((e) => `${e.slug} ${e.count}`).join(', ')
     lines.push(`excluded: ${total} non-confirmed (${detail})`)
+  }
+  if (r.stale.length > 0) {
+    lines.push(
+      `stale: ${r.stale.length} capability(ies) not in the emitted work (${r.stale.join(', ')}); re-run migrate handoff`,
+    )
   }
   lines.push('')
   const width = Math.max(4, ...r.caps.map((c) => c.slug.length))

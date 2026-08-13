@@ -128,29 +128,45 @@ async function readIfPresent(path: string): Promise<string | null> {
   }
 }
 
-// One line per capability under `## Proposed`, creating the section when the
-// target's WORK.md has none. Existing lines for the same capability are
-// replaced rather than appended to, so re-running does not stack duplicates,
-// and every other section of the file is left exactly as the team wrote it.
+// The adapter's own lines are fenced by an HTML comment pair, and ONLY the
+// region between them is ever rewritten.
+//
+// The previous version stripped every line under `## Proposed` matching
+// `- [something]` before re-adding its own, on the assumption that such a line
+// could only be adapter output. It cannot: `- [W07] Replace the auth provider`
+// is exactly the notation the target's own WORK.md teaches, so a team keeping
+// a shortlist there lost it on the first handoff. The fence makes ownership
+// explicit rather than inferred from shape, which is the only way to edit a
+// file somebody else writes in.
+const FENCE_OPEN = '<!-- migrate:proposed -->'
+const FENCE_CLOSE = '<!-- /migrate:proposed -->'
+
 function updateWorkLedger(text: string, items: WorkItem[]): string {
-  const proposed = items.map((i) => `- [${i.key}] ${i.title} (${i.frs.length} FRs)`)
+  const block = [
+    FENCE_OPEN,
+    ...items.map((i) => `- [${i.key}] ${i.title} (${i.frs.length} FRs)`),
+    FENCE_CLOSE,
+  ].join('\n')
+
+  const open = text.indexOf(FENCE_OPEN)
+  const close = text.indexOf(FENCE_CLOSE)
+  if (open !== -1 && close > open) {
+    return text.slice(0, open) + block + text.slice(close + FENCE_CLOSE.length)
+  }
+
   let out = text
   if (!PROPOSED.test(out)) {
     out = `${out.replace(/\n*$/, '')}\n\n## Proposed\n`
   }
   const at = PROPOSED.exec(out)
   if (!at) return out
+  // Inserted directly under the heading, ahead of whatever the team already
+  // keeps there. Nothing outside the fence is read, moved or removed, so a
+  // heading of any level below this point is simply none of the adapter's
+  // business: the earlier `\n## ` scan for a section end was both wrong (it
+  // missed `#` and `###`) and unnecessary once ownership is explicit.
   const headEnd = at.index + at[0].length
-  const rest = out.slice(headEnd)
-  // The section runs to the next heading of any level, or to end of file.
-  const nextHeading = /\n## /.exec(rest)
-  const sectionEnd = nextHeading ? headEnd + nextHeading.index : out.length
-  const after = out.slice(sectionEnd)
-  const existing = out
-    .slice(headEnd, sectionEnd)
-    .split('\n')
-    .filter((l) => l.trim().length > 0 && !/^- \[[^\]]+\]/.test(l.trim()))
-  return `${out.slice(0, headEnd)}\n${[...existing, ...proposed].join('\n')}\n${after}`
+  return `${out.slice(0, headEnd)}\n\n${block}\n${out.slice(headEnd)}`
 }
 
 type FlowCoverage = { cap: string; coveredIds: string[] }
@@ -205,9 +221,19 @@ export const flow: Adapter = {
 
     const workPath = join(input.root, WORK)
     const work = await readIfPresent(workPath)
+    let workChanged = false
     if (work !== null) {
       const nextWork = updateWorkLedger(work, items)
-      if (nextWork !== work) await writeAtomically(workPath, nextWork, src)
+      if (nextWork !== work) {
+        await writeAtomically(workPath, nextWork, src)
+        workChanged = true
+      }
+    }
+    // A run that rewrote WORK.md has not left the target unchanged, whatever
+    // the capability files did. Reporting every item `unchanged` while a file
+    // was rewritten makes the idempotency claim untestable from the result.
+    if (workChanged && created.length === 0) {
+      for (const key of unchanged.splice(0, unchanged.length)) updated.push(key)
     }
 
     // The oracle. When the target carries its own flow CLI, the emission is

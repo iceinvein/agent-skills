@@ -103,9 +103,21 @@ export async function runCheck(opts: {
   const censusRows = validateRows(await readRawRows(paths.census))
   const { items: queueItems, errors: queueErrors } = await loadQueue(paths.queueDir)
   const phases = await loadPhases(opts.root)
-  const handoff = await loadHandoff(opts.root)
 
   const terminusIndex = opts.phase ? PHASES.indexOf(opts.phase) : PHASES.length - 1
+  // A gate is skipped only when NOTHING claims its phase was reached. Keyed on
+  // the furthest phase `phases.json` marks done as well as on the requested
+  // terminus, because a store whose own state file says it reached handoff,
+  // with nothing emitted, must not be able to hide that by being checked at an
+  // earlier terminus. This mirrors run-state's done-over-pending check, which
+  // deliberately looks across all eight phases regardless of terminus on the
+  // grounds that hand-edited state is worth naming whether or not the caller
+  // asked about it.
+  let furthestDone = -1
+  PHASES.forEach((phase, i) => {
+    if (phases[phase].status === 'done') furthestDone = i
+  })
+  const scopeIndex = Math.max(terminusIndex, furthestDone)
 
   const ctx: GateContext = {
     root: opts.root,
@@ -116,7 +128,7 @@ export async function runCheck(opts: {
     capabilities,
     deltas,
     censusRows,
-    handoff,
+    handoff: undefined,
     queueItems,
     queueErrors,
     phases,
@@ -129,7 +141,12 @@ export async function runCheck(opts: {
   const violations: Violation[] = []
   for (const name of GATE_ORDER) {
     const from = GATE_PHASE[name]
-    if (from && PHASES.indexOf(from) > terminusIndex) continue
+    if (from && PHASES.indexOf(from) > scopeIndex) continue
+    // Loaded here rather than with the rest of the store: the only consumer is
+    // the handoff gate, and reading it eagerly meant a corrupt handoff.json
+    // killed every bounded check, plus `status` and `report`, which call
+    // runCheck purely for the summary and never look at this file.
+    if (name === 'handoff' && ctx.handoff === undefined) ctx.handoff = await loadHandoff(opts.root)
     violations.push(...(await GATES[name](ctx)))
   }
 

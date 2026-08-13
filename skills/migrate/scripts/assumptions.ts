@@ -63,18 +63,29 @@ function extractSections(body: string): Record<string, string> {
 // Markdown table rows minus the header and separator, cells trimmed. The file
 // is documentation and input at once, which is why it is a table rather than
 // TOML: the owner reads it as often as the tool does.
+// A markdown separator row is recognised rather than assumed to be the second
+// line. Dropping two lines positionally meant a table written without a
+// separator silently lost its first data row, which by the template's own
+// convention is the as-is measured baseline: the owner attested two scenarios
+// and got one, with no error anywhere.
+function isSeparator(cells: string[]): boolean {
+  return cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c))
+}
+
 function tableRows(block: string): string[][] {
-  return block
+  const rows = block
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.startsWith('|'))
-    .slice(2)
     .map((l) =>
       l
         .split('|')
         .slice(1, -1)
         .map((c) => c.trim()),
     )
+  // The first row is always the header. Anything after it that is a separator
+  // is structure, not data, wherever it sits.
+  return rows.slice(1).filter((cells) => !isSeparator(cells))
 }
 
 export function parseAssumptions(raw: string, path: string): Assumptions {

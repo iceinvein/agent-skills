@@ -1012,8 +1012,8 @@ test('contract-only run driven probe through handoff, ending green at a plain ch
 
   // 10. Phase 5, queue. Every item this run owed was filed in the pass that
   // named it, so this phase closes on the status flip, exactly as queue.md
-  // says: closing is not "the queue is empty", since nothing in this milestone
-  // adjudicates an item.
+  // says: closing is not "the queue is empty", since phase 5 itself never
+  // adjudicates an item. Phase 6, below, is where they get decided.
   const listed = await migrate(['queue', 'list', '--open'])
   expect(listed.code).toBe(0)
   expect(listed.out).toContain(`${Object.keys(QUEUE_ITEMS).length + 1} item(s)`)
@@ -1166,8 +1166,8 @@ test('contract-only run driven probe through handoff, ending green at a plain ch
   // actually does to a roadmap.
   const built = ['UD-001', 'UD-002']
   let ticked = roadmap
-  ticked = ticked.replace(`- [ ] ${built[0]} `, `- [x] ${built[0]} (2026-08-10) `)
-  ticked = ticked.replace(`- [ ] ${built[1]} `, `- [x] ${built[1]} (2026-08-12) `)
+  ticked = ticked.replace(`- [ ] ${built[0]} `, `- [x] ${built[0]} <!-- done:2026-08-10 --> `)
+  ticked = ticked.replace(`- [ ] ${built[1]} `, `- [x] ${built[1]} <!-- done:2026-08-12 --> `)
   await writeFile(roadmapPath, ticked)
 
   const coverage = await migrate(['coverage'])
@@ -1187,8 +1187,8 @@ test('contract-only run driven probe through handoff, ending green at a plain ch
   // here against a real store rather than a unit fixture.
   expect((await migrate(['handoff'])).code).toBe(0)
   const afterRerun = await readFile(roadmapPath, 'utf8')
-  expect(afterRerun).toContain(`- [x] ${built[0]} (2026-08-10) `)
-  expect(afterRerun).toContain(`- [x] ${built[1]} (2026-08-12) `)
+  expect(afterRerun).toContain(`- [x] ${built[0]} <!-- done:2026-08-10 --> `)
+  expect(afterRerun).toContain(`- [x] ${built[1]} <!-- done:2026-08-12 --> `)
 
   // 19. Forecast. It refuses before the owner has attested anything, which is
   // the difference between a projection and a guess.

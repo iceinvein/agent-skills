@@ -157,3 +157,23 @@ test('zero scenarios fails', () => {
   expect(a.scenarios).toEqual([])
   expect(validateAssumptions(a, [cap('user-management', 1)])).toContain('no scenarios defined')
 })
+
+test('a table written without a separator row keeps every data row', () => {
+  // slice(2) dropped two lines positionally, so a missing separator silently
+  // ate the first data row: the owner attested two scenarios and got one, and
+  // the lost row is the as-is baseline the template puts first.
+  const noSeparator = GOOD.replace('| --- | --- | --- | --- | --- |\n', '')
+  const a = parseAssumptions(noSeparator, 'f.md')
+  expect(a.scenarios.map((s) => s.label)).toEqual(['as-is', 'pushing', 'target'])
+})
+
+test('an alignment separator is recognised wherever it sits', () => {
+  const aligned = GOOD.replace(
+    '| --- | --- |\n| user-management',
+    '| :--- | ---: |\n| user-management',
+  )
+  expect(parseAssumptions(aligned, 'f.md').territories).toEqual({
+    'user-management': 'established',
+    billing: 'unknown-ground',
+  })
+})

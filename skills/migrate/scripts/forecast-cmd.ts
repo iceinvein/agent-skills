@@ -27,7 +27,12 @@ export async function runForecast(opts: {
   const cfg = await loadConfig(opts.root)
   const paths = storePaths(opts.root)
 
-  const handoff = await loadHandoff(opts.root)
+  const loaded = await loadHandoff(opts.root)
+  if (loaded.kind === 'invalid') {
+    for (const e of loaded.errors) process.stderr.write(`forecast: handoff.json ${e}\n`)
+    return 1
+  }
+  const handoff = loaded.kind === 'ok' ? loaded.value : null
   if (!handoff) {
     process.stderr.write(
       'forecast: no handoff.json in the store; run `migrate handoff` before projecting anything\n',

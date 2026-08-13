@@ -26,7 +26,12 @@ export async function runCoverage(opts: {
     return 2
   }
 
-  const handoff = await loadHandoff(opts.root)
+  const loaded = await loadHandoff(opts.root)
+  if (loaded.kind === 'invalid') {
+    for (const e of loaded.errors) process.stderr.write(`coverage: handoff.json ${e}\n`)
+    return 1
+  }
+  const handoff = loaded.kind === 'ok' ? loaded.value : null
   if (!handoff) {
     // Not zero built. There is no denominator at all, because nothing has been
     // emitted, and reporting 0/0 would read as a measurement.

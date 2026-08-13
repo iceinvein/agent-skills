@@ -4,7 +4,7 @@ import { loadConfig } from './config.ts'
 import { withStoreLock } from './lock.ts'
 import { storePaths } from './paths.ts'
 import { recordBatch } from './phases.ts'
-import { loadQueue } from './queue.ts'
+import { loadQueue, parseQueueItem } from './queue.ts'
 import { readTextFile, writeAtomically } from './store.ts'
 import type { QueueItem, Severity } from './types.ts'
 
@@ -57,11 +57,21 @@ export function applyRuling(text: string, ruling: string, date: string): string 
     throw new Error('a ruling cannot contain a newline')
   }
 
-  const lines = text.split('\n')
-  if (lines[0]?.trim() !== '---') {
+  // Normalised exactly as queue.ts normalises on read, and the fence located
+  // by the same rule it uses (a line STARTING with ---, not a line equal to it
+  // after trimming). The two disagreeing was not cosmetic: an indented `  ---`
+  // inside the frontmatter was invisible to the parser and taken as the fence
+  // here, so the owned keys were written above the real fence and the parser's
+  // last-key-wins read still saw `status: open`. `migrate adjudicate` printed
+  // "open -> adjudicated" and recorded a batch while the item stayed open
+  // forever, unreachable even with --force because its status never changed.
+  const normalized = text.startsWith('\uFEFF') ? text.slice(1) : text
+  const unix = normalized.replace(/\r\n/g, '\n')
+  const lines = unix.split('\n')
+  if (lines[0] !== '---') {
     throw new Error('missing --- frontmatter block')
   }
-  const close = lines.findIndex((line, i) => i > 0 && line.trim() === '---')
+  const close = lines.findIndex((line, i) => i > 0 && line.startsWith('---'))
   if (close === -1) {
     throw new Error('unterminated --- frontmatter block')
   }
@@ -76,7 +86,11 @@ export function applyRuling(text: string, ruling: string, date: string): string 
   const rewritten: string[] = []
   for (const line of lines.slice(1, close)) {
     const sep = line.indexOf(':')
-    if (sep === -1) {
+    // An indented key belongs to a nested map, not to this document's top
+    // level. Trimming before comparing rewrote `  status: draft` under a
+    // `meta:` key into a de-indented top-level `status: adjudicated`, leaving
+    // two `status:` lines and a destroyed `meta` block.
+    if (sep === -1 || line !== line.trimStart()) {
       rewritten.push(line)
       continue
     }
@@ -163,6 +177,21 @@ export async function runAdjudicate(opts: {
   let next: string
   try {
     next = applyRuling(text, opts.ruling, (opts.now ?? today)())
+    // Checked against the parser every other command reads this file with,
+    // rather than trusted. A write that reports success while leaving the item
+    // open or unparseable is worse than a refusal, because the queue gate then
+    // blocks handoff over a decision the owner believes they recorded.
+    const reparsed = parseQueueItem(next, item.path)
+    if (!reparsed.ok) {
+      throw new Error(
+        `the rewritten file would not parse (${reparsed.errors.join('; ')}); the item's frontmatter is shaped in a way this command cannot safely edit`,
+      )
+    }
+    if (reparsed.value.status !== 'adjudicated' || reparsed.value.ruling !== opts.ruling) {
+      throw new Error(
+        "the rewritten file does not read back as adjudicated; the item's frontmatter is shaped in a way this command cannot safely edit",
+      )
+    }
   } catch (e) {
     // Every applyRuling throw is about the ruling text or the file's own
     // frontmatter fence, both of which mean the request was malformed.

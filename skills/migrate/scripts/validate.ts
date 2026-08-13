@@ -130,6 +130,18 @@ export function validateRequirement(row: unknown, _cfg: Config): Validated<Requi
   const where = `requirement ${id || '<no id>'}`
 
   if (!id) errors.push('requirement: missing id')
+  // Elements have had an id grammar since Milestone 1; requirements were
+  // checked only for presence, so `migrate import reqs` accepted "BI 001" and
+  // "BI-002 (draft)" at exit 0. A requirement id travels into places that
+  // cannot represent whitespace: the markdown roadmap keys its checkbox lines
+  // on a single whitespace-delimited token, so an id with a space in it
+  // silently reverted the owner's ticked box on the next handoff, and the flow
+  // target rejects anything outside `<ns>-NNN` outright.
+  else if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+    errors.push(
+      `${where}: id must be letters, digits, dot, underscore or hyphen with no whitespace, since it is used as a key in emitted work items`,
+    )
+  }
   if (!str(r.cap) || r.cap.length === 0) errors.push(`${where}: missing cap`)
   if (!str(r.requirement) || r.requirement.length === 0)
     errors.push(`${where}: missing requirement text`)

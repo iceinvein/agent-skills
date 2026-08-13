@@ -82,12 +82,53 @@ test('demand is reported both raw and weighted by attested multiplier', () => {
 
 test('two measured velocities: calendar days and active days', () => {
   const v = velocities(DATED, TODAY)
-  // Three completions over ten calendar days since the first.
-  expect(v.asIs.value).toBeCloseTo(0.3, 10)
+  // Three completions over eleven calendar days, 2026-08-01 to 2026-08-11
+  // counted inclusively.
+  expect(v.asIs.value).toBeCloseTo(3 / 11, 10)
   expect(v.asIs.basis).toContain('quiet days included')
   // Three completions over three days on which something completed.
   expect(v.active.value).toBe(1)
   expect(v.active.basis).toContain('something completed')
+})
+
+test('as-is is never faster than active, which is what keeps the band the right way round', () => {
+  // asIs is the pessimistic floor and active the optimistic ceiling. If asIs
+  // can exceed active the band prints its optimistic bound later than its
+  // pessimistic one, which is worse than not printing a band at all. The
+  // dense-cadence case is where an exclusive era made that happen: one
+  // completion per day, ending today.
+  const dense: Completion[] = Array.from({ length: 10 }, (_, i) => ({
+    fr: `X-${i}`,
+    doneAt: `2026-08-${String(i + 1).padStart(2, '0')}`,
+  }))
+  const v = velocities(dense, '2026-08-10')
+  expect(v.asIs.value).toBeLessThanOrEqual(v.active.value ?? 0)
+
+  // And a completion dated ahead of today extends the era rather than being
+  // clamped to a single day, which used to turn a typo into a huge velocity.
+  const future = velocities(
+    [
+      { fr: 'A', doneAt: '2026-08-20' },
+      { fr: 'B', doneAt: '2026-08-22' },
+    ],
+    '2026-08-11',
+  )
+  expect(future.asIs.value).toBeCloseTo(2 / 3, 10)
+  expect(future.asIs.value).toBeLessThanOrEqual(future.active.value ?? 0)
+})
+
+test('a date that is not a real calendar day is dropped rather than parsed as NaN', () => {
+  const v = velocities(
+    [
+      { fr: 'A', doneAt: '2026-08-32' },
+      { fr: 'B', doneAt: '2026-09-01' },
+      { fr: 'C', doneAt: '2026-09-03' },
+    ],
+    '2026-09-05',
+  )
+  // Two usable dates remain, so a rate is still measurable and is not NaN.
+  expect(Number.isNaN(v.asIs.value ?? 0)).toBe(false)
+  expect(v.asIs.value).toBeCloseTo(2 / 5, 10)
 })
 
 test('fewer than two dated completions leaves both velocities unmeasured', () => {
@@ -118,18 +159,19 @@ test('a measured scenario projects raw and weighted finishes and carries a band'
   })
   const steady = projections[0]
   expect(steady?.basis).toBe('as-is')
-  expect(steady?.perDay).toBeCloseTo(0.3, 10)
-  // 4 raw at 0.3/day is 14 days; 7 weighted is 24.
-  expect(steady?.daysRaw).toBe(14)
-  expect(steady?.finishRaw).toBe('2026-08-25')
-  expect(steady?.daysWeighted).toBe(24)
-  expect(steady?.finishWeighted).toBe('2026-09-04')
-  // The band applies the same streams and tax to both measured bases.
-  expect(steady?.band).toEqual({ optimistic: '2026-08-18', pessimistic: '2026-09-04' })
+  expect(steady?.perDay).toBeCloseTo(3 / 11, 10)
+  // 4 raw at 3/11 per day is 15 days; 7 weighted is 26.
+  expect(steady?.daysRaw).toBe(15)
+  expect(steady?.finishRaw).toBe('2026-08-26')
+  expect(steady?.daysWeighted).toBe(26)
+  expect(steady?.finishWeighted).toBe('2026-09-06')
+  // The band applies the same streams and tax to both measured bases, and its
+  // optimistic end is never later than its pessimistic one.
+  expect(steady?.band).toEqual({ optimistic: '2026-08-18', pessimistic: '2026-09-06' })
   // Milestones accumulate weighted demand in Multipliers order.
   expect(steady?.milestones).toEqual([
-    { territory: 'established', finish: '2026-08-18' },
-    { territory: 'unknown-ground', finish: '2026-09-04' },
+    { territory: 'established', finish: '2026-08-19' },
+    { territory: 'unknown-ground', finish: '2026-09-06' },
   ])
 })
 

@@ -109,10 +109,12 @@ test('apply creates one milestone per capability and one issue per requirement',
   const state = JSON.parse(await readFile(statePath, 'utf8'))
   expect(state.issues).toHaveLength(3)
   expect(state.issues[0].body).toContain('<!-- migrate:fr=')
+  // The milestone is keyed on the slug as well as the title: two capabilities
+  // can share a title and can never share a slug.
   expect(state.issues.map((i: { milestone: string }) => i.milestone).sort()).toEqual([
-    'Billing',
-    'User management',
-    'User management',
+    'Billing (billing)',
+    'User management (user-management)',
+    'User management (user-management)',
   ])
 })
 
@@ -192,4 +194,39 @@ test('an issue with no marker is ignored rather than mistaken for a requirement'
 
   const t = await github.throughput?.(input())
   expect(t?.completions).toEqual([])
+})
+
+test('an issue that merely mentions a marker is not hijacked', async () => {
+  await github.apply(buildWorkItems(CAPS, REQS), input())
+  const state = JSON.parse(await readFile(statePath, 'utf8'))
+  const foreign = {
+    number: 900,
+    title: 'Investigate the flaky login test',
+    body: 'Related to the auth work at <!-- migrate:fr=UM-999 --> which is not this issue.\nA week of repro steps.',
+    state: 'OPEN',
+    closedAt: null,
+    milestone: null,
+  }
+  state.issues.push(foreign)
+  await writeFile(statePath, JSON.stringify(state, null, 2))
+  await writeFile(logPath, '')
+
+  await github.apply(buildWorkItems(CAPS, REQS), input())
+  const after = JSON.parse(await readFile(statePath, 'utf8'))
+  const kept = after.issues.find((i: { number: number }) => i.number === 900)
+  expect(kept.body).toBe(foreign.body)
+  expect(kept.milestone).toBeNull()
+})
+
+test('a human note below the fence survives a re-run', async () => {
+  await github.apply(buildWorkItems(CAPS, REQS), input())
+  const state = JSON.parse(await readFile(statePath, 'utf8'))
+  const target = state.issues.find((i: { body: string }) => i.body.includes('migrate:fr=UM-001'))
+  target.body = `${target.body}\n\n## Delivery notes\n\nSee PR #77.`
+  await writeFile(statePath, JSON.stringify(state, null, 2))
+
+  await github.apply(buildWorkItems(CAPS, REQS), input())
+  const after = JSON.parse(await readFile(statePath, 'utf8'))
+  const kept = after.issues.find((i: { body: string }) => i.body.includes('migrate:fr=UM-001'))
+  expect(kept.body).toContain('See PR #77.')
 })
