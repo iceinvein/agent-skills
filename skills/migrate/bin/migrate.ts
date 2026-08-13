@@ -18,6 +18,8 @@ Subcommands:
   queue add <file.md>             Add a queue item
   queue list [--open]             List queue items, severity first
   queue show <id>                 Print one queue item
+  adjudicate [<id>] [--ruling <text>] [--force] [--force-unlock]
+                                  Print the review sheet, or record one ruling
   check [--phase <p>] [--no-citations] [--leaks]
                                   Run the gates; without --phase, exit 0 means
                                   the whole migration is complete
@@ -165,6 +167,38 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runQueue } = await import('../scripts/queue-cmd.ts')
     return runQueue({ root, args })
+  },
+  adjudicate: async (args) => {
+    const ruling = readFlag(args, '--ruling')
+    if (ruling.error) {
+      process.stderr.write(`adjudicate: ${ruling.error}\n`)
+      return 2
+    }
+    // Same rule as `phase`: a flag sitting in the first positional slot leaves
+    // the id undefined, which would silently downgrade a write to a listing
+    // nobody asked for. Any write-intent flag with no id to apply it to is
+    // that mistake, so it is refused rather than serviced.
+    const id = args[0]?.startsWith('--') ? undefined : args[0]
+    if (!id && (ruling.value !== undefined || args.includes('--force'))) {
+      process.stderr.write(
+        'adjudicate: want <id> before --ruling/--force, as in `adjudicate q-x --ruling "..."`\n',
+      )
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('adjudicate: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runAdjudicate } = await import('../scripts/adjudicate-cmd.ts')
+    return runAdjudicate({
+      root,
+      ...(id ? { id } : {}),
+      ...(ruling.value !== undefined ? { ruling: ruling.value } : {}),
+      ...(args.includes('--force') ? { force: true } : {}),
+      ...(args.includes('--force-unlock') ? { forceUnlock: true } : {}),
+    })
   },
   check: async (args) => {
     const phase = readFlag(args, '--phase')
