@@ -17,6 +17,8 @@ export type StorePaths = {
   seamJson: string
   seamMd: string
   parityBasis: string
+  handoff: string
+  forecastAssumptions: string
   env: string
 }
 
@@ -35,6 +37,8 @@ export function storePaths(root: string): StorePaths {
     seamJson: join(dir, 'seam.json'),
     seamMd: join(dir, 'seam.md'),
     parityBasis: join(dir, 'parity-basis.md'),
+    handoff: join(dir, 'handoff.json'),
+    forecastAssumptions: join(dir, 'forecast-assumptions.md'),
     env: join(dir, '.env'),
   }
 }
