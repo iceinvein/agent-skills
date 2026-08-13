@@ -755,7 +755,7 @@ function readTomlString(text: string, key: string): string {
   return match[1]
 }
 
-test('contract-only run driven probe through queue, ending green at check --phase queue', async () => {
+test('contract-only run driven probe through handoff, ending green at a plain check', async () => {
   const groundTruthPath = join(source, 'GROUND-TRUTH.md')
   const rows = await parseGroundTruth(groundTruthPath)
   expect(rows.length).toBeGreaterThan(0)
@@ -1095,4 +1095,159 @@ test('contract-only run driven probe through queue, ending green at check --phas
   expect(afterRemoval.out).toContain(
     `lens census for ${mutatedSurface} claims in_ledger 0 + added ${claimed} = ${claimed} element(s) in the ledger, but elements.jsonl has ${actual}`,
   )
+  await writeFile(elementsPath, elementsText)
+  expect((await migrate(['check', '--phase', 'queue'])).code).toBe(0)
+
+  // 15. Phase 6, adjudicate. The review sheet first, because that is how the
+  // phase is meant to be worked: one pass over every open item with its
+  // recommendation in view, rather than opening four files.
+  const sheet = await migrate(['adjudicate'])
+  expect(sheet.code).toBe(0)
+  expect(sheet.out).toContain(`${Object.keys(QUEUE_ITEMS).length + 1} open`)
+  for (const id of [...Object.keys(QUEUE_ITEMS), QUEUE_ID]) {
+    expect(sheet.out).toContain(`${id} [`)
+  }
+
+  const RULINGS: Record<string, string> = {
+    'q-express-user-list-source':
+      'the empty list is the real behaviour; the table stays unread and unmapped',
+    'q-express-mailer-delivery-unobservable':
+      'accept the rubric at moderate; delivery is unobservable from the source alone',
+    'q-express-users-table-unwired': 'the table is in scope and stays mapped to UD-002',
+    [QUEUE_ID]: 'the scaffold row is enumeration noise and is skipped by name',
+  }
+  for (const [id, ruling] of Object.entries(RULINGS)) {
+    const ruled = await migrate(['adjudicate', id, '--ruling', ruling])
+    expect(ruled.code).toBe(0)
+    expect(ruled.out).toContain('open -> adjudicated')
+  }
+  // Re-ruling one of them refuses without --force, so an owner's recorded
+  // decision cannot be replaced by a re-run that meant no harm.
+  const reruled = await migrate(['adjudicate', QUEUE_ID, '--ruling', 'something else'])
+  expect(reruled.code).toBe(1)
+  expect(reruled.err).toContain('--force')
+
+  expect((await migrate(['adjudicate'])).out).toContain('0 open')
+  expect((await migrate(['phase', 'adjudicate', '--status', 'done'])).code).toBe(0)
+
+  // 16. Phase 7, handoff. UD-006 still carries a `queued` confidence, and its
+  // queue item is now adjudicated, so it no longer blocks: that is the whole
+  // point of measuring blockers against open items rather than against the
+  // confidence field.
+  const dry = await migrate(['handoff', '--dry-run'])
+  expect(dry.code).toBe(0)
+  expect(dry.out).toContain('plan:')
+  expect(dry.out).toContain('nothing written')
+  expect(await Bun.file(join(storeDir, 'handoff.json')).exists()).toBe(false)
+
+  const emitted = await migrate(['handoff'])
+  expect(emitted.code).toBe(0)
+  expect(emitted.out).toContain('adapter markdown')
+
+  const handoffFile = JSON.parse(await readFile(join(storeDir, 'handoff.json'), 'utf8'))
+  expect(handoffFile.basis.emitted).toBe(REQUIREMENTS.length)
+  // Every capability the seam declared reached a work item.
+  expect(handoffFile.items).toHaveLength(CAPABILITIES.length)
+  const roadmapPath = join(target, 'docs', 'migrate', 'roadmap.md')
+  const roadmap = await readFile(roadmapPath, 'utf8')
+  for (const r of REQUIREMENTS) expect(roadmap).toContain(`- [ ] ${r.id} `)
+
+  expect((await migrate(['phase', 'handoff', '--status', 'done'])).code).toBe(0)
+
+  // 17. The milestone's acceptance proof. Plain `migrate check`, with no
+  // --phase, gating every phase through handoff, exits 0. This is the first
+  // time in the project's history that the unbounded gate can pass at all.
+  const complete = await migrate(['check'])
+  expect(complete.out).not.toContain('Violations')
+  expect(complete.code).toBe(0)
+
+  // 18. Coverage, read back through the adapter that emitted the work. Two
+  // boxes ticked by hand, one dated and one not, which is what an owner
+  // actually does to a roadmap.
+  const built = ['UD-001', 'UD-002']
+  let ticked = roadmap
+  ticked = ticked.replace(`- [ ] ${built[0]} `, `- [x] ${built[0]} (2026-08-10) `)
+  ticked = ticked.replace(`- [ ] ${built[1]} `, `- [x] ${built[1]} (2026-08-12) `)
+  await writeFile(roadmapPath, ticked)
+
+  const coverage = await migrate(['coverage'])
+  expect(coverage.code).toBe(0)
+  expect(coverage.out).toContain('evidence: markdown roadmap checkboxes, dated in file')
+  // The fixture carries two non-confirmed requirements, UD-006 (`queued`) and
+  // one inferred. Both sit outside the confirmed denominator and are reported
+  // as exclusions rather than counted against delivery: parity is a promise
+  // about behaviour the run confirmed.
+  expect(coverage.out).toContain(
+    'excluded: 2 non-confirmed (user-directory 1, welcome-notification 1)',
+  )
+  expect(coverage.out).toMatch(/built 2\/\d+ confirmed requirements/)
+
+  // Re-running handoff after the boxes were ticked must not erase them. This
+  // is the data-loss regression the markdown adapter exists to avoid, checked
+  // here against a real store rather than a unit fixture.
+  expect((await migrate(['handoff'])).code).toBe(0)
+  const afterRerun = await readFile(roadmapPath, 'utf8')
+  expect(afterRerun).toContain(`- [x] ${built[0]} (2026-08-10) `)
+  expect(afterRerun).toContain(`- [x] ${built[1]} (2026-08-12) `)
+
+  // 19. Forecast. It refuses before the owner has attested anything, which is
+  // the difference between a projection and a guess.
+  const unattested = await migrate(['forecast'])
+  expect(unattested.code).toBe(1)
+  expect(unattested.err).toContain('forecast-assumptions.md')
+
+  await writeFile(
+    join(storeDir, 'forecast-assumptions.md'),
+    [
+      '---',
+      'attestedBy: e2e',
+      'attestedDate: 2026-08-13',
+      '---',
+      '',
+      '## Territories',
+      '',
+      '| capability | territory |',
+      '| --- | --- |',
+      ...CAPABILITIES.map((c) => `| ${c.slug} | established |`),
+      '',
+      '## Multipliers',
+      '',
+      '| territory | multiplier |',
+      '| --- | --- |',
+      '| established | 1.0 |',
+      '',
+      '## Scenarios',
+      '',
+      '| label | rate | streams | tax | note |',
+      '| --- | --- | --- | --- | --- |',
+      '| steady | as-is | 1 | 0 | measured |',
+      '| target | 2 | 1 | 0 | owner target |',
+      '',
+      '## Caveats',
+      '',
+      '- The fixture is not a real campaign.',
+      '',
+    ].join('\n'),
+  )
+
+  const forecast = await migrate(['forecast'])
+  expect(forecast.code).toBe(0)
+  expect(forecast.out).toContain('attested by e2e on 2026-08-13')
+  // Two dated completions is exactly the minimum, so the measured rows
+  // project; the target row is labelled as owner-attested either way.
+  expect(forecast.out).toContain('target (owner-attested, nothing measures this)')
+  expect(forecast.out).toContain('The fixture is not a real campaign.')
+
+  // 20. The acceptance proof is load-bearing, shown by mutation: reopening one
+  // queue item must break the plain check that step 17 asserted, and only on
+  // the adjudication gate.
+  const reopenPath = join(storeDir, 'queue', `${QUEUE_ID}.md`)
+  const ruledText = await readFile(reopenPath, 'utf8')
+  await writeFile(reopenPath, ruledText.replace('status: adjudicated', 'status: open'))
+  const reopened = await migrate(['check'])
+  expect(reopened.code).toBe(1)
+  expect(reopened.out).toContain('  adjudication:')
+  expect(reopened.out).toContain(QUEUE_ID)
+  await writeFile(reopenPath, ruledText)
+  expect((await migrate(['check'])).code).toBe(0)
 })
