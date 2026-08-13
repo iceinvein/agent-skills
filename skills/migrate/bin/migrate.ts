@@ -26,6 +26,8 @@ Subcommands:
   status                          Phase state, counts, resume pointer
   reset --phase <phase> [--force-unlock]
                                   Clear one phase's derived rows
+  handoff [--adapter <name>] [--dry-run] [--force-unlock]
+                                  Emit the ratified requirements as work items
   report [--out <dir>]            Render markdown views
   --version                       Print the migrate version
   --help                          Show this message`
@@ -260,6 +262,26 @@ const HANDLERS: Record<string, Handler> = {
     const forceUnlock = args.includes('--force-unlock')
     const { runReset } = await import('../scripts/reset-cmd.ts')
     return runReset({ root, phase, ...(forceUnlock ? { forceUnlock: true } : {}) })
+  },
+  handoff: async (args) => {
+    const adapter = readFlag(args, '--adapter')
+    if (adapter.error) {
+      process.stderr.write(`handoff: ${adapter.error}\n`)
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('handoff: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runHandoff } = await import('../scripts/handoff-cmd.ts')
+    return runHandoff({
+      root,
+      ...(adapter.value ? { adapter: adapter.value } : {}),
+      ...(args.includes('--dry-run') ? { dryRun: true } : {}),
+      ...(args.includes('--force-unlock') ? { forceUnlock: true } : {}),
+    })
   },
   report: async (args) => {
     const result = readFlag(args, '--out')

@@ -148,6 +148,40 @@ export function buildWorkItems(caps: Capability[], reqs: Requirement[]): WorkIte
   })
 }
 
+// A requirement is blocked when a decision it is waiting on has not been made
+// yet. Two independent paths reach that state, and both are relative to an
+// item that is still OPEN:
+//
+//   - a `queued` confidence, meaning the extract phase could not settle what
+//     the requirement is, and
+//   - a sub-high `rubric` parity, meaning the parity phase could not settle
+//     how it will be proven.
+//
+// Relative to open items specifically, which is the whole subtlety. A queued
+// confidence pointing at an item that has since been adjudicated is settled:
+// the owner ruled, and the requirement must stop blocking handoff even though
+// its confidence field still reads `queued`. Treating every queued confidence
+// as a blocker would refuse handoff forever unless each one were re-imported
+// with a new confidence first, which is work the ruling did not ask for.
+//
+// One requirement can be blocked from both directions at once and is reported
+// once per path, because they are two different decisions to go and make.
+export function blockedRequirements(
+  reqs: Requirement[],
+  openQueueIds: Set<string>,
+): { fr: string; queue: string }[] {
+  const blocked: { fr: string; queue: string }[] = []
+  for (const r of reqs) {
+    if (r.confidence.kind === 'queued' && openQueueIds.has(r.confidence.queue)) {
+      blocked.push({ fr: r.id, queue: r.confidence.queue })
+    }
+    if (r.parity?.kind === 'rubric' && r.parity.level !== 'high') {
+      if (openQueueIds.has(r.parity.queue)) blocked.push({ fr: r.id, queue: r.parity.queue })
+    }
+  }
+  return blocked
+}
+
 export async function loadHandoff(root: string): Promise<HandoffFile | null> {
   const path = storePaths(root).handoff
   if (!existsSync(path)) return null
