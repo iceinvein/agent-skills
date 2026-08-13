@@ -1,35 +1,21 @@
-import { existsSync } from 'node:fs'
-import { balanceOf, boundsOf, censusKey, validateCensus } from './census.ts'
-import { resolveCitations } from './citations.ts'
+import { validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
-import { scanLeaks } from './leaks.ts'
+import { gate as censusGate } from './gates/census.ts'
+import { gate as citationsGate } from './gates/citations.ts'
+import type { CensusRow, Gate, GateContext } from './gates/context.ts'
+import { gate as coverageGate } from './gates/coverage.ts'
+import { gate as deltasGate } from './gates/deltas.ts'
+import { gate as leaksGate } from './gates/leaks.ts'
+import { gate as parityGate } from './gates/parity.ts'
+import { gate as queueGate } from './gates/queue.ts'
+import { gate as refsGate } from './gates/refs.ts'
+import { gate as runStateGate } from './gates/run-state.ts'
+import { gate as sourceGate } from './gates/source.ts'
 import { storePaths } from './paths.ts'
 import { loadPhases, PHASES, type Phase } from './phases.ts'
 import { loadQueue } from './queue.ts'
 import { readRawRows, readRows } from './store.ts'
-import type { Capability, Census, Delta, Element, Requirement, Violation } from './types.ts'
-import { isRecord } from './validate.ts'
-
-// A hand-edited census.jsonl never passes through census-cmd.ts's
-// validateCensus call, so this is the only label available for a row that
-// fails the check below: its 1-based position in the file, plus (when kind
-// and the field censusKey needs both parse as strings) the same key
-// census-cmd.ts uses to identify a record, so the message points at
-// something the reader can find rather than an opaque line number alone.
-function censusRowLabel(raw: unknown, line: number): string {
-  const base = `census.jsonl line ${line}`
-  if (!isRecord(raw)) return base
-  const kind = raw.kind
-  if (kind === 'lens' && typeof raw.surface === 'string')
-    return `${base} (${censusKey(raw as Census)})`
-  if (kind === 'attribute' && typeof raw.subject === 'string')
-    return `${base} (${censusKey(raw as Census)})`
-  if (kind === 'rule-sweep' && typeof raw.subject === 'string')
-    return `${base} (${censusKey(raw as Census)})`
-  if (kind === 'closer' && typeof raw.closer === 'string')
-    return `${base} (${censusKey(raw as Census)})`
-  return base
-}
+import type { Capability, Delta, Element, Requirement, Violation } from './types.ts'
 
 export type CheckResult = { summary: string; violations: Violation[] }
 
@@ -46,16 +32,35 @@ export const GATE_ORDER = [
   'run-state',
 ] as const
 
-async function sourceIsDirty(sourcePath: string, gitBin: string): Promise<boolean> {
-  if (!existsSync(`${sourcePath}/.git`)) return false
-  const proc = Bun.spawn([gitBin, 'status', '--porcelain'], {
-    cwd: sourcePath,
-    stdout: 'pipe',
-    stderr: 'ignore',
+const GATES: Record<(typeof GATE_ORDER)[number], Gate> = {
+  coverage: coverageGate,
+  census: censusGate,
+  refs: refsGate,
+  queue: queueGate,
+  deltas: deltasGate,
+  parity: parityGate,
+  citations: citationsGate,
+  leaks: leaksGate,
+  source: sourceGate,
+  'run-state': runStateGate,
+}
+
+// census.jsonl is the one store file that cannot be assumed to have been
+// written by census-cmd.ts, since nothing stops a hand edit, and readRows only
+// asserts a type onto whatever JSON.parse returns rather than checking it. So
+// every row goes through the same validateCensus every real write goes
+// through, once, here. Two gates consume the result and neither re-derives it:
+// gate 2 reports the shape failures and does the arithmetic, gate 10
+// cross-checks the valid records' batch fields. Doing it in one place is also
+// what keeps a gate from depending on another gate having run first. File
+// order is preserved, because gate 2's messages follow it.
+function validateRows(rows: { line: number; raw: unknown }[]): CensusRow[] {
+  return rows.map(({ line, raw }) => {
+    const result = validateCensus(raw)
+    return result.ok
+      ? ({ ok: true, line, record: result.value } as const)
+      : ({ ok: false, line, raw, errors: result.errors } as const)
   })
-  const out = await new Response(proc.stdout).text()
-  await proc.exited
-  return out.trim().length > 0
 }
 
 export async function runCheck(opts: {
@@ -73,302 +78,53 @@ export async function runCheck(opts: {
   const requirements = await readRows<Requirement>(paths.requirements)
   const capabilities = await readRows<Capability>(paths.capabilities)
   const deltas = await readRows<Delta>(paths.deltas)
-  // Read raw, not readRows<Census>: census.jsonl is the one store file this
-  // gate cannot assume was ever written by census-cmd.ts, since nothing
-  // stops a hand edit, and readRows only asserts a type onto whatever
-  // JSON.parse returns rather than checking it. Gate 2 below runs the same
-  // validateCensus every real write goes through, so a shape that only
-  // TypeScript ever believed in gets caught here instead of quietly reaching
-  // balanceOf and boundsOf, both of which assume a well-formed record.
-  const censusRows = await readRawRows(paths.census)
+  const censusRows = validateRows(await readRawRows(paths.census))
   const { items: queueItems, errors: queueErrors } = await loadQueue(paths.queueDir)
+  const phases = await loadPhases(opts.root)
+
+  const terminusIndex = opts.phase ? PHASES.indexOf(opts.phase) : PHASES.length - 1
+
+  const ctx: GateContext = {
+    root: opts.root,
+    cfg,
+    paths,
+    elements,
+    requirements,
+    capabilities,
+    deltas,
+    censusRows,
+    queueItems,
+    queueErrors,
+    phases,
+    terminusIndex,
+    citations: opts.citations !== false,
+    leaks: opts.leaks === true,
+    gitBin,
+  }
 
   const violations: Violation[] = []
+  for (const name of GATE_ORDER) {
+    violations.push(...(await GATES[name](ctx)))
+  }
 
-  // Gate 1: coverage.
+  // Built here rather than inside the coverage gate: report-cmd.ts reads this
+  // out of CheckResult on a store that is expected to still have violations,
+  // so it is a property of the run rather than something a gate returns.
   let mapped = 0
   let outOfScope = 0
   let unaccounted = 0
   for (const el of elements) {
     if (el.disposition.kind === 'mapped') mapped++
     else if (el.disposition.kind === 'out-of-scope') outOfScope++
-    else {
-      unaccounted++
-      violations.push({
-        gate: 'coverage',
-        message: `${el.id} (${el.surface}) is still unaccounted`,
-      })
-    }
+    else unaccounted++
   }
   const summary = `${mapped}/${elements.length} mapped, ${outOfScope} out-of-scope, ${unaccounted} unaccounted`
 
-  // Gate 2: census shape, balance and presence. Each row is validated here,
-  // not merely read, because census.jsonl is a store file that census-cmd.ts
-  // does not own exclusively: a hand edit reaches this gate without ever
-  // passing through validateCensus first. A row that fails is named by line
-  // (and by censusKey when its identity parses) and excluded from balanceOf,
-  // boundsOf, and the in_ledger + added reconciliation below: all three
-  // assume a well-formed record, so running them on one that already failed
-  // shape validation would add confusing noise on top of the real defect
-  // rather than a second independent fact.
-  const surfacesWithCensus = new Set<string>()
-  const closersWithCensus = new Set<string>()
-  const census: Census[] = []
-  for (const { line, raw } of censusRows) {
-    const result = validateCensus(raw)
-    if (!result.ok) {
-      const label = censusRowLabel(raw, line)
-      for (const error of result.errors) {
-        violations.push({ gate: 'census', message: `${label}: ${error}` })
-      }
-      // A row that fails validation still ran and still named a surface or
-      // closer it claims to cover; only its shape is defective, not its
-      // existence. Registered defensively here (guarded the same way
-      // censusRowLabel is, since the row is not a trustworthy Census) so
-      // gate 2 does not also claim that surface or closer has no census
-      // record at all, which is a different and wrong accusation: that
-      // message means the lens never ran or never closed, not that it ran
-      // and produced something malformed. A row whose kind or identity
-      // field does not even parse as a string cannot make this claim, so it
-      // falls through to the genuinely-missing check below unregistered.
-      if (isRecord(raw)) {
-        if (raw.kind === 'lens' && typeof raw.surface === 'string') {
-          surfacesWithCensus.add(raw.surface)
-        } else if (raw.kind === 'closer' && typeof raw.closer === 'string') {
-          closersWithCensus.add(raw.closer)
-        }
-      }
-      continue
-    }
-    const record = result.value
-    census.push(record)
-    const imbalance = balanceOf(record)
-    if (imbalance) violations.push({ gate: 'census', message: imbalance })
-    const outOfBounds = boundsOf(record)
-    if (outOfBounds) violations.push({ gate: 'census', message: outOfBounds })
-    if (record.kind === 'lens') {
-      surfacesWithCensus.add(record.surface)
-      // balanceOf only checks that the record's own numbers add up
-      // internally; nothing before this ties in_ledger + added to anything
-      // outside the record itself, so a lens census can balance perfectly
-      // while claiming a headcount elements.jsonl never received (total is
-      // self-reported and cannot be checked against anything, but in_ledger
-      // + added claims a specific number of rows now exist in the ledger
-      // for this surface, and that claim is directly countable).
-      const claimed = record.in_ledger + record.added
-      const actual = elements.filter((e) => e.surface === record.surface).length
-      if (actual !== claimed) {
-        violations.push({
-          gate: 'census',
-          message: `lens census for ${record.surface} claims in_ledger ${record.in_ledger} + added ${record.added} = ${claimed} element(s) in the ledger, but elements.jsonl has ${actual}`,
-        })
-      }
-    }
-    if (record.kind === 'closer') closersWithCensus.add(record.closer)
-  }
-  for (const surface of cfg.surfaces) {
-    if (!surfacesWithCensus.has(surface)) {
-      violations.push({
-        gate: 'census',
-        message: `declared surface ${surface} has no lens census record; the lens did not run or did not close`,
-      })
-    }
-  }
-  for (const closer of cfg.closers) {
-    if (!closersWithCensus.has(closer)) {
-      violations.push({
-        gate: 'census',
-        message: `declared closer ${closer} has no census record`,
-      })
-    }
-  }
-
-  // Gate 3: referential integrity.
-  const reqIds = new Set(requirements.map((r) => r.id))
-  const elementIds = new Set(elements.map((e) => e.id))
-  const capSlugs = new Set(capabilities.map((c) => c.slug))
-  const queueIds = new Set(queueItems.map((q) => q.id))
-
-  // A duplicate id or slug within one store file is a real defect the refs
-  // gate must catch on its own, not something it can assume another gate or
-  // command already ruled out: `import reqs` upserts by id, but
-  // capabilities.jsonl has no import path at all today, so hand-editing is
-  // currently the only way a row lands there, and nothing stops two rows
-  // from hand-editing into the same identity with different content. A
-  // gate whose soundness depends on another gate having run first is not
-  // independently a gate (see Task 10's inverted citation range for the
-  // same reasoning). Counted off the raw row arrays, not the `Set`s above:
-  // a `Set` collapses duplicates by construction, which is exactly the
-  // evidence (which id, how many rows) this check exists to preserve.
-  function duplicatesOf(values: string[]): Map<string, number> {
-    const counts = new Map<string, number>()
-    for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1)
-    const dups = new Map<string, number>()
-    for (const [v, count] of counts) {
-      if (count > 1) dups.set(v, count)
-    }
-    return dups
-  }
-  for (const [id, count] of duplicatesOf(requirements.map((r) => r.id))) {
-    violations.push({
-      gate: 'refs',
-      message: `requirement id ${id} appears ${count} times in requirements.jsonl`,
-    })
-  }
-  for (const [slug, count] of duplicatesOf(capabilities.map((c) => c.slug))) {
-    violations.push({
-      gate: 'refs',
-      message: `capability slug ${slug} appears ${count} times in capabilities.jsonl`,
-    })
-  }
-  for (const [id, count] of duplicatesOf(elements.map((e) => e.id))) {
-    violations.push({
-      gate: 'refs',
-      message: `element id ${id} appears ${count} times in elements.jsonl`,
-    })
-  }
-
-  // `field` names where the queue reference came from (`disposition.queue`,
-  // `confidence.queue`, `parity.queue`) so that one requirement citing the
-  // same missing queue id from two different fields produces two
-  // violations that read as two distinct citations to fix, not one
-  // ambiguous duplicate-looking line.
-  const needQueue = (id: string, owner: string, field: string): void => {
-    if (!queueIds.has(id)) {
-      violations.push({
-        gate: 'refs',
-        message: `${owner} references queue item ${id} via ${field}, which does not exist`,
-      })
-    }
-  }
-  for (const el of elements) {
-    if (el.disposition.kind === 'mapped' && !reqIds.has(el.disposition.fr)) {
-      violations.push({
-        gate: 'refs',
-        message: `${el.id} is mapped to ${el.disposition.fr}, which is not in the registry`,
-      })
-    }
-    if (el.disposition.kind === 'out-of-scope') {
-      needQueue(el.disposition.queue, el.id, 'disposition.queue')
-    }
-  }
-  for (const req of requirements) {
-    if (!capSlugs.has(req.cap)) {
-      violations.push({
-        gate: 'refs',
-        message: `${req.id} names capability ${req.cap}, which is not in the partition`,
-      })
-    }
-    if (req.confidence.kind === 'queued')
-      needQueue(req.confidence.queue, req.id, 'confidence.queue')
-    if (req.parity?.kind === 'rubric' && req.parity.level !== 'high') {
-      needQueue(req.parity.queue, req.id, 'parity.queue')
-    }
-    for (const ref of req.citations) {
-      if (ref.kind === 'ledger' && !elementIds.has(ref.id)) {
-        violations.push({
-          gate: 'refs',
-          message: `${req.id} cites ledger id ${ref.id}, which is not in the ledger`,
-        })
-      }
-    }
-  }
-
-  // Gate 4: queue grammar.
-  for (const message of queueErrors) violations.push({ gate: 'queue', message })
-
-  // Gate 5: deltas.
-  for (const delta of deltas) {
-    if (!delta.owner_signed) {
-      violations.push({ gate: 'deltas', message: `${delta.id} is not owner-signed` })
-    }
-  }
-
-  // Gate 6: parity coverage.
-  for (const req of requirements) {
-    if (req.confidence.kind !== 'queued' && req.parity === null) {
-      violations.push({ gate: 'parity', message: `${req.id} has no parity plan` })
-    }
-  }
-
-  // Gate 7: citations. Citations are on unless explicitly disabled. An FR
-  // citing a path that does not exist is the never-fabricate rule's only
-  // mechanical expression, so it should not be something a run has to
-  // remember to ask for.
-  if (opts.citations !== false) {
-    violations.push(...(await resolveCitations(requirements, cfg.source.path)))
-  }
-
-  // Gate 8: leaks, opt-in.
-  if (opts.leaks) {
-    violations.push(...(await scanLeaks({ root: opts.root, gitBin })))
-  }
-
-  // Gate 9: source integrity.
-  if (await sourceIsDirty(cfg.source.path, gitBin)) {
-    violations.push({
-      gate: 'source',
-      message: `the source checkout at ${cfg.source.path} has uncommitted changes; it must stay read-only`,
-    })
-  }
-
-  // Gate 10: run-state. Every other gate proves the store is internally
-  // consistent, which an empty store satisfies. This one asks whether the run
-  // that was supposed to fill it actually happened, which is the only reason
-  // exit 0 can mean "complete" rather than "nothing contradicts anything".
-  const phases = await loadPhases(opts.root)
-  const terminus = opts.phase ? PHASES.indexOf(opts.phase) : PHASES.length - 1
-  const terminusName = PHASES[terminus]
-  for (let i = 0; i <= terminus; i++) {
-    const p = PHASES[i]
-    if (!p) continue
-    const status = phases[p].status
-    if (status !== 'done') {
-      violations.push({
-        gate: 'run-state',
-        message: `phase ${p} is ${status}; every phase through ${terminusName} must be done`,
-      })
-    }
-  }
-  // Checked across all eight phases, not just up to the terminus: a later
-  // phase marked done over a pending predecessor is hand-edited state, and it
-  // is worth naming whether or not the caller asked about that phase.
-  for (let i = 1; i < PHASES.length; i++) {
-    const current = PHASES[i]
-    const previous = PHASES[i - 1]
-    if (!current || !previous) continue
-    if (phases[current].status === 'done' && phases[previous].status === 'pending') {
-      violations.push({
-        gate: 'run-state',
-        message: `phase ${current} is done while ${previous} is still pending`,
-      })
-    }
-  }
-  // A census record naming a batch phases.json never committed means the two
-  // disagree about what happened. Only checked when the record exists, since
-  // gate 2 already names a declared surface or closer that has none.
-  const committedIn = (phase: Phase): Set<string> => new Set(phases[phase].batches.map((b) => b.id))
-  const enumerateBatches = committedIn('enumerate')
-  for (const surface of cfg.surfaces) {
-    const record = census.find((r) => r.kind === 'lens' && r.surface === surface)
-    if (record && !enumerateBatches.has(record.batch)) {
-      violations.push({
-        gate: 'run-state',
-        message: `lens census for ${surface} names batch ${record.batch}, which phases.json has no record of committing in enumerate`,
-      })
-    }
-  }
-  const extractBatches = committedIn('extract')
-  for (const closer of cfg.closers) {
-    const record = census.find((r) => r.kind === 'closer' && r.closer === closer)
-    if (record && !extractBatches.has(record.batch)) {
-      violations.push({
-        gate: 'run-state',
-        message: `closer census for ${closer} names batch ${record.batch}, which phases.json has no record of committing in extract`,
-      })
-    }
-  }
-
+  // The gates already run in GATE_ORDER, so this sort is only load-bearing for
+  // violations a gate did not label with its own name. Kept because the gate
+  // field is what check-cmd.ts groups its output by, and a mislabelled
+  // violation should still land in a predictable place rather than wherever
+  // its producing gate happened to sit.
   const order = new Map(GATE_ORDER.map((g, i) => [g as string, i]))
   violations.sort((a, b) => (order.get(a.gate) ?? 99) - (order.get(b.gate) ?? 99))
 
