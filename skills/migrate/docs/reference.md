@@ -484,7 +484,7 @@ Recommend (c); usage suggests it is deprecated.
   containing `##` lines. An unclosed fence is a loud error.
 - BOM and CRLF are handled.
 
-## The ten gates
+## The twelve gates
 
 `migrate check` reports violations grouped by gate, always in this order. Every
 message names the specific offending row, path or id; there is no aggregate
@@ -508,18 +508,26 @@ The summary line is always printed, passing or failing:
 | `leaks` | **Opt-in, `--leaks`.** No value from `.migrate/.env` appears in a committed artifact or anywhere in git history. Messages name the variable and file, never the value. |
 | `source` | The source checkout has no uncommitted changes, when it is a git repo. |
 | `run-state` | Every phase through the checked terminus must be `done` in `phases.json`; a phase `done` while its immediate predecessor is still `pending` fails regardless of terminus; a lens or closer census naming a `batch` that `phases.json` never recorded committing (in `enumerate` or `extract` respectively) fails by name. |
+| `adjudication` | **Phase-scoped, from `--phase adjudicate` onward.** Every queue item is `adjudicated` and carries a non-empty ruling. Names each item that is not, with its severity. |
+| `handoff` | **Phase-scoped, from `--phase handoff` onward.** `handoff.json` exists; every requirement appears in some work item's `frs`; every `frs` entry resolves to a requirement; every `dependsOn` resolves to another work item's key; `basis.emitted` and `basis.confirmed` match the store. |
 
 **`check` is strict mid-run by design.** The census gate wants a record for
 every declared surface and closer, so it does not pass until a run is finished.
 Grouping by gate is what lets you tell an expected mid-run gap from a real
 defect.
 
-**`--phase <p>` narrows only the run-state gate, not the other nine.** Without
+**Two gates are phase-scoped; the other ten always read the whole store.**
+`adjudication` and `handoff` describe phases 6 and 7, so they are skipped when
+the checked terminus has not reached them. Without that, `migrate check --phase
+queue` would be red for an entire mid-run campaign, which is exactly what the
+posture split exists to prevent. No other gate has an entry in that map.
+
+**`--phase <p>` otherwise narrows only the run-state gate.** Without
 `--phase`, `run-state` requires every phase through `handoff` to be `done`, so
 exit 0 means the whole migration is complete. With `--phase enumerate`, it
 requires only `probe` and `enumerate` to be `done`, which is the mid-run
 posture: a coverage or census gap past that point still fails on its own gate,
-exactly as it would without `--phase`, because those nine gates read the store,
+exactly as it would without `--phase`, because those gates read the store,
 not the phase you named. Verified against a fresh store: `check --phase probe`
 reports one `run-state` violation (`probe`); plain `check` reports eight, one
 per phase.
@@ -588,3 +596,39 @@ is escaped so free text containing pipes or newlines cannot break a table.
 **`migrate status`**
 Read-only. Phase state, store counts, the gate summary line, and a resume
 pointer naming the first non-done phase and its last recorded batch.
+
+**`migrate adjudicate [<id>] [--ruling <text>] [--force]`**
+With no id, prints the review sheet: every queue item, severity first, each
+carrying the first line of its recommendation, closing with an open count. With
+an id and a ruling, rewrites that item's frontmatter: `status` becomes
+`adjudicated`, `ruling` is set, `adjudicated` gets today's date. Keys the
+command does not own keep their position and the body round-trips byte for
+byte. Writes no row file: the ruling's consequence goes through `migrate
+import`, and the command prints that next step. Refuses an unknown id at 2, an
+unparseable file at 1, an already-ruled item at 1 without `--force` (printing
+the existing ruling), and a ruling containing a line break at 2.
+
+**`migrate handoff [--adapter <markdown|github|flow>] [--dry-run]`**
+Emits one work item per capability, in dependency order, through the configured
+adapter, and writes `.migrate/handoff.json`. Refuses while the gate (citations
+and leaks both on, bounded at `adjudicate`) has violations, while any queue item
+is open, or while any requirement is blocked by an open item, naming every
+blocker at once. `--dry-run` prints the plan and writes nothing at all,
+`handoff.json` included. Adapters are idempotent: a second run over an unchanged
+store reports everything `unchanged`.
+
+**`migrate coverage [--adapter <name>]`**
+Built over **confirmed** requirements, read back through the adapter, with the
+non-confirmed exclusions reported per capability and the evidence named. Exits 1
+when `handoff.json` is absent (handoff has not run), when the adapter reports no
+throughput (named, rather than reported as zero built), and when a completion
+names a requirement the store does not have (the emitted work and the store have
+diverged).
+
+**`migrate forecast [--adapter <name>]`**
+Projects remaining work from two measured velocities and an owner-attested
+`.migrate/forecast-assumptions.md`, which is required: it refuses without one.
+Each scenario is labelled measured (`as-is` or `active`, carrying an uncertainty
+band) or an owner target (carrying none). Every figure whose input is unmeasured
+prints as omitted rather than as a zero, and a finished campaign says so rather
+than omitting every date.

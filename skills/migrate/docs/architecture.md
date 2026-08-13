@@ -180,6 +180,23 @@ store.
 
 ### Add a gate
 
+Gates live one per module under `scripts/gates/`, each exporting
+`export const gate: Gate` over the shared `GateContext` that `check.ts` builds
+once per run. A gate is a pure function of that record: it may not read the
+store itself, which is what keeps the store parsed exactly once no matter how
+many gates consult it, and what stops a gate depending on another having run
+first. Add the name to `GATE_ORDER`, the module to `GATES`, and, only if the
+gate describes work a mid-run terminus has not reached, an entry to
+`GATE_PHASE`.
+
+The adapter layer is `scripts/adapters/{markdown,github,flow}.ts`, one per
+delivery medium behind the `Adapter` contract in `scripts/handoff.ts`. An
+adapter reaches the world only through `HandoffInput`'s `root`, `gitBin` and
+`ghBin`, which is what makes `github` testable against `fixtures/fake-gh.ts`
+and `flow` testable against `fixtures/flow-target/`.
+
+
+
 Gates live in `check.ts` and push `{ gate, message }` onto one list.
 
 1. Add the gate name to `GATE_ORDER`, which fixes its position in the report.

@@ -7,9 +7,9 @@ resolve on its own: evidence, the real options, and a recommendation.
 Exit condition: every item filed anywhere in the run so far is
 grammatically valid, every id the referential-integrity gate actually
 checks resolves to a real queue file, and `migrate phase queue --status
-done` has run. It is not "the queue is empty": nothing in this milestone
-adjudicates an item, so a healthy run through this phase still ends with
-open items, deliberately.
+done` has run. It is not "the queue is empty": nothing in *this* phase
+adjudicates an item, so a healthy run through phase 5 still ends with open
+items, deliberately. Phase 6 is where they get decided.
 
 ## Inputs
 
@@ -173,9 +173,12 @@ ambiguous-looking duplicate.
 
 ## What closes it
 
-There is no verb that empties the queue in this milestone; closing this
-phase means every item filed so far is well-formed and every reference the
-gate checks resolves, not that adjudication has happened. Run for real:
+No verb empties the queue here; closing this phase means every item filed so
+far is well-formed and every reference the gate checks resolves, not that
+adjudication has happened. `migrate adjudicate` is phase 6's verb, and the
+`adjudication` gate that requires a ruling on every item is phase-scoped, so
+it stays silent until the checked terminus reaches `adjudicate`. Run for
+real:
 
 ```
 migrate phase queue --status done
@@ -202,21 +205,25 @@ queue` exits 0 with no violations at all, confirming this phase's own
 gates (`queue`, and the three `refs` fields above) were clean the whole
 time and only the unrelated census gap was ever holding exit 0 back.
 
-Plain `migrate check`, with no `--phase`, still cannot reach exit 0 in this
-version, exactly as `SKILL.md` says: `adjudicate` and `handoff` have no
-verb yet, so their phases stay `pending` forever this milestone, and
-`run-state` names both by hand:
+Plain `migrate check`, with no `--phase`, still fails here, and should:
+phases 6 and 7 have not run, so `run-state` names both, the `adjudication`
+gate names every item nobody has ruled on, and the `handoff` gate reports
+that nothing has been emitted.
 
 ```
   run-state:
     phase adjudicate is pending; every phase through handoff must be done
     phase handoff is pending; every phase through handoff must be done
+  adjudication:
+    q-reset-token-verify-missing [critical] is still open; every queue item needs a ruling before handoff
+  handoff:
+    no handoff.json in the store; handoff has not run, so nothing has reached a delivery medium
 ```
 
-`migrate check --phase queue` is the real terminus this milestone offers;
-`migrate status` afterward is the plainer read, and it is what actually
-hands off to phase 6: `5 open queue item(s) of 5`, `resume: adjudicate, no
-batches yet`.
+`migrate check --phase queue` is this phase's terminus; plain `migrate
+check` becomes reachable once phase 7 closes. `migrate status` afterward is
+the plainer read, and it is what actually hands off to phase 6: `5 open
+queue item(s) of 5`, `resume: adjudicate, no batches yet`.
 
 ## Degradation
 

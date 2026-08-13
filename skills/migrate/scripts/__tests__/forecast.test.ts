@@ -204,3 +204,35 @@ test('an unprojectable measured row says so rather than printing nothing', () =>
   })
   expect(out).toContain('not projected')
 })
+
+test('a finished campaign says nothing remains rather than omitting every date', () => {
+  // Zero remaining and no measured rate both leave every date null, but they
+  // are opposite pieces of news and must not print the same way.
+  const done: CapCoverage[] = [
+    {
+      slug: 'billing',
+      title: 'Billing',
+      confirmedTotal: 3,
+      covered: 3,
+      coveredIds: ['BI-001', 'BI-002', 'BI-003'],
+      uncoveredIds: [],
+    },
+  ]
+  const demand = demandOf(ASSUMPTIONS, done)
+  expect(demand.remainingWeighted).toBe(0)
+  const out = renderForecast({
+    assumptions: ASSUMPTIONS,
+    demand,
+    velocity: velocities(DATED, TODAY),
+    projections: project({
+      assumptions: ASSUMPTIONS,
+      demand,
+      velocity: velocities(DATED, TODAY),
+      today: TODAY,
+    }),
+    today: TODAY,
+    undated: 0,
+  })
+  expect(out).toContain('nothing remaining: every confirmed requirement is already built')
+  expect(out).not.toContain('not projected')
+})

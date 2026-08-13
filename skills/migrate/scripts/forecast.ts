@@ -208,7 +208,13 @@ export function renderForecast(input: {
         : `measured (${p.basis})`
     lines.push(`${p.label}: ${kind}`)
     lines.push(`  ${p.streams} stream(s), tax ${p.tax}, ${p.note}`)
-    if (p.perDay === null) {
+    if (demand.remainingWeighted === 0) {
+      // Distinguished from the unmeasured case below on purpose. Both leave
+      // every date null, but "there is nothing left to build" and "there is no
+      // rate to build at" are opposite pieces of news, and printing the same
+      // "omitted" for each would hide which one the reader is looking at.
+      lines.push('  nothing remaining: every confirmed requirement is already built')
+    } else if (p.perDay === null) {
       lines.push('  not projected: no measured rate to extrapolate from')
     } else {
       lines.push(`  ${p.perDay.toFixed(2)} requirement(s)/day`)

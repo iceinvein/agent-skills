@@ -1,6 +1,6 @@
 ---
 name: migrate
-description: Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, and queue, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, or to resume, check, or report on a mapping run already under way.
+description: Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, to hand mapped requirements to a delivery team, or to resume, check, report, or forecast a mapping run already under way.
 ---
 
 # migrate
@@ -129,16 +129,73 @@ migrate phase queue --status done
 
 ### 6. Adjudicate
 
-A run stops at the queue in this version of the tool: `adjudicate` has no verb
-yet, so nothing here can move a queue item's status past `open`. `migrate
-status` and `migrate queue list` are the terminus; adjudication arrives with
-its verb in the next milestone.
+Produces a ruling on every queue item: `status: adjudicated` plus a `ruling`
+line, written into the item's own frontmatter.
+
+Read `references/phases/adjudicate.md` before dispatching anything.
+
+```
+migrate adjudicate
+migrate adjudicate <id> --ruling "<text>"
+migrate import <elements|reqs|deltas> <batch.json>
+migrate phase adjudicate --status done
+```
+
+Run `migrate adjudicate` with no arguments first: it prints the review sheet,
+severity first, each item carrying the first line of its recommendation, which
+is what makes one pass over the whole queue possible.
+
+The verb writes queue frontmatter and nothing else. A ruling's consequence in
+the store (an element's disposition, a requirement's confidence or parity) goes
+through `migrate import`, exactly as in phases 3 and 4, so the row files keep
+one writer and one validation path. The command prints that next step on every
+success because it is easy to believe the ruling did it for you.
 
 ### 7. Handoff
 
-`handoff` has no verb yet either, for the same reason. `migrate status` and
-`migrate queue list` remain the terminus; handoff arrives with its verb in the
-next milestone.
+Produces the requirements as work items in whatever the delivery team uses,
+one work item per capability in dependency order, plus `.migrate/handoff.json`
+recording what was emitted and the forecast basis.
+
+Read `references/phases/handoff.md` before dispatching anything.
+
+```
+migrate handoff --dry-run
+migrate handoff [--adapter <markdown|github|flow>]
+migrate phase handoff --status done
+```
+
+Three adapters: `markdown` (the default, a roadmap plus a file per capability),
+`github` (a milestone per capability, an issue per requirement), and `flow`
+(a Nexus `stack` target's capability map and `docs/WORK.md`).
+
+Handoff refuses while anything is unresolved and names every blocker at once:
+the gate with citations and leaks both on, any queue item still open, and any
+requirement blocked by one. Blocked means a `queued` confidence or a sub-high
+`rubric` parity whose queue item is **still open**; once that item is
+adjudicated the requirement stops blocking, even though its confidence field
+still reads `queued`.
+
+`--dry-run` writes nothing at all, `handoff.json` included, so it is safe to
+run against a store you are still working on.
+
+## Reading progress back
+
+Once handoff has run, these two re-read delivery through the same adapter that
+emitted the work. They are the only part of this tool meant to be run
+repeatedly after the mapping run ends.
+
+```
+migrate coverage
+migrate forecast
+```
+
+`coverage` divides built by **confirmed** requirements, reports the
+non-confirmed exclusions separately, and names the evidence it read. `forecast`
+needs an owner-attested `.migrate/forecast-assumptions.md`, copied from
+`templates/forecast-assumptions.md`, and refuses without one; it labels every
+scenario as measured or as an owner target so an aspiration never reads as a
+fact.
 
 ## Checking as you go
 
@@ -148,10 +205,13 @@ store, so a coverage or census gap past your current phase still fails on its
 own gate regardless of `--phase`.
 
 Run plain `migrate check` only when claiming the whole migration is complete:
-with no `--phase`, it gates every phase through `handoff`. In this version
-that cannot pass, because `adjudicate` and `handoff` have no verbs to complete
-them. `migrate check --phase queue` is the practical terminus for this
-milestone; its exit 0 is what "done, for now" means.
+with no `--phase`, it gates every phase through `handoff`, and its exit 0 is
+what "the migration is mapped" means.
+
+Two of the twelve gates are phase-scoped. `adjudication` and `handoff` describe
+phases 6 and 7, so they stay silent until the checked terminus reaches them;
+that is what keeps `migrate check --phase queue` usable for a whole mid-run
+campaign instead of red from the first batch.
 
 ```
 migrate check --phase queue

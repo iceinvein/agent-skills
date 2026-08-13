@@ -28,7 +28,7 @@ Auto-detects Claude Code, Cursor, Codex, or Gemini CLI. Use `--tool claude` to t
 
 | Skill | What it does |
 |-------|--------------|
-| **migrate** | Walks a legacy codebase through probe, enumerate, seam, extract, parity, and queue: measured surface coverage, an empirically derived capability seam, cited requirements, a parity plan, and a batch decision queue. Bundles a Bun CLI that enforces the coverage arithmetic and phase ordering instead of trusting it. |
+| **migrate** | Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff: measured surface coverage, an empirically derived capability seam, cited requirements, a parity plan, a batch decision queue, and work items emitted to markdown, GitHub or a flow target with coverage and forecast read back. Bundles a Bun CLI that enforces the coverage arithmetic and phase ordering instead of trusting it. |
 
 ### Code Architecture
 

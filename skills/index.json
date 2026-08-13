@@ -225,9 +225,9 @@
   },
   {
     "name": "migrate",
-    "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, and queue, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, or to resume, check, or report on a mapping run already under way.",
+    "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, to hand mapped requirements to a delivery team, or to resume, check, report, or forecast a mapping run already under way.",
     "type": "prompt",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   {
     "name": "module-secret-auditor",

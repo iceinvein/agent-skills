@@ -31,14 +31,16 @@ that phase is current so a run never pays for prose it does not need yet.
 | 3 | Extract | `references/phases/extract.md` | `requirements.jsonl`, attribute/rule-sweep/closer census records, terminal element dispositions |
 | 4 | Parity | `references/phases/parity.md` | `deltas.jsonl` and a parity plan on every non-queued requirement |
 | 5 | Queue | `references/phases/queue.md` | Queue items carrying evidence, options and a recommendation for anything ambiguous |
-| 6 | Adjudicate | none yet | No verb ships in this version; `migrate status` and `migrate queue list` are the terminus |
-| 7 | Handoff | none yet | Same as adjudicate: no verb yet |
+| 6 | Adjudicate | `references/phases/adjudicate.md` | A ruling on every queue item, recorded in its own frontmatter |
+| 7 | Handoff | `references/phases/handoff.md` | Work items in a delivery medium, plus `handoff.json` recording what was emitted |
 
-A run in this version stops at the queue. `adjudicate` and `handoff` have no
-CLI verbs to complete them, so `migrate check --phase queue` is the
-practical terminus: its exit 0 is what "done, for now" means. Plain `migrate
-check` gates every phase through `handoff` and cannot pass yet for the same
-reason. `references/run-ops.md` covers what applies across every phase
+A run goes probe through handoff, and plain `migrate check`, with no
+`--phase`, gates every one of them: its exit 0 is what "the migration is
+mapped" means. `migrate check --phase <p>` is the mid-run form, and the two
+gates that describe phases 6 and 7 are phase-scoped so they stay silent
+until the checked terminus reaches them. Once handoff has run, `migrate
+coverage` and `migrate forecast` read delivery back through the same adapter
+that emitted the work. `references/run-ops.md` covers what applies across every phase
 rather than any one of them: subagent dispatch, the batch-checkpoint
 discipline, and what happens when two agents contend for the store lock.
 
@@ -92,12 +94,14 @@ end:
 
 `scripts/__tests__/e2e-express.test.ts` and
 `scripts/__tests__/e2e-webforms.test.ts` copy the respective fixture to a
-temp directory and drive the real CLI as a subprocess, probe through queue,
-through `init`, `import`, `census`, `phase`, `queue add`, `queue list`, and
-`check`, reconciling every row against the fixture's ground truth. Both end at
-`migrate check --phase queue` on exit 0, and then show plain `migrate check`
-failing on exactly `adjudicate` and `handoff`, the two phases with no verb in
-this version.
+temp directory and drive the real CLI as a subprocess through `init`,
+`import`, `census`, `phase`, `queue add`, `queue list`, and `check`,
+reconciling every row against the fixture's ground truth.
+`e2e-webforms.test.ts` runs probe through queue against the `aspnet` recipe.
+`e2e-express.test.ts` carries on past it, through `adjudicate`, `handoff`,
+`coverage` and `forecast`, and closes on plain `migrate check` at exit 0:
+the whole point of the unbounded gate is that some real run has to be able
+to reach it.
 
 Both show gates in both directions. Failing before they pass: the mid-run check
 after enumerate names the three closer records extract has not written yet, and

@@ -44,12 +44,13 @@ export async function preflight(root: string, opts: { gitBin?: string } = {}): P
   })
   for (const v of check.violations) blockers.push(`[${v.gate}] ${v.message}`)
 
+  // The open items themselves are not listed again here. The adjudication
+  // gate above already names each one, and bounding the gate run at
+  // `adjudicate` is what guarantees it ran. Repeating them made the refusal
+  // report one fact twice and read as more blockers than there were.
   const paths = storePaths(root)
   const { items } = await loadQueue(paths.queueDir)
   const open = items.filter((i) => i.status === 'open')
-  for (const item of open) {
-    blockers.push(`open queue item ${item.id} [${item.severity}]`)
-  }
 
   const requirements = await readRows<Requirement>(paths.requirements)
   for (const { fr, queue } of blockedRequirements(requirements, new Set(open.map((i) => i.id)))) {
