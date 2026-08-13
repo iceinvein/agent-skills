@@ -1025,12 +1025,13 @@ test('contract-only run driven probe through queue, ending green at check --phas
   expect(green.out).not.toContain('Violations')
   expect(green.code).toBe(0)
 
-  // 12. Plain `migrate check` gates every phase through handoff, and fails on
-  // exactly the two that have no verb in this milestone. The violation count
-  // is what makes "exactly" an assertion rather than a hope.
+  // 12. Plain `migrate check` gates every phase through handoff. A run that
+  // stops at the queue fails it on three distinct fronts, and naming each one
+  // is what makes this an assertion rather than a hope: the two phases still
+  // pending, every queue item nobody has ruled on, and the handoff that never
+  // emitted anything.
   const full = await migrate(['check'])
   expect(full.code).toBe(1)
-  expect(full.out).toContain('Violations (2):')
   expect(full.out).toContain('  run-state:')
   expect(full.out).toContain(
     '    phase adjudicate is pending; every phase through handoff must be done',
@@ -1038,6 +1039,10 @@ test('contract-only run driven probe through queue, ending green at check --phas
   expect(full.out).toContain(
     '    phase handoff is pending; every phase through handoff must be done',
   )
+  expect(full.out).toContain('  adjudication:')
+  expect(full.out).toContain('is still open; every queue item needs a ruling before handoff')
+  expect(full.out).toContain('  handoff:')
+  expect(full.out).toContain('no handoff.json in the store')
 
   // 13. The terminus assertion in step 11 is load-bearing, shown by mutation
   // rather than asserted: nulling every requirement's parity plan is a phase-4

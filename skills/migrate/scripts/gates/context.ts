@@ -1,4 +1,5 @@
 import type { Config } from '../config.ts'
+import type { HandoffFile } from '../handoff.ts'
 import type { StorePaths } from '../paths.ts'
 import type { Phase, PhaseState } from '../phases.ts'
 import type {
@@ -54,6 +55,8 @@ export type GateContext = {
   capabilities: Capability[]
   deltas: Delta[]
   censusRows: CensusRow[]
+  // null when handoff has never run. Gate 12 reads it; nothing else does.
+  handoff: HandoffFile | null
   queueItems: QueueItem[]
   queueErrors: string[]
   phases: Record<Phase, PhaseState>

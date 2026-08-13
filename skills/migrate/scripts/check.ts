@@ -1,16 +1,19 @@
 import { validateCensus } from './census.ts'
 import { loadConfig } from './config.ts'
+import { gate as adjudicationGate } from './gates/adjudication.ts'
 import { gate as censusGate } from './gates/census.ts'
 import { gate as citationsGate } from './gates/citations.ts'
 import type { CensusRow, Gate, GateContext } from './gates/context.ts'
 import { gate as coverageGate } from './gates/coverage.ts'
 import { gate as deltasGate } from './gates/deltas.ts'
+import { gate as handoffGate } from './gates/handoff.ts'
 import { gate as leaksGate } from './gates/leaks.ts'
 import { gate as parityGate } from './gates/parity.ts'
 import { gate as queueGate } from './gates/queue.ts'
 import { gate as refsGate } from './gates/refs.ts'
 import { gate as runStateGate } from './gates/run-state.ts'
 import { gate as sourceGate } from './gates/source.ts'
+import { loadHandoff } from './handoff.ts'
 import { storePaths } from './paths.ts'
 import { loadPhases, PHASES, type Phase } from './phases.ts'
 import { loadQueue } from './queue.ts'
@@ -30,7 +33,24 @@ export const GATE_ORDER = [
   'leaks',
   'source',
   'run-state',
+  'adjudication',
+  'handoff',
 ] as const
+
+// A gate may declare the earliest phase at which it becomes applicable, and is
+// skipped when the checked terminus has not reached it.
+//
+// Every other gate reads the whole store regardless of --phase, which is right
+// for them: a coverage or census gap at phase 5 is a real failure whenever it
+// is found. These two describe phases 6 and 7, so firing them unconditionally
+// would make `migrate check --phase queue` red for an entire mid-run campaign,
+// which is the exact failure the posture split exists to prevent. The rule is
+// deliberately narrow: a gate is skipped only when it describes work the
+// checked terminus has not reached.
+const GATE_PHASE: Partial<Record<(typeof GATE_ORDER)[number], Phase>> = {
+  adjudication: 'adjudicate',
+  handoff: 'handoff',
+}
 
 const GATES: Record<(typeof GATE_ORDER)[number], Gate> = {
   coverage: coverageGate,
@@ -43,6 +63,8 @@ const GATES: Record<(typeof GATE_ORDER)[number], Gate> = {
   leaks: leaksGate,
   source: sourceGate,
   'run-state': runStateGate,
+  adjudication: adjudicationGate,
+  handoff: handoffGate,
 }
 
 // census.jsonl is the one store file that cannot be assumed to have been
@@ -81,6 +103,7 @@ export async function runCheck(opts: {
   const censusRows = validateRows(await readRawRows(paths.census))
   const { items: queueItems, errors: queueErrors } = await loadQueue(paths.queueDir)
   const phases = await loadPhases(opts.root)
+  const handoff = await loadHandoff(opts.root)
 
   const terminusIndex = opts.phase ? PHASES.indexOf(opts.phase) : PHASES.length - 1
 
@@ -93,6 +116,7 @@ export async function runCheck(opts: {
     capabilities,
     deltas,
     censusRows,
+    handoff,
     queueItems,
     queueErrors,
     phases,
@@ -104,6 +128,8 @@ export async function runCheck(opts: {
 
   const violations: Violation[] = []
   for (const name of GATE_ORDER) {
+    const from = GATE_PHASE[name]
+    if (from && PHASES.indexOf(from) > terminusIndex) continue
     violations.push(...(await GATES[name](ctx)))
   }
 
