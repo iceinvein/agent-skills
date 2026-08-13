@@ -8,9 +8,9 @@ directions per lens, derives a capability seam empirically rather than by
 guesswork, extracts cited functional requirements, plans parity against the
 source, and routes every ambiguity to a batch decision queue for a human to
 adjudicate. The coverage arithmetic, citation resolution, and phase ordering
-are enforced by a bundled Bun CLI instead of being self-reported. Two more
-phases, adjudicate and handoff, complete the walkthrough but ship no CLI verb
-yet; see the phases table below.
+are enforced by a bundled Bun CLI instead of being self-reported. Adjudicate
+and handoff complete the walkthrough, and `migrate coverage` and `migrate
+forecast` read delivery back through the medium handoff emitted into.
 
 ## Using it
 
@@ -138,6 +138,8 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `.migrate/phases.json` | object | per-phase status, batches, resume pointers |
 | `.migrate/seam.md` | prose | validator scripts and their raw output |
 | `.migrate/parity-basis.md` | prose | runnable-versus-source-only detection evidence |
+| `.migrate/handoff.json` | What handoff emitted, the refs that make a re-run idempotent, and the forecast basis |
+| `.migrate/forecast-assumptions.md` | Owner-attested forecast inputs; `migrate forecast` refuses without it |
 | `.migrate/queue/q-<slug>.md` | prose | evidence, options, recommendation |
 | `.migrate/.env` | secrets | runtime-lens credentials, gitignored |
 | `docs/migrate/*.md` | generated | human-readable views, written by `migrate report` |
@@ -156,6 +158,10 @@ The store lives at `.migrate/` in the target repo and is committed.
 | `migrate check [--phase <p>] [--no-citations] [--leaks]` | Runs the gates |
 | `migrate status` | Phase state, counts, resume pointer |
 | `migrate reset --phase <phase>` | Clears one phase's derived rows and returns it to `pending` |
+| `migrate adjudicate [<id>] [--ruling <text>] [--force]` | Prints the review sheet, or records one ruling |
+| `migrate handoff [--adapter <name>] [--dry-run]` | Emits the requirements as work items |
+| `migrate coverage [--adapter <name>]` | Built versus confirmed, read back through the adapter |
+| `migrate forecast [--adapter <name>]` | Projects remaining work from measured throughput |
 | `migrate report [--out <dir>]` | Renders markdown views |
 
 Run `migrate --help` for the same list from the CLI itself.

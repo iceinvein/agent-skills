@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadConfig } from './config.ts'
-import { withStoreLock } from './lock.ts'
+import { LockError, withStoreLock } from './lock.ts'
 import { storePaths } from './paths.ts'
 import { recordBatch } from './phases.ts'
 import { loadQueue, parseQueueItem } from './queue.ts'
@@ -200,22 +200,33 @@ export async function runAdjudicate(opts: {
   }
 
   const before = item.status
-  await withStoreLock(
-    opts.root,
-    async () => {
-      await writeAtomically(item.path, next, cfg.source.path)
-      // The batch is what lets the run-state gate see that phase 6 ran at all,
-      // the same role census records play for enumerate and extract. Keyed by
-      // item id so re-ruling one item does not add a second entry.
-      await recordBatch(
-        opts.root,
-        'adjudicate',
-        { id: `b-adjudicate-${item.id}`, count: 1 },
-        cfg.source.path,
-      )
-    },
-    { cmd: 'adjudicate', ...(opts.forceUnlock ? { force: true } : {}) },
-  )
+  try {
+    await withStoreLock(
+      opts.root,
+      async () => {
+        await writeAtomically(item.path, next, cfg.source.path)
+        // The batch is what lets the run-state gate see that phase 6 ran at
+        // all, the same role census records play for enumerate and extract.
+        // Keyed by item id so re-ruling one does not add a second entry.
+        await recordBatch(
+          opts.root,
+          'adjudicate',
+          { id: `b-adjudicate-${item.id}`, count: 1 },
+          cfg.source.path,
+        )
+      },
+      { cmd: 'adjudicate', ...(opts.forceUnlock ? { force: true } : {}) },
+    )
+  } catch (e) {
+    // Same class as every other writer: the request is fine and would succeed
+    // on retry, so it gets exit 3 rather than falling through to the generic
+    // guard at 2, which an orchestrator reads as "do not retry".
+    if (e instanceof LockError) {
+      process.stderr.write(`adjudicate: ${e.message}\n`)
+      return 3
+    }
+    throw e
+  }
 
   process.stdout.write(
     `adjudicate: ${item.id}\n` +

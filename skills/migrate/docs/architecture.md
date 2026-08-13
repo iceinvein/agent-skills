@@ -40,7 +40,7 @@ scripts/
   config.ts            config.toml load and write, TOML escaping
   store.ts             JSONL read, atomic write, id upsert, file readers
   lock.ts              store lock: serialises the read-modify-write in import,
-                       census, phase --status and reset
+                       census, phase --status, reset, adjudicate and handoff
   phases.ts            phases.json state and committed batches
   validate.ts          per-row shape validation shared by import and check
   census.ts            census kinds, balance and bounds invariants, subject identity
@@ -117,7 +117,7 @@ and `init` shipped exactly that bug in Milestone 2.
 renames, and cleans up the temp file on failure without masking the original
 error. A fixed temp name was tried first and lost data under concurrent writes.
 
-**The read-modify-write around a store file is lock-serialised.** Four commands
+**The read-modify-write around a store file is lock-serialised.** Six commands
 do one. `import` and `census` each read a whole store file, upsert or replace
 rows, and rewrite the whole file; both also commit a batch into `phases.json`,
 via `recordBatch`, inside the same lock. `phase --status` does its own
@@ -135,7 +135,7 @@ one rename can still discard the other's rows.
 section must not take it. That is why `savePhases` and `recordBatch` are
 lock-free while `setPhaseStatus` is not, and why `reset-cmd.ts` calls
 `savePhases` rather than `setPhaseStatus` to move its phase back to `pending`.
-Check this before adding a call inside any of the four.
+Check this before adding a call inside any of them.
 
 `census-cmd.ts` orders its two writes deliberately: it commits the batch into
 `phases.json` first, and writes `census.jsonl` second. If the process is
@@ -147,7 +147,7 @@ orphan census row would be worse: a record naming a batch that was never
 actually committed, which is exactly the mismatch the run-state gate exists to
 catch.
 
-`lock.ts`'s `withStoreLock` wraps each of these four write paths in one lock
+`lock.ts`'s `withStoreLock` wraps each of these write paths in one lock
 file for the whole store (`.migrate/.lock`, `O_EXCL` create, bounded retry with
 backoff). It distinguishes a lock file that is merely absent or momentarily
 empty (never counted against a corruption budget) from one that is genuinely
@@ -208,9 +208,10 @@ gate describes work a mid-run terminus has not reached, an entry to
    enough to want on by default instead, follow citations: on unless the caller
    passes `--no-citations`.
 4. Only if the gate describes work a mid-run terminus has not reached, add an
-   entry to `GATE_PHASE`. This is a narrow escape hatch, not the norm: ten of
-   the twelve gates read the whole store regardless of `--phase`, because a
-   defect is a defect whenever it is found.
+   entry to `GATE_PHASE`. This is a narrow escape hatch, not the norm: nine of
+   the twelve gates read the whole store regardless of `--phase`, and a tenth,
+   run-state, is bounded by the terminus rather than skipped. A defect is a
+   defect whenever it is found.
 5. Add tests for both directions. A gate that produces false failures is worse
    than no gate, because it makes `check` ignorable.
 
@@ -292,9 +293,9 @@ too:
   exit 0. Some real run has to be able to reach the unbounded gate, or it
   asserts nothing.
 
-  Both parse `GROUND-TRUTH.md` for their element rows rather than hand-copying
-  them, so fixture and test cannot drift, and both close on a mutation showing
-  the terminus assertion is load-bearing.
+Both parse `GROUND-TRUTH.md` for their element rows rather than hand-copying
+them, so fixture and test cannot drift, and both close on a mutation showing the
+terminus assertion is load-bearing.
 
 When you change a fixture, the tests that read it will tell you; when you
 change a manual the tests follow (`seam.md`'s clustering procedure,

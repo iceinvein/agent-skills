@@ -10,7 +10,7 @@ import {
   type HandoffInput,
   saveHandoff,
 } from './handoff.ts'
-import { withStoreLock } from './lock.ts'
+import { LockError, withStoreLock } from './lock.ts'
 import { storePaths } from './paths.ts'
 import { recordBatch } from './phases.ts'
 import { loadQueue } from './queue.ts'
@@ -151,19 +151,29 @@ export async function runHandoff(opts: {
     basis: { confirmed, emitted, order: items.map((i) => i.key) },
   }
 
-  await withStoreLock(
-    opts.root,
-    async () => {
-      await saveHandoff(opts.root, file, cfg.source.path)
-      await recordBatch(
-        opts.root,
-        'handoff',
-        { id: `b-handoff-${name}`, count: items.length },
-        cfg.source.path,
-      )
-    },
-    { cmd: 'handoff', ...(opts.forceUnlock ? { force: true } : {}) },
-  )
+  try {
+    await withStoreLock(
+      opts.root,
+      async () => {
+        await saveHandoff(opts.root, file, cfg.source.path)
+        await recordBatch(
+          opts.root,
+          'handoff',
+          { id: `b-handoff-${name}`, count: items.length },
+          cfg.source.path,
+        )
+      },
+      { cmd: 'handoff', ...(opts.forceUnlock ? { force: true } : {}) },
+    )
+  } catch (e) {
+    // Same class as every other writer: exit 3, which a caller can branch on
+    // to retry, rather than the generic guard's 2, which means "do not".
+    if (e instanceof LockError) {
+      process.stderr.write(`handoff: ${e.message}\n`)
+      return 3
+    }
+    throw e
+  }
 
   process.stdout.write(
     `handoff: adapter ${name}, ${items.length} work item(s), ${emitted} requirement(s)\n` +

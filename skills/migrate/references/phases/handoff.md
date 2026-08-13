@@ -33,7 +33,7 @@ somewhere else.
 |---|---|---|
 | `markdown` | `docs/migrate/roadmap.md` plus one file per capability | ticked checkboxes in the roadmap, dated in the file |
 | `github` | a milestone per capability, an issue per requirement | closed issues, dated from `closedAt` |
-| `flow` | `docs/modernisation/capability-map/<slug>.md` and `docs/WORK.md` | `flow parity --json` in the target, undated |
+| `flow` | `docs/modernisation/capability-map/<slug>.md`, and a fenced block under `## Proposed` in `docs/WORK.md` when the target has one | `flow parity --json` in the target, undated |
 
 **Dry-run first.** `--dry-run` runs every refusal check and prints the plan
 without writing anything at all, `handoff.json` included:
@@ -49,8 +49,10 @@ handoff: dry run, 1 work item(s), nothing written
 A capability appears after every capability it cites, which is what
 "dependency order" means here: capability A depends on B when a requirement
 in A carries a ledger citation to an element the seam assigned to B. If the
-graph has a cycle, the members are emitted in slug order and the cycle is
-named on stderr, so it is reported rather than quietly resolved.
+graph has a cycle, its members are emitted in slug order and anything merely
+blocked by that cycle still sorts normally behind it. The cycle is broken rather
+than reported: `dependencyOrder` returns which capabilities were in one, but no
+caller prints it today, so a cyclic seam is resolved silently.
 
 **The refusals, and what each means.** Handoff will not emit while anything
 is unresolved, and it names every blocker at once rather than one per run:
@@ -92,9 +94,17 @@ next: mark the phase done with `migrate phase handoff --status done`, then read 
 Running it again over an unchanged store reports everything `unchanged` and
 writes nothing new. Every adapter is idempotent, and each achieves it
 differently: `markdown` compares rendered content, `github` finds its own
-issues by a `<!-- migrate:fr=... -->` marker in the body, `flow` compares
-rendered content and then validates the result with the target's own
-`flow map --check`.
+issues by a `<!-- migrate:fr=... -->` marker at the start of the body, `flow`
+compares rendered content and then validates the result with the target's own
+`flow map --check`. A run that rewrote a shared file (the roadmap, `WORK.md`)
+reports its items `updated` rather than `unchanged`, so the status always
+reflects whether anything in the target moved.
+
+Each adapter owns only what it wrote. `github` regenerates the block above a
+closing fence in an issue body and leaves anything you add beneath it alone;
+`flow` rewrites only its own fenced block under `## Proposed` and never touches
+the rest of `WORK.md`. Editing a file somebody else writes in is the reason
+both boundaries are explicit rather than inferred from shape.
 
 **`handoff.json` is the record, and it carries no timestamps.**
 
@@ -138,17 +148,21 @@ confidence kinds become `Confirmed`, `Inferred` and `Speculative`.
 ## The gate
 
 Gate 12, `handoff`, asks whether the requirements actually reached the
-emitted work. It checks that `handoff.json` exists, that every requirement
-appears in some work item, that every `frs` entry resolves to a requirement,
-that every `dependsOn` resolves to another work item, and that the basis
-counts match the store.
+emitted work. It checks that `handoff.json` exists and is well formed, that
+every requirement appears in exactly one work item, that every `frs` entry
+resolves to a requirement, that every `dependsOn` resolves to another work item
+and is not the item itself, that no work-item key repeats, that every item has
+a `refs` entry recording where it went, that `basis.order` and the work items
+name the same set, and that the basis counts match the store.
 
 Every requirement, not only the confirmed ones: an inferred requirement is
 something the build team must see and decide about, so handoff emits it.
 Confidence starts mattering at the coverage denominator, not here.
 
-Like gate 11 it is phase-scoped, so it does not fire below `--phase
-handoff`. Its honest limit is the same in kind as the run-state gate's: it
+Like gate 11 it is phase-scoped, so it does not fire below `--phase handoff`
+**unless `phases.json` already claims the phase is done**. A store whose own
+state file says it reached handoff cannot hide an unemitted handoff by being
+checked at an earlier terminus. Its honest limit is the same in kind as the run-state gate's: it
 proves the emitted work covers the store's requirements. It cannot prove the
 issues were read or the roadmap was believed.
 

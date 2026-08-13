@@ -167,7 +167,7 @@ migrate phase handoff --status done
 
 Three adapters: `markdown` (the default, a roadmap plus a file per capability),
 `github` (a milestone per capability, an issue per requirement), and `flow`
-(a Nexus `stack` target's capability map and `docs/WORK.md`).
+(a Nexus `stack` target's capability map, and `docs/WORK.md` where it exists).
 
 Handoff refuses while anything is unresolved and names every blocker at once:
 the gate with citations and leaks both on, any queue item still open, and any

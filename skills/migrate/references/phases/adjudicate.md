@@ -116,10 +116,12 @@ Gate 11, `adjudication`, checks exactly one thing: every queue item is
 `adjudicated` and carries a non-empty ruling. It names each item that is
 not, with its severity.
 
-The gate is phase-scoped: it does not fire when the checked terminus is
-below `adjudicate`, so `migrate check --phase queue` stays clean for a run
-that has not reached this phase yet. From `migrate check --phase adjudicate`
-onward it applies.
+The gate is phase-scoped: it does not fire when the checked terminus is below
+`adjudicate`, so `migrate check --phase queue` stays clean for a run that has
+not reached this phase yet. From `migrate check --phase adjudicate` onward it
+applies, and it also applies at any terminus once `phases.json` marks the
+adjudicate phase done, so a store cannot claim the phase and then be checked
+below it.
 
 An open item on a store that is otherwise complete reads:
 

@@ -120,9 +120,10 @@ Enforced. Every claim in this section was run.
 
 `import`, `census`, `phase --status`, `reset`, `adjudicate` and `handoff` each
 take one lock over the whole store (`.migrate/.lock`) for the length of their
-read-modify-write. Those six are the whole set; every other command either only
-reads the store, or
-does not touch it. Without
+read-modify-write. Those six are the whole set for the read-modify-write over a
+whole store file. Every other command either only reads the store, or writes a
+file nothing else contends for: `init` creates `config.toml`, `queue add` copies
+one item in. Without
 it, two agents importing at once each read the same base file, and whichever
 one rewrites last silently discards the other's rows. The default wait is 30
 seconds, polling with backoff (25ms, growing by roughly 1.5x each attempt, up
@@ -136,7 +137,7 @@ and the answer is no) and `2` (a malformed request: a bad flag, a missing
 file). A lock failure says the request itself was fine; there is nothing
 about your `batch.json`, or about the `--phase` you named, to go back and
 inspect, regardless of which of the three ways below the lock failed. (Three
-ways the lock can fail, not three commands that take it: four commands do,
+ways the lock can fail, not three commands that take it: six commands do,
 listed above.)
 
 That said, "retry" resolves the three underlying causes differently, and only
@@ -163,8 +164,8 @@ message text is exact):
 import: waiting for store lock (held by pid 51234 since 2026-08-07T09:14:02.001Z)
 ```
 
-`phase --status` is the one that does not print this line. It waits on the
-same lock with the same backoff, silently: run against a scratch store with a
+`phase --status`, `adjudicate` and `handoff` do not print this line. All three
+wait on the same lock with the same backoff, silently: run against a scratch store with a
 live holder released two seconds in, `migrate phase enumerate --status running`
 printed nothing at all until it succeeded, 1.85 seconds later. `reset` does
 print it, verified the same way against a live holder released two seconds in:
@@ -173,7 +174,7 @@ print it, verified the same way against a live holder released two seconds in:
 reset: waiting for store lock (held by pid 74987 since 2026-08-08T00:00:00.000Z)
 ```
 
-If the wait for any of the four ends in a timeout instead, all four report it
+If the wait ends in a timeout instead, every lock-taker reports it
 the same way, with their own command name prefixed:
 
 ```
@@ -216,7 +217,9 @@ what you read here matches what you'll see on screen exactly.
 running and no other agent is mid-write.** It exists on `import`, `census`,
 `phase`, `reset`, `adjudicate` and `handoff`, the same commands that take the
 lock at all. Verified against a scratch store holding a dead holder's lock:
-each of the original four exits `3` without the flag and `0` with it. `reset`
+each of the original four exits `3` without the flag and `0` with it, and
+`adjudicate` and `handoff` were brought onto the same exit code afterwards, so
+all six behave alike. `reset`
 matters most of them, since it is the one whose whole job is deleting rows. What it actually
 does is blunt: it unlinks the lock file
 unconditionally, before this process even checks who, if anyone, holds it.
