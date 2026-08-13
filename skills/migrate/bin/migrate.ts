@@ -30,6 +30,8 @@ Subcommands:
                                   Emit the ratified requirements as work items
   coverage [--adapter <name>]     Built versus confirmed, read back through
                                   the adapter that emitted the work
+  forecast [--adapter <name>]     Project remaining work from measured
+                                  throughput and attested assumptions
   report [--out <dir>]            Render markdown views
   --version                       Print the migrate version
   --help                          Show this message`
@@ -299,6 +301,21 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runCoverage } = await import('../scripts/coverage-cmd.ts')
     return runCoverage({ root, ...(adapter.value ? { adapter: adapter.value } : {}) })
+  },
+  forecast: async (args) => {
+    const adapter = readFlag(args, '--adapter')
+    if (adapter.error) {
+      process.stderr.write(`forecast: ${adapter.error}\n`)
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('forecast: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runForecast } = await import('../scripts/forecast-cmd.ts')
+    return runForecast({ root, ...(adapter.value ? { adapter: adapter.value } : {}) })
   },
   report: async (args) => {
     const result = readFlag(args, '--out')
