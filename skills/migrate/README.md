@@ -71,10 +71,11 @@ directory. See `references/recipes/README.md` for the exact file shape.
 migrate check --phase <current-phase>
 ```
 
-bounds the run-state gate at that phase; the other nine gates always read
-the whole store, so a coverage or census gap past your current phase still
-fails on its own gate regardless of `--phase`. Citations are checked by
-default; pass `--no-citations` to skip that gate.
+bounds the run-state gate at that phase, and skips the two gates that
+describe phases the terminus has not reached (`adjudication` and `handoff`).
+The remaining nine always read the whole store, so a coverage or census gap
+past your current phase still fails on its own gate regardless of `--phase`.
+Citations are checked by default; pass `--no-citations` to skip that gate.
 
 ## Fixtures
 
@@ -114,7 +115,7 @@ asserts the gate that should catch it does.
 
 - **[docs/reference.md](docs/reference.md)** is what you need to drive the CLI:
   the batch-file and census formats with worked examples, the row schemas and
-  their grammars, what each of the ten gates enforces, and the exit-code
+  their grammars, what each of the twelve gates enforces, and the exit-code
   convention. Ships with the installed skill.
 - **[docs/architecture.md](docs/architecture.md)** is for working on the skill
   itself: the module map, the rule that decides what belongs in the CLI rather
@@ -167,7 +168,8 @@ list at the same time. `import` and `census` touch `phases.json` incidentally,
 each moving a phase to `running` (unless it is already `done`) when they record
 a batch. Nothing else writes it at all.
 
-A lock failure on `import`, `census`, `phase --status`, or `reset` exits `3`;
+A lock failure on `import`, `census`, `phase --status`, `reset`, `adjudicate`
+or `handoff` exits `3`;
 pass `--force-unlock` once you have confirmed no other agent is actually
 writing.
 

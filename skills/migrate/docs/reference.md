@@ -16,7 +16,7 @@ For how it is built and how to extend it, see [architecture.md](architecture.md)
 | `0` | Success |
 | `1` | A content or domain failure in a well-formed request. The request was serviceable and the answer is no: a gate found violations, a census does not balance, a queue file is unparseable. |
 | `2` | A malformed or unusable request. The command could not begin: a missing flag value, an unknown phase, a file that is absent or not valid JSON, no store above the cwd, a config that will not load. |
-| `3` | The store lock is unavailable: another process holds it, a holder looks stale, or the lock file has failed to parse across five consecutive reads, and force-unlocking was not requested. `import`, `census`, `phase --status`, and `reset` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
+| `3` | The store lock is unavailable: another process holds it, a holder looks stale, or the lock file has failed to parse across five consecutive reads, and force-unlocking was not requested. `import`, `census`, `phase --status`, `reset`, `adjudicate` and `handoff` can return this; retry, or pass `--force-unlock` once you have confirmed no other agent is writing. |
 
 The split matters because an orchestrating agent should be able to tell "your
 generator is broken" from "your numbers are wrong" from "try again" without
@@ -30,9 +30,10 @@ mirror them exactly so there is no serialization layer.
 resolves inside `source.path`, following symlinks and case-insensitive volumes,
 and exits 2.
 
-**The store lock.** `import`, `census`, `phase --status`, and `reset` each hold
-one lock (`.migrate/.lock`) across their read-modify-write of the store, so two
-agents writing at once cannot silently drop each other's rows. A waiting caller polls
+**The store lock.** `import`, `census`, `phase --status`, `reset`, `adjudicate`
+and `handoff` each hold one lock (`.migrate/.lock`) across their read-modify-write
+of the store, so two agents writing at once cannot silently drop each other's
+rows. A waiting caller polls
 with backoff for up to 30 seconds by default. A holder confirmed no longer
 running is reported as stale rather than waited out further; so is a lock file
 that fails to parse on five consecutive reads (a lock file that is merely
@@ -164,7 +165,7 @@ unsigned, which is what stops exclusions accreting silently.
 
 ### Capabilities
 
-`capabilities.jsonl` has **no import path in this milestone**. Write it
+`capabilities.jsonl` has **no import path**. Write it
 directly, one JSON object per line:
 
 ```json
@@ -516,7 +517,7 @@ every declared surface and closer, so it does not pass until a run is finished.
 Grouping by gate is what lets you tell an expected mid-run gap from a real
 defect.
 
-**Two gates are phase-scoped; the other ten always read the whole store.**
+**Two gates are phase-scoped; the other ten always run.**
 `adjudication` and `handoff` describe phases 6 and 7, so they are skipped when
 the checked terminus has not reached them. Without that, `migrate check --phase
 queue` would be red for an entire mid-run campaign, which is exactly what the

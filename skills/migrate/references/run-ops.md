@@ -118,9 +118,10 @@ resuming a crashed run a read rather than a recollection.
 
 Enforced. Every claim in this section was run.
 
-`import`, `census`, `phase --status`, and `reset` each take one lock over the
-whole store (`.migrate/.lock`) for the length of their read-modify-write. Those
-four are the whole set; every other command either only reads the store, or
+`import`, `census`, `phase --status`, `reset`, `adjudicate` and `handoff` each
+take one lock over the whole store (`.migrate/.lock`) for the length of their
+read-modify-write. Those six are the whole set; every other command either only
+reads the store, or
 does not touch it. Without
 it, two agents importing at once each read the same base file, and whichever
 one rewrites last silently discards the other's rows. The default wait is 30
@@ -213,10 +214,10 @@ what you read here matches what you'll see on screen exactly.
 
 **`--force-unlock` is only appropriate after confirming the named pid is not
 running and no other agent is mid-write.** It exists on `import`, `census`,
-`phase`, and `reset`, the same four commands that take the lock at all.
-Verified against a scratch store holding a dead holder's lock: each of the four
-exits `3` without the flag and `0` with it. `reset` matters most here of the
-four, since it is the one whose whole job is deleting rows. What it actually
+`phase`, `reset`, `adjudicate` and `handoff`, the same commands that take the
+lock at all. Verified against a scratch store holding a dead holder's lock:
+each of the original four exits `3` without the flag and `0` with it. `reset`
+matters most of them, since it is the one whose whole job is deleting rows. What it actually
 does is blunt: it unlinks the lock file
 unconditionally, before this process even checks who, if anyone, holds it.
 The CLI does not verify staleness for you when you pass this flag; the
@@ -277,4 +278,4 @@ itself is being validated against a benchmark rather than run against a live
 migration, the agent producing the mapping and the agent scoring it against
 ground truth must not be the same agent, and must not share context that
 would let one see the other's answer. This is a v1 documented discipline,
-not a CLI verb; `migrate` has no benchmark command in this milestone.
+not a CLI verb; `migrate` has no benchmark command.

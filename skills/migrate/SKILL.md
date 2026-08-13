@@ -200,9 +200,9 @@ fact.
 ## Checking as you go
 
 Run `migrate check --phase <current>` after every batch. It bounds the
-run-state gate at that phase; the other nine gates always read the whole
-store, so a coverage or census gap past your current phase still fails on its
-own gate regardless of `--phase`.
+run-state gate at that phase; the nine gates that are neither run-state nor
+phase-scoped always read the whole store, so a coverage or census gap past
+your current phase still fails on its own gate regardless of `--phase`.
 
 Run plain `migrate check` only when claiming the whole migration is complete:
 with no `--phase`, it gates every phase through `handoff`, and its exit 0 is

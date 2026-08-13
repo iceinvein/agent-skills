@@ -7,9 +7,9 @@ file formats and gate behaviour, see [reference.md](reference.md).
 
 Three parts, one rule that decides which part gets a given piece of work.
 
-- **The skill** (`SKILL.md`, plus the six phase manuals under
-  `references/phases/` and the cross-cutting `references/run-ops.md`, all
-  landed in Milestone 2) holds judgment: what to look for in a legacy codebase,
+- **The skill** (`SKILL.md`, plus the eight phase manuals under
+  `references/phases/` and the cross-cutting `references/run-ops.md`) holds
+  judgment: what to look for in a legacy codebase,
   how to decide a requirement is confirmed rather than inferred, when to
   escalate to the queue.
 - **The CLI** (`bin/`, `scripts/`) holds anything that must not be
@@ -47,7 +47,15 @@ scripts/
   citations.ts         resolves src refs against the source tree
   leaks.ts             scans artifacts and git history for env values
   queue.ts             queue item parsing and grammar
-  check.ts             composes the ten gates into a violation list
+  check.ts             loads the store once, runs GATE_ORDER, applies the
+                       phase-scope rule; holds no gate logic itself
+  gates/context.ts     GateContext: everything a gate may read
+  gates/<gate>.ts      one module per gate, twelve of them
+  handoff.ts           adapter contract, dependency order, preflight, handoff.json
+  adapters/*.ts        markdown, github, flow: one per delivery medium
+  coverage.ts          built over confirmed, per capability
+  assumptions.ts       parses and validates forecast-assumptions.md
+  forecast.ts          measured velocities, demand, scenario projection
   report.ts            markdown rendering
   *-cmd.ts             one per subcommand; argument handling and orchestration
 ```
@@ -189,27 +197,32 @@ first. Add the name to `GATE_ORDER`, the module to `GATES`, and, only if the
 gate describes work a mid-run terminus has not reached, an entry to
 `GATE_PHASE`.
 
-The adapter layer is `scripts/adapters/{markdown,github,flow}.ts`, one per
-delivery medium behind the `Adapter` contract in `scripts/handoff.ts`. An
-adapter reaches the world only through `HandoffInput`'s `root`, `gitBin` and
-`ghBin`, which is what makes `github` testable against `fixtures/fake-gh.ts`
-and `flow` testable against `fixtures/flow-target/`.
-
-
-
-Gates live in `check.ts` and push `{ gate, message }` onto one list.
-
-1. Add the gate name to `GATE_ORDER`, which fixes its position in the report.
-2. Push violations that name the specific offending row, path or id. An
+1. Write `scripts/gates/<name>.ts` exporting `export const gate: Gate`, and
+   add the name to `GATE_ORDER`, which fixes its position in the report, and
+   the module to `GATES`.
+2. Return violations that name the specific offending row, path or id. An
    aggregate "check failed" is never acceptable; the message is what an agent
    acts on without a human.
-3. If the gate is expensive, make it opt-in behind a flag like `--leaks`, and
-   have `check-cmd.ts` pass it through. If it is cheap enough to want on by
-   default instead, follow citations: on unless the caller passes
-   `--no-citations`, so an orchestrator does not have to remember to ask for
-   it.
-4. Add tests for both directions. A gate that produces false failures is worse
+3. If the gate is expensive, make it opt-in behind a flag like `--leaks`, read
+   off `GateContext`, and have `check-cmd.ts` pass it through. If it is cheap
+   enough to want on by default instead, follow citations: on unless the caller
+   passes `--no-citations`.
+4. Only if the gate describes work a mid-run terminus has not reached, add an
+   entry to `GATE_PHASE`. This is a narrow escape hatch, not the norm: ten of
+   the twelve gates read the whole store regardless of `--phase`, because a
+   defect is a defect whenever it is found.
+5. Add tests for both directions. A gate that produces false failures is worse
    than no gate, because it makes `check` ignorable.
+
+### Add a handoff adapter
+
+`scripts/adapters/<name>.ts` exporting an `Adapter`, registered in the
+`ADAPTERS` map in `handoff-cmd.ts`, `coverage-cmd.ts` and `forecast-cmd.ts`.
+An adapter reaches the world only through `HandoffInput`'s `root`, `gitBin` and
+`ghBin`, which is what makes `github` testable against `fixtures/fake-gh.ts`
+and `flow` against `fixtures/flow-target/`. `apply()` must be idempotent, and
+must not destroy progress the medium is carrying: the markdown adapter reads
+its own roadmap before regenerating it for exactly that reason.
 
 ### Add a census kind
 
@@ -236,7 +249,7 @@ This is the main source-genericity lever: a COBOL source declares `programs`,
 `bun run typecheck` (tsc). All three must be clean.
 
 **A test that passes against a broken implementation is treated as a defect**,
-not a minor style issue. Two shipped during this milestone and both were caught
+not a minor style issue. Two shipped during Milestone 2 and both were caught
 only by mutation. When you add a regression test, verify it fails against the
 unfixed code: revert the source file with
 `git checkout <sha> -- <path>`, run the test, observe the failure, then restore
@@ -271,13 +284,17 @@ too:
   surfaces, three elements) and shows the gate failing on unaccounted elements
   before it passes. That arc is the point: a test that only demonstrates the
   passing state would be worth much less.
-- `e2e-express.test.ts` and `e2e-webforms.test.ts` drive the whole of each
-  fixture probe through queue: `init`, `import`, `census`, `phase`, `queue
-  add`, `queue list`, and `check`, ending green at `migrate check --phase
-  queue` and then asserting plain `migrate check` fails on exactly `adjudicate`
-  and `handoff`. Both parse `GROUND-TRUTH.md` for their element rows rather
-  than hand-copying them, so fixture and test cannot drift, and both close on a
-  mutation showing the terminus assertion is load-bearing.
+- `e2e-webforms.test.ts` drives the whole of `tiny-webforms` probe through
+  queue: `init`, `import`, `census`, `phase`, `queue add`, `queue list`, and
+  `check`, ending green at `migrate check --phase queue`.
+- `e2e-express.test.ts` carries on past that terminus through `adjudicate`,
+  `handoff`, `coverage` and `forecast`, and closes on plain `migrate check` at
+  exit 0. Some real run has to be able to reach the unbounded gate, or it
+  asserts nothing.
+
+  Both parse `GROUND-TRUTH.md` for their element rows rather than hand-copying
+  them, so fixture and test cannot drift, and both close on a mutation showing
+  the terminus assertion is load-bearing.
 
 When you change a fixture, the tests that read it will tell you; when you
 change a manual the tests follow (`seam.md`'s clustering procedure,

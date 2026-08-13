@@ -114,8 +114,8 @@ Running `migrate check --phase probe` here will not come back clean: the
 census gate reads the whole store regardless of `--phase`, so it reports
 every declared surface's lens record and every declared closer's record as
 missing, correctly, because none of them exist yet. That is not a probe
-defect; it is the same "other nine gates read the whole store" behavior
-`SKILL.md` describes, and it is why probe's own close is the status flip
+defect; it is the same "gates that are neither run-state nor phase-scoped
+read the whole store" behavior `SKILL.md` describes, and it is why probe's own close is the status flip
 above, not a clean `check`.
 
 ## Degradation
