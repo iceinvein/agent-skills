@@ -28,6 +28,8 @@ Subcommands:
                                   Clear one phase's derived rows
   handoff [--adapter <name>] [--dry-run] [--force-unlock]
                                   Emit the ratified requirements as work items
+  coverage [--adapter <name>]     Built versus confirmed, read back through
+                                  the adapter that emitted the work
   report [--out <dir>]            Render markdown views
   --version                       Print the migrate version
   --help                          Show this message`
@@ -282,6 +284,21 @@ const HANDLERS: Record<string, Handler> = {
       ...(args.includes('--dry-run') ? { dryRun: true } : {}),
       ...(args.includes('--force-unlock') ? { forceUnlock: true } : {}),
     })
+  },
+  coverage: async (args) => {
+    const adapter = readFlag(args, '--adapter')
+    if (adapter.error) {
+      process.stderr.write(`coverage: ${adapter.error}\n`)
+      return 2
+    }
+    const { findStoreRoot } = await import('../scripts/paths.ts')
+    const root = await findStoreRoot(process.cwd())
+    if (!root) {
+      process.stderr.write('coverage: no .migrate store found above the cwd\n')
+      return 2
+    }
+    const { runCoverage } = await import('../scripts/coverage-cmd.ts')
+    return runCoverage({ root, ...(adapter.value ? { adapter: adapter.value } : {}) })
   },
   report: async (args) => {
     const result = readFlag(args, '--out')
