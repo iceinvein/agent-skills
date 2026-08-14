@@ -26,6 +26,13 @@ that only becomes obvious once it is written down next to the diff. Expect
 some runs to make the case for a shallower channel next time. That is the
 ledger working, not the ledger complaining.
 
+The agent line carries a concurrency factor next to the wall-clock: agent time
+summed, over the span those agents actually occupied. 1.0× means every agent
+had the clock to itself. That is the right number for a plan whose graph was a
+chain and a finding for one whose graph was not, so read it against the plan
+rather than on its own. Nine agents at 1.0× on a plan with four independent
+tasks in it is a run that took four times longer than it needed to.
+
 Read it before you paste it. A row showing an agent that errored, or an agent
 whose token count dwarfs every other row, is a finding about the run and
 belongs in your prose, not left for your partner to spot in a table.

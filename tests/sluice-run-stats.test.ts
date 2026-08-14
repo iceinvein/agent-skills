@@ -347,3 +347,62 @@ describe("run-stats: agents", () => {
 		expect(out).toContain("error");
 	});
 });
+
+describe("run-stats: agent concurrency", () => {
+	/** Two agents, each two minutes long, ending `gapSec` apart. */
+	function twoAgents(gapSec: number): Line[] {
+		const base = Date.parse("2026-08-08T09:05:00.000Z");
+		const second = new Date(base + gapSec * 1000).toISOString();
+		return [
+			assistant("2026-08-08T09:00:10.000Z", "Deep channel, several subsystems.", [
+				toolUse("a1", "Agent", { description: "worker one" }),
+				toolUse("a2", "Agent", { description: "worker two" }),
+			]),
+			agentResult("2026-08-08T09:05:00.000Z", "a1", {
+				agentType: "general-purpose",
+				model: "claude-sonnet-5",
+				tokens: 1000,
+				ms: 120_000,
+				tools: 3,
+			}),
+			agentResult(second, "a2", {
+				agentType: "general-purpose",
+				model: "claude-sonnet-5",
+				tokens: 1000,
+				ms: 120_000,
+				tools: 3,
+			}),
+			assistant("2026-08-08T09:12:00.000Z", "Done."),
+		];
+	}
+
+	test("reports 1.0x when agents ran back to back", async () => {
+		// Second agent starts exactly as the first ends: 240s of work over a 240s span.
+		const { out } = await run(["--transcript", writeTranscript(twoAgents(120))]);
+		expect(out).toContain("1.0× concurrent");
+	});
+
+	test("reports the overlap factor when agents ran at the same time", async () => {
+		// Ends 30s apart, so the union is 150s against 240s of agent work.
+		const { out } = await run(["--transcript", writeTranscript(twoAgents(30))]);
+		expect(out).toContain("1.6× concurrent");
+	});
+
+	test("a lone agent is 1.0x, not a division by zero", async () => {
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:10.000Z", "Deep channel, several subsystems.", [
+				toolUse("a1", "Agent", { description: "worker one" }),
+			]),
+			agentResult("2026-08-08T09:05:00.000Z", "a1", {
+				agentType: "general-purpose",
+				model: "claude-sonnet-5",
+				tokens: 1000,
+				ms: 120_000,
+				tools: 3,
+			}),
+			assistant("2026-08-08T09:12:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toContain("1.0× concurrent");
+	});
+});

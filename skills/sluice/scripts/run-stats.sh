@@ -119,7 +119,20 @@ SUMMARY="$(jq -s '
           status: (.toolUseResult.status // "?"),
           tokens: (.toolUseResult.totalTokens // 0),
           ms: (.toolUseResult.totalDurationMs // 0),
+          # The transcript timestamps when an agent returned, not when it began,
+          # so the start is back-derived from its own duration.
+          ends: (.timestamp | ts),
+          starts: ((.timestamp | ts) - ((.toolUseResult.totalDurationMs // 0) / 1000)),
           tools: (.toolUseResult.totalToolUseCount // 0) } ] as $agents
+
+  # Union of the agent intervals: sum the merged runs rather than the raw ones,
+  # so overlapping agents are counted once against the clock they shared.
+  | ([ $agents[] | { s: .starts, e: .ends } ] | sort_by(.s)
+     | reduce .[] as $i ([];
+         if (length == 0) or (.[-1].e < $i.s)
+         then . + [$i]
+         else .[0:-1] + [{ s: .[-1].s, e: ([.[-1].e, $i.e] | max) }] end)
+     | map(.e - .s) | add // 0) as $agent_span
 
   | { empty: false,
       trail: ($trail | join(" → ")),
@@ -130,7 +143,10 @@ SUMMARY="$(jq -s '
       out_tok: $out_tok, cache_tok: $cache_tok,
       agents: $agents,
       agent_tokens: ([ $agents[].tokens ] | add // 0),
-      agent_ms: ([ $agents[].ms ] | add // 0) }
+      agent_ms: ([ $agents[].ms ] | add // 0),
+      concurrency: (if $agent_span > 0
+                    then (([ $agents[].ms ] | add // 0) / 1000) / $agent_span
+                    else 0 end) }
   end
 ' "$TRANSCRIPT" 2>/dev/null)"
 
@@ -216,8 +232,11 @@ count=$(g '.agents | length')
 if [ "$count" -eq 0 ]; then
   printf 'agents    none dispatched\n'
 else
-  printf 'agents    %s dispatched · %s tok · %s wall\n' \
-    "$count" "$(tok "$(g '.agent_tokens')")" "$(dur "$(( $(g '.agent_ms') / 1000 ))")"
+  # 1.0× means every agent had the clock to itself. On a plan whose graph had
+  # independent tasks in it, that number is the finding.
+  printf 'agents    %s dispatched · %s tok · %s wall · %s× concurrent\n' \
+    "$count" "$(tok "$(g '.agent_tokens')")" "$(dur "$(( $(g '.agent_ms') / 1000 ))")" \
+    "$(printf '%.1f' "$(g '.concurrency')")"
 
   # Up to a dozen rows read as the narrative of the plan. Past that the order
   # stops helping, so show what the run actually spent on and say what is cut.
