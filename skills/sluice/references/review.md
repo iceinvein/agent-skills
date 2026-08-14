@@ -45,6 +45,30 @@ only for substantial logic changes. While you are the one coordinating,
 findings are not yours to fix: your patch would be the single patch nobody
 reviews, and it spends context the plan still needs.
 
+## When you cannot dispatch
+
+A session may withhold subagents, or grant them only on request. The review is
+owed either way. `deep` has its own treatment in `references/deep-channel.md`,
+where there is a plan to shrink and a tier table to argue from; this is the
+`main` case, which has neither.
+
+Say it twice, and only twice.
+
+The first time is the routing announcement, in the same breath as the channel:
+"Main channel, new interface. I cannot dispatch a reviewer in this session, so
+this merges unreviewed unless you want one." That is the moment it is still a
+decision. Your partner can authorise the dispatch, split the change, or accept
+the gap knowingly. The same words at the end are a disclaimer.
+
+The second is the integration event, where `references/finish.md` puts the
+three options. Review status belongs beside them, because it is part of what
+merging would be agreeing to.
+
+Between those two points, stay quiet. An obligation restated on every handback
+stops being information and turns into throat-clearing, and it buries the one
+mention that mattered. Nothing changed between the announcement and the merge.
+If something did, that is a new fact and earns a new sentence.
+
 The friction line: "dispatching a reviewer for this is overkill." Skipping
 the dispatch doesn't skip the cost, it just moves the cost onto you, and
 self-review is not review.

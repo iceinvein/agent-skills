@@ -57,7 +57,8 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
   something anyone else can check. `references/verify.md`
 - **Review** before merge. Dispatch a reviewer with fresh context and put the
   diff on disk for it to read, so those bytes fill their context instead of
-  yours. `references/review.md`
+  yours. Cannot dispatch one? Say so in the announcement and again at the
+  merge, and nowhere in between. `references/review.md`
 - **Finish** deliberately. Green suite first, then let your partner pick
   merge, PR, or leave it. Never pick for them. `references/finish.md`
 - **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the

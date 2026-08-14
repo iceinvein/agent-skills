@@ -16,7 +16,10 @@ costs far more than asking would have.
 With the suite green and the base confirmed, put exactly three options to
 your partner, with the run ledger above them so the choice is made against
 what the work actually cost rather than against your account of it;
-`references/meter.md` owns that. The three: merge it locally, push it and
+`references/meter.md` owns that. Say in one clause whether the work was
+reviewed. Merging reviewed work and merging unreviewed work are different
+decisions, and the ledger does not tell them apart: it counts the agents you
+dispatched, not whether any of them read this diff. The three: merge it locally, push it and
 open a PR, or leave the branch as it stands. Those three exhaust what you may offer. Your partner may still
 ask for something off the list, most notably scrapping the branch, but the
 request has to originate with them and be unmistakable. Then stop. Which of

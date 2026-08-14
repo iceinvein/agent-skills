@@ -170,7 +170,8 @@ is not one, and the table below still names which tasks needed the stronger
 tier. Name those tasks at pre-flight, not at handback, so the choice of what
 to do about them is still open: shrink the plan, take the flip on its own, or
 accept the gap knowingly. Whatever is left then gets listed as review
-outstanding rather than review passed. A `deep` run that ships with nobody
+outstanding rather than review passed, and twice is the cap on saying so here
+too: `references/review.md` has that rule. A `deep` run that ships with nobody
 having read it has become a `fast` run with a design document attached, and
 your partner is entitled to know that while it can still change the plan.
 
