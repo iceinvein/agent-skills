@@ -11,17 +11,25 @@ mistake, showing the last of five commits and burying the rest. Send what
 you built and what it is meant to do alongside the path, and nothing about
 how you got there.
 
+Name the claim the review has to settle as well. A diff and an intent with no
+question attached buys a general opinion, which is the most expensive kind of
+finding to receive and the least actionable one.
+
 Leave every finding open to the reviewer; steering them away from an issue
 first is the same mistake as reviewing it yourself. A finding that looks
 wrong still gets raised, then argued.
 
-Every finding has one of two destinations. Either it blocks, and the work
-stays where it is until the fix lands, or it goes onto the task's record,
-which is what the final review reads. Reviewers grade findings Critical,
-Important or Minor, and the grade picks between the two: only Minor may wait
-for the record, and anything graded above it blocks. A third destination is
-not on offer, so neither is the adjudication step that would sort findings
-into it; that sorting costs more than the findings are worth.
+Every finding has one of two destinations. Either it goes back to the agent
+that wrote the code and the work stays where it is until the fix lands, or it
+goes onto the task's record, which is what the final review reads. Reviewers
+grade findings Critical, Important or Minor, and the grade picks between the
+two: only Minor may wait for the record, and anything above it blocks.
+
+The grade is the sort, and it has to be load-bearing. The alternative is you
+reading every finding to decide where it goes, which is an adjudication pass
+that costs more than the findings are worth and puts the coordinator back
+inside the diff it dispatched to stay out of. A third destination is not on
+offer, so neither is that pass.
 
 Send findings back to the agent that wrote the code: it already holds the
 task and its reasoning, memory you would otherwise rebuild. Three rounds is

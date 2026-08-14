@@ -21,8 +21,9 @@ announcement is how your partner redirects you without being asked.
 | `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
 
 `bypass`, `fast`, and `main` proceed without stopping for approval; only
-`deep` stops, for design sign-off before code, and again for the plan when
-agents rather than you will carry it out.
+`deep` stops. It stops for design sign-off before code, again for the plan
+when agents rather than you will carry it out, and once more at pre-flight
+before Task 1, to settle review and workspace.
 
 Name the channel and the signal that actually routed you there. The strings above
 are examples, not fixed copy, and a channel with a two-part signal should say
@@ -81,11 +82,27 @@ The plan needs sign-off as well whenever agents will execute it, because each
 one sees only its own task and so nobody ever reads the plan whole. Executing
 it yourself makes it a worklist instead: write it and carry on.
 
-Then read `references/deep-channel.md` for the plan format, the dispatch rules,
-and when a task actually needs a reviewer. Three that catch people out: never
-run two implementers at once, review is tiered rather than automatic, and a
-`deep` run that cannot dispatch has to replace the review tier with something,
-not quietly ship without one.
+Order the plan so the tasks that change nothing come first, and mark the one
+task that turns the new behaviour on. Then a late re-baseline, re-blessed
+snapshots, regenerated fixtures, attributes to that one point instead of to
+the branch at large.
+
+Before Task 1, stop once and ask which flagged tasks get a reviewer and
+whether the work runs in a worktree. Ask it as a choice with the counts in
+it, never as a paragraph. Review that turns out to be missing is only
+actionable while the plan can still change.
+
+Read the plan as a graph rather than a list. `Needs` and `Offers` are
+dependency edges and `Touches` says what cannot overlap, so which tasks may
+run at once is derivable rather than guessed. Fan out wherever that graph
+allows; serial is the fallback for where it doesn't, not the default.
+
+Then read `references/deep-channel.md` for the plan format, that checkpoint,
+the dispatch rules, and when a task actually needs a reviewer. Three that
+catch people out: concurrent implementers need a worktree each and the flip
+runs alone, review is tiered rather than automatic, and a `deep` run that
+cannot dispatch has to replace the review tier with something, not quietly
+ship without one.
 
 ## Conflicts
 
