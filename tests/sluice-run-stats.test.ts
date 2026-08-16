@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -8,7 +8,13 @@ const SCRIPT = join(import.meta.dir, "..", "skills", "sluice", "scripts", "run-s
 type Line = Record<string, unknown>;
 
 /** An assistant turn carrying prose, and optionally tool calls. */
-function assistant(ts: string, text: string | null, tools: Line[] = [], usage?: Line): Line {
+function assistant(
+	ts: string,
+	text: string | null,
+	tools: Line[] = [],
+	usage?: Line,
+	id = `msg_${ts}`,
+): Line {
 	const content: Line[] = [];
 	if (text !== null) content.push({ type: "text", text });
 	for (const t of tools) content.push(t);
@@ -17,6 +23,7 @@ function assistant(ts: string, text: string | null, tools: Line[] = [], usage?: 
 		timestamp: ts,
 		isSidechain: false,
 		message: {
+			id,
 			role: "assistant",
 			content,
 			usage: usage ?? { output_tokens: 100, cache_read_input_tokens: 1000 },
@@ -103,12 +110,23 @@ function writeSubagentLog(transcript: string, agentId: string, lines: Line[]): v
 	);
 }
 
-/** One assistant turn inside an agent's own transcript. */
-function subagentTurn(ts: string, model: string, outTokens: number, tools: Line[] = []): Line {
+/**
+ * One line of an agent's own transcript. A single assistant message is written
+ * as several lines (thinking, text, tool_use), each carrying the same
+ * cumulative usage, so `id` is what separates a message from its own echoes.
+ */
+function subagentTurn(
+	ts: string,
+	model: string,
+	outTokens: number,
+	tools: Line[] = [],
+	id = `msg_${ts}`,
+): Line {
 	return {
 		type: "assistant",
 		timestamp: ts,
 		message: {
+			id,
 			role: "assistant",
 			model,
 			content: tools.length > 0 ? tools : [{ type: "text", text: "working" }],
@@ -195,6 +213,68 @@ describe("run-stats: run boundaries", () => {
 		expect(out).toContain("1m50s");
 	});
 
+	test("the skill invocation still anchors a later run after an earlier ledger", async () => {
+		// Run 1 announced and ledgered. Run 2's announcement is a shape the
+		// matcher misses, so only its invocation marks it. The run reported must
+		// be run 2, not both runs joined together.
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing interfaces.", [
+				toolUse("t1", "Edit", {}),
+			]),
+			assistant("2026-08-08T09:05:00.000Z", "Handing back.", [
+				toolUse("old", "Bash", { command: "bash ~/.claude/skills/sluice/scripts/run-stats.sh" }),
+			]),
+			userPrompt("2026-08-08T11:00:00.000Z", "now the other thing"),
+			assistant("2026-08-08T11:00:10.000Z", "Reading the router.", [
+				toolUse("s1", "Skill", { skill: "sluice", args: "the other thing" }),
+			]),
+			assistant("2026-08-08T11:02:00.000Z", "Routing this as fast work: existing interfaces only.", [
+				toolUse("t2", "Edit", {}),
+			]),
+			assistant("2026-08-08T11:05:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/elapsed\s+4m50s/);
+		expect(out).not.toContain("2h");
+	});
+
+	test("only a sluice invocation anchors a run, not any skill", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "what does this do?"),
+			assistant("2026-08-08T09:00:10.000Z", "Looking.", [
+				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic" }),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "It normalises the path."),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(2);
+		expect(out).toBe("");
+	});
+
+	test("metering this session with --transcript still ends the run", async () => {
+		// --transcript is a documented flag and pointing it at your own session
+		// is legitimate, so such a call is this run's ledger like any other.
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:10.000Z", "Deep channel, several subsystems.", [
+				toolUse("t1", "Edit", {}),
+			]),
+			assistant("2026-08-08T09:30:00.000Z", "Handing back.", [
+				toolUse("old", "Bash", { command: "bash run-stats.sh --transcript SESSION_PATH" }),
+			]),
+			userPrompt("2026-08-08T11:00:00.000Z", "next"),
+			assistant("2026-08-08T11:00:10.000Z", "Fast channel, existing interfaces.", [
+				toolUse("t2", "Edit", {}),
+			]),
+			assistant("2026-08-08T11:02:00.000Z", "Done."),
+		]);
+		// The fixture names its own transcript, which is what makes it this run's.
+		const withSelf = readFileSync(path, "utf8").replaceAll("SESSION_PATH", path);
+		writeFileSync(path, withSelf);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/channel\s+fast$/m);
+		expect(out).toMatch(/elapsed\s+1m50s/);
+	});
+
 	test("a ledger read against another transcript does not end this run", async () => {
 		// A session working on the ledger runs it against other sessions to check
 		// it. Those calls report somebody else's run and must not clip this one.
@@ -273,6 +353,39 @@ describe("run-stats: the ledger", () => {
 		}
 	});
 
+	test("ignores prose that merely bolds something near a channel name", async () => {
+		// The old matcher only looked for `**` before the channel word, so a
+		// closing delimiter did just as well as an opening one.
+		for (const text of [
+			"Not a **big** deep channel job, just a rename, so I will do it inline.",
+			"Two findings on the routing table: the **deep channel** row is ambiguous at two subsystems.",
+			"The **fast channel** rule is the one I keep wanting to skip.",
+		]) {
+			const path = writeTranscript([
+				userPrompt("2026-08-08T08:00:00.000Z", "review the router"),
+				assistant("2026-08-08T08:00:30.000Z", text),
+				...mainChannelRun(),
+			]);
+			const { out } = await run(["--transcript", path]);
+			expect(out).toMatch(/channel\s+main$/m);
+			expect(out).toContain("1m50s");
+		}
+	});
+
+	test("takes the announced channel, not the first one named", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "next one"),
+			assistant(
+				"2026-08-08T09:00:10.000Z",
+				"Tier 1 (**fast channel**) is already done; this one is Tier 2 = **deep channel**, several subsystems.",
+				[toolUse("t1", "Bash", { command: "ls" })],
+			),
+			assistant("2026-08-08T09:02:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/channel\s+deep$/m);
+	});
+
 	test("ignores an emphasised channel that is not the opening line", async () => {
 		// The lead-in allowance is bounded to the first line, so a session
 		// discussing sluice does not start a run every time it quotes one.
@@ -344,6 +457,30 @@ describe("run-stats: the ledger", () => {
 		]);
 		const { out } = await run(["--transcript", path]);
 		expect(out).toContain("1m30s of that waiting on you");
+	});
+
+	test("counts the run's own streamed message once, not once per line", async () => {
+		// The session transcript writes one assistant message as several lines,
+		// each carrying the same cumulative usage. This is the ledger's most-read
+		// number, and summing the lines roughly doubles it.
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "do it"),
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing interfaces.", [], {
+				output_tokens: 5,
+				cache_read_input_tokens: 1000,
+			}, "msg_a"),
+			assistant("2026-08-08T09:00:11.000Z", null, [toolUse("t1", "Edit", {})], {
+				output_tokens: 4000,
+				cache_read_input_tokens: 1000,
+			}, "msg_a"),
+			assistant("2026-08-08T09:00:12.000Z", "Done.", [], {
+				output_tokens: 4000,
+				cache_read_input_tokens: 1000,
+			}, "msg_a"),
+		]);
+		const { out } = await run(["--transcript", path]);
+		// 4000 for the one message, not 5 + 4000 + 4000.
+		expect(out).toMatch(/tokens\s+4\.0k out · 1\.0k cache read/);
 	});
 
 	test("passes the test result through verbatim, and says so when absent", async () => {
@@ -420,7 +557,7 @@ describe("run-stats: agents", () => {
 		expect(out).toContain("3m11s");
 	});
 
-	test("names a backgrounded agent and refuses to price it at zero", async () => {
+	test("says cost not reported when nothing priced the agent", async () => {
 		const path = writeTranscript([
 			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
 				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic high" }),
@@ -430,13 +567,15 @@ describe("run-stats: agents", () => {
 		]);
 		const { out } = await run(["--transcript", path]);
 		expect(out).toContain("code-review");
-		// The cost never reached the transcript, so no number may be implied.
-		expect(out).toMatch(/agents\s+1 dispatched · cost not reported/);
-		expect(out).not.toContain("0 tok");
-		expect(out).not.toContain("0.0× concurrent");
+		// No number may be implied for a cost nothing recorded.
+		expect(out).toMatch(/agents\s+1 dispatched · cost not reported$/m);
+		expect(out).not.toMatch(/\d× concurrent/);
 	});
 
-	test("prices a backgrounded agent from its own transcript", async () => {
+	test("prices a backgrounded agent from its log, without inventing a duration", async () => {
+		// The log has no duration in it: its span is first-to-last timestamp,
+		// which covers idle time whenever the agent was resumed. Tokens and tool
+		// calls are real; wall-clock is not, so no wall-clock is printed.
 		const path = writeTranscript([
 			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
 				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic high" }),
@@ -451,17 +590,40 @@ describe("run-stats: agents", () => {
 			subagentTurn("2026-08-08T09:01:10.000Z", "claude-opus-5", 1200),
 		]);
 		const { out } = await run(["--transcript", path]);
-		expect(out).toMatch(/agents\s+1 dispatched · 5\.2k tok · 1m0s wall/);
+		expect(out).toMatch(/agents\s+1 dispatched · 5\.2k out from 1 log$/m);
 		expect(out).toContain("code-review");
 		expect(out).toContain("opus-5");
-		expect(out).toContain("1 tools");
-		expect(out).not.toContain("cost not reported");
+		expect(out).toMatch(/\s1 tools\b/);
+		// A log span must never be presented as a duration.
+		expect(out).not.toContain("1m0s");
+		expect(out).not.toMatch(/\d× concurrent/);
 	});
 
-	test("prefers the agent's own log over the inline total", async () => {
-		// The two count different things: the inline total is the harness's own
-		// accounting, the log is output tokens, the same unit as the run's own
-		// figure. One basis for every row is what makes the rows comparable.
+	test("counts a streamed message once, not once per line", async () => {
+		// One assistant message is written as several lines carrying the same
+		// cumulative usage. Summing the lines counts the message twice over.
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
+				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic high" }),
+			]),
+			forkedResult("2026-08-08T09:00:04.000Z", "s1", "code-review"),
+			assistant("2026-08-08T09:05:00.000Z", "Done."),
+		]);
+		writeSubagentLog(path, "agent_s1", [
+			subagentTurn("2026-08-08T09:00:10.000Z", "claude-opus-5", 3, [], "msg_a"),
+			subagentTurn("2026-08-08T09:00:11.000Z", "claude-opus-5", 2000, [], "msg_a"),
+			subagentTurn("2026-08-08T09:00:12.000Z", "claude-opus-5", 2000, [], "msg_a"),
+			subagentTurn("2026-08-08T09:00:20.000Z", "claude-opus-5", 1000, [], "msg_b"),
+		]);
+		const { out } = await run(["--transcript", path]);
+		// 2000 + 1000, not 3 + 2000 + 2000 + 1000.
+		expect(out).toMatch(/agents\s+1 dispatched · 3\.0k out from 1 log$/m);
+	});
+
+	test("prefers the harness total over the agent log", async () => {
+		// The inline result is the harness's own accounting and covers input as
+		// well as output; the log holds output tokens only and a span that is not
+		// a duration. Where the harness priced an agent, that is the number.
 		const path = writeTranscript([
 			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
 				toolUse("a1", "Agent", { description: "Task 1 implementer" }),
@@ -476,16 +638,80 @@ describe("run-stats: agents", () => {
 			assistant("2026-08-08T09:05:00.000Z", "Done."),
 		]);
 		writeSubagentLog(path, "agent_a1", [
-			subagentTurn("2026-08-08T09:00:04.000Z", "claude-sonnet-5", 9000, [
+			subagentTurn("2026-08-08T09:00:04.000Z", "claude-opus-5", 9000, [
 				toolUse("x1", "Read", {}),
 			]),
 		]);
 		const { out } = await run(["--transcript", path]);
-		expect(out).toMatch(/agents\s+1 dispatched · 9\.0k tok/);
-		expect(out).not.toContain("112k");
+		expect(out).toMatch(/agents\s+1 dispatched · 112k tok · 1m4s wall · 1\.0× concurrent$/m);
+		expect(out).not.toContain("9.0k");
+		// Model and tool count come from the same source as the cost.
+		expect(out).toContain("sonnet-5");
+		expect(out).toMatch(/\s18 tools\b/);
 	});
 
-	test("prices the measured agents when only some carry cost", async () => {
+	test("an empty log does not erase a real inline total", async () => {
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
+				toolUse("a1", "Agent", { description: "Task 1 implementer" }),
+			]),
+			agentResult("2026-08-08T09:01:04.000Z", "a1", {
+				agentType: "general-purpose",
+				model: "claude-sonnet-5",
+				tokens: 112_000,
+				ms: 64_000,
+				tools: 18,
+			}),
+			assistant("2026-08-08T09:05:00.000Z", "Done."),
+		]);
+		writeSubagentLog(path, "agent_a1", []);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/agents\s+1 dispatched · 112k tok · 1m4s wall/);
+		expect(out).not.toContain("0 tok");
+	});
+
+	test("an empty log leaves an unpriced agent unpriced", async () => {
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
+				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic high" }),
+			]),
+			forkedResult("2026-08-08T09:00:04.000Z", "s1", "code-review"),
+			assistant("2026-08-08T09:05:00.000Z", "Done."),
+		]);
+		writeSubagentLog(path, "agent_s1", []);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/agents\s+1 dispatched · cost not reported$/m);
+	});
+
+	test("keeps the two bases apart when the run has both", async () => {
+		// Harness totals and log output tokens are different units. Adding them
+		// would produce a number that means nothing, so the header reports each.
+		const path = writeTranscript([
+			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
+				toolUse("a1", "Agent", { description: "Task 1 implementer" }),
+				toolUse("s1", "Skill", { skill: "code-review", args: "main..topic high" }),
+			]),
+			agentResult("2026-08-08T09:01:04.000Z", "a1", {
+				agentType: "general-purpose",
+				model: "claude-sonnet-5",
+				tokens: 112_000,
+				ms: 64_000,
+				tools: 18,
+			}),
+			forkedResult("2026-08-08T09:01:06.000Z", "s1", "code-review"),
+			assistant("2026-08-08T09:05:00.000Z", "Done."),
+		]);
+		writeSubagentLog(path, "agent_s1", [
+			subagentTurn("2026-08-08T09:01:10.000Z", "claude-opus-5", 5000),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(
+			/agents\s+2 dispatched · 112k tok · 1m4s wall · 1\.0× concurrent · 5\.0k out from 1 log$/m,
+		);
+		expect(out).not.toContain("117k");
+	});
+
+	test("names the unpriced agents alongside the priced ones", async () => {
 		const path = writeTranscript([
 			assistant("2026-08-08T09:00:00.000Z", "Deep channel, several subsystems.", [
 				toolUse("a1", "Agent", { description: "Task 1 implementer" }),
@@ -502,7 +728,9 @@ describe("run-stats: agents", () => {
 			assistant("2026-08-08T09:05:00.000Z", "Done."),
 		]);
 		const { out } = await run(["--transcript", path]);
-		expect(out).toMatch(/agents\s+2 dispatched · 112k tok · 1m4s wall · 1\.0× concurrent · 1 unmeasured/);
+		expect(out).toMatch(
+			/agents\s+2 dispatched · 112k tok · 1m4s wall · 1\.0× concurrent · 1 unpriced$/m,
+		);
 		expect(out).toContain("Task 1 implementer");
 		expect(out).toContain("code-review");
 	});
