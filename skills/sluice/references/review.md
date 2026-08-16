@@ -21,9 +21,12 @@ wrong still gets raised, then argued.
 
 Every finding has one of two destinations. Either it goes back to the agent
 that wrote the code and the work stays where it is until the fix lands, or it
-goes onto the task's record, which is what the final review reads. Reviewers
-grade findings Critical, Important or Minor, and the grade picks between the
-two: only Minor may wait for the record, and anything above it blocks.
+is written down against the task and waits. In `deep` that is the run record
+`references/deep-channel.md` sets up, and it is what the final review reads. In
+`main` there is no plan and no record, so a finding that waits waits in the
+message you hand back, named there rather than carried silently to the merge.
+Reviewers grade findings Critical, Important or Minor, and the grade picks
+between the two: only Minor may wait, and anything above it blocks.
 
 The grade is the sort, and it has to be load-bearing. The alternative is you
 reading every finding to decide where it goes, which is an adjudication pass

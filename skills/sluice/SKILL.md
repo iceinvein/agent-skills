@@ -33,15 +33,18 @@ are examples, not fixed copy, and a channel with a two-part signal should say
 which part applied. `bypass` says nothing at all, because a question that gets
 announced stops being a question.
 
-**`root-cause`, `finish` and `meter` are not channel-assigned.** The code
-misbehaving triggers the first: a bug report, a red test, behaviour you cannot
-account for. An integration event, merging, pushing, or opening a PR, triggers
-the second. Handing the work back triggers the third, whether or not it ever
-reaches an integration event. The first two fire in every channel, `bypass`
-included; `meter` cannot, because `bypass` announces nothing to measure from.
-A question that turns on how something looks is triggered the same way and in
-any channel: `references/show-or-say.md` decides whether to show it or say it,
-and `bypass` is where it comes up most.
+**`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**
+The code misbehaving triggers the first: a bug report, a red test, behaviour you
+cannot account for. An integration event, merging, pushing, or opening a PR,
+triggers the second. Handing the work back triggers the third, whether or not it
+ever reaches an integration event. A question that turns on how something looks
+rather than on what it means triggers the fourth: say it where a sentence would
+settle it, show it where the candidates have to sit side by side for an eye to
+compare them. `references/show-or-say.md`
+
+The first, second and fourth fire in every channel, `bypass` included, and
+`bypass` is where the fourth comes up most. `meter` does not, because `bypass`
+announces nothing to measure from.
 
 ## The rules
 
@@ -63,8 +66,10 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
   something anyone else can check. `references/verify.md`
 - **Review** before merge. Dispatch a reviewer with fresh context and put the
   diff on disk for it to read, so those bytes fill their context instead of
-  yours. Cannot dispatch one? Say so in the announcement and again at the
-  merge, and nowhere in between. `references/review.md`
+  yours. A session that dispatches only when asked has not refused you one, so
+  ask rather than announce that you cannot. Genuinely without one? Say so in
+  the announcement and again at the merge, and nowhere in between.
+  `references/review.md`
 - **Finish** deliberately. Green suite first, then let your partner pick
   merge, PR, or leave it. Never pick for them. `references/finish.md`
 - **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the
@@ -85,24 +90,24 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
-The plan gets a stop of its own, whoever executes it. Dispatched agents each
-see only their own task, so nobody reads it whole; executing it yourself is
-the weaker case rather than the exempt one, because then nobody reads it but
-its author.
+The second stop is the plan's, whoever executes it. Dispatched agents each see
+only their own task, so nobody reads it whole; executing it yourself is the
+weaker case rather than the exempt one, because then nobody reads it but its
+author.
 
 Order the plan so the tasks that change nothing come first, and mark the one
 task that turns the new behaviour on. Then a late re-baseline, re-blessed
 snapshots, regenerated fixtures, attributes to that one point instead of to
 the branch at large.
 
-Pre-flight rides in the plan's stop: which flagged tasks get a reviewer, and
+Pre-flight rides in that same stop: which flagged tasks get a reviewer, and
 whether the work runs in a worktree. Ask them as choices with the counts in
-them, never as a paragraph, then end the turn on the answers rather than
-opening Task 1 with them. A session that dispatches only when asked has not
-ruled dispatch out, it has made this question the place to ask. Genuine
-unavailability is the tool not being there at all, which is a different case
-and a different paragraph. Review that turns out to be missing is only
-actionable while the plan can still change.
+them, never as a paragraph, then end the turn. Task 1 opens on their next
+instruction, and an answer that already carries one is that instruction. A
+session that dispatches only when asked has not ruled dispatch out, it has made
+this question the place to ask; genuine unavailability is the tool not being
+there at all, which `references/deep-channel.md` handles separately. Review that
+turns out to be missing is only actionable while the plan can still change.
 
 Read the plan as a graph rather than a list. `Needs` and `Offers` are
 dependency edges and `Touches` says what cannot overlap, so which tasks may

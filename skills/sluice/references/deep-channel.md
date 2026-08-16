@@ -58,15 +58,38 @@ the diff, and they will derive it wrong.
 Two tasks carrying `Flips` means the plan holds two branches' worth of work.
 Split it. A plan with none is not a `deep` plan: nothing in it does anything.
 
+## The run record
+
+A `deep` run outlives its own context, so what it learns has to sit on disk
+rather than in the session. Open one file for the run before pre-flight and
+write it as you go. It holds what a stranger resuming tomorrow would need and
+you would otherwise be recalling: the base each task was dispatched from, each
+task with its status and its commits, the review decisions pre-flight settled
+and the reason each one was settled that way, and any finding belonging to a
+task other than the one that surfaced it.
+
+Where it goes follows the repo if the repo has a convention, and
+`docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. It belongs to you
+rather than to any task, so it lives in the tree you are working from, no
+task's `Touches` names it, and you commit it yourself alongside the plan.
+Assembling it at handback defeats it: a record written from memory is memory,
+which is the one thing the file exists to replace.
+
+A file only outlives compaction if you go back to it. Read it before the next
+dispatch whenever this session has been summarised, and treat what it says over
+what you remember, including where the two agree. Each task closes by writing
+its commit into the record, which means asking the implementer to report the
+SHA it committed and putting that in the row rather than deriving it later.
+
 ## Pre-flight
 
-Design signed off, plan written, nothing built yet. Before Task 1, hand back
-once and settle two things with your partner. Ask them as questions with
-options, not as a paragraph they have to reply to in prose: what you are after
-is a decision, and a wall of considerations asks them to extract the decision
-from it first.
+Design signed off, plan written, nothing built yet. Before Task 1, stop once
+and settle two things with your partner. Ask them as questions with options,
+not as a paragraph they have to reply to in prose: what you are after is a
+decision, and a wall of considerations asks them to extract the decision from
+it first.
 
-This handback is the plan's sign-off as well, so it ends your turn, and a
+This stop is the plan's sign-off as well, so it ends your turn, and a
 question tool does not end it for you. That tool returns an answer without
 returning control: two options came back, the plan itself did not, and your
 partner reads the summary of it in the same message as Task 1's first edit,
@@ -99,28 +122,13 @@ repo, a lint target that resolves through a symlink, a build that needs its own
 install, belongs in the option text where it can affect the answer, not in a
 footnote after they have chosen.
 
-If one of the two has only one live answer, say which and ask the other. A
-checkpoint down to a single question is still a checkpoint.
+If one of the two has only one live answer, say which and ask the other. A stop
+down to a single question is still a stop.
 
 A session that forbids subagents does not skip this; it changes what the
 review options are. Skipping it is how "review outstanding" first appears in
 the closing summary, at the one moment your partner can no longer do anything
 about it.
-
-## The run record
-
-A `deep` run outlives its own context, so what it learns has to sit on disk
-rather than in the session. Keep one file for the run and write it as you go.
-It holds what a stranger resuming tomorrow would need and you would otherwise
-be recalling: the base each task was dispatched from, each task with its status
-and its commits, the review decisions pre-flight settled and the reason each
-one was settled that way, and any finding belonging to a task other than the
-one that surfaced it.
-
-Where it goes follows the repo if the repo has a convention, and
-`docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. Assembling it at
-handback defeats it: a record written from memory is memory, which is the one
-thing the file exists to replace.
 
 ## Dispatch rules
 
@@ -184,8 +192,9 @@ say so is the routing announcement, where your partner can still act on it,
 not the summary at the end where it reads as an excuse.
 
 Three things change. The plan stops being a brief for strangers and becomes
-your own worklist, which makes its handback the only outside read it will ever
-get rather than a formality on the way to dispatch. Task isolation is gone, so
+your own worklist, so its stop is no longer buying alignment with the agents
+who will carry it out, only your partner's read of work you will do yourself.
+Task isolation is gone, so
 the run record now carries all of the state that outlives compaction and
 matters more, not less. And fresh context is unavailable, which was the entire thing
 review was buying.
