@@ -1,6 +1,6 @@
 {
   "name": "terse",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar, a plain-language register, and semantic accuracy. Three levels: clean, tight, sharp.",
   "author": "iceinvein",
   "type": "prompt",
@@ -34,6 +34,6 @@
       "global"
     ],
     "default": "session",
-    "claudeHookDirective": "Activate terse skill at tight level for this session."
+    "claudeHookDirective": "Invoke the terse skill now via the Skill tool (skill: terse, args: tight) before your first response, and keep it active for the rest of the session."
   }
 }
