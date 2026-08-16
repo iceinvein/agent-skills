@@ -64,9 +64,11 @@ A `deep` run outlives its own context, so what it learns has to sit on disk
 rather than in the session. Open one file for the run before pre-flight and
 write it as you go. It holds what a stranger resuming tomorrow would need and
 you would otherwise be recalling: the base each task was dispatched from, each
-task with its status and its commits, the review decisions pre-flight settled
-and the reason each one was settled that way, and any finding belonging to a
-task other than the one that surfaced it.
+task with its status and its commits, both answers pre-flight settled, review
+and workspace alike, with the reason each one went that way, and any finding
+belonging to a task other than the one that surfaced it. Those pre-flight rows
+come first and open the file, because they are also what says the stop happened
+at all.
 
 Where it goes follows the repo if the repo has a convention, and
 `docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. It belongs to you
@@ -124,6 +126,16 @@ footnote after they have chosen.
 
 If one of the two has only one live answer, say which and ask the other. A stop
 down to a single question is still a stop.
+
+**Write the answers into the run record before Task 1's first edit.** Both of
+them, each with the reason it went that way. This is what discharges pre-flight,
+rather than the approval you got, and the distinction is the whole point: a stop
+that carries the plan and pre-flight together has one reply for two obligations,
+so a bare "yes" satisfies the plan and leaves no trace either way of the
+questions. Rows in a file leave that trace. If Task 1 is about to open and the
+record has nothing in it, you did not ask, however clearly you remember
+intending to, and the questions are still cheap here and unaskable an hour from
+now.
 
 A session that forbids subagents does not skip this; it changes what the
 review options are. Skipping it is how "review outstanding" first appears in

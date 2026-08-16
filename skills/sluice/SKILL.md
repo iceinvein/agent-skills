@@ -90,15 +90,45 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
+**Read `references/deep-channel.md` before you write the plan.** It carries the
+plan format, the pre-flight questions, the run record, the dispatch rules and
+the review tiers, and none of those are derivable from what is on this page.
+Take the plan file's first character as the trigger, not this sentence's
+position: design sign-off can be days and a context window away from here, by
+which point this paragraph is a thousand messages back and reads as something
+already handled. A plan written without that file comes out as prose with a
+sequencing note, which reads fine to its author and cannot be dispatched,
+reviewed or resumed.
+
+The skeleton it fills in, so that a plan written without it is at least still a
+plan:
+
+```
+# Plan: <topic>
+## Ground Rules
+- <exact value>
+### Task N: <name>
+**Contract:** Needs: <sig> | Offers: <sig>
+**Touches:** <path> (new) | <path> (edit) | <path> (test)
+**Flips:** <what changes, from what, or omit>
+**Review:** <reason, or omit>
+- [ ] <action> -> <proof>
+```
+
+Read that as a graph rather than a list. `Needs` and `Offers` are dependency
+edges and `Touches` says what cannot overlap, so which tasks may run at once is
+derivable rather than guessed. Fan out wherever that graph allows; serial is the
+fallback for where it doesn't, not the default.
+
 The second stop is the plan's, whoever executes it. Dispatched agents each see
 only their own task, so nobody reads it whole; executing it yourself is the
 weaker case rather than the exempt one, because then nobody reads it but its
 author.
 
 Order the plan so the tasks that change nothing come first, and mark the one
-task that turns the new behaviour on. Then a late re-baseline, re-blessed
-snapshots, regenerated fixtures, attributes to that one point instead of to
-the branch at large.
+task that turns the new behaviour on with `Flips`. Then a late re-baseline,
+re-blessed snapshots, regenerated fixtures, attributes to that one point
+instead of to the branch at large.
 
 Pre-flight rides in that same stop: which flagged tasks get a reviewer, and
 whether the work runs in a worktree. Ask them as choices with the counts in
@@ -109,17 +139,15 @@ this question the place to ask; genuine unavailability is the tool not being
 there at all, which `references/deep-channel.md` handles separately. Review that
 turns out to be missing is only actionable while the plan can still change.
 
-Read the plan as a graph rather than a list. `Needs` and `Offers` are
-dependency edges and `Touches` says what cannot overlap, so which tasks may
-run at once is derivable rather than guessed. Fan out wherever that graph
-allows; serial is the fallback for where it doesn't, not the default.
+Both answers go into the run record before Task 1's first edit, each with the
+reason it went that way. Those rows are what discharge pre-flight, not the
+approval: one reply arrives for two obligations, so a "yes" with no rows behind
+it signed off the plan and nothing else.
 
-Then read `references/deep-channel.md` for the plan format, that stop, the run
-record, the dispatch rules, and when a task actually needs a reviewer. Three that
-catch people out: concurrent implementers need a worktree each and the flip
-runs alone, review is tiered rather than automatic, and a `deep` run that
-cannot dispatch has to replace the review tier with something, not quietly
-ship without one.
+Three from that file that catch people out: concurrent implementers need a
+worktree each and the flip runs alone, review is tiered rather than automatic,
+and a `deep` run that cannot dispatch has to replace the review tier with
+something, not quietly ship without one.
 
 ## Conflicts
 
