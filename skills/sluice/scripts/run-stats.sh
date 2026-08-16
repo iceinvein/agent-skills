@@ -46,7 +46,32 @@ if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
   exit 1
 fi
 
-SUMMARY="$(jq -s '
+# An agent handed back before it ran leaves no cost on its tool result, but it
+# keeps a transcript of its own beside the session. That file is the only place
+# a backgrounded agent's cost is ever written down, so read it rather than
+# reporting the work as free.
+SUBS="$(dirname "$TRANSCRIPT")/$(basename "$TRANSCRIPT" .jsonl)/subagents"
+COSTS='{}'
+if [ -d "$SUBS" ]; then
+  COSTS="$(
+    for f in "$SUBS"/agent-*.jsonl; do
+      [ -e "$f" ] || continue
+      id="$(basename "$f" .jsonl)"; id="${id#agent-}"
+      jq -s --arg id "$id" '
+        def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+        [ .[] | select(.timestamp) ] as $t
+        | { ($id): {
+            tokens: ([ .[] | .message.usage.output_tokens // 0 ] | add // 0),
+            tools: ([ .[] | .message.content[]? | select(.type == "tool_use") ] | length),
+            model: ([ .[] | .message.model // empty ] | last // "?"),
+            starts: (if ($t | length) > 0 then ($t[0].timestamp | ts) else 0 end),
+            ends: (if ($t | length) > 0 then ($t[-1].timestamp | ts) else 0 end) } }' "$f"
+    done | jq -s 'add // {}'
+  )"
+fi
+[ -n "$COSTS" ] || COSTS='{}'
+
+SUMMARY="$(jq -s --argjson costs "$COSTS" '
   # ---- what counts as a real turn ----------------------------------------
   # Transcript stamps carry milliseconds, which fromdateiso8601 will not take.
   def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
@@ -56,9 +81,20 @@ SUMMARY="$(jq -s '
   # opens the message. Anchoring there is what separates it from prose that
   # merely discusses a channel, which a session about sluice is full of.
   def marker: "^[*_#>[:space:]]*(?<c>fast|main|deep)[[:space:]]+channel";
+  # Real announcements carry a lead-in the anchor above misses: "Sluice: **deep
+  # channel**", "Tier 2 (new contract surface) = **deep channel**". Emphasis is
+  # what still separates one from prose naming a channel, and holding it to the
+  # opening line keeps a session reviewing sluice from starting a run per quote.
+  def emph: "\\*\\*[[:space:]]*(?<c>fast|main|deep)[[:space:]]+channel";
+  def head_line: texts | split("\n") | (.[0] // "");
   def announces: (.type == "assistant") and (is_meta | not)
-    and (texts | test(marker; "i"));
-  def chan: texts | capture(marker; "i") | .c | ascii_downcase;
+    and ((texts | test(marker; "i")) or (head_line | test(emph; "i")));
+  def chan: (if (texts | test(marker; "i")) then (texts | capture(marker; "i"))
+             else (head_line | capture(emph; "i")) end) | .c | ascii_downcase;
+  def invokes_sluice: (.type == "assistant") and (is_meta | not) and ([
+      .message.content[]? | select(.type == "tool_use" and .name == "Skill")
+      | select((.input.skill // "") == "sluice")
+    ] | length > 0);
   def is_stats_call: (.type == "assistant") and ([
       .message.content[]? | select(.type == "tool_use" and .name == "Bash")
       | select((.input.command // "") | test("run-stats\\.sh"))
@@ -74,7 +110,11 @@ SUMMARY="$(jq -s '
 
   . as $all
   | [ range(0; $all | length) ] as $ix
-  | [ $ix[] | select($all[.] | announces) ] as $ann
+  | [ $ix[] | select($all[.] | announces) ] as $said
+  # A run whose announcement never matched is still a run when the skill was
+  # invoked by name. Anchoring there beats reporting the work as nothing.
+  | [ $ix[] | select($all[.] | invokes_sluice) ] as $called
+  | (if ($said | length) > 0 then $said else $called end) as $ann
   | if ($ann | length) == 0 then { empty: true } else
 
   # A previous ledger closes the run before it. The call running right now has
@@ -87,7 +127,7 @@ SUMMARY="$(jq -s '
   | [ $all[$from:][] | select(.timestamp) ] as $run
 
   # ---- channel, and the trail if it escalated ----------------------------
-  | ([ $ann[] | $all[.] | chan ]
+  | ([ $said[] | select(. >= $from) | $all[.] | chan ]
      | reduce .[] as $c ([]; if (. | last) == $c then . else . + [$c] end)) as $trail
 
   # ---- clocks ------------------------------------------------------------
@@ -114,20 +154,39 @@ SUMMARY="$(jq -s '
      | from_entries) as $labels
   # toolUseResult is whatever the tool returned: object, array or string.
   | [ $run[] | select((.toolUseResult | type) == "object") | select(.toolUseResult.agentId)
-      | { label: ($labels[[ .message.content[]? | select(.type == "tool_result") | .tool_use_id ][0]] // "agent"),
-          model: (.toolUseResult.resolvedModel // "?"),
-          status: (.toolUseResult.status // "?"),
-          tokens: (.toolUseResult.totalTokens // 0),
-          ms: (.toolUseResult.totalDurationMs // 0),
-          # The transcript timestamps when an agent returned, not when it began,
-          # so the start is back-derived from its own duration.
-          ends: (.timestamp | ts),
-          starts: ((.timestamp | ts) - ((.toolUseResult.totalDurationMs // 0) / 1000)),
-          tools: (.toolUseResult.totalToolUseCount // 0) } ] as $agents
+      | . as $e
+      # Inline cost when the agent ran to completion here, its own transcript
+      # when it was handed back before it ran, and neither only when the file
+      # has been cleaned up. Priced at zero it would understate the run and drag
+      # the concurrency factor to a number the ledger has no meaning for.
+      | ($costs[$e.toolUseResult.agentId] // null) as $c
+      # The log wins where there is one. The two sources count different things,
+      # the inline total being the harness accounting and the log being output
+      # tokens, and rows drawn from different bases cannot be read against each
+      # other. Output tokens is also the unit the run reports for itself.
+      | (if $c == null then $e.toolUseResult.totalDurationMs
+         else (($c.ends - $c.starts) * 1000) end) as $ms
+      | ($c.tokens // $e.toolUseResult.totalTokens) as $tokens
+      | { label: ($labels[[ $e.message.content[]? | select(.type == "tool_result") | .tool_use_id ][0]]
+                  // $e.toolUseResult.commandName // "agent"),
+          model: ($c.model // $e.toolUseResult.resolvedModel // "?"),
+          status: ($e.toolUseResult.status // "?"),
+          measured: (($ms != null) or ($tokens != null)),
+          tokens: ($tokens // 0),
+          ms: ($ms // 0),
+          # The session transcript timestamps when an agent returned, not when
+          # it began, so that start is back-derived from its own duration. An
+          # agent log of its own carries both ends directly.
+          ends: (if $c != null then $c.ends else ($e.timestamp | ts) end),
+          starts: (if $c != null then $c.starts
+                   else (($e.timestamp | ts) - (($ms // 0) / 1000)) end),
+          tools: ($c.tools // $e.toolUseResult.totalToolUseCount // 0) } ] as $agents
+
+  | [ $agents[] | select(.measured) ] as $priced
 
   # Union of the agent intervals: sum the merged runs rather than the raw ones,
   # so overlapping agents are counted once against the clock they shared.
-  | ([ $agents[] | { s: .starts, e: .ends } ] | sort_by(.s)
+  | ([ $priced[] | { s: .starts, e: .ends } ] | sort_by(.s)
      | reduce .[] as $i ([];
          if (length == 0) or (.[-1].e < $i.s)
          then . + [$i]
@@ -135,17 +194,18 @@ SUMMARY="$(jq -s '
      | map(.e - .s) | add // 0) as $agent_span
 
   | { empty: false,
-      trail: ($trail | join(" → ")),
+      trail: (if ($trail | length) == 0 then "not announced" else ($trail | join(" → ")) end),
       elapsed: $elapsed, waiting: $waiting,
       tool_total: ($tools | length),
       tool_top: ([ $tools | group_by(.)[] | { n: length, name: (.[0] | ascii_downcase | split("__") | last) } ]
                  | sort_by(-.n) | .[0:3]),
       out_tok: $out_tok, cache_tok: $cache_tok,
       agents: $agents,
-      agent_tokens: ([ $agents[].tokens ] | add // 0),
-      agent_ms: ([ $agents[].ms ] | add // 0),
+      unmeasured: (($agents | length) - ($priced | length)),
+      agent_tokens: ([ $priced[].tokens ] | add // 0),
+      agent_ms: ([ $priced[].ms ] | add // 0),
       concurrency: (if $agent_span > 0
-                    then (([ $agents[].ms ] | add // 0) / 1000) / $agent_span
+                    then (([ $priced[].ms ] | add // 0) / 1000) / $agent_span
                     else 0 end) }
   end
 ' "$TRANSCRIPT" 2>/dev/null)"
@@ -229,24 +289,38 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 count=$(g '.agents | length')
+unmeasured=$(g '.unmeasured')
 if [ "$count" -eq 0 ]; then
   printf 'agents    none dispatched\n'
 else
-  # 1.0× means every agent had the clock to itself. On a plan whose graph had
-  # independent tasks in it, that number is the finding.
-  printf 'agents    %s dispatched · %s tok · %s wall · %s× concurrent\n' \
-    "$count" "$(tok "$(g '.agent_tokens')")" "$(dur "$(( $(g '.agent_ms') / 1000 ))")" \
-    "$(printf '%.1f' "$(g '.concurrency')")"
+  if [ "$count" -eq "$unmeasured" ]; then
+    # Every agent was handed back before it ran, so there is no cost to report
+    # and none to invent. Saying so beats a row of zeroes that reads as a total.
+    printf 'agents    %s dispatched · cost not reported\n' "$count"
+  else
+    # 1.0× means every agent had the clock to itself. On a plan whose graph had
+    # independent tasks in it, that number is the finding.
+    printf 'agents    %s dispatched · %s tok · %s wall · %s× concurrent' \
+      "$count" "$(tok "$(g '.agent_tokens')")" "$(dur "$(( $(g '.agent_ms') / 1000 ))")" \
+      "$(printf '%.1f' "$(g '.concurrency')")"
+    [ "$unmeasured" -gt 0 ] && printf ' · %s unmeasured' "$unmeasured"
+    printf '\n'
+  fi
 
   # Up to a dozen rows read as the narrative of the plan. Past that the order
   # stops helping, so show what the run actually spent on and say what is cut.
   if [ "$count" -le 12 ]; then rows='.agents[]'; else rows='(.agents | sort_by(-.tokens) | .[0:10][])'; fi
-  while IFS=$'\t' read -r label model status tokens ms tools; do
+  while IFS=$'\t' read -r label model status tokens ms tools measured; do
     model="${model#claude-}"; model="$(sed 's/-[0-9]\{8\}$//' <<<"$model")"
     [ "$status" = "completed" ] && status="" || status="  ($status)"
-    printf '  %-22.22s %-10s %6s  %7s  %s tools%s\n' \
-      "$label" "$model" "$(tok "$tokens")" "$(dur "$((ms / 1000))")" "$tools" "$status"
-  done < <(g "$rows | [.label, .model, .status, .tokens, .ms, .tools] | @tsv")
+    if [ "$measured" = "true" ]; then
+      printf '  %-22.22s %-10s %6s  %7s  %s tools%s\n' \
+        "$label" "$model" "$(tok "$tokens")" "$(dur "$((ms / 1000))")" "$tools" "$status"
+    else
+      printf '  %-22.22s %-10s %6s  %7s  %s%s\n' \
+        "$label" "$model" "-" "-" "cost not reported" "$status"
+    fi
+  done < <(g "$rows | [.label, .model, .status, .tokens, .ms, .tools, .measured] | @tsv")
 
   if [ "$count" -gt 12 ]; then
     printf '  +%s more · %s tok (dearest 10 shown)\n' \

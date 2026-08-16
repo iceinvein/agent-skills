@@ -33,12 +33,24 @@ chain and a finding for one whose graph was not, so read it against the plan
 rather than on its own. Nine agents at 1.0× on a plan with four independent
 tasks in it is a run that took four times longer than it needed to.
 
+An agent dispatched into the background is handed back before it runs, so the
+result the session sees carries no cost at all. The ledger reads that agent's
+own transcript instead, which is why a plan run entirely on dispatched agents
+still prices. Agent rows count output tokens, the same unit the run reports for
+itself, so they can be read against each other and against the run.
+
+Where that log has been cleaned up the row reads "cost not reported", the
+totals leave it out, and the agent line carries the count. That is a gap in
+what could be measured rather than a cheap run, and it needs a sentence from
+you: a smaller total must not be allowed to stand for the whole.
+
 Read it before you paste it. A row showing an agent that errored, or an agent
 whose token count dwarfs every other row, is a finding about the run and
 belongs in your prose, not left for your partner to spot in a table.
 
-Exit 2 means there was no run to report. That is a fact about the work, not a
-failure: do not synthesise a ledger to fill the gap.
+Exit 2 means neither an announcement nor an invocation of this skill was found,
+so there was no run to report. That is a fact about the work, not a failure: do
+not synthesise a ledger to fill the gap.
 
 The friction line: "I know roughly what this cost." Roughly is the problem.
 Every number here is already on disk, and the remembered version is reliably
