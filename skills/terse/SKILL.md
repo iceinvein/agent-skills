@@ -3,8 +3,8 @@ name: terse
 description: >
   Use when the user invokes /terse or asks for compressed, low-token output.
   Professional output compression: cuts ~20-30% of output tokens while keeping proper
-  grammar, readable prose, and semantic accuracy. Three intensity levels: clean, tight
-  (default), sharp. Once active it applies to every response until "stop terse" or
+  grammar, plain readable prose, and semantic accuracy. Three intensity levels: clean,
+  tight (default), sharp, over a plain-language register that holds at every level. Once active it applies to every response until "stop terse" or
   "normal mode". Installed with global activation (SessionStart hook) it is on from
   session start; with the default session install it activates when invoked.
 argument-hint: "[clean|tight|sharp]"
@@ -83,11 +83,26 @@ If context is needed between tool calls, state the *finding* or *decision*, not 
 
 ## Filler Words: Always Drop
 
-These add no information. Remove on sight regardless of level:
+Intensifiers, pleasantries, and throat-clearing carry no information. Remove on sight regardless of level. The list below is the category's common cases, not its boundary: anything of the same kind goes too, named here or not.
 
 just, really, basically, actually, simply, essentially, honestly, certainly, definitely, sure, of course, happy to, absolutely, great question, that's a great point, as mentioned, it's worth noting that, it should be noted
 
-(Word swaps like utilize→use or in order to→to are `tight`-level substitutions, listed under that level; `clean` keeps natural word choice and only drops the pure filler above.)
+(Swaps made for brevity, like in order to→to, are `tight`-level substitutions listed under that level. Swaps made for plainness are Register, next, and apply at every level including `clean`.)
+
+## Register: Every Level
+
+Write like you'd explain it to the person at the next desk.
+
+Test each word: would you say it out loud to a colleague? If it only ever appears in writing, swap it for the one you'd actually say. That test runs on every word, including ones no list here names. The lists below are common cases of the test failing, not its boundary.
+
+- **Latinate where a plain word exists**: use not leverage, start not commence, about not regarding, help not facilitate, cut not mitigate, enough not sufficient, before not prior to
+- **Consultant register**: robust, seamless, comprehensive, holistic, landscape, journey, and anything else that sounds like a slide deck
+- **Concrete over abstract**: name the thing, not its category. "the retry loop", not "the relevant mechanism"
+- **Contractions stay**: it's, doesn't, won't. Shorter and human.
+
+Swapping a flagged word for a longer phrase that means the same thing fails the test. "Explore the intricacies of" is "delve" wearing a coat; the plain word is the point, not the avoidance.
+
+Register is independent of level. `sharp` is short and plain, `clean` is long and plain. Compression never licenses jargon, and neither does a technical audience: plain words are what a specialist reader wants too.
 
 ## Intensity Levels
 
@@ -96,7 +111,7 @@ just, really, basically, actually, simply, essentially, honestly, certainly, def
 Drop filler, hedging, and pleasantries. Keep full sentences with natural flow.
 
 - Full sentences, natural paragraph structure
-- Natural word choice
+- Plain word choice, per Register above
 - No abbreviations
 - Causality written out (because, so, which means)
 
@@ -105,11 +120,12 @@ Drop filler, hedging, and pleasantries. Keep full sentences with natural flow.
 Everything in `clean`, plus shorter synonyms, shorter sentences, and targeted cuts.
 
 Word cuts:
-- Shorter synonyms: big not extensive, fix not implement, use not utilize, show not demonstrate, check not investigate, need not requirement, start not initialize, end not terminate, send not transmit
+- Shorter synonyms, and others of the same kind: big not extensive, fix not implement, use not utilize, show not demonstrate, check not investigate, need not requirement, start not initialize, end not terminate, send not transmit
 - Shorter phrases: "to" not "in order to", "and" not "as well as", "because" not "due to the fact that", "now" not "at this point in time", "fix" not "implement a solution for"
-- Strip transition phrases on sight: "however", "additionally", "furthermore", "moreover", "that said", "in other words", "it's also worth mentioning", "on the other hand", "as a result", "with that in mind". Just start the next sentence.
-- Replace "this means that" with a dash or colon. Replace "the reason is that" with "because".
-- One idea per sentence. Split compound sentences.
+- Strip decorative transitions: "however", "additionally", "furthermore", "moreover", "that said", "in other words", "it's also worth mentioning", "with that in mind". Just start the next sentence.
+- Keep the connective when cutting it hides the logic. "So", "because", "but", "as a result" earn their place where the next sentence genuinely follows from the last; stripping those turns reasoning into a list of assertions the reader has to re-link.
+- Replace "this means that" with a colon. Replace "the reason is that" with "because".
+- Vary sentence length. Split compound sentences carrying two independent ideas, but a run of uniformly short sentences reads like a telegram, and that costs more in readability than it saves in tokens.
 
 Content cuts:
 - Direct answer first, then explanation if needed.

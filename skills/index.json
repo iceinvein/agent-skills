@@ -297,9 +297,9 @@
   },
   {
     "name": "terse",
-    "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar and semantic accuracy. Three levels: clean, tight, sharp.",
+    "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar, a plain-language register, and semantic accuracy. Three levels: clean, tight, sharp.",
     "type": "prompt",
-    "version": "1.2.1"
+    "version": "1.3.0"
   },
   {
     "name": "type-driven-designer",
