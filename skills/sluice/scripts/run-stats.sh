@@ -95,9 +95,13 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" '
       .message.content[]? | select(.type == "tool_use" and .name == "Skill")
       | select((.input.skill // "") == "sluice")
     ] | length > 0);
+  # A call carrying --transcript is reading another run rather than closing
+  # this one. Without that exception, a session working on the ledger
+  # clips its own run at the last session it tested against.
   def is_stats_call: (.type == "assistant") and ([
       .message.content[]? | select(.type == "tool_use" and .name == "Bash")
       | select((.input.command // "") | test("run-stats\\.sh"))
+      | select((.input.command // "") | test("--transcript") | not)
     ] | length > 0);
   # Waiting is any turn the partner had to take: a prompt, or an answer to a
   # question you put to them. Leaving the latter out understates the wait on

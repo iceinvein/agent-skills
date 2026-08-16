@@ -140,6 +140,16 @@ function mainChannelRun(): Line[] {
 	];
 }
 
+describe("run-stats: the script itself", () => {
+	test("parses", () => {
+		// The jq program is one single-quoted string, so an apostrophe in a
+		// comment inside it ends that string and breaks the script.
+		const proc = Bun.spawnSync(["bash", "-n", SCRIPT]);
+		expect(new TextDecoder().decode(proc.stderr)).toBe("");
+		expect(proc.exitCode).toBe(0);
+	});
+});
+
 describe("run-stats: run boundaries", () => {
 	test("prints nothing and exits 2 when no channel was announced", async () => {
 		const path = writeTranscript([
@@ -183,6 +193,29 @@ describe("run-stats: run boundaries", () => {
 		expect(out).toContain("main");
 		expect(out).not.toContain("deep");
 		expect(out).toContain("1m50s");
+	});
+
+	test("a ledger read against another transcript does not end this run", async () => {
+		// A session working on the ledger runs it against other sessions to check
+		// it. Those calls report somebody else's run and must not clip this one.
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "fix the ledger"),
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing interfaces.", [
+				toolUse("t1", "Bash", { command: "ls" }),
+			]),
+			assistant("2026-08-08T09:01:00.000Z", "Checking it against a real session.", [
+				toolUse("t2", "Bash", {
+					command: "bash skills/sluice/scripts/run-stats.sh --transcript ~/other.jsonl",
+				}),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Fast channel still. Now the fix.", [
+				toolUse("t3", "Edit", {}),
+			]),
+			assistant("2026-08-08T09:03:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		// From the first announcement, not from the second one after that call.
+		expect(out).toMatch(/elapsed\s+2m50s/);
 	});
 });
 
