@@ -107,6 +107,21 @@ review options are. Skipping it is how "review outstanding" first appears in
 the closing summary, at the one moment your partner can no longer do anything
 about it.
 
+## The run record
+
+A `deep` run outlives its own context, so what it learns has to sit on disk
+rather than in the session. Keep one file for the run and write it as you go.
+It holds what a stranger resuming tomorrow would need and you would otherwise
+be recalling: the base each task was dispatched from, each task with its status
+and its commits, the review decisions pre-flight settled and the reason each
+one was settled that way, and any finding belonging to a task other than the
+one that surfaced it.
+
+Where it goes follows the repo if the repo has a convention, and
+`docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. Assembling it at
+handback defeats it: a record written from memory is memory, which is the one
+thing the file exists to replace.
+
 ## Dispatch rules
 
 Read the plan as a graph before you read it as a list. `Needs` and `Offers`
@@ -121,8 +136,8 @@ Derive the sets at dispatch rather than writing wave numbers into the plan. A
 declared schedule is wrong the moment one task lands late or comes back with a
 blocking finding. A derived one just recomputes.
 
-- One `TaskCreate` per task, marked in progress then complete. That state
-  outlives compaction; your memory doesn't.
+- One line per task in the run record, marked in progress then complete as it
+  moves. That state outlives compaction; your memory doesn't.
 - Each task goes to a fresh agent with that task's text and nothing else.
   What this session accumulated is yours to hold, not theirs.
 - **Fan out wherever the graph allows.** Work that does not write is always
@@ -171,8 +186,8 @@ not the summary at the end where it reads as an excuse.
 Three things change. The plan stops being a brief for strangers and becomes
 your own worklist, which makes its handback the only outside read it will ever
 get rather than a formality on the way to dispatch. Task isolation is gone, so
-`TaskCreate` now carries all of the state that outlives compaction and matters
-more, not less. And fresh context is unavailable, which was the entire thing
+the run record now carries all of the state that outlives compaction and
+matters more, not less. And fresh context is unavailable, which was the entire thing
 review was buying.
 
 One thing does not change: the work still owes a review. Reading your own diff
@@ -225,8 +240,8 @@ a reviewer writes nothing, so it collides with nothing. The final review is
 the only one that waits, because it is the only one that needs everything to
 have landed.
 
-Record the base in the task's `TaskCreate` entry when you dispatch, before the
-agent's first commit lands. Recovering it afterwards is archaeology, and the
+Record the base against that task in the run record when you dispatch, before
+the agent's first commit lands. Recovering it afterwards is archaeology, and the
 answer you will guess at is `HEAD~1`, which `references/review.md` already
 names as the standing mistake.
 
@@ -260,8 +275,8 @@ Contracts mean tasks are built blind, so a reviewer reading Task 6 will
 sometimes be right about Task 2. That finding fits neither destination: Task
 6's agent cannot act on it, and it does not quietly become yours to fix.
 
-Record it on the earlier task's `TaskCreate` entry, and send it to that task's
-agent as well if that agent is still live. If it invalidates an `Offers` that
+Record it against the earlier task in the run record, and send it to that
+task's agent as well if that agent is still live. If it invalidates an `Offers` that
 later tasks have already built against, it has stopped being a finding and
 become a plan change, which is your partner's call rather than something to
 absorb into the next task's brief.

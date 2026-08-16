@@ -109,8 +109,8 @@ dependency edges and `Touches` says what cannot overlap, so which tasks may
 run at once is derivable rather than guessed. Fan out wherever that graph
 allows; serial is the fallback for where it doesn't, not the default.
 
-Then read `references/deep-channel.md` for the plan format, that stop,
-the dispatch rules, and when a task actually needs a reviewer. Three that
+Then read `references/deep-channel.md` for the plan format, that stop, the run
+record, the dispatch rules, and when a task actually needs a reviewer. Three that
 catch people out: concurrent implementers need a worktree each and the flip
 runs alone, review is tiered rather than automatic, and a `deep` run that
 cannot dispatch has to replace the review tier with something, not quietly
