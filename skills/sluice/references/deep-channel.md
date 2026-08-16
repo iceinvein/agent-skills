@@ -60,11 +60,20 @@ Split it. A plan with none is not a `deep` plan: nothing in it does anything.
 
 ## Pre-flight
 
-Design signed off, plan written, nothing built yet. Before Task 1, stop once
-and settle two things with your partner. Ask them as questions with options,
-not as a paragraph they have to reply to in prose: what you are after is a
-decision, and a wall of considerations asks them to extract the decision from
-it first.
+Design signed off, plan written, nothing built yet. Before Task 1, hand back
+once and settle two things with your partner. Ask them as questions with
+options, not as a paragraph they have to reply to in prose: what you are after
+is a decision, and a wall of considerations asks them to extract the decision
+from it first.
+
+This handback is the plan's sign-off as well, so it ends your turn, and a
+question tool does not end it for you. That tool returns an answer without
+returning control: two options came back, the plan itself did not, and your
+partner reads the summary of it in the same message as Task 1's first edit,
+by which point their only remaining move is to interrupt. Ask the questions,
+then end the turn on the answers and let the next instruction start the
+build. If the answers arrive with that instruction already attached, you have
+your sign-off and Task 1 begins.
 
 **Review.** Name the tasks the table below sends to a reviewer, each with the
 trigger that qualified it, and say how many of the rest skip with a ledger
@@ -159,8 +168,9 @@ unavailable, where there is nothing to ask.
 say so is the routing announcement, where your partner can still act on it,
 not the summary at the end where it reads as an excuse.
 
-Three things change. The plan becomes your own worklist and needs no sign-off,
-since you are the only one who will ever read it. Task isolation is gone, so
+Three things change. The plan stops being a brief for strangers and becomes
+your own worklist, which makes its handback the only outside read it will ever
+get rather than a formality on the way to dispatch. Task isolation is gone, so
 `TaskCreate` now carries all of the state that outlives compaction and matters
 more, not less. And fresh context is unavailable, which was the entire thing
 review was buying.

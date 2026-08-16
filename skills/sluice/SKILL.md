@@ -20,10 +20,13 @@ announcement is how your partner redirects you without being asked.
 | `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." |
 | `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
 
+Two subsystems is `main`; the third is what makes it `deep`.
+
 `bypass`, `fast`, and `main` proceed without stopping for approval; only
-`deep` stops. It stops for design sign-off before code, again for the plan
-when agents rather than you will carry it out, and once more at pre-flight
-before Task 1, to settle review and workspace.
+`deep` stops: once for design sign-off before code, once for the plan and
+pre-flight together before Task 1. A stop ends your turn. Asking a question
+with a tool is not one, however many options it carried: the answer comes
+back to you and the run never left your hands.
 
 Name the channel and the signal that actually routed you there. The strings above
 are examples, not fixed copy, and a channel with a two-part signal should say
@@ -36,6 +39,9 @@ account for. An integration event, merging, pushing, or opening a PR, triggers
 the second. Handing the work back triggers the third, whether or not it ever
 reaches an integration event. The first two fire in every channel, `bypass`
 included; `meter` cannot, because `bypass` announces nothing to measure from.
+A question that turns on how something looks is triggered the same way and in
+any channel: `references/show-or-say.md` decides whether to show it or say it,
+and `bypass` is where it comes up most.
 
 ## The rules
 
@@ -79,18 +85,23 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
-The plan needs sign-off as well whenever agents will execute it, because each
-one sees only its own task and so nobody ever reads the plan whole. Executing
-it yourself makes it a worklist instead: write it and carry on.
+The plan gets a stop of its own, whoever executes it. Dispatched agents each
+see only their own task, so nobody reads it whole; executing it yourself is
+the weaker case rather than the exempt one, because then nobody reads it but
+its author.
 
 Order the plan so the tasks that change nothing come first, and mark the one
 task that turns the new behaviour on. Then a late re-baseline, re-blessed
 snapshots, regenerated fixtures, attributes to that one point instead of to
 the branch at large.
 
-Before Task 1, stop once and ask which flagged tasks get a reviewer and
-whether the work runs in a worktree. Ask it as a choice with the counts in
-it, never as a paragraph. Review that turns out to be missing is only
+Pre-flight rides in the plan's stop: which flagged tasks get a reviewer, and
+whether the work runs in a worktree. Ask them as choices with the counts in
+them, never as a paragraph, then end the turn on the answers rather than
+opening Task 1 with them. A session that dispatches only when asked has not
+ruled dispatch out, it has made this question the place to ask. Genuine
+unavailability is the tool not being there at all, which is a different case
+and a different paragraph. Review that turns out to be missing is only
 actionable while the plan can still change.
 
 Read the plan as a graph rather than a list. `Needs` and `Offers` are
@@ -98,7 +109,7 @@ dependency edges and `Touches` says what cannot overlap, so which tasks may
 run at once is derivable rather than guessed. Fan out wherever that graph
 allows; serial is the fallback for where it doesn't, not the default.
 
-Then read `references/deep-channel.md` for the plan format, that checkpoint,
+Then read `references/deep-channel.md` for the plan format, that stop,
 the dispatch rules, and when a task actually needs a reviewer. Three that
 catch people out: concurrent implementers need a worktree each and the flip
 runs alone, review is tiered rather than automatic, and a `deep` run that
@@ -107,7 +118,12 @@ ship without one.
 
 ## Conflicts
 
-Sluice cannot run alongside the superpowers plugin. Superpowers requires its
-own fixed pipeline up front for anything that adds to or changes what the
-software does, not just code edits, and that pipeline overrides this router
-outright, so the two cannot be installed together.
+Sluice cannot run alongside the superpowers pipeline. Superpowers requires its
+own fixed sequence up front for anything that adds to or changes what the
+software does, not just code edits, and that sequence overrides this router
+outright.
+
+The test is whether that pipeline governs the work in front of you, not whether
+a plugin is installed. A repo whose own instructions mandate the sequence rules
+this router out exactly as the plugin does, with the plugin disabled or absent.
+Stand down and say so once, in the same breath you would have named a channel.

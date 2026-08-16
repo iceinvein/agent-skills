@@ -47,18 +47,23 @@ reviews, and it spends context the plan still needs.
 
 ## When you cannot dispatch
 
-A session may withhold subagents, or grant them only on request. The review is
-owed either way. `deep` has its own treatment in `references/deep-channel.md`,
-where there is a plan to shrink and a tier table to argue from; this is the
-`main` case, which has neither.
+Separate the two cases before you say anything. A session that grants subagents
+only on request has not withheld them: asking is the whole procedure, and a
+claim that you cannot dispatch is false there. A session that withholds them
+outright is the one this section is about. The review is owed either way.
+`deep` has its own treatment in `references/deep-channel.md`, where there is a
+plan to shrink and a tier table to argue from; this is the `main` case, which
+has neither.
 
 Say it twice, and only twice.
 
-The first time is the routing announcement, in the same breath as the channel:
-"Main channel, new interface. I cannot dispatch a reviewer in this session, so
-this merges unreviewed unless you want one." That is the moment it is still a
-decision. Your partner can authorise the dispatch, split the change, or accept
-the gap knowingly. The same words at the end are a disclaimer.
+The first time is the routing announcement, in the same breath as the channel.
+Withheld: "Main channel, new interface. I cannot dispatch a reviewer in this
+session, so this merges unreviewed unless you want one." On request: "Main
+channel, new interface. A reviewer is one dispatch away if you want one, and
+without it this merges unreviewed." Either way, that is the moment it is still
+a decision. Your partner can authorise the dispatch, split the change, or
+accept the gap knowingly. The same words at the end are a disclaimer.
 
 The second is the integration event, where `references/finish.md` puts the
 three options. Review status belongs beside them, because it is part of what
