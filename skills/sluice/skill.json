@@ -1,6 +1,6 @@
 {
   "name": "sluice",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries seven rules as one-liners in the router and the full treatment in references read only on friction, and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only; conflicts with the superpowers plugin.",
   "author": "iceinvein",
   "type": "prompt",
