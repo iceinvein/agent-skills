@@ -105,7 +105,11 @@ test('killServer escalates to SIGKILL when SIGTERM is ignored', async () => {
   expect(result.outcome).toBe('sigkill')
   expect(result.pid).toBe(child.pid)
   await child.exited
-})
+  // Everything asserted here is bounded: killServer polls to a 200ms deadline
+  // and then signals. The clock this test can actually run out of is subprocess
+  // startup, seven git spawns in beforeEach plus a cold `node`, which on a
+  // shared runner has overrun the 5s default and failed a release.
+}, 30_000)
 
 test('runCleanup logs kill outcome to log.jsonl', async () => {
   await writeFile(join(runDir, 'log.jsonl'), '')

@@ -23,14 +23,16 @@ jobs:
         run: bun install
         working-directory: skills/magpie
 
-      - run: bun test
-
-      - run: bun build src/cli/index.ts --outdir dist/cli --target node
-
+      # Before the tests, not after: some of them spawn `node`, and without this
+      # that is whatever the runner image happens to ship.
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
+
+      - run: bun test
+
+      - run: bun build src/cli/index.ts --outdir dist/cli --target node
 
       - name: Publish with npm 11 (bypasses broken bundled npm)
         run: |
