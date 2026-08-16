@@ -221,7 +221,7 @@
     "name": "magpie",
     "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting findings to post via gh. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
     "type": "prompt",
-    "version": "0.10.0"
+    "version": "0.10.1"
   },
   {
     "name": "migrate",
@@ -281,9 +281,9 @@
   },
   {
     "name": "sluice",
-    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries seven rules as one-liners in the router and the full treatment in references read only on friction, and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only; conflicts with the superpowers plugin.",
+    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries seven rules as one-liners in the router and the full treatment in references read only on friction, and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Claude Code only; stands down where the superpowers pipeline governs the repo.",
     "type": "prompt",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   {
     "name": "temporal-coupling-detector",
