@@ -124,6 +124,16 @@ repo, a lint target that resolves through a symlink, a build that needs its own
 install, belongs in the option text where it can affect the answer, not in a
 footnote after they have chosen.
 
+That question settles where the implementers run, not whether a task may be
+dispatched at all, and the shared-tree and current-branch options have to say
+so: under either, a single task still goes to its own agent where the reading
+would otherwise land here, announced when it happens. Put it in the option text
+rather than leaving it to be inferred. Unsaid, it is not in what your partner
+agreed to, and a session that dispatches only when asked then has to stop
+mid-run to ask for the one dispatch that would have paid. Do not name the tasks
+here: which one turns out read-heavy is not knowable yet, and a list written now
+is the declared schedule the dispatch rules reject.
+
 If one of the two has only one live answer, say which and ask the other. A stop
 down to a single question is still a stop.
 
@@ -163,6 +173,14 @@ blocking finding. A derived one just recomputes.
 - **Fan out wherever the graph allows.** Work that does not write is always
   safe and always parallel: investigations, searches and reviewers, one agent
   per question, all in one message so they run at once.
+- **A single task can still be dispatched from a shared tree.** What that
+  answer bought was serial implementers, and one agent at a time satisfies it,
+  so the escalation stays open per task instead of being foreclosed at
+  pre-flight. Take it where the reading dwarfs the diff: the task's own text
+  calls for a survey before the edit, its gates are the noisy ones, or this
+  session has already been summarised once and what is left is scarce. Say it
+  out loud and put the row in the run record with its reason, because otherwise
+  the record says controller-run and the transcript says otherwise.
 - **Concurrent implementers need a worktree each.** Disjoint `Touches` is
   necessary and no longer sufficient: agents commit their own tasks, so two
   in one tree contend on the git index and on `HEAD` even when their files

@@ -89,3 +89,45 @@ describe("sluice pre-flight", () => {
 		expect(section(DEEP, "The run record")).toContain("pre-flight");
 	});
 });
+
+// The workspace answer settles where implementers run, which is not the same as
+// whether any task may be dispatched. Left conflated, a controller-run answer reads
+// as forbidding the one dispatch that would have paid: the task whose reading dwarfs
+// its diff.
+describe("sluice per-task dispatch", () => {
+	/**
+	 * The passage the workspace question's option text is written from: its lead
+	 * paragraph through to the next bolded one, so the permission may sit in a
+	 * paragraph of its own rather than be crammed into the first.
+	 */
+	function workspace(): string {
+		const paras = section(DEEP, "Pre-flight").split("\n\n");
+		const at = paras.findIndex((p) => p.startsWith("**Workspace"));
+		expect(at).toBeGreaterThan(-1);
+		const end = paras.findIndex((p, i) => i > at && p.startsWith("**"));
+		return paras.slice(at, end === -1 ? undefined : end).join("\n\n");
+	}
+
+	test("the workspace question keeps per-task dispatch open under a shared tree", () => {
+		const para = workspace();
+		expect(para).toMatch(/dispatch/i);
+		expect(para).toMatch(/single task|one task/i);
+	});
+
+	test("it separates where implementers run from whether dispatch is allowed", () => {
+		expect(workspace()).toMatch(/not whether/i);
+	});
+
+	test("the escalation carries observable triggers rather than judgement", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		expect(rules).toMatch(/survey/i);
+		expect(rules).toMatch(/summarised/i);
+	});
+
+	test("a mid-run dispatch lands in the run record like the answers it departs from", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		const bullet = rules.split("\n- ").find((b) => /single task/i.test(b));
+		expect(bullet).toBeDefined();
+		expect(bullet).toMatch(/run record/i);
+	});
+});
