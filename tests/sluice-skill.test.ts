@@ -88,6 +88,52 @@ describe("sluice pre-flight", () => {
 	test("the run record claims pre-flight's answers as its own first rows", () => {
 		expect(section(DEEP, "The run record")).toContain("pre-flight");
 	});
+
+	// The answers land in run.json and the reasons in the record, so the gate names
+	// both. Named as one file, whichever half a reader pictures is the half that
+	// gets written, and the other is the one nobody notices is missing.
+	test("the gate names the command that records the answers", () => {
+		expect(section(DEEP, "Pre-flight")).toContain("status.sh preflight");
+	});
+});
+
+// A run visible only to the session running it cannot be redirected, which is the
+// same argument the channel announcement makes. run.json is what carries it past
+// the announcement, so status has to have exactly one home.
+describe("sluice run state", () => {
+	const STATUS = readFileSync(join(dir, "references", "status.md"), "utf8");
+
+	test("the router points at the state file and its reference", () => {
+		const deep = section(SKILL, "Deep channel");
+		expect(deep).toContain(".sluice/run.json");
+		expect(deep).toContain("references/status.md");
+	});
+
+	test("the record section hands status to run.json and keeps the reasons", () => {
+		const record = section(DEEP, "The run record");
+		expect(record).toContain(".sluice/run.json");
+		expect(record).toMatch(/no longer carries task rows/i);
+		expect(record).toMatch(/reason/i);
+	});
+
+	test("the reference says status has one home, so the two cannot drift", () => {
+		expect(STATUS).toMatch(/owns status/i);
+		expect(STATUS).toMatch(/drift/i);
+	});
+
+	test("the statusline segment is carried literally, not described", () => {
+		const fenced = fencedBlocks(STATUS).find((b) => b.includes("statusline") || b.includes("sluice_line"));
+		expect(fenced).toBeDefined();
+		expect(fenced).toContain("run.json");
+		expect(fenced).toContain("status.sh");
+	});
+
+	// A status bar renders on every keystroke and has nowhere to put an error, so
+	// the silent-and-zero contract is the one property the caller depends on.
+	test("the reference states the silent contract the statusline relies on", () => {
+		expect(STATUS).toMatch(/silen(t|ce)/i);
+		expect(STATUS).toMatch(/exits? 0/i);
+	});
 });
 
 // The workspace answer settles where implementers run, which is not the same as

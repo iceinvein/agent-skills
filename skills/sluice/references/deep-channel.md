@@ -72,14 +72,28 @@ Split it. A plan with none is not a `deep` plan: nothing in it does anything.
 ## The run record
 
 A `deep` run outlives its own context, so what it learns has to sit on disk
-rather than in the session. Open one file for the run before pre-flight and
-write it as you go. It holds what a stranger resuming tomorrow would need and
-you would otherwise be recalling: the base each task was dispatched from, each
-task with its status and its commits, the three answers pre-flight settled,
-review, model and workspace, with the reason each one went that way, and any finding
-belonging to a task other than the one that surfaced it. Those pre-flight rows
-come first and open the file, because they are also what says the stop happened
-at all.
+rather than in the session. That lands in two files, and which one a thing goes
+in follows from who has to read it.
+
+`.sluice/run.json` holds the state that moves: each task with its status, base
+and commit, its tier, its `Model` mark and its `Flips` line, and the answers
+pre-flight settled. `scripts/status.sh` writes and reads it, and
+`references/status.md` carries the commands and the statusline segment that
+makes a run visible without anyone asking. Open it with `init` when you open the
+record and flip each task as it moves, one command per transition.
+
+The record is the other file, and it holds what a status cannot: the reason
+review went the way it did, the reason a task was downshifted, the reason the
+workspace answer went that way, any finding belonging to a task other than the
+one that surfaced it, and whatever else a stranger resuming tomorrow would need
+and could not derive. **It no longer carries task rows with statuses in them.**
+Status written in both places drifts, and once it has there are two answers and
+nothing to say which is stale.
+
+Pre-flight lands in both, which is the one deliberate overlap: `run.json` holds
+the answer, so the file can say whether the stop happened at all, and the record
+holds the reason, so a reader can tell whether it should have gone that way.
+Those rows come first and open the record for the same reason they always did.
 
 Where it goes follows the repo if the repo has a convention, and
 `docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. It belongs to you
@@ -88,11 +102,12 @@ task's `Touches` names it, and you commit it yourself alongside the plan.
 Assembling it at handback defeats it: a record written from memory is memory,
 which is the one thing the file exists to replace.
 
-A file only outlives compaction if you go back to it. Read it before the next
-dispatch whenever this session has been summarised, and treat what it says over
-what you remember, including where the two agree. Each task closes by writing
-its commit into the record, which means asking the implementer to report the
-SHA it committed and putting that in the row rather than deriving it later.
+A file only outlives compaction if you go back to it. Run `status.sh show` and
+read the record before the next dispatch whenever this session has been
+summarised, and treat what they say over what you remember, including where the
+two agree. Each task closes by writing its commit into `run.json`, which means
+asking the implementer to report the SHA it committed and passing it to
+`status.sh task <id> --status done --commit <sha>` rather than deriving it later.
 
 ## Pre-flight
 
@@ -155,9 +170,10 @@ is the declared schedule the dispatch rules reject.
 If one of the two has only one live answer, say which and ask the other. A stop
 down to a single question is still a stop.
 
-**Write the answers into the run record before Task 1's first edit.** Both of
-them, each with the reason it went that way. This is what discharges pre-flight,
-rather than the approval you got, and the distinction is the whole point: a stop
+**Write the answers down before Task 1's first edit.** Both files:
+`status.sh preflight` for the answers, the run record for the reason each one
+went that way. That pair is what discharges pre-flight, rather than the
+approval you got, and the distinction is the whole point: a stop
 that carries the plan and pre-flight together has one reply for two obligations,
 so a bare "yes" satisfies the plan and leaves no trace either way of the
 questions. Rows in a file leave that trace. If Task 1 is about to open and the
@@ -184,7 +200,7 @@ Derive the sets at dispatch rather than writing wave numbers into the plan. A
 declared schedule is wrong the moment one task lands late or comes back with a
 blocking finding. A derived one just recomputes.
 
-- One line per task in the run record, marked in progress then complete as it
+- One row per task in `run.json`, flipped to `active` and then `done` as it
   moves. That state outlives compaction; your memory doesn't.
 - Each task goes to a fresh agent with that task's text and nothing else.
   What this session accumulated is yours to hold, not theirs.
@@ -246,8 +262,8 @@ Three things change. The plan stops being a brief for strangers and becomes
 your own worklist, so its stop is no longer buying alignment with the agents
 who will carry it out, only your partner's read of work you will do yourself.
 Task isolation is gone, so
-the run record now carries all of the state that outlives compaction and
-matters more, not less. And fresh context is unavailable, which was the entire thing
+`run.json` and the record now carry all of the state that outlives compaction
+and matter more, not less. And fresh context is unavailable, which was the entire thing
 review was buying.
 
 One thing does not change: the work still owes a review. Reading your own diff
@@ -307,8 +323,8 @@ a reviewer writes nothing, so it collides with nothing. The final review is
 the only one that waits, because it is the only one that needs everything to
 have landed.
 
-Record the base against that task in the run record when you dispatch, before
-the agent's first commit lands. Recovering it afterwards is archaeology, and the
+Record the base against that task with `status.sh task <id> --base <sha>` when
+you dispatch, before the agent's first commit lands. Recovering it afterwards is archaeology, and the
 answer you will guess at is `HEAD~1`, which `references/review.md` already
 names as the standing mistake.
 

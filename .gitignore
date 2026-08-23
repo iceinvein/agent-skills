@@ -18,3 +18,5 @@ terse-workspace
 # Skill install artifacts when dogfooding agent-skills in this repo
 .claude/
 AGENTS.md
+# sluice run state: working state, not history. The run record is what gets committed.
+.sluice/

@@ -90,6 +90,12 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
+The run's state goes in `.sluice/run.json`, written a command at a time by
+`scripts/status.sh`. That is what makes the breakdown readable from outside the
+session running it: a statusline segment while it runs, `status.sh show` after a
+compaction, and neither costing your partner a turn to ask.
+`references/status.md`
+
 **Read `references/deep-channel.md` before you write the plan.** It carries the
 plan format, the pre-flight questions, the run record, the dispatch rules and
 the review tiers, and none of those are derivable from what is on this page.
@@ -141,10 +147,11 @@ this question the place to ask; genuine unavailability is the tool not being
 there at all, which `references/deep-channel.md` handles separately. Review that
 turns out to be missing is only actionable while the plan can still change.
 
-All three answers go into the run record before Task 1's first edit, each with
-the reason it went that way. Those rows are what discharge pre-flight, not the
-approval: one reply arrives for several obligations, so a "yes" with no rows
-behind it signed off the plan and nothing else.
+All three answers go into `run.json` and the run record before Task 1's first
+edit, the answer in the first and the reason in the second. Those rows are what
+discharge pre-flight, not the approval: one reply arrives for several
+obligations, so a "yes" with no rows behind it signed off the plan and nothing
+else.
 
 Three from that file that catch people out: concurrent implementers need a
 worktree each and the flip runs alone, review is tiered rather than automatic,
