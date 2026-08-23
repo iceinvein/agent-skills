@@ -112,6 +112,7 @@ plan:
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
+**Model:** <cheaper model, and why the work is mechanical, or omit>
 - [ ] <action> -> <proof>
 ```
 
@@ -130,19 +131,20 @@ task that turns the new behaviour on with `Flips`. Then a late re-baseline,
 re-blessed snapshots, regenerated fixtures, attributes to that one point
 instead of to the branch at large.
 
-Pre-flight rides in that same stop: which flagged tasks get a reviewer, and
-whether the work runs in a worktree. Ask them as choices with the counts in
-them, never as a paragraph, then end the turn. Task 1 opens on their next
+Pre-flight rides in that same stop: which flagged tasks get a reviewer, which
+mechanical ones the plan marked for a cheaper model, and whether the work runs
+in a worktree. Ask them as choices with the counts in them, never as a
+paragraph, then end the turn. Task 1 opens on their next
 instruction, and an answer that already carries one is that instruction. A
 session that dispatches only when asked has not ruled dispatch out, it has made
 this question the place to ask; genuine unavailability is the tool not being
 there at all, which `references/deep-channel.md` handles separately. Review that
 turns out to be missing is only actionable while the plan can still change.
 
-Both answers go into the run record before Task 1's first edit, each with the
-reason it went that way. Those rows are what discharge pre-flight, not the
-approval: one reply arrives for two obligations, so a "yes" with no rows behind
-it signed off the plan and nothing else.
+All three answers go into the run record before Task 1's first edit, each with
+the reason it went that way. Those rows are what discharge pre-flight, not the
+approval: one reply arrives for several obligations, so a "yes" with no rows
+behind it signed off the plan and nothing else.
 
 Three from that file that catch people out: concurrent implementers need a
 worktree each and the flip runs alone, review is tiered rather than automatic,

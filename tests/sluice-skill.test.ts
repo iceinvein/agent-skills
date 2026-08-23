@@ -60,7 +60,7 @@ describe("sluice deep channel", () => {
 
 	test("the skeleton names every field dispatch derives from", () => {
 		const skeleton = fencedBlocks(deep).find((b) => b.startsWith("# Plan:")) ?? "";
-		for (const field of ["Ground Rules", "Contract", "Needs", "Offers", "Touches", "Flips", "Review"]) {
+		for (const field of ["Ground Rules", "Contract", "Needs", "Offers", "Touches", "Flips", "Review", "Model"]) {
 			expect(skeleton).toContain(field);
 		}
 	});
@@ -129,5 +129,56 @@ describe("sluice per-task dispatch", () => {
 		const bullet = rules.split("\n- ").find((b) => /single task/i.test(b));
 		expect(bullet).toBeDefined();
 		expect(bullet).toMatch(/run record/i);
+	});
+});
+
+// "Stronger model" only means something against a baseline someone decided. With
+// every dispatch inheriting the session's model, a tier that escalates to a stronger
+// one escalates to the same one, and reads as a safeguard that is not there.
+describe("sluice model routing", () => {
+	test("no tier escalates to an unspecified stronger model", () => {
+		expect(DEEP).not.toMatch(/stronger[ -]model/i);
+	});
+
+	test("the skeleton carries the per-task model marker", () => {
+		const skeleton = fencedBlocks(DEEP).find((b) => b.startsWith("# Plan:")) ?? "";
+		expect(skeleton).toContain("**Model:**");
+	});
+
+	// Triviality is fixed once the Contract and Touches are written, so the judgement
+	// belongs to the plan. Left to the moment of dispatch, it is spent before the one
+	// stop where the partner could have priced it.
+	test("an unmarked task runs on the session's model", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /`Model`/.test(b));
+		expect(bullet).toBeDefined();
+		expect(bullet).toMatch(/session/i);
+	});
+
+	test("review never runs below the model that built the task", () => {
+		expect(section(DEEP, "Review policy")).toMatch(/never runs below|no lower than/i);
+	});
+
+	test("the tasks tier 3 catches cannot be downshifted", () => {
+		const rows = section(DEEP, "Review policy")
+			.split("\n")
+			.filter((l) => l.startsWith("| 3 |"));
+		expect(rows).toHaveLength(2);
+		for (const row of rows) expect(row).toMatch(/downshift/i);
+	});
+
+	test("pre-flight ratifies the plan's marks with the count in the question", () => {
+		const paras = section(DEEP, "Pre-flight").split("\n\n");
+		const at = paras.findIndex((p) => p.startsWith("**Model"));
+		expect(at).toBeGreaterThan(-1);
+		expect(paras[at]).toMatch(/count/i);
+	});
+
+	test("the router names the model question at the same stop", () => {
+		const paras = section(SKILL, "Deep channel").split("\n\n");
+		const at = paras.findIndex((p) => p.startsWith("Pre-flight"));
+		expect(at).toBeGreaterThan(-1);
+		expect(paras[at]).toMatch(/model/i);
 	});
 });

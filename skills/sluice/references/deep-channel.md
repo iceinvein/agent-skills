@@ -20,6 +20,16 @@
   corrupted concurrent run.
 - A **Review** field may name why the task needs the stronger tier (auth,
   data, money, concurrency); the table below decides otherwise.
+- A **Model** field may put the task on a cheaper model, and says why the work
+  is mechanical: the Contract is exact, the tests it has to satisfy already
+  exist, and nothing in it turns on judgment. Omit it and the task runs on this
+  session's model, so the marked tasks are the exceptions rather than the rule.
+  Anything the table below sends to tier 3 is disqualified, `Flips` with it:
+  those are the tasks where being wrong is expensive, and the saving is not
+  worth pricing against that. Mark it here rather than deciding at dispatch,
+  because whether a task is mechanical is fixed the moment its Contract and
+  Touches are written, and pre-flight is the last point your partner can price
+  it.
 - **Order the plan so the inert tasks come first.** A task is inert when it
   adds capability, config, a schema or a code path that nothing reads yet:
   landing it changes no observable behaviour, so it is safe to land alone and
@@ -45,6 +55,7 @@
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
+**Model:** <cheaper model, and why the work is mechanical, or omit>
 - [ ] <action> -> <proof>
 ```
 
@@ -64,8 +75,8 @@ A `deep` run outlives its own context, so what it learns has to sit on disk
 rather than in the session. Open one file for the run before pre-flight and
 write it as you go. It holds what a stranger resuming tomorrow would need and
 you would otherwise be recalling: the base each task was dispatched from, each
-task with its status and its commits, both answers pre-flight settled, review
-and workspace alike, with the reason each one went that way, and any finding
+task with its status and its commits, the three answers pre-flight settled,
+review, model and workspace, with the reason each one went that way, and any finding
 belonging to a task other than the one that surfaced it. Those pre-flight rows
 come first and open the file, because they are also what says the stop happened
 at all.
@@ -86,7 +97,7 @@ SHA it committed and putting that in the row rather than deriving it later.
 ## Pre-flight
 
 Design signed off, plan written, nothing built yet. Before Task 1, stop once
-and settle two things with your partner. Ask them as questions with options,
+and settle three things with your partner. Ask them as questions with options,
 not as a paragraph they have to reply to in prose: what you are after is a
 decision, and a wall of considerations asks them to extract the decision from
 it first.
@@ -103,10 +114,17 @@ your sign-off and Task 1 begins.
 **Review.** Name the tasks the table below sends to a reviewer, each with the
 trigger that qualified it, and say how many of the rest skip with a ledger
 line. Then offer the choice: dispatch a reviewer at each of them, dispatch
-only at the stronger-model tier, or hand back with those tasks listed as
+only at tier 3, or hand back with those tasks listed as
 review outstanding. The options are what makes the cost legible.
 "Four of nine need a reviewer" is a decision your partner can price; "I will
 review where appropriate" is not.
+
+**Model.** The plan already marked which tasks are mechanical, so this is a
+ratification rather than a fresh judgment, and it carries the count: six of
+nine on the cheaper model and three on this session's, take it, put everything
+on the session model, or name the exceptions. The count is what your partner
+prices. "I will use the cheaper model where it fits" prices nothing, and it
+also arrives after the tokens are spent.
 
 **Workspace, commits and concurrency.** One worktree for the plan, one per
 concurrent implementer, or straight onto the current branch; and with it who
@@ -201,8 +219,11 @@ blocking finding. A derived one just recomputes.
   authoring a message for a diff you did not write means reading that diff,
   which is the context dispatch exists to keep out of this session. Pre-flight
   can overturn it for a given run.
-- Match model to task: cheap for mechanical work, stronger for judgment
-  and final review.
+- **The plan and pre-flight decide the model, not the moment of dispatch.** A
+  task with no `Model` line goes out on this session's, and a downshift that
+  was neither marked nor ratified is a saving your partner never agreed to.
+  Reviewers are the other half of that rule: a review never runs below the
+  model that built the task, so a downshifted task's reviewer comes back up.
 
 A per-task commit is not an integration event. `references/finish.md` owns
 push, PR and merge, none of which happen here, and a standing instruction to
@@ -259,8 +280,15 @@ and it fails by printing success rather than by erroring.
 | 0 | Created files only, executable tests exist and pass, Contract matches | No dispatch. Read the commit stat yourself. |
 | 1 | Modified existing code, or later tasks build on it | One reviewer dispatch |
 | 2 | No executable test covers it: prose, config, docs | One reviewer dispatch; a stat cannot confirm the words are right |
-| 3 | Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch, stronger model |
-| 3 | Carries the `Flips` line | One reviewer dispatch, stronger model |
+| 3 | Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch; the task may not be downshifted |
+| 3 | Carries the `Flips` line | One reviewer dispatch; the task may not be downshifted |
+
+No tier buys a bigger model, because a plan that downshifted nothing has every
+agent on the same one, and a tier promising something stronger would be
+promising what is already in use. What a tier buys is a dispatch. The one model
+rule that holds across all of them is that a review never runs below the model
+that built the task, so tiers 1 and 2 over a downshifted task come back up to
+this session's.
 
 A task matching more than one row takes the highest tier of them. Tier is the
 number, not the row order and not which shape sounds more serious. A task that
@@ -323,8 +351,9 @@ absorb into the next task's brief.
 ## The final review
 
 It covers cross-task integration and everything the record accumulated, not
-lines a per-task review already cleared. It is a dispatch, on the stronger
-model, and it gets the whole-plan diff and the deferred findings as a list.
+lines a per-task review already cleared. It is a dispatch, on this session's
+model and never a downshifted one, and it gets the whole-plan diff and the
+deferred findings as a list.
 
 Size the brief to what it is actually carrying, and say which of two things it
 is. After nine per-task reviews cleared, it is an integration check. When
