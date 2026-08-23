@@ -46,6 +46,16 @@
   the instruction out again in full. "TBD" is another. So is naming a type
   or a function that no task in the plan ever creates.
 
+**Run `scripts/plan.sh validate <plan>` on the finished plan, before pre-flight.**
+Most of what this section asks for needs no judgement to check: a `Needs` no
+task `Offers`, a "TBD", a step deferring to a neighbour, a missing `Contract`,
+a plan with no flip or two of them, a `Model` mark on a task the tier table
+sends to tier 3. Those come back as errors with the task number on them. The
+warnings are the judgement calls left to you: a step with no proof, a `Needs`
+satisfied only by a later task, two tasks whose `Touches` overlap. Reading the
+plan yourself catches these on a good day, and the point of a check is the
+other kind of day.
+
 ```
 # Plan: <topic>
 ## Ground Rules
@@ -80,7 +90,10 @@ and commit, its tier, its `Model` mark and its `Flips` line, and the answers
 pre-flight settled. `scripts/status.sh` writes and reads it, and
 `references/status.md` carries the commands and the statusline segment that
 makes a run visible without anyone asking. Open it with `init` when you open the
-record and flip each task as it moves, one command per transition.
+record, seed the rows with `scripts/plan.sh import <plan>` rather than typing a
+command per task, then flip each task as it moves. Import is safe to re-run: it
+sets names, model marks and the flip, and leaves a status already recorded
+alone, so resuming after a compaction cannot rewind the run.
 
 The record is the other file, and it holds what a status cannot: the reason
 review went the way it did, the reason a task was downshifted, the reason the
@@ -108,6 +121,36 @@ summarised, and treat what they say over what you remember, including where the
 two agree. Each task closes by writing its commit into `run.json`, which means
 asking the implementer to report the SHA it committed and passing it to
 `status.sh task <id> --status done --commit <sha>` rather than deriving it later.
+
+## The design stop and plan mode
+
+The design stop is a stop because a plan written against the wrong design wastes
+a plan's worth of work. Sluice enforced it with a sentence, "a stop ends your
+turn", which is the weakest gate available in a harness that has a real one.
+
+Claude Code's plan mode is the real one. `EnterPlanMode` needs your partner's
+consent to enter, `ExitPlanMode` will not proceed without their approval, and
+edits are held shut in between, so the design cannot be quietly built against
+while it is still a draft. Take the design stop through it.
+
+What that changes: the design gets drafted in the plan file the harness names,
+and `ExitPlanMode` is the sign-off rather than a paragraph asking for one.
+
+What it does not replace is pre-flight. That stop wants three answers, and an
+approval is not an answer to any of them, so it stays where it is, after plan
+mode has exited and the plan is written. One enforced gate does not collapse two
+stops into one; it only makes the first of them hold.
+
+**The harness's plan file is not the artifact.** It belongs to the mode and not
+to the run. On approval, write the design to `docs/specs/YYYY-MM-DD-<topic>.md`,
+the plan to `docs/plans/YYYY-MM-DD-<topic>.md`, and open the run record and
+`run.json`. Those are the durable files, the ones a session resuming next week
+reads, and none of them is the one you drafted in.
+
+Where plan mode is unavailable, the prose stop is what you have and it is the
+same stop: end the turn on the design and let the next instruction start the
+plan. Nothing else about this section changes, because the obligation was never
+the mode's, only the enforcement was.
 
 ## Pre-flight
 
@@ -204,6 +247,11 @@ blocking finding. A derived one just recomputes.
   moves. That state outlives compaction; your memory doesn't.
 - Each task goes to a fresh agent with that task's text and nothing else.
   What this session accumulated is yours to hold, not theirs.
+- **Label the dispatch `T<n>: <task name>`.** The harness lists running agents
+  under whatever label the dispatch gave them, so labelled by task that list
+  reads as the plan and labelled anything else it reads as a row of anonymous
+  agents. It costs nothing and it is the only place a partner can see which
+  task is in flight without asking.
 - **Fan out wherever the graph allows.** Work that does not write is always
   safe and always parallel: investigations, searches and reviewers, one agent
   per question, all in one message so they run at once.

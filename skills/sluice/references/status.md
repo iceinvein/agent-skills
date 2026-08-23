@@ -38,9 +38,14 @@ somewhere else anyway: the commits are in git and the reasons are in the record,
 which is the file that does get committed.
 
 Open it with `init` when you open the run record, at the same point and for the
-same reason, then `task` each row in as the plan is written: the ids, names,
-tiers, `Model` marks and the `Flips` line are all fixed the moment the plan is,
-so writing them in later means writing them from memory.
+same reason, then seed the rows with `plan.sh import <plan>` rather than a
+command per task. The ids, names, the flip, the `Model` marks and the one tier
+the plan settles are all fixed the moment the plan is written and are already in
+the file, so typing them again is transcription with a chance of error in it.
+
+Re-importing is safe and is the right move after the plan changes. It refreshes
+names, the flip and the tier, and it leaves a status or a ratified model already
+recorded alone, so resuming after a compaction cannot rewind the run.
 
 ## What goes where
 

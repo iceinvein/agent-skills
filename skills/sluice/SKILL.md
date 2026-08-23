@@ -90,11 +90,15 @@ Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
 your partner states a preference. Get the design signed off before code.
 
+Take the design stop through the harness's plan mode where there is one. Its
+gate is enforced rather than requested and it holds edits shut while it is open,
+so nothing gets built against a design nobody signed. It carries the first stop
+only; pre-flight still wants answers, and an approval is not one.
+
 The run's state goes in `.sluice/run.json`, written a command at a time by
 `scripts/status.sh`. That is what makes the breakdown readable from outside the
 session running it: a statusline segment while it runs, `status.sh show` after a
-compaction, and neither costing your partner a turn to ask.
-`references/status.md`
+compaction, and neither costing your partner a turn to ask. `references/status.md`
 
 **Read `references/deep-channel.md` before you write the plan.** It carries the
 plan format, the pre-flight questions, the run record, the dispatch rules and

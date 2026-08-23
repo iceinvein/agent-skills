@@ -228,3 +228,93 @@ describe("sluice model routing", () => {
 		expect(paras[at]).toMatch(/model/i);
 	});
 });
+
+// The design stop exists because a plan written against the wrong design wastes a
+// plan's worth of work. Sluice enforced it with prose, which is the weakest gate
+// available in a harness that has an enforced one.
+describe("sluice design stop and plan mode", () => {
+	test("the router sends the design stop through plan mode", () => {
+		const deep = section(SKILL, "Deep channel");
+		expect(deep).toMatch(/plan mode/i);
+	});
+
+	function planMode(): string {
+		const headings = [...DEEP.matchAll(/^## (.+)$/gm)].map((m) => m[1] as string);
+		const found = headings.find((h) => /plan mode/i.test(h));
+		expect(found).toBeDefined();
+		return section(DEEP, found as string);
+	}
+
+	test("the reference names the gate rather than describing one", () => {
+		expect(planMode()).toContain("ExitPlanMode");
+	});
+
+	// One gate, two stops. Pre-flight wants three answers, and an approval is not
+	// an answer, so collapsing them loses the questions entirely.
+	test("it says pre-flight is not the stop plan mode replaces", () => {
+		const s = planMode();
+		expect(s).toMatch(/pre-flight/i);
+		expect(s).toMatch(/answers?/i);
+	});
+
+	// Plan mode's file is harness-managed. Treated as the artifact, the design is
+	// gone by the time anyone resumes.
+	test("it keeps the durable artifact out of the harness's own file", () => {
+		const s = planMode();
+		expect(s).toContain("docs/specs/");
+		expect(s).toMatch(/not the artifact|is not the artifact|durable/i);
+	});
+
+	test("it covers the harness that has no plan mode", () => {
+		expect(planMode()).toMatch(/unavailable|no plan mode|without it/i);
+	});
+});
+
+// A dispatched agent shows in the harness's task panel under whatever label the
+// dispatch gave it. Labelled by task, the panel reads as the plan; labelled
+// anything else, it reads as a row of anonymous agents.
+describe("sluice dispatch labels", () => {
+	test("the dispatch rules fix the label to the task", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		expect(rules).toMatch(/label/i);
+		expect(rules).toMatch(/T<n>|T\d/);
+	});
+});
+
+// The validator carries the checkable half of this file, so the file has to say
+// so where the plan gets written rather than in a footnote nobody reaches.
+describe("sluice plan validation", () => {
+	test("the plan format section points at the validator", () => {
+		expect(section(DEEP, "Plan format")).toContain("plan.sh validate");
+	});
+
+	test("the run record section points at the importer that seeds it", () => {
+		expect(section(DEEP, "The run record")).toContain("plan.sh import");
+	});
+});
+
+// The two references have to agree on how task rows get seeded. A model reading
+// only the one SKILL.md points at for run state would never learn the importer
+// exists, and would type a command per task.
+describe("sluice references agree on seeding", () => {
+	const STATUS = readFileSync(join(dir, "references", "status.md"), "utf8");
+
+	test("status.md points at the importer rather than a command per task", () => {
+		expect(STATUS).toContain("plan.sh import");
+	});
+
+	test("it says what re-importing does to a row already recorded", () => {
+		expect(STATUS).toMatch(/re-?import/i);
+	});
+
+	// A bare reference path is idiomatic at the end of the sentence it belongs to,
+	// including where that sentence wraps and leaves the path indented under its
+	// own bullet. At column zero it is not a wrap: it reads as a truncated edit
+	// and gives no instruction, which is the shape being ruled out here.
+	test("no reference path stands alone at paragraph level", () => {
+		for (const [name, body] of [["SKILL.md", SKILL], ["status.md", STATUS], ["deep-channel.md", DEEP]] as const) {
+			const dangling = body.split("\n").filter((l) => /^`references\/[a-z-]+\.md`\s*$/.test(l));
+			expect(dangling, `${name} has a reference path alone at column zero`).toEqual([]);
+		}
+	});
+});
