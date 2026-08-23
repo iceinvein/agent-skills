@@ -10,9 +10,10 @@
 #   status.sh init --topic <t> --channel <c> [--plan <p>] [--record <p>] [--force]
 #   status.sh task <id> [--name <n>] [--status <s>] [--base <sha>]
 #                       [--commit <sha>] [--tier 0-3] [--model <m>] [--flips]
+#                       [--reviewed]
 #   status.sh preflight [--review <t>] [--model <t>] [--workspace <t>]
 #   status.sh show [--json]
-#   status.sh line
+#   status.sh line [--full]
 #   status.sh close
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
@@ -94,16 +95,75 @@ ARCHIVE="$DIR/.sluice/archive"
 # `line` swallows everything: a missing jq, unreadable state, no run at all.
 # Any of those printing would put permanent clutter in the status bar.
 if [ "$SUB" = "line" ]; then
-	[ $# -eq 0 ] || { err "line takes no arguments"; exit 4; }
+	FULL=0
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--full) FULL=1; shift ;;
+			*) err "unknown flag: $1"; exit 4 ;;
+		esac
+	done
 	command -v jq >/dev/null 2>&1 || exit 0
 	[ -f "$STATE" ] || exit 0
-	jq -r '
+
+	if [ "$FULL" -eq 0 ]; then
+		jq -r '
+			([.tasks[]? | select(.status == "done")] | length) as $done
+			| [ "sluice",
+			    (.channel // "?"),
+			    "\($done)/\(.tasks | length)",
+			    ([.tasks[]? | select(.status == "active") | "▸T\(.id)"] | first // empty),
+			    ([.tasks[]? | select(.status == "blocked") | "!T\(.id)"] | first // empty)
+			  ] | join(" ")
+		' "$STATE" 2>/dev/null || exit 0
+		exit 0
+	fi
+
+	# The wide render, for a line of its own. Cells are shape-distinct before they
+	# are coloured, so it stays readable where colour is stripped or absent.
+	#
+	# The flip is marked only while it is still ahead: it is the milestone the run
+	# is heading for, and once it lands it is another done task. Elapsed is passed
+	# in rather than computed in jq, which has no clock.
+	jq -r \
+		--argjson now "$(date -u +%s)" \
+		--arg esc "$(printf '\033')" '
+		def cell:
+			if   .status == "done"    then "\($esc)[32m▰\($esc)[0m"
+			elif .status == "active"  then "\($esc)[96m◈\($esc)[0m"
+			elif .status == "review"  then "\($esc)[33m▨\($esc)[0m"
+			elif .status == "blocked" then "\($esc)[91m▮\($esc)[0m"
+			elif .flips               then "\($esc)[95m⚑\($esc)[0m"
+			else "\($esc)[2m▱\($esc)[0m"
+			end;
+		def dim($t): "\($esc)[2m\($t)\($esc)[0m";
+		# fromdateiso8601 raises rather than returning null, and the caller
+		# suppresses stderr, so one unparseable field would take the whole render
+		# with it and leave nothing to diagnose. A bad clock costs the clock.
+		def elapsed:
+			(.started // "" | try fromdateiso8601 catch 0) as $t
+			| if $t == 0 then empty
+			  else (($now - $t) / 60 | floor) as $m
+			       | if $m < 1 then "◷ <1m"
+			         elif $m < 60 then "◷ \($m)m"
+			         else "◷ \($m / 60 | floor)h\($m % 60)m"
+			         end
+			  end;
 		([.tasks[]? | select(.status == "done")] | length) as $done
-		| [ "sluice",
-		    (.channel // "?"),
-		    "\($done)/\(.tasks | length)",
-		    ([.tasks[]? | select(.status == "active") | "▸T\(.id)"] | first // empty),
-		    ([.tasks[]? | select(.status == "blocked") | "!T\(.id)"] | first // empty)
+		# Debt is what the tier table promised and nobody delivered: done, owed a
+		# dispatch, and never marked. Tier 0 buys a stat read, so it is not owed one.
+		| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
+		| ([.tasks[]? | select(.status == "blocked")] | first) as $blocked
+		| ([.tasks[]? | select(.status == "active")] | first) as $active
+		| [ "\($esc)[1;96m⧗\($esc)[0m",
+		    "\($esc)[1;96m\(.channel // "?")\($esc)[0m",
+		    dim(.topic // ""),
+		    " " + ([.tasks[]? | cell] | join("")),
+		    " \($esc)[1m\($done)/\(.tasks | length)\($esc)[0m",
+		    (if   $blocked then " \($esc)[1;91m!T\($blocked.id) \($blocked.name // "")\($esc)[0m"
+		     elif $active  then " \($esc)[96m▸T\($active.id)\($esc)[0m \($active.name // "")"
+		     else empty end),
+		    (if $debt > 0 then " \($esc)[33m⟲\($debt) unreviewed\($esc)[0m" else empty end),
+		    (elapsed | if . == null then empty else " " + dim(.) end)
 		  ] | join(" ")
 	' "$STATE" 2>/dev/null || exit 0
 	exit 0
@@ -189,7 +249,7 @@ case "$SUB" in
 			*[!0-9]* | 0 ) err "task id must be a positive integer, got: $ID"; exit 4 ;;
 		esac
 
-		NAME="" STATUS="" BASE="" COMMIT="" TIER="" MODEL="" FLIPS=false
+		NAME="" STATUS="" BASE="" COMMIT="" TIER="" MODEL="" FLIPS=false REVIEWED=false
 		while [ $# -gt 0 ]; do
 			case "$1" in
 				--name) need_value --name $# "${2-}"; NAME="$2"; shift 2 ;;
@@ -199,6 +259,7 @@ case "$SUB" in
 				--tier) need_value --tier $# "${2-}"; TIER="$2"; shift 2 ;;
 				--model) need_value --model $# "${2-}"; MODEL="$2"; shift 2 ;;
 				--flips) FLIPS=true; shift ;;
+				--reviewed) REVIEWED=true; shift ;;
 				*) err "unknown flag: $1"; exit 4 ;;
 			esac
 		done
@@ -235,7 +296,7 @@ case "$SUB" in
 		patch="$(jq -n \
 			--arg name "$NAME" --arg status "$STATUS" --arg base "$BASE" \
 			--arg commit "$COMMIT" --arg tier "$TIER" --arg model "$MODEL" \
-			--argjson flips "$FLIPS" '
+			--argjson flips "$FLIPS" --argjson reviewed "$REVIEWED" '
 			{}
 			+ (if $name   == "" then {} else {name: $name} end)
 			+ (if $status == "" then {} else {status: $status} end)
@@ -244,6 +305,7 @@ case "$SUB" in
 			+ (if $tier   == "" then {} else {tier: ($tier | tonumber)} end)
 			+ (if $model  == "" then {} else {model: $model} end)
 			+ (if $flips then {flips: true} else {} end)
+			+ (if $reviewed then {reviewed: true} else {} end)
 		')"
 
 		jq --argjson id "$ID" --argjson patch "$patch" '
@@ -314,6 +376,8 @@ case "$SUB" in
 			| ["sluice \(.channel) · \(.topic) · \($done)/\(.tasks | length) done"]
 			+ ["plan        \(.plan | dash)"]
 			+ ["record      \(.record | dash)"]
+			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
+			   | if $debt == 0 then [] else ["unreviewed  \($debt) done, owed a review the tier table promised"] end)
 			+ ["pre-flight  " + (
 				if (.preflight // {} | length) == 0 then "not recorded"
 				else [(.preflight | to_entries[] | "\(.key)=\(.value)")] | join("; ")

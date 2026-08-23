@@ -91,9 +91,11 @@ pre-flight settled. `scripts/status.sh` writes and reads it, and
 `references/status.md` carries the commands and the statusline segment that
 makes a run visible without anyone asking. Open it with `init` when you open the
 record, seed the rows with `scripts/plan.sh import <plan>` rather than typing a
-command per task, then flip each task as it moves. Import is safe to re-run: it
-sets names, model marks and the flip, and leaves a status already recorded
-alone, so resuming after a compaction cannot rewind the run.
+command per task, then flip each task as it moves. It carries the ids, the names,
+the flip, the model marks and the tiers, the last of these floored off `Touches`
+and the contract graph rather than guessed. Import is safe to re-run: a status, a
+review mark or a ratified model already recorded is left alone and a tier is only
+ever raised, so resuming after a compaction cannot rewind the run.
 
 The record is the other file, and it holds what a status cannot: the reason
 review went the way it did, the reason a task was downshifted, the reason the
@@ -364,6 +366,14 @@ only creates files takes tier 0, so a nine-task plan usually buys three
 or four dispatches rather than nine. If most of your plan qualifies for a
 dispatch, the tasks are interleaved rather than ordered, and reordering them
 is cheaper than reviewing them.
+
+**Mark each review with `status.sh task <id> --reviewed` when it comes back.**
+What that buys is a count of what this table promised and nobody delivered: tasks
+that are done, that qualified for a dispatch, and that carry no mark. `show` and
+the statusline both carry it from the moment it exists, which is the whole point.
+Unmarked, the count sits permanently non-zero and stops being a signal, and
+"review outstanding" goes back to first appearing in the closing summary, at the
+one moment your partner can no longer do anything about it.
 
 Reviews are reads, so they are always parallel. Every review a wave earned
 goes out in one message, and they run while the next wave's implementers work:

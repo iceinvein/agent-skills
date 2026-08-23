@@ -633,10 +633,16 @@ describe("import round two", () => {
 		expect(tasks(dir)[0]).toMatchObject({ id: 1, tier: 3 });
 	});
 
-	test("leaves the tier unset where the plan does not settle it", () => {
+	// The tier is derived rather than left unset, since an absent tier read as zero
+	// to the review-debt count. GOOD's task 1 only creates files and ships a test,
+	// which is tier 0 on Touches alone, but task 2 is built blind against its
+	// Offers, and the tier table makes that tier 1: "modified existing code, or
+	// later tasks build on it".
+	test("floors a task at what its Touches and its contract graph imply", () => {
 		const dir = repoWithRun();
 		imp(dir, GOOD);
-		expect(tasks(dir)[0]).not.toHaveProperty("tier");
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, tier: 1 });
+		expect(tasks(dir)[1]).toMatchObject({ id: 2, tier: 3 });
 	});
 
 	// Printed on the --force path, the advice to pass --force reads as a refusal
@@ -651,4 +657,173 @@ describe("import round two", () => {
 	function dir_force(): string {
 		return repoWithRun();
 	}
+});
+
+// A debt counter that can only see tier 3 is blind to two thirds of what the tier
+// table promises. The Touches annotations already say enough to floor the tier:
+// an (edit) means existing code changed, and no (test) means nothing executable
+// covers the task.
+describe("tier derived from Touches", () => {
+	function task(touches: string, extra = ""): string {
+		return `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: under test
+**Contract:** Needs: none | Offers: \`f()\`
+**Touches:** ${touches}
+${extra}- [ ] do it -> proof
+
+### Task 2: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/z.ts (edit)
+**Flips:** on, from off
+- [ ] do it -> proof
+`;
+	}
+
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+	function tierOf(body: string): number | undefined {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-tier-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		return JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks[0].tier;
+	}
+
+	test("created files with a test are tier 0, needing no dispatch", () => {
+		expect(tierOf(task("src/a.ts (new) | tests/a.test.ts (test)"))).toBe(0);
+	});
+
+	test("an edited path is tier 1, since existing code changed", () => {
+		expect(tierOf(task("src/a.ts (edit) | tests/a.test.ts (test)"))).toBe(1);
+	});
+
+	// The row the tier table exists for: prose and config, where a stat confirms
+	// nothing about whether the words are true.
+	test("no test path is tier 2, since nothing executable covers it", () => {
+		expect(tierOf(task("docs/adr/0001.md (new)"))).toBe(2);
+	});
+
+	test("an edit with no test takes the higher of the two", () => {
+		expect(tierOf(task("README.md (edit)"))).toBe(2);
+	});
+
+	test("a Review flag still wins at 3", () => {
+		expect(tierOf(task("src/a.ts (new) | tests/a.test.ts (test)", "**Review:** auth\n"))).toBe(3);
+	});
+
+	test("so does the flip", () => {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-tier-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(task("src/a.ts (new) | t/a.test.ts (test)")), "--dir", dir], timeout: 10000 });
+		expect(JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks[1].tier).toBe(3);
+	});
+
+	// The plan's own tier marks are a floor, not a ceiling: the table says a task
+	// matching more than one row takes the highest.
+	test("validate reports the derived tier so the plan can be read against it", () => {
+		const out = validate(task("src/a.ts (edit) | tests/a.test.ts (test)")).out;
+		expect(out).toMatch(/tier/i);
+	});
+});
+
+// Round three. The tier derivation shipped with the debt counter treating it as
+// ground truth, which makes every under-tiering a review nobody is owed.
+describe("tier derivation, corrected", () => {
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+
+	function two(touches1: string, offers1 = "`f()`", needs2 = "none"): string {
+		return `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: producer
+**Contract:** Needs: none | Offers: ${offers1}
+**Touches:** ${touches1}
+- [ ] do it -> proof
+
+### Task 2: the flip
+**Contract:** Needs: ${needs2} | Offers: none
+**Touches:** src/z.ts (edit)
+**Flips:** on, from off
+- [ ] do it -> proof
+`;
+	}
+
+	function seedRun(body: string) {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-tier3-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		return dir;
+	}
+	const rows = (dir: string) => JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
+
+	// The tier table takes the highest row a task matches, so a hand-raised tier is
+	// a decision. Re-import lowering it back silently un-decides it, and the task
+	// then drops out of the review debt it was owed.
+	test("a hand-raised tier survives re-import", () => {
+		const body = two("src/a.ts (new) | tests/a.test.ts (test)");
+		const dir = seedRun(body);
+		Bun.spawnSync({ cmd: ["bash", STATUS, "task", "1", "--tier", "3", "--dir", dir] });
+		expect(rows(dir)[0].tier).toBe(3);
+
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		expect(rows(dir)[0].tier).toBe(3);
+	});
+
+	test("but a derived tier above what is recorded still raises it", () => {
+		const dir = seedRun(two("src/a.ts (new) | tests/a.test.ts (test)"));
+		expect(rows(dir)[0].tier).toBe(0);
+
+		const harder = two("src/a.ts (edit) | tests/a.test.ts (test)");
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(harder), "--dir", dir], timeout: 10000 });
+		expect(rows(dir)[0].tier).toBe(1);
+	});
+
+	// The table's tier 1 is "modified existing code, OR later tasks build on it".
+	// Only the first half was implemented, so the task whose Offers three others
+	// were built blind against was the one nobody reviewed.
+	test("a task whose Offers a later task Needs is tier 1", () => {
+		const dir = seedRun(two("src/a.ts (new) | tests/a.test.ts (test)", "`f()`", "`f()`"));
+		expect(rows(dir)[0].tier).toBe(1);
+	});
+
+	test("but not when nothing later needs it", () => {
+		const dir = seedRun(two("src/a.ts (new) | tests/a.test.ts (test)", "`f()`", "none"));
+		expect(rows(dir)[0].tier).toBe(0);
+	});
+
+	// Under-tiering is the unsafe direction, and an annotation the parser does not
+	// recognise reads as "no edit here" rather than as a mistake.
+	test.each([
+		["a forgotten annotation", "src/a.ts | tests/a.test.ts (test)"],
+		["an annotation with extra text", "src/a.ts (edit, plus notes) | tests/a.test.ts (test)"],
+		["a synonym the format does not use", "src/a.ts (modified) | tests/a.test.ts (test)"],
+	])("validate warns on %s", (_label, touches) => {
+		const r = validate(two(touches));
+		expect(r.out).toMatch(/warn/);
+		expect(r.out).toMatch(/annotation|new|edit|test/i);
+	});
+
+	test("a Touches line spelled correctly draws no annotation warning", () => {
+		const out = validate(two("src/a.ts (edit) | tests/a.test.ts (test)")).out;
+		expect(out).not.toMatch(/annotation/i);
+	});
+});
+
+describe("plan.sh usage stays true", () => {
+	const SRC = readFileSync(SCRIPT, "utf8");
+	const header = SRC.slice(0, SRC.indexOf("set -uo pipefail"));
+
+	// usage() prints this block, so a stale claim here is the one a caller reads.
+	test("does not still promise only one derived tier", () => {
+		expect(header).not.toMatch(/one tier the plan settles/i);
+	});
+
+	test("names what re-import preserves, including the review mark", () => {
+		expect(header).toMatch(/re-?run|re-?import/i);
+		expect(header).toMatch(/review/i);
+	});
 });

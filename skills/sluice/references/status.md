@@ -15,9 +15,11 @@ bash <skill-dir>/scripts/status.sh init --topic <t> --channel deep \
 bash <skill-dir>/scripts/status.sh task 3 --name "adapter seam" --tier 1 --model cheap
 bash <skill-dir>/scripts/status.sh task 3 --status active --base 75014c9
 bash <skill-dir>/scripts/status.sh task 3 --status done --commit 2c7f261
+bash <skill-dir>/scripts/status.sh task 3 --reviewed
 bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --model "6 of 9 cheap" \
      --workspace "one worktree per implementer"
 bash <skill-dir>/scripts/status.sh show
+bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
 
@@ -39,13 +41,20 @@ which is the file that does get committed.
 
 Open it with `init` when you open the run record, at the same point and for the
 same reason, then seed the rows with `plan.sh import <plan>` rather than a
-command per task. The ids, names, the flip, the `Model` marks and the one tier
-the plan settles are all fixed the moment the plan is written and are already in
-the file, so typing them again is transcription with a chance of error in it.
+command per task. The ids, names, the flip, the `Model` marks and the tiers are
+all fixed the moment the plan is written and are already in the file, so typing
+them again is transcription with a chance of error in it.
+
+The tier import writes is a floor read off `Touches`: an `(edit)` means existing
+code changed, no `(test)` means nothing executable covers the task, and `Flips`
+or a `Review` flag is tier 3 outright. Raise one by hand with `--tier` where the
+work is more delicate than its paths suggest; nothing lowers it for you, because
+the tier table takes the highest row a task matches.
 
 Re-importing is safe and is the right move after the plan changes. It refreshes
-names, the flip and the tier, and it leaves a status or a ratified model already
-recorded alone, so resuming after a compaction cannot rewind the run.
+names, the flip and the tiers, and it leaves a status, a review mark or a
+ratified model already recorded alone, so resuming after a compaction cannot
+rewind the run.
 
 ## What goes where
 
@@ -70,15 +79,35 @@ commit, tier and model. Run it after compaction instead of reconstructing the
 run from what you remember, and run it in the message that hands the work back,
 where "four of nine, task five blocked" is a fact your partner can act on.
 
-`show --json` is the same state for another reader. `line` is the one-line form,
-and it exits 0 in silence on a missing run, unreadable state or a missing jq,
-because its caller is a status bar with nowhere to put an error.
+`show --json` is the same state for another reader. `line` is the compact
+one-line form and `line --full` the wide one; both exit 0 in silence on a missing
+run, unreadable state or a missing jq, because their caller is a status bar with
+nowhere to put an error.
+
+`line --full` renders a cell per task, so the shape of the run reads without
+counting: `▰` done, `◈` active, `▨` in review, `▮` blocked, `▱` still to do, and
+`⚑` on the flip while it is still ahead. The glyphs are distinct before they are
+coloured, so the line survives having its colour stripped. Beside them go the
+progress count, the active task with its name, the review debt, and how long the
+run has been open. A blocked task displaces the active one, because it is the one
+of the two worth interrupting for.
+
+Mark a review with `task <id> --reviewed` when a reviewer comes back. What that
+buys is the debt count: a task that is done, that the tier table owed a dispatch,
+and that nobody marked. Tier 0 is excluded, having only ever been owed a stat
+read. Without it "review outstanding" first appears in the closing summary, at
+the one moment your partner can no longer do anything about it, and `show` and
+the statusline both carry it from the moment it exists.
 
 ## Statusline
 
-This is the part that makes a run visible without anyone asking. The segment
-goes in the Claude Code statusline command, keyed off the state file existing so
-a session with no run in flight spawns nothing:
+This is the part that makes a run visible without anyone asking. Give it a line
+of its own rather than a segment among the badges: it then costs nothing when no
+run is live and contends with nothing for width when one is, which is what lets
+it carry the task's name rather than only its number.
+
+Capture it wherever the statusline command builds its other lines, keyed off the
+state file existing so a session with no run spawns no process at all:
 
 ```bash
 sluice_line=""
@@ -86,16 +115,32 @@ if [ -n "$cwd" ] && [ -f "$cwd/.sluice/run.json" ]; then
   for sluice_sh in "$cwd/.claude/skills/sluice/scripts/status.sh" \
                    "$HOME/.claude/skills/sluice/scripts/status.sh"; do
     [ -f "$sluice_sh" ] || continue
-    sluice_line=$(bash "$sluice_sh" line --dir "$cwd" 2>/dev/null)
+    sluice_line=$(bash "$sluice_sh" line --full --dir "$cwd" 2>/dev/null)
     break
   done
 fi
-[ -n "$sluice_line" ] && printf ' %s' "$sluice_line"
 ```
 
-`$cwd` is `workspace.current_dir` from the JSON the harness sends on stdin. It
-renders as `sluice deep 4/9 ▸T5`, or `!T5` where a task is blocked, which is
-the one state worth colouring as a warning rather than as progress.
+then print it last, after whatever else the command emits:
+
+```bash
+if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
+```
+
+`if` rather than `[ ... ] &&`: as the last command of a statusline script the
+short form makes it exit 1 on every render with no run live, which is the common
+case. `%s` rather than `%b`: the render already carries real escape bytes, and
+`%b` would reinterpret a backslash inside a task name. `$cwd` is
+`workspace.current_dir` from the JSON the harness sends on stdin. It renders as:
+
+```
+⧗ deep sluice-cross-harness  ▰▰▨◈▱▱▱⚑▱  2/9  ▸T4 record what the harness offers  ⟲1 unreviewed  ◷ 12m
+```
+
+The colour comes out of the script rather than being applied by the caller,
+because the mapping from state to colour belongs next to the state. A caller that
+coloured the line itself would have to re-derive each cell's meaning from its
+glyph, which is the same fact stored twice.
 
 A run that is only visible to the session running it is a run your partner
 cannot redirect. That is the same argument the channel announcement makes, and

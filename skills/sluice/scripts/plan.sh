@@ -14,9 +14,9 @@
 # validate prints one line per finding. An error means the plan cannot be
 # dispatched as written; a warning is a judgement call left to its author.
 # import seeds the run state's task rows from the plan, so the ids, names, the
-# flip, the model marks and the one tier the plan settles come from the file
-# rather than from a dozen hand-typed commands. It is safe to re-run: a status or
-# a ratified model already recorded is left alone.
+# flip, the model marks and the tiers come from the file rather than from a dozen
+# hand-typed commands. It is safe to re-run: a status, a review mark or a
+# ratified model already recorded is left alone, and a tier is only ever raised.
 #
 # Exit: 0 no errors, 2 errors found, 4 bad arguments, 5 jq missing (import only).
 
@@ -32,11 +32,12 @@ usage() {
 # The parser. Emits tab-separated rows on stdout:
 #   summary <task count> <flip task or 0>
 #   error|warn  <message>
-#   task  <id>  <name>  <tier 3 or ->  <model 1|0>  <flips 1|0>
+#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <flips 1|0>
 #
-# Only tier 3 is derivable from the plan: Flips and a Review flag are the two
-# triggers the plan itself settles. The rest turn on task shape and stay for the
-# tier table to decide.
+# The tier is a floor derived from what the plan actually settles: an (edit) in
+# Touches means existing code changed, no (test) means nothing executable covers
+# the task, and Flips or a Review flag is tier 3 outright. A task matching more
+# than one row takes the highest, per the tier table.
 #
 # One pass, line-oriented, because the plan format is a strict skeleton rather
 # than free markdown. Fenced blocks are skipped: a plan carries signatures and
@@ -166,6 +167,7 @@ in_rules && /^- / { nrules++ }
 	n = symbols(oh, syms, 1)
 	for (i = 1; i <= n; i++) {
 		if (!(syms[i] in offered_by) || cur < offered_by[syms[i]]) offered_by[syms[i]] = cur
+		offers[cur] = offers[cur] " " syms[i]
 	}
 	next
 }
@@ -179,6 +181,16 @@ in_rules && /^- / { nrules++ }
 		sub(/\([^)]*\)[ \t]*$/, "", p)
 		p = trim(p)
 		if (p == "") continue
+		# The annotation is what the tier table turns on, so it is kept rather
+		# than stripped and forgotten: an (edit) means existing code changed, and
+		# the absence of any (test) means nothing executable covers the task.
+		if (parts[i] ~ /\(edit\)/) has_edit[cur] = 1
+		if (parts[i] ~ /\(test\)/) has_test[cur] = 1
+		# Under-tiering is the unsafe direction: an unrecognised annotation, or a
+		# missing one, reads as "nothing was edited here" and the task then owes
+		# no review. Say so rather than deriving from a spelling nobody checked.
+		if (parts[i] !~ /\((new|edit|test)\)[ \t]*$/)
+			finding("warn", "task " cur " Touches " p " with no (new), (edit) or (test) annotation, so its tier is derived as if nothing was edited")
 		# Accumulated rather than assigned: with three tasks on one path,
 		# reporting a single pair leaves the reader serialising two of them and
 		# still running the third alongside.
@@ -259,13 +271,48 @@ END {
 		finding("warn", "tasks " list " " (n == 2 ? "both" : "all") " touch " p ", so they cannot run at the same time")
 	}
 
+	# A task matching more than one row takes the highest of them, which is what
+	# the tier table says and the reason this is a max rather than a chain of
+	# elses. Computed once, ahead of both the histogram and the task rows.
+	# Which task first demands each symbol, so "later tasks build on it" is
+	# answerable. The tier table makes that half of tier 1, and a task offering a
+	# contract three others were built blind against is exactly the one whose
+	# review claim is that the Offers matched.
+	for (i = 1; i <= ntasks; i++) {
+		n = split(needs[order[i]], want, " ")
+		for (j = 1; j <= n; j++)
+			if (want[j] != "" && (!(want[j] in demanded_by) || order[i] < demanded_by[want[j]]))
+				demanded_by[want[j]] = order[i]
+	}
+
+	for (i = 1; i <= ntasks; i++) {
+		id = order[i]
+		t = 0
+		if (id in has_edit) t = 1
+		n = split(offers[id], mine, " ")
+		for (j = 1; j <= n; j++)
+			if (mine[j] != "" && (mine[j] in demanded_by) && demanded_by[mine[j]] > id) t = (t > 1 ? t : 1)
+		if (!(id in has_test)) t = (t > 2 ? t : 2)
+		if ((id in has_flips) || (id in has_review)) t = 3
+		tier_of[id] = t
+	}
+
 	flip = 0
 	for (i = 1; i <= ntasks; i++) if (order[i] in has_flips) { flip = order[i]; break }
-	print "summary\t" ntasks "\t" flip
+	# The histogram is what prices the review question at pre-flight: "four of
+	# nine need a reviewer" is a decision a partner can weigh, and counting it
+	# by hand off a nine-task plan is how the count comes out wrong.
+	hist = ""
+	for (t = 0; t <= 3; t++) {
+		c = 0
+		for (i = 1; i <= ntasks; i++) if (tier_of[order[i]] == t) c++
+		if (c > 0) hist = hist (hist == "" ? "" : " ") t ":" c
+	}
+	print "summary\t" ntasks "\t" flip "\t" hist
 	for (i = 1; i <= nout; i++) print out[i]
 	for (i = 1; i <= ntasks; i++) {
 		id = order[i]
-		tier = ((id in has_flips) || (id in has_review)) ? "3" : "-"
+		tier = tier_of[id]
 		print "task\t" id "\t" name[id] "\t" tier "\t" ((id in has_model) ? 1 : 0) "\t" ((id in has_flips) ? 1 : 0)
 	}
 }
@@ -282,6 +329,7 @@ parse_plan() {
 	summary="$(printf '%s\n' "$raw" | grep '^summary	' | head -1)"
 	NTASKS="$(printf '%s' "$summary" | cut -f2)"
 	FLIP="$(printf '%s' "$summary" | cut -f3)"
+	TIERS="$(printf '%s' "$summary" | cut -f4)"
 	FINDINGS="$(printf '%s\n' "$raw" | grep -E '^(error|warn)	' || true)"
 	TASKROWS="$(printf '%s\n' "$raw" | grep '^task	' || true)"
 	NERR="$(printf '%s\n' "$FINDINGS" | grep -c '^error	' || true)"
@@ -310,6 +358,7 @@ case "$SUB" in
 
 		head="$(basename "$PLAN"): $(plural "$NTASKS" task)"
 		[ "$FLIP" != "0" ] && head="$head, flip at task $FLIP"
+		[ -n "$TIERS" ] && head="$head, tiers $TIERS"
 		if [ "$NERR" = "0" ] && [ "$NWARN" = "0" ]; then
 			echo "$head, no errors"
 			exit 0
@@ -375,11 +424,26 @@ case "$SUB" in
 		HAS_MODEL=" $(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.model != null) | .id] | join(" ")' 2>/dev/null) "
 
+		# The tier table takes the highest row a task matches, so a tier raised by
+		# hand is a decision and re-import may only ever raise. Lowering it back
+		# silently un-decides it and drops the task out of the review debt it was
+		# owed, which is the opposite of what re-import is for.
+		RECORDED_TIERS="$(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
+			jq -r '[.tasks[]? | select(.tier != null) | "\(.id):\(.tier)"] | join(" ")' 2>/dev/null)"
+
 		printf '%s\n' "$TASKROWS" | while IFS="$(printf '\t')" read -r _ id name tier model flips; do
 			[ -n "${id:-}" ] || continue
 			set -- task "$id" --name "$name" --dir "$DIR"
 			[ "$flips" = "1" ] && set -- "$@" --flips
-			[ "$tier" != "-" ] && [ -n "$tier" ] && set -- "$@" --tier "$tier"
+			if [ -n "$tier" ] && [ "$tier" != "-" ]; then
+				recorded=""
+				for pair in $RECORDED_TIERS; do
+					case "$pair" in "$id:"*) recorded="${pair#*:}" ;; esac
+				done
+				if [ -z "$recorded" ] || [ "$tier" -gt "$recorded" ]; then
+					set -- "$@" --tier "$tier"
+				fi
+			fi
 			case "$HAS_MODEL" in
 				*" $id "*) ;;
 				*) [ "$model" = "1" ] && set -- "$@" --model cheap ;;

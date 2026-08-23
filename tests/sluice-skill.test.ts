@@ -318,3 +318,32 @@ describe("sluice references agree on seeding", () => {
 		}
 	});
 });
+
+// deep-channel.md is the file SKILL.md mandates before a plan is written, so a
+// mechanism it does not mention is a mechanism the plan author never uses.
+describe("sluice review debt is reachable from the plan author's file", () => {
+	test("the record section says import seeds the tiers too", () => {
+		expect(section(DEEP, "The run record")).toMatch(/tier/i);
+	});
+
+	test("the review policy names how a completed review gets marked", () => {
+		expect(section(DEEP, "Review policy")).toContain("--reviewed");
+	});
+
+	// The counter only means something if the marking happens; unmarked, it sits
+	// permanently non-zero and stops being a signal at all.
+	test("it says what the debt count is for", () => {
+		expect(section(DEEP, "Review policy")).toMatch(/outstanding|debt|unreviewed/i);
+	});
+
+	// As a statusline's last command, `[ -n "$x" ] && printf ...` exits 1 on every
+	// render with no run, which is the common case.
+	test("the statusline snippet does not end on a bare && test", () => {
+		const STATUS = readFileSync(join(dir, "references", "status.md"), "utf8");
+		const fenced = fencedBlocks(STATUS).filter((b) => b.includes("sluice_line"));
+		expect(fenced.length).toBeGreaterThan(0);
+		for (const block of fenced) {
+			expect(block).not.toMatch(/^\[\s*-n\s*"\$sluice_line"\s*\]\s*&&/m);
+		}
+	});
+});

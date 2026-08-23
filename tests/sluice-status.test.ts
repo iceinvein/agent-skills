@@ -483,3 +483,211 @@ describe("argument handling", () => {
 		expect(r.err).toMatch(/--turbo/);
 	});
 });
+
+/** ANSI stripped, since the render colours cells for a terminal. */
+function plain(s: string): string {
+	// eslint-disable-next-line no-control-regex
+	return s.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+// The tier table promises a review per qualifying task. Nothing tracked whether
+// one happened, so "review outstanding" first appeared in the closing summary, at
+// the one moment the partner could no longer do anything about it.
+describe("review debt", () => {
+	test("--reviewed marks a task, and nothing else does", () => {
+		const dir = seeded(2);
+		run(dir, "task", "1", "--tier", "1", "--status", "done");
+		expect(state(dir).tasks[0]).not.toHaveProperty("reviewed");
+
+		expect(run(dir, "task", "1", "--reviewed").code).toBe(0);
+		expect(state(dir).tasks[0]).toMatchObject({ id: 1, reviewed: true });
+	});
+
+	test("survives a later status flip, since a review does not un-happen", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--tier", "1", "--reviewed");
+		run(dir, "task", "1", "--status", "done");
+		expect(state(dir).tasks[0]).toMatchObject({ reviewed: true });
+	});
+
+	test("show names the debt so it is visible before handback", () => {
+		const dir = seeded(2);
+		run(dir, "task", "1", "--tier", "1", "--status", "done");
+		run(dir, "task", "2", "--tier", "2", "--status", "done");
+		expect(run(dir, "show").out).toMatch(/2 (tasks )?(done )?(and )?unreviewed|unreviewed[:\s]+2/i);
+
+		run(dir, "task", "1", "--reviewed");
+		expect(run(dir, "show").out).toMatch(/unreviewed[:\s]+1|1 (task )?(done )?(and )?unreviewed/i);
+	});
+
+	// Tier 0 buys a stat read rather than a dispatch, so it was never owed one.
+	test("a tier 0 task is not debt", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--tier", "0", "--status", "done");
+		expect(run(dir, "show").out).not.toMatch(/unreviewed[:\s]+[1-9]/i);
+	});
+
+	test("nor is a task that is not done yet", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--tier", "3", "--status", "active");
+		expect(run(dir, "show").out).not.toMatch(/unreviewed[:\s]+[1-9]/i);
+	});
+});
+
+describe("line --full", () => {
+	/** A run of `n` tasks with the flip on `flip`, every task at tier 1. */
+	function run9(n = 9, flip = 8): string {
+		const dir = repo();
+		run(dir, "init", "--topic", "cross-harness", "--channel", "deep");
+		for (let i = 1; i <= n; i++) {
+			run(dir, "task", String(i), "--name", `task number ${i}`, "--tier", "1");
+			if (i === flip) run(dir, "task", String(i), "--flips");
+		}
+		return dir;
+	}
+	const full = (dir: string) => plain(run(dir, "line", "--full").out).trim();
+
+	test("names the channel and the topic, so the line says which run", () => {
+		const out = full(run9());
+		expect(out).toContain("deep");
+		expect(out).toContain("cross-harness");
+	});
+
+	test("draws one cell per task", () => {
+		const out = full(run9(9));
+		const cells = out.match(/[▰◈▨▮▱⚑]/g) ?? [];
+		expect(cells).toHaveLength(9);
+	});
+
+	test("gives each state its own glyph", () => {
+		const dir = run9(5, 5);
+		run(dir, "task", "1", "--status", "done");
+		run(dir, "task", "2", "--status", "active");
+		run(dir, "task", "3", "--status", "review");
+		run(dir, "task", "4", "--status", "blocked");
+
+		const cells = (full(dir).match(/[▰◈▨▮▱⚑]/g) ?? []).join("");
+		expect(cells).toBe("▰◈▨▮⚑");
+	});
+
+	// The flip is the milestone the run is heading for, so it is marked while it is
+	// still ahead. Once it lands it is just another done task.
+	test("marks the flip while it is pending and drops the mark once it lands", () => {
+		const dir = run9(3, 3);
+		expect(full(dir).match(/[▰◈▨▮▱⚑]/g)?.join("")).toBe("▱▱⚑");
+
+		run(dir, "task", "3", "--status", "done");
+		expect(full(dir).match(/[▰◈▨▮▱⚑]/g)?.join("")).toBe("▱▱▰");
+	});
+
+	test("carries the progress count", () => {
+		const dir = run9();
+		run(dir, "task", "1", "--status", "done");
+		expect(full(dir)).toContain("1/9");
+	});
+
+	test("names the active task, not only its number", () => {
+		const dir = run9();
+		run(dir, "task", "4", "--status", "active");
+		const out = full(dir);
+		expect(out).toContain("T4");
+		expect(out).toContain("task number 4");
+	});
+
+	test("a blocked task displaces the active one, being the thing to act on", () => {
+		const dir = run9();
+		run(dir, "task", "4", "--status", "active");
+		run(dir, "task", "2", "--status", "blocked");
+		const out = full(dir);
+		expect(out).toContain("T2");
+		expect(out).toMatch(/!|blocked/);
+	});
+
+	test("counts the review debt, and says nothing at zero", () => {
+		const dir = run9();
+		expect(full(dir)).not.toMatch(/unreviewed/);
+
+		run(dir, "task", "1", "--status", "done");
+		run(dir, "task", "2", "--status", "done");
+		expect(full(dir)).toMatch(/2 unreviewed/);
+
+		run(dir, "task", "1", "--reviewed");
+		expect(full(dir)).toMatch(/1 unreviewed/);
+	});
+
+	test("carries elapsed since the run opened", () => {
+		expect(full(run9())).toMatch(/\d+[ms]|\d+h/);
+	});
+
+	// Same contract as the compact form: its caller renders on every keystroke.
+	test("is silent and exits 0 with no run", () => {
+		const r = run(repo(), "line", "--full");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(r.err).toBe("");
+	});
+
+	test("is silent on unreadable state", () => {
+		const dir = run9(2);
+		corrupt(dir);
+		const r = run(dir, "line", "--full");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(r.err).toBe("");
+	});
+
+	test("the compact form is unchanged, so the old caller still works", () => {
+		const dir = run9();
+		run(dir, "task", "4", "--status", "active");
+		expect(plain(run(dir, "line").out).trim()).toBe("sluice deep 0/9 ▸T4");
+	});
+
+	test("an unknown flag exits 4 rather than being ignored", () => {
+		expect(run(run9(1), "line", "--turbo").code).toBe(4);
+	});
+});
+
+// A statusline has nowhere to put an error, so one bad field must cost one cell
+// rather than the whole render. jq's fromdateiso8601 raises rather than returning
+// null, and the caller's 2>/dev/null then hides why the line vanished.
+describe("line --full survives bad data", () => {
+	function withStarted(value: string): string {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		run(dir, "task", "1", "--name", "first", "--tier", "1");
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.started = value;
+		writeFileSync(path, JSON.stringify(s));
+		return dir;
+	}
+
+	test.each([
+		["an offset instead of Z", "2026-08-23T10:00:00+00:00"],
+		["fractional seconds", "2026-08-23T10:00:00.123Z"],
+		["not a date at all", "yesterday"],
+		["empty", ""],
+	])("renders the run when started is %s", (_label, value) => {
+		const dir = withStarted(value);
+		const out = run(dir, "line", "--full").out;
+		expect(out).toContain("deep");
+		expect(out).toContain("0/1");
+	});
+
+	test("and drops only the clock cell", () => {
+		expect(run(withStarted("yesterday"), "line", "--full").out).not.toMatch(/◷/);
+	});
+
+	test("keeping it where the timestamp is good", () => {
+		const dir = seeded(1);
+		expect(run(dir, "line", "--full").out).toMatch(/◷/);
+	});
+
+	test("a run with no tasks renders rather than erroring", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		const r = run(dir, "line", "--full");
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("0/0");
+	});
+});
