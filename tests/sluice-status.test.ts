@@ -545,78 +545,83 @@ describe("line --full", () => {
 		}
 		return dir;
 	}
-	const full = (dir: string) => plain(run(dir, "line", "--full").out).trim();
+	/** The three rendered rows, colour stripped. */
+	const rows = (dir: string) => plain(run(dir, "line", "--full").out).replace(/\n$/, "").split("\n");
+	const bar = (dir: string) => (rows(dir)[1] ?? "").trim();
 
-	test("names the channel and the topic, so the line says which run", () => {
-		const out = full(run9());
-		expect(out).toContain("deep");
-		expect(out).toContain("cross-harness");
+	test("renders three rows, so the bar never shares one with text", () => {
+		expect(rows(run9())).toHaveLength(3);
 	});
 
-	test("draws one cell per task", () => {
-		const out = full(run9(9));
-		const cells = out.match(/[▰◈▨▮▱⚑]/g) ?? [];
-		expect(cells).toHaveLength(9);
+	test("the first names the run and how long it has been open", () => {
+		const [head] = rows(run9());
+		expect(head).toContain("deep");
+		expect(head).toContain("cross-harness");
+		expect(head).toMatch(/◷/);
 	});
 
-	test("gives each state its own glyph", () => {
+	// The flip left the header for the bar, where it draws as a boundary. Its own
+	// cell then shows its status like every other task.
+	test("the header does not name the flip", () => {
+		expect(rows(run9())[0]).not.toMatch(/flip/i);
+	});
+
+	test("the bar draws one group of cells per task, separated", () => {
+		const groups = bar(run9(9)).split(/\s+/).filter((g) => g && !g.includes("┃"));
+		expect(groups).toHaveLength(9);
+		for (const g of groups) expect(g).toHaveLength(3);
+	});
+
+	test("each group is one repeated glyph, so a state reads as a block", () => {
 		const dir = run9(5, 5);
-		run(dir, "task", "1", "--status", "done");
+		run(dir, "task", "1", "--status", "done", "--reviewed");
 		run(dir, "task", "2", "--status", "active");
 		run(dir, "task", "3", "--status", "review");
 		run(dir, "task", "4", "--status", "blocked");
 
-		const cells = (full(dir).match(/[▰◈▨▮▱⚑]/g) ?? []).join("");
-		expect(cells).toBe("▰◈▨▮⚑");
+		const groups = bar(dir).split(/\s+/).filter((g) => g && !g.includes("┃"));
+		expect(groups).toEqual(["▰▰▰", "◈◈◈", "▨▨▨", "▮▮▮", "▱▱▱"]);
 	});
 
-	// The flip is the milestone the run is heading for, so it is marked while it is
-	// still ahead. Once it lands it is just another done task.
-	test("marks the flip while it is pending and drops the mark once it lands", () => {
-		const dir = run9(3, 3);
-		expect(full(dir).match(/[▰◈▨▮▱⚑]/g)?.join("")).toBe("▱▱⚑");
-
-		run(dir, "task", "3", "--status", "done");
-		expect(full(dir).match(/[▰◈▨▮▱⚑]/g)?.join("")).toBe("▱▱▰");
+	test("cells narrow as the task count grows", () => {
+		const cell = (n: number) => (bar(run9(n, n)).split(/\s+/).find((g) => !g.includes("┃")) ?? "").length;
+		expect(cell(9)).toBeGreaterThan(cell(20));
+		expect(cell(20)).toBeGreaterThan(cell(40));
 	});
 
-	test("carries the progress count", () => {
+	test("the third row carries the progress count", () => {
 		const dir = run9();
 		run(dir, "task", "1", "--status", "done");
-		expect(full(dir)).toContain("1/9");
+		expect(rows(dir)[2]).toContain("1/9");
 	});
 
-	test("names the active task, not only its number", () => {
+	test("it names the active task in full", () => {
 		const dir = run9();
 		run(dir, "task", "4", "--status", "active");
-		const out = full(dir);
-		expect(out).toContain("T4");
-		expect(out).toContain("task number 4");
+		const detail = rows(dir)[2] ?? "";
+		expect(detail).toContain("T4");
+		expect(detail).toContain("task number 4");
 	});
 
 	test("a blocked task displaces the active one, being the thing to act on", () => {
 		const dir = run9();
 		run(dir, "task", "4", "--status", "active");
 		run(dir, "task", "2", "--status", "blocked");
-		const out = full(dir);
-		expect(out).toContain("T2");
-		expect(out).toMatch(/!|blocked/);
+		const detail = rows(dir)[2] ?? "";
+		expect(detail).toContain("T2");
+		expect(detail).not.toContain("T4");
 	});
 
-	test("counts the review debt, and says nothing at zero", () => {
+	test("and it counts the review debt, saying nothing at zero", () => {
 		const dir = run9();
-		expect(full(dir)).not.toMatch(/unreviewed/);
+		expect(rows(dir)[2]).not.toMatch(/unreviewed/);
 
 		run(dir, "task", "1", "--status", "done");
 		run(dir, "task", "2", "--status", "done");
-		expect(full(dir)).toMatch(/2 unreviewed/);
+		expect(rows(dir)[2]).toMatch(/2 unreviewed/);
 
 		run(dir, "task", "1", "--reviewed");
-		expect(full(dir)).toMatch(/1 unreviewed/);
-	});
-
-	test("carries elapsed since the run opened", () => {
-		expect(full(run9())).toMatch(/\d+[ms]|\d+h/);
+		expect(rows(dir)[2]).toMatch(/1 unreviewed/);
 	});
 
 	// Same contract as the compact form: its caller renders on every keystroke.
@@ -647,9 +652,6 @@ describe("line --full", () => {
 	});
 });
 
-// A statusline has nowhere to put an error, so one bad field must cost one cell
-// rather than the whole render. jq's fromdateiso8601 raises rather than returning
-// null, and the caller's 2>/dev/null then hides why the line vanished.
 describe("line --full survives bad data", () => {
 	function withStarted(value: string): string {
 		const dir = repo();
@@ -689,5 +691,292 @@ describe("line --full survives bad data", () => {
 		const r = run(dir, "line", "--full");
 		expect(r.code).toBe(0);
 		expect(r.out).toContain("0/0");
+	});
+});
+
+// The flip is a plan fact, not a run decision, so re-import has to be
+// authoritative on it. Without a way to clear one, a moved flip left two.
+describe("clearing the flip", () => {
+	test("--no-flips removes a flip that was set", () => {
+		const dir = seeded(2);
+		run(dir, "task", "1", "--flips");
+		expect(state(dir).tasks[0]).toMatchObject({ flips: true });
+
+		expect(run(dir, "task", "1", "--no-flips").code).toBe(0);
+		expect(state(dir).tasks[0]).not.toHaveProperty("flips");
+	});
+
+	test("it is harmless on a task that never had one", () => {
+		const dir = seeded(1);
+		expect(run(dir, "task", "1", "--no-flips").code).toBe(0);
+		expect(state(dir).tasks[0]).not.toHaveProperty("flips");
+	});
+
+	test("passing both is a contradiction rather than a precedence puzzle", () => {
+		const dir = seeded(1);
+		const r = run(dir, "task", "1", "--flips", "--no-flips");
+		expect(r.code).toBe(4);
+		expect(r.err).toMatch(/both|contradict/i);
+	});
+});
+
+// The proposals from the representation note, plus the two render findings that
+// shipped alongside the layout.
+describe("the bar carries debt in position and the flip as a boundary", () => {
+	function plan(n: number, flip: number): string {
+		const dir = repo();
+		run(dir, "init", "--topic", "cross-harness", "--channel", "deep");
+		for (let i = 1; i <= n; i++) {
+			run(dir, "task", String(i), "--name", `task number ${i}`, "--tier", "1");
+			if (i === flip) run(dir, "task", String(i), "--flips");
+		}
+		return dir;
+	}
+	const rows = (dir: string) => plain(run(dir, "line", "--full").out).replace(/\n$/, "").split("\n");
+	const bar = (dir: string) => (rows(dir)[1] ?? "").trim();
+
+	// Done was hiding two states: reviewed, and owed a review nobody did. A count
+	// says how much debt there is and never where.
+	test("a done task owed a review reads differently from one that got it", () => {
+		const dir = plan(3, 3);
+		run(dir, "task", "1", "--status", "done", "--reviewed");
+		run(dir, "task", "2", "--status", "done");
+
+		const groups = bar(dir).split(/\s+/).filter((g) => !g.includes("┃"));
+		expect(groups[0]).toBe("▰▰▰");
+		expect(groups[1]).toBe("▰▰▨");
+	});
+
+	test("the trailing glyph is the review marker, so it says what is outstanding", () => {
+		const dir = plan(2, 2);
+		run(dir, "task", "1", "--status", "done");
+		expect(bar(dir)).toContain("▰▰▨");
+
+		run(dir, "task", "1", "--reviewed");
+		expect(bar(dir)).toContain("▰▰▰");
+	});
+
+	// Tier 0 was never owed a dispatch, so it is done rather than in debt.
+	test("a tier 0 task reads as plainly done", () => {
+		const dir = plan(2, 2);
+		run(dir, "task", "1", "--tier", "0", "--status", "done");
+		expect(bar(dir).split(/\s+/)[0]).toBe("▰▰▰");
+	});
+
+	// The flip's meaning is a boundary: before it the branch is inert and safe to
+	// leave landed, after it it is not. A header phrase could not say that.
+	test("the flip draws as a boundary before its task", () => {
+		const dir = plan(4, 3);
+		const groups = bar(dir).split(/\s+/);
+		expect(groups).toEqual(["▱▱▱", "▱▱▱", "┃", "▱▱▱", "▱▱▱"]);
+	});
+
+	test("and the header no longer has to name it", () => {
+		expect(rows(plan(4, 3))[0]).not.toMatch(/flip/i);
+	});
+
+	test("a flip on the first task puts the boundary at the start", () => {
+		expect(bar(plan(3, 1)).split(/\s+/)[0]).toBe("┃");
+	});
+
+	// The width schedule was non-monotonic: 30 tasks rendered wider than 12,
+	// because the gaps were never counted into the threshold.
+	test.each([[9], [12], [13], [20], [30], [31], [40], [60]])(
+		"the bar fits a terminal at %i tasks",
+		(n) => {
+			expect(bar(plan(n, n)).length).toBeLessThanOrEqual(76);
+		},
+	);
+
+	// The band edges are where the old count-based schedule blew past its cap, and
+	// they are exactly what the earlier tests at 9, 18 and 40 stepped over.
+	test.each([[17], [18], [19], [23], [24], [25]])("fits at the band edge of %i tasks", (n) => {
+		expect(bar(plan(n, n)).length).toBeLessThanOrEqual(76);
+	});
+
+	// Four simultaneous actives is the designed case for this very run, so naming
+	// one and silently dropping three misreports it.
+	test("several actives are counted, not silently reduced to one", () => {
+		const dir = plan(9, 8);
+		for (const id of ["1", "2", "3"]) run(dir, "task", id, "--status", "active");
+		const detail = rows(dir)[2] ?? "";
+		expect(detail).toContain("T1");
+		expect(detail).toMatch(/\+2/);
+	});
+
+	test("as are several blocked", () => {
+		const dir = plan(9, 8);
+		run(dir, "task", "2", "--status", "blocked");
+		run(dir, "task", "5", "--status", "blocked");
+		const detail = rows(dir)[2] ?? "";
+		expect(detail).toContain("T2");
+		expect(detail).toMatch(/\+1/);
+	});
+
+	test("and a single one carries no count", () => {
+		const dir = plan(9, 8);
+		run(dir, "task", "4", "--status", "active");
+		expect(rows(dir)[2]).not.toMatch(/\+\d/);
+	});
+});
+
+// The wave question: which tasks may go now. A graph query, not a status display,
+// which is why it is a command rather than another row on the bar.
+describe("ready", () => {
+	function graph(dir: string, tasks: Array<Record<string, unknown>>) {
+		run(dir, "init", "--topic", "t", "--channel", "deep");
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.tasks = tasks;
+		writeFileSync(path, JSON.stringify(s));
+		return dir;
+	}
+	const wave = () =>
+		graph(repo(), [
+			{ id: 1, name: "producer", status: "done", tier: 1, offers: ["seam"], touches: ["src/one.ts"] },
+			{ id: 2, name: "consumer", status: "todo", tier: 1, needs: ["seam"], touches: ["src/two.ts"] },
+			{ id: 3, name: "independent", status: "todo", tier: 1, touches: ["src/two.ts"] },
+			{ id: 4, name: "needs nothing built", status: "todo", tier: 1, needs: ["absent"], touches: ["src/four.ts"] },
+			{ id: 5, name: "the flip", status: "todo", tier: 3, flips: true, touches: ["src/five.ts"] },
+		]);
+
+	test("names the tasks whose Needs are all satisfied", () => {
+		const out = run(wave(), "ready").out;
+		expect(out).toContain("T2");
+		expect(out).toContain("T3");
+	});
+
+	// Disjoint Touches is what makes two ready tasks safe together, and the reason
+	// pre-flight asks for a worktree each.
+	test("says which of them collide, so the wave is not guessed", () => {
+		const out = run(wave(), "ready").out;
+		expect(out).toMatch(/src\/two\.ts/);
+	});
+
+	test("holds back a task whose Needs nothing offers", () => {
+		const out = run(wave(), "ready").out;
+		const readySection = out.split(/waiting|blocked|flip/i)[0] ?? "";
+		expect(readySection).not.toContain("T4");
+	});
+
+	// Nothing goes concurrent with the flip, whatever the graph says.
+	test("keeps the flip out of the wave and says it runs alone", () => {
+		const out = run(wave(), "ready").out;
+		expect(out).toMatch(/T5/);
+		expect(out).toMatch(/alone/i);
+	});
+
+	// An active task may still be named as the holder of a contended path, which
+	// is the point of the collision warning. What must not happen is it appearing
+	// as an offer, so the assertion is on the offer rows rather than the section.
+	test("does not offer a task that is already running", () => {
+		const dir = wave();
+		run(dir, "task", "2", "--status", "active");
+		const offers = run(dir, "ready")
+			.out.split("\n")
+			.filter((l) => /^ {2}T\d+ {2}/.test(l));
+		expect(offers.join("\n")).not.toMatch(/^ {2}T2 {2}/m);
+	});
+
+	test("nor one already done", () => {
+		expect(run(wave(), "ready").out.split(/waiting/i)[0]).not.toContain("T1");
+	});
+
+	// A plan imported before the graph was stored has no edges, and guessing is
+	// worse than saying so.
+	test("says the graph is missing rather than reporting everything ready", () => {
+		const dir = graph(repo(), [
+			{ id: 1, name: "no edges", status: "todo", tier: 1 },
+			{ id: 2, name: "nor here", status: "todo", tier: 1 },
+		]);
+		const r = run(dir, "ready");
+		expect(r.out + r.err).toMatch(/re-?import|no graph|plan\.sh import/i);
+	});
+
+	test("needs a live run", () => {
+		expect(run(repo(), "ready").code).toBe(2);
+	});
+
+	test("an unknown flag exits 4", () => {
+		expect(run(wave(), "ready", "--turbo").code).toBe(4);
+	});
+});
+
+describe("ready reads cleanly", () => {
+	function withTasks(tasks: Array<Record<string, unknown>>) {
+		const dir = repo();
+		run(dir, "init", "--topic", "t", "--channel", "deep");
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.tasks = tasks;
+		writeFileSync(path, JSON.stringify(s));
+		return dir;
+	}
+
+	// Same defect already fixed once in `show`: a clipped name reads as the whole
+	// name, and here it also ran straight into the next column.
+	test("marks a name it had to clip, and keeps a gap after it", () => {
+		const dir = withTasks([
+			{ id: 1, name: "a ledger that works without a transcript at all", status: "todo", tier: 1, touches: ["a.ts"] },
+			{ id: 2, name: "flip", status: "todo", tier: 3, flips: true, touches: ["b.ts"] },
+		]);
+		const line = run(dir, "ready").out.split("\n").find((l) => l.includes("T1")) ?? "";
+		expect(line).toContain("…");
+		expect(line).not.toContain("transcript at all");
+		expect(line).toMatch(/…\s+a\.ts/);
+	});
+
+	test("leaves a short name alone", () => {
+		const dir = withTasks([
+			{ id: 1, name: "short", status: "todo", tier: 1, touches: ["a.ts"] },
+			{ id: 2, name: "flip", status: "todo", tier: 3, flips: true, touches: ["b.ts"] },
+		]);
+		const line = run(dir, "ready").out.split("\n").find((l) => l.includes("T1")) ?? "";
+		expect(line).not.toContain("…");
+		expect(line).toMatch(/short\s+a\.ts/);
+	});
+});
+
+// A wave is only safe against everything in flight, not just against its peers.
+describe("ready accounts for work already running", () => {
+	function withTasks(tasks: Array<Record<string, unknown>>) {
+		const dir = repo();
+		run(dir, "init", "--topic", "t", "--channel", "deep");
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.tasks = tasks;
+		writeFileSync(path, JSON.stringify(s));
+		return dir;
+	}
+
+	const contended = () =>
+		withTasks([
+			{ id: 1, name: "candidate", status: "todo", tier: 1, touches: ["src/shared.ts"] },
+			{ id: 2, name: "in flight", status: "active", tier: 1, touches: ["src/shared.ts"] },
+			{ id: 3, name: "clear", status: "todo", tier: 1, touches: ["src/other.ts"] },
+			{ id: 4, name: "flip", status: "todo", tier: 3, flips: true, touches: ["src/f.ts"] },
+		]);
+
+	// Presented as "a worktree each", so an unflagged collision sends the reader
+	// straight into a conflict with a task already running.
+	test("warns when a ready task collides with an active one", () => {
+		const out = run(contended(), "ready").out;
+		expect(out).toMatch(/T1/);
+		expect(out).toMatch(/src\/shared\.ts/);
+		expect(out).toMatch(/T2|in flight|active/i);
+	});
+
+	test("and leaves a task with no contention unflagged", () => {
+		const lines = run(contended(), "ready").out.split("\n").filter((l) => /share|collid/i.test(l));
+		expect(lines.join("\n")).not.toMatch(/T3/);
+	});
+
+	test("a task in review also holds its paths", () => {
+		const dir = withTasks([
+			{ id: 1, name: "candidate", status: "todo", tier: 1, touches: ["src/shared.ts"] },
+			{ id: 2, name: "under review", status: "review", tier: 1, touches: ["src/shared.ts"] },
+			{ id: 3, name: "flip", status: "todo", tier: 3, flips: true, touches: ["src/f.ts"] },
+		]);
+		expect(run(dir, "ready").out).toMatch(/src\/shared\.ts/);
 	});
 });

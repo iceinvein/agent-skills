@@ -9,10 +9,12 @@
 #
 #   status.sh init --topic <t> --channel <c> [--plan <p>] [--record <p>] [--force]
 #   status.sh task <id> [--name <n>] [--status <s>] [--base <sha>]
-#                       [--commit <sha>] [--tier 0-3] [--model <m>] [--flips]
-#                       [--reviewed]
+#                       [--commit <sha>] [--tier 0-3] [--model <m>]
+#                       [--flips | --no-flips] [--reviewed]
+#                       [--needs <syms>] [--offers <syms>] [--touches <paths>]
 #   status.sh preflight [--review <t>] [--model <t>] [--workspace <t>]
 #   status.sh show [--json]
+#   status.sh ready
 #   status.sh line [--full]
 #   status.sh close
 #
@@ -118,53 +120,87 @@ if [ "$SUB" = "line" ]; then
 		exit 0
 	fi
 
-	# The wide render, for a line of its own. Cells are shape-distinct before they
-	# are coloured, so it stays readable where colour is stripped or absent.
+	# The wide render, three rows: the run and its clock, the bar alone, then the
+	# detail. The bar gets a row to itself so it never competes with text for
+	# width, which is what lets a cell be wide enough to read as a block.
 	#
-	# The flip is marked only while it is still ahead: it is the milestone the run
-	# is heading for, and once it lands it is another done task. Elapsed is passed
-	# in rather than computed in jq, which has no clock.
+	# The flip draws as a rule in the bar rather than a name in the first row: it
+	# is a boundary between tasks, not a property of one, and the first row cannot
+	# say how much of the plan is still reversible.
+	#
+	# Elapsed is passed in rather than computed here, jq having no clock, and
+	# fromdateiso8601 raises rather than returning null, so a bad start time must
+	# cost the clock cell and not the render.
 	jq -r \
 		--argjson now "$(date -u +%s)" \
 		--arg esc "$(printf '\033')" '
-		def cell:
-			if   .status == "done"    then "\($esc)[32m▰\($esc)[0m"
-			elif .status == "active"  then "\($esc)[96m◈\($esc)[0m"
-			elif .status == "review"  then "\($esc)[33m▨\($esc)[0m"
-			elif .status == "blocked" then "\($esc)[91m▮\($esc)[0m"
-			elif .flips               then "\($esc)[95m⚑\($esc)[0m"
-			else "\($esc)[2m▱\($esc)[0m"
-			end;
-		def dim($t): "\($esc)[2m\($t)\($esc)[0m";
-		# fromdateiso8601 raises rather than returning null, and the caller
-		# suppresses stderr, so one unparseable field would take the whole render
-		# with it and leave nothing to diagnose. A bad clock costs the clock.
-		def elapsed:
-			(.started // "" | try fromdateiso8601 catch 0) as $t
-			| if $t == 0 then empty
-			  else (($now - $t) / 60 | floor) as $m
-			       | if $m < 1 then "◷ <1m"
-			         elif $m < 60 then "◷ \($m)m"
-			         else "◷ \($m / 60 | floor)h\($m % 60)m"
-			         end
+		def paint($c; $t): "\($esc)[\($c)m\($t)\($esc)[0m";
+		def join_parts: map(select(. != null and . != "")) | join(" \($esc)[2m·\($esc)[0m ");
+		# Done splits in two. A task that is done and was owed a review nobody has
+		# marked keeps the done shape but trails the review glyph, so the debt reads
+		# in position rather than only as a count. Tier 0 was never owed a dispatch,
+		# so it is plainly done.
+		def cellgroup($w):
+			(.status == "done"
+			 and (.tier // 0) >= 1
+			 and (.reviewed // false) == false) as $owed
+			| (if   .status == "done"    then ["32", "▰"]
+			   elif .status == "active"  then ["96", "◈"]
+			   elif .status == "review"  then ["33", "▨"]
+			   elif .status == "blocked" then ["91", "▮"]
+			   else ["2", "▱"]
+			   end) as $s
+			| if $owed and $w > 1
+			  then paint($s[0]; ($s[1] * ($w - 1))) + paint("33"; "▨")
+			  else paint($s[0]; ($s[1] * $w))
 			  end;
-		([.tasks[]? | select(.status == "done")] | length) as $done
-		# Debt is what the tier table promised and nobody delivered: done, owed a
-		# dispatch, and never marked. Tier 0 buys a stat read, so it is not owed one.
+
+		# Three cells read as a block, one reads as a tick. The width is chosen from
+		# what the whole bar would occupy, gaps and the flip boundary included, so
+		# the schedule is monotonic in the task count. Keyed off the count alone it
+		# was not: thirty tasks at two wide ran wider than twelve at three.
+		(.tasks | length) as $n
+		| (if $n == 0 then 3
+		   elif ($n * 4 + 2) <= 74 then 3
+		   elif ($n * 3 + 2) <= 74 then 2
+		   else 1 end) as $w
+		| (if $w > 1 then " " else "" end) as $gap
+		| ([.tasks[]? | select(.status == "done")] | length) as $done
 		| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
-		| ([.tasks[]? | select(.status == "blocked")] | first) as $blocked
-		| ([.tasks[]? | select(.status == "active")] | first) as $active
-		| [ "\($esc)[1;96m⧗\($esc)[0m",
-		    "\($esc)[1;96m\(.channel // "?")\($esc)[0m",
-		    dim(.topic // ""),
-		    " " + ([.tasks[]? | cell] | join("")),
-		    " \($esc)[1m\($done)/\(.tasks | length)\($esc)[0m",
-		    (if   $blocked then " \($esc)[1;91m!T\($blocked.id) \($blocked.name // "")\($esc)[0m"
-		     elif $active  then " \($esc)[96m▸T\($active.id)\($esc)[0m \($active.name // "")"
-		     else empty end),
-		    (if $debt > 0 then " \($esc)[33m⟲\($debt) unreviewed\($esc)[0m" else empty end),
-		    (elapsed | if . == null then empty else " " + dim(.) end)
-		  ] | join(" ")
+		| [.tasks[]? | select(.status == "blocked")] as $blockedAll
+		| [.tasks[]? | select(.status == "active")] as $activeAll
+		| ($blockedAll | first) as $blocked
+		| ($activeAll | first) as $active
+		| (if ($blockedAll | length) > 0 then ($blockedAll | length) else ($activeAll | length) end) as $attn
+		| ((.started // "" | try fromdateiso8601 catch 0) as $t
+		   | if $t == 0 then ""
+		     else (($now - $t) / 60 | floor) as $m
+		          | if $m < 1 then "◷ <1m"
+		            elif $m < 60 then "◷ \($m)m"
+		            else "◷ \($m / 60 | floor)h\($m % 60)m"
+		            end
+		     end) as $clock
+		| ( paint("1;96"; "⧗") + " "
+		    + ([ paint("1;96"; (.channel // "?")),
+		         paint("2"; (.topic // ""))
+		       ] | join_parts)
+		    + (if $clock == "" then "" else "   " + paint("2"; $clock) end)
+		  ),
+		  # The flip is drawn as a rule before its task: everything left of it is
+		  # inert and safe to leave landed, everything right of it is not. That is
+		  # what the flip means, and a name in the header could not say it.
+		  ( "  " + ([ .tasks[]?
+		              | (if .flips then paint("95"; "┃") + $gap else "" end)
+		                + cellgroup($w)
+		            ] | join($gap)) ),
+		  ( "  " + ([ paint("1"; "\($done)/\(.tasks | length)") + " done",
+		              (if   $blocked then paint("1;91"; "!T\($blocked.id) \($blocked.name // "")")
+		               elif $active  then paint("96"; "▸T\($active.id)") + " " + ($active.name // "")
+		               else "" end)
+		              + (if $attn > 1 then paint("2"; " +\($attn - 1)") else "" end),
+		              (if $debt > 0 then paint("33"; "⟲\($debt) unreviewed") else "" end)
+		            ] | join_parts)
+		  )
 	' "$STATE" 2>/dev/null || exit 0
 	exit 0
 fi
@@ -249,7 +285,8 @@ case "$SUB" in
 			*[!0-9]* | 0 ) err "task id must be a positive integer, got: $ID"; exit 4 ;;
 		esac
 
-		NAME="" STATUS="" BASE="" COMMIT="" TIER="" MODEL="" FLIPS=false REVIEWED=false
+		NAME="" STATUS="" BASE="" COMMIT="" TIER="" MODEL="" FLIPS=false UNFLIP=false REVIEWED=false
+		NEEDS="" OFFERS="" TOUCHES="" GRAPH=0
 		while [ $# -gt 0 ]; do
 			case "$1" in
 				--name) need_value --name $# "${2-}"; NAME="$2"; shift 2 ;;
@@ -259,11 +296,19 @@ case "$SUB" in
 				--tier) need_value --tier $# "${2-}"; TIER="$2"; shift 2 ;;
 				--model) need_value --model $# "${2-}"; MODEL="$2"; shift 2 ;;
 				--flips) FLIPS=true; shift ;;
+				--no-flips) UNFLIP=true; shift ;;
 				--reviewed) REVIEWED=true; shift ;;
+				--needs) need_value --needs $# "${2-}"; NEEDS="$2"; GRAPH=1; shift 2 ;;
+				--offers) need_value --offers $# "${2-}"; OFFERS="$2"; GRAPH=1; shift 2 ;;
+				--touches) need_value --touches $# "${2-}"; TOUCHES="$2"; GRAPH=1; shift 2 ;;
 				*) err "unknown flag: $1"; exit 4 ;;
 			esac
 		done
 
+		if [ "$FLIPS" = true ] && [ "$UNFLIP" = true ]; then
+			err "--flips and --no-flips were both given; they contradict"
+			exit 4
+		fi
 		if [ -n "$STATUS" ]; then
 			in_set "$STATUS" "$STATUSES" || { err "unknown status: $STATUS (one of: $STATUSES)"; exit 4; }
 		fi
@@ -296,7 +341,13 @@ case "$SUB" in
 		patch="$(jq -n \
 			--arg name "$NAME" --arg status "$STATUS" --arg base "$BASE" \
 			--arg commit "$COMMIT" --arg tier "$TIER" --arg model "$MODEL" \
-			--argjson flips "$FLIPS" --argjson reviewed "$REVIEWED" '
+			--argjson flips "$FLIPS" --argjson unflip "$UNFLIP" --argjson reviewed "$REVIEWED" \
+			--arg needs "$NEEDS" --arg offers "$OFFERS" --arg touches "$TOUCHES" \
+			--argjson graph "$GRAPH" '
+			def words: split(" ") | map(select(. != "")) | unique;
+			# A given-but-empty column clears the key: the caller passing the graph
+			# is authoritative on it, so a dropped edge does not survive.
+			def edge($v): if $v == "" then null else ($v | words) end;
 			{}
 			+ (if $name   == "" then {} else {name: $name} end)
 			+ (if $status == "" then {} else {status: $status} end)
@@ -305,16 +356,23 @@ case "$SUB" in
 			+ (if $tier   == "" then {} else {tier: ($tier | tonumber)} end)
 			+ (if $model  == "" then {} else {model: $model} end)
 			+ (if $flips then {flips: true} else {} end)
+			+ (if $unflip then {flips: null} else {} end)
 			+ (if $reviewed then {reviewed: true} else {} end)
+			+ (if $graph == 0 then {}
+			   else {needs: edge($needs), offers: edge($offers), touches: edge($touches)}
+			   end)
 		')"
 
 		jq --argjson id "$ID" --argjson patch "$patch" '
 			.tasks = (
 				if any(.tasks[]?; .id == $id)
-				then [.tasks[] | if .id == $id then . + $patch else . end]
+				then [.tasks[] | if .id == $id then (. + $patch) else . end]
 				else .tasks + [{id: $id, status: "todo"} + $patch]
 				end
 			)
+			# A null in the patch means clear, not store: leaving it would make
+			# every reader test for absent and for null.
+			| .tasks |= map(with_entries(select(.value != null)))
 			| .tasks |= sort_by(.id)
 		' "$STATE" | write_state
 		;;
@@ -390,6 +448,68 @@ case "$SUB" in
 				       (.commit | dash), (.tier | dash), (.model | dash)]) + $flips
 			  ]
 			| .[]
+		' "$STATE"
+		;;
+
+	ready)
+		[ $# -eq 0 ] || { err "ready takes no arguments"; exit 4; }
+		require_run
+		require_readable
+
+		# The wave question, which is a graph query rather than a status display:
+		# a task is ready when every symbol it Needs is offered by something
+		# already done, and two ready tasks are safe together when their Touches
+		# are disjoint. Nothing goes concurrent with the flip whatever the graph
+		# says, because the invariant it establishes is what later tasks are
+		# checked against.
+		jq -r '
+			# Clipped with a marker, so a cut name does not read as the whole name,
+			# and always followed by a gap so it cannot run into the next column.
+			def pad($n):
+				if length > $n then .[0:$n - 1] + "… "
+				else . + (" " * ($n - length + 1))
+				end;
+			[.tasks[]? | select(.status == "done") | (.offers // [])[]] as $supplied
+			| [.tasks[]? | select(((.needs // []) | length) > 0 or ((.touches // []) | length) > 0)] as $withgraph
+			| [.tasks[]? | select(.status == "todo" and (.flips // false) == false)] as $pending
+			# Active and in-review tasks still hold their paths. Checked only
+			# against each other, a wave reads as safe while colliding with work
+			# already running, which is worse than not checking at all: the output
+			# says "a worktree each".
+			| [.tasks[]? | select(.status == "active" or .status == "review")] as $inflight
+			| [$pending[] | select([(.needs // [])[] | select(. as $s | $supplied | index($s) == null)] | length == 0)] as $ready
+			| [$pending[] | select([(.needs // [])[] | select(. as $s | $supplied | index($s) == null)] | length > 0)] as $waiting
+			| ([.tasks[]? | select(.flips)] | first) as $flip
+
+			| if ($withgraph | length) == 0 then
+			    "no contract graph in the run state.",
+			    "re-run `plan.sh import <plan>` to record Needs, Offers and Touches."
+			  else
+			    (
+			      "\($ready | length) ready now"
+			      + (if ($ready | length) > 1 then " · a worktree each" else "" end)
+			    ),
+			    ($ready[] | "  T\(.id)  \(.name // "" | pad(38))\((.touches // []) | join(", "))"),
+			    # A shared path is what rules two ready tasks out of the same wave,
+			    # so it is named rather than left to be noticed.
+			    ( [ $ready[] as $a | ($ready + $inflight)[] as $b
+			        | select($a.id != $b.id)
+			        | select(($b.status != "todo") or ($a.id < $b.id))
+			        | [(($a.touches // [])[] | select(. as $p | ($b.touches // []) | index($p)))] as $clash
+			        | select(($clash | length) > 0)
+			        | if $b.status == "todo"
+			          then "  T\($a.id) and T\($b.id) share \($clash | join(", ")), so not together"
+			          else "  T\($a.id) shares \($clash | join(", ")) with T\($b.id), already \($b.status)"
+			          end
+			      ] | unique | .[] ),
+			    (if ($waiting | length) > 0 then
+			       "", "\($waiting | length) waiting on a contract",
+			       ($waiting[] | "  T\(.id)  \(.name // "" | pad(38))needs \([(.needs // [])[] | select(. as $s | $supplied | index($s) == null)] | join(", "))")
+			     else empty end),
+			    (if $flip != null and $flip.status != "done" then
+			       "", "the flip runs alone", "  T\($flip.id)  \($flip.name // "")"
+			     else empty end)
+			  end
 		' "$STATE"
 		;;
 

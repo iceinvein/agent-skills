@@ -827,3 +827,359 @@ describe("plan.sh usage stays true", () => {
 		expect(header).toMatch(/review/i);
 	});
 });
+
+// Round four. The contract-graph half of tier 1 shipped with a hole, and import
+// could add a flip but never move one.
+describe("tier 1 from the contract graph, corrected", () => {
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+
+	function seedRun(body: string) {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-graph-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		return dir;
+	}
+	const tierOf = (dir: string, id: number) =>
+		JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks.find(
+			(t: { id: number }) => t.id === id,
+		)?.tier;
+
+	// The consumer set was collapsed to its minimum, so one early consumer hid
+	// every later one and the task nobody else could see dropped to tier 0.
+	const EARLY_AND_LATE = `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: unrelated
+**Contract:** Needs: none | Offers: none
+**Touches:** src/one.ts (new) | tests/one.test.ts (test)
+- [ ] do -> p
+
+### Task 2: early consumer
+**Contract:** Needs: \`helperFn()\` | Offers: none
+**Touches:** src/two.ts (new) | tests/two.test.ts (test)
+- [ ] do -> p
+
+### Task 3: the producer
+**Contract:** Needs: none | Offers: \`helperFn()\`
+**Touches:** src/three.ts (new) | tests/three.test.ts (test)
+- [ ] do -> p
+
+### Task 4: later consumer
+**Contract:** Needs: \`helperFn()\` | Offers: none
+**Touches:** src/four.ts (new) | tests/four.test.ts (test)
+- [ ] do -> p
+
+### Task 5: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/five.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+
+	test("any later consumer earns tier 1, not only the earliest", () => {
+		expect(tierOf(seedRun(EARLY_AND_LATE), 3)).toBe(1);
+	});
+
+	test("a task nothing later consumes stays where its Touches put it", () => {
+		expect(tierOf(seedRun(EARLY_AND_LATE), 1)).toBe(0);
+	});
+
+	// Two tasks offering a shared return type is the ordinary case once Offers is
+	// read generously, and it used to mask the later one.
+	test("a shared symbol name does not hide the later producer", () => {
+		const body = `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: first producer
+**Contract:** Needs: none | Offers: \`parseOne(p)\` -> \`PlanDoc\`
+**Touches:** src/one.ts (new) | tests/one.test.ts (test)
+- [ ] do -> p
+
+### Task 2: consumer
+**Contract:** Needs: \`PlanDoc\` | Offers: none
+**Touches:** src/two.ts (new) | tests/two.test.ts (test)
+- [ ] do -> p
+
+### Task 3: second producer
+**Contract:** Needs: none | Offers: \`parseTwo(p)\` -> \`PlanDoc\`
+**Touches:** src/three.ts (new) | tests/three.test.ts (test)
+- [ ] do -> p
+
+### Task 4: later consumer
+**Contract:** Needs: \`PlanDoc\` | Offers: none
+**Touches:** src/four.ts (new) | tests/four.test.ts (test)
+- [ ] do -> p
+
+### Task 5: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/five.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+		expect(tierOf(seedRun(body), 3)).toBe(1);
+	});
+
+	// The format has no "edited test" annotation, so a task that only changes an
+	// existing suite reads as creating one and owes no review.
+	test("a task whose only path is a test still owes a review", () => {
+		const body = `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: add cases to the existing suite
+**Contract:** Needs: none | Offers: none
+**Touches:** tests/existing.test.ts (test)
+- [ ] add cases -> they pass
+
+### Task 2: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/z.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+		expect(tierOf(seedRun(body), 1)).toBeGreaterThanOrEqual(1);
+	});
+
+	// The tier table's row 1 is what the run is checked against, so a task holding
+	// a stale flip stays pinned at 3 forever and the render names the wrong
+	// milestone. Import has to be able to move a flip, not only add one.
+	test("moving the flip in the plan moves it in the run", () => {
+		const at = (n: number) => `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: first
+**Contract:** Needs: none | Offers: none
+**Touches:** src/one.ts (edit)
+${n === 1 ? "**Flips:** on, from off\n" : ""}- [ ] do -> p
+
+### Task 2: second
+**Contract:** Needs: none | Offers: none
+**Touches:** src/two.ts (edit)
+${n === 2 ? "**Flips:** on, from off\n" : ""}- [ ] do -> p
+`;
+		const dir = seedRun(at(1));
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(at(2)), "--dir", dir], timeout: 10000 });
+
+		const tasks = JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
+		expect(tasks.filter((t: { flips?: boolean }) => t.flips)).toHaveLength(1);
+		expect(tasks[1]).toMatchObject({ id: 2, flips: true });
+		expect(tasks[0]).not.toHaveProperty("flips");
+	});
+
+	// The message told the author the tier was under-derived when it was not,
+	// which invites a hand-raise that is not needed.
+	test("a recognised annotation with trailing text does not claim nothing was edited", () => {
+		const out = validate(`# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: one
+**Contract:** Needs: none | Offers: none
+**Touches:** src/a.ts (edit) and notes | tests/a.test.ts (test)
+- [ ] do -> p
+
+### Task 2: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/z.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`).out;
+		expect(out).not.toMatch(/as if nothing was edited/);
+	});
+});
+
+// Proposal three: the reader nobody served. Deciding a wave means reading the
+// graph, which needs Needs, Offers and Touches kept rather than discarded after
+// the tier is derived.
+describe("import keeps the graph it parses", () => {
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+	const WAVE = `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: producer
+**Contract:** Needs: none | Offers: \`seam(a)\`
+**Touches:** src/one.ts (new) | tests/one.test.ts (test)
+- [ ] do -> p
+
+### Task 2: consumer
+**Contract:** Needs: \`seam(a)\` | Offers: none
+**Touches:** src/two.ts (edit)
+- [ ] do -> p
+
+### Task 3: independent
+**Contract:** Needs: none | Offers: none
+**Touches:** src/two.ts (edit)
+- [ ] do -> p
+
+### Task 4: the flip
+**Contract:** Needs: none | Offers: none
+**Touches:** src/four.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+
+	function seeded() {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-graph2-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(WAVE), "--dir", dir], timeout: 10000 });
+		return dir;
+	}
+	const rows = (dir: string) => JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
+
+	// Containment, not equality. Offers is read generously so a return shape is on
+	// offer as well as the function; a parameter name riding along is permitted by
+	// that design. Repeats are not, so both lists are deduped.
+	test("records what each task needs", () => {
+		const t = rows(seeded())[1];
+		expect(t.id).toBe(2);
+		expect(t.needs).toContain("seam");
+		expect(new Set(t.needs).size).toBe(t.needs.length);
+	});
+
+	test("and what it offers", () => {
+		const t = rows(seeded())[0];
+		expect(t.id).toBe(1);
+		expect(t.offers).toContain("seam");
+		expect(new Set(t.offers).size).toBe(t.offers.length);
+	});
+
+	test("and the paths it touches, which is what decides concurrency", () => {
+		expect(rows(seeded())[2]).toMatchObject({ id: 3, touches: ["src/two.ts"] });
+	});
+
+	test("a task with an empty side records no key rather than an empty list", () => {
+		const t = rows(seeded())[3];
+		expect(t).toMatchObject({ id: 4 });
+		expect(t).not.toHaveProperty("needs");
+	});
+});
+
+// A return shape on the demand side pulls in whatever it is spelled with, and a
+// primitive is not a symbol any task creates. Listing it as a dependency is noise
+// in `ready` and a false error waiting to happen.
+describe("primitives are not dependencies", () => {
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+	function needsOf(needs: string) {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-prim-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		const body = `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: producer
+**Contract:** Needs: none | Offers: \`writeBundle(a, b)\`, \`f(x)\`, \`parse(p)\`, \`PlanDoc\`
+**Touches:** src/one.ts (new) | tests/one.test.ts (test)
+- [ ] do -> p
+
+### Task 2: consumer
+**Contract:** Needs: ${needs} | Offers: none
+**Touches:** src/two.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+		const r = Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		// A refused import leaves no rows, which would make every assertion below
+		// pass vacuously. Fail loudly instead.
+		if (r.exitCode !== 0) throw new Error(`import refused: ${r.stderr.toString()}`);
+		const [, consumer] = JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
+		return consumer.needs ?? [];
+	}
+
+	test("a return shape's primitive is not recorded as needed", () => {
+		const needs = needsOf("`writeBundle(a, b)` -> `string[]`");
+		expect(needs).toContain("writeBundle");
+		expect(needs).not.toContain("string");
+	});
+
+	test.each([["number"], ["boolean"], ["void"], ["any"], ["unknown"]])("nor is %s", (prim) => {
+		expect(needsOf(`\`f(x)\` -> \`${prim}\``)).not.toContain(prim);
+	});
+
+	test("but a real type name still is", () => {
+		expect(needsOf("`parse(p)` -> `PlanDoc`")).toContain("PlanDoc");
+	});
+});
+
+// Round five.
+describe("graph extraction, corrected again", () => {
+	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
+	function seed(body: string) {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-g5-"));
+		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
+		const r = Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(body), "--dir", dir], timeout: 10000 });
+		return { dir, code: r.exitCode, err: r.stderr.toString() };
+	}
+	const rows = (dir: string) => JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
+
+	function two(needs2: string, touches1 = "src/a.ts (new) | tests/a.test.ts (test)"): string {
+		return `# Plan: x
+
+## Ground Rules
+- Commit: \`feat(x): <s>\`
+
+### Task 1: producer
+**Contract:** Needs: none | Offers: \`makeConfig()\` -> \`Config\`
+**Touches:** ${touches1}
+- [ ] do -> p
+
+### Task 2: the flip
+**Contract:** Needs: ${needs2} | Offers: none
+**Touches:** src/b.ts (edit)
+**Flips:** on, from off
+- [ ] do -> p
+`;
+	}
+
+	// The primitive filter was undone by the fallback beneath it: with every strict
+	// candidate filtered out, count stayed zero and the raw half was re-split
+	// without the guard.
+	test("a lone wrapper type does not become a false dependency", () => {
+		expect(validate(two("`Promise<Config>`")).out).not.toMatch(/Needs Promise/);
+	});
+
+	// And the meaningful half of a wrapped type is the inner one.
+	test("a wrapped type contributes the type it wraps", () => {
+		expect(rows(seed(two("`Promise<Config>`")).dir)[1].needs).toContain("Config");
+	});
+
+	test.each([["`string`"], ["`Array<Config>`"], ["`void`"]])("%s alone raises no error", (needs) => {
+		expect(validate(two(needs)).code).toBe(0);
+	});
+
+	// The annotation is tolerated mid-field with a warning, but the path extraction
+	// only stripped a trailing one, so the rest of the field became fake paths and
+	// serialised a wave that was actually disjoint.
+	test("a path is extracted whatever follows its annotation", () => {
+		const { dir } = seed(two("none", "src/a.ts (edit) see note | tests/a.test.ts (test)"));
+		expect(rows(dir)[0].touches).toEqual(["src/a.ts", "tests/a.test.ts"]);
+	});
+
+	// Add-only left a removed edge in place, so ready kept reporting a task as
+	// waiting on a contract the plan no longer mentions.
+	test("re-import clears an edge the plan dropped", () => {
+		const { dir } = seed(two("`makeConfig()`"));
+		expect(rows(dir)[1].needs).toContain("makeConfig");
+
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(two("none")), "--dir", dir], timeout: 10000 });
+		expect(rows(dir)[1]).not.toHaveProperty("needs");
+	});
+
+	test("and clears a Touches path the plan dropped", () => {
+		const { dir } = seed(two("none", "src/a.ts (new) | src/gone.ts (edit) | tests/a.test.ts (test)"));
+		expect(rows(dir)[0].touches).toContain("src/gone.ts");
+
+		Bun.spawnSync({ cmd: ["bash", SCRIPT, "import", planFile(two("none")), "--dir", dir], timeout: 10000 });
+		expect(rows(dir)[0].touches).not.toContain("src/gone.ts");
+	});
+});

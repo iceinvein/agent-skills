@@ -19,6 +19,7 @@ bash <skill-dir>/scripts/status.sh task 3 --reviewed
 bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --model "6 of 9 cheap" \
      --workspace "one worktree per implementer"
 bash <skill-dir>/scripts/status.sh show
+bash <skill-dir>/scripts/status.sh ready
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
@@ -52,9 +53,13 @@ work is more delicate than its paths suggest; nothing lowers it for you, because
 the tier table takes the highest row a task matches.
 
 Re-importing is safe and is the right move after the plan changes. It refreshes
-names, the flip and the tiers, and it leaves a status, a review mark or a
-ratified model already recorded alone, so resuming after a compaction cannot
-rewind the run.
+names, the contract graph and the flip, moving the flip when the plan moved it,
+and it raises a tier without ever lowering one. A status, a review mark or a model
+ratified at pre-flight is left alone, so resuming after a compaction cannot rewind
+the run. The one consequence worth knowing: adding a missing `(test)` to a plan
+will not drop a task from tier 2 back to tier 1, because the tier table takes the
+highest row a task matches and nothing here can tell a correction from a
+regression. Lower it by hand with `--tier` if that is what you mean.
 
 ## What goes where
 
@@ -84,13 +89,36 @@ one-line form and `line --full` the wide one; both exit 0 in silence on a missin
 run, unreadable state or a missing jq, because their caller is a status bar with
 nowhere to put an error.
 
-`line --full` renders a cell per task, so the shape of the run reads without
-counting: `▰` done, `◈` active, `▨` in review, `▮` blocked, `▱` still to do, and
-`⚑` on the flip while it is still ahead. The glyphs are distinct before they are
-coloured, so the line survives having its colour stripped. Beside them go the
-progress count, the active task with its name, the review debt, and how long the
-run has been open. A blocked task displaces the active one, because it is the one
-of the two worth interrupting for.
+`line --full` renders three rows: the run and its clock, the bar alone, then the
+detail. The bar gets a row to itself so it never competes with text for width,
+which is what lets a cell be wide enough to read as a block rather than a tick.
+
+A group of cells per task, one repeated glyph each: `▰` done, `◈` active, `▨` in
+review, `▮` blocked, `▱` still to do. The glyphs are distinct before they are
+coloured, so the rows survive having their colour stripped. The width is chosen
+from what the whole bar would occupy, gaps included, rather than from the task
+count: keyed off the count alone the schedule was not monotonic, and thirty tasks
+at two cells each ran wider than twelve at three.
+
+**A done task still owed a review trails the review glyph**, `▰▰▨` against
+`▰▰▰`. Debt then reads in position rather than only as a count at the end of the
+row, which is the difference between knowing how much there is and knowing where.
+Tier 0 was never owed a dispatch, so it reads as plainly done. On a plan long
+enough to narrow cells to one, there is no trailing cell to give up and the
+positional reading stops: the count in the third row is then the only carrier,
+which is why it is printed whether or not the bar could show the same thing.
+
+**The flip draws as a rule, `┃`, before its task.** Everything left of it is inert
+and safe to leave landed; everything right of it is not. That is what the flip
+means, and it is a boundary between tasks rather than a property of one, so a
+name in the header could not say it. `plan.sh validate` rejects a plan with two
+flips and `import` clears a stale one, so the bar is only ever asked to draw the
+single legal case.
+
+The third row carries the progress count, whichever task wants attention, and the
+review debt. A blocked task displaces the active one there, being the one of the
+two worth interrupting for, and a `+n` follows when more than one task shares that
+state, since a plan running four wide has four actives by design.
 
 Mark a review with `task <id> --reviewed` when a reviewer comes back. What that
 buys is the debt count: a task that is done, that the tier table owed a dispatch,
@@ -99,12 +127,40 @@ read. Without it "review outstanding" first appears in the closing summary, at
 the one moment your partner can no longer do anything about it, and `show` and
 the statusline both carry it from the moment it exists.
 
+## The next wave
+
+`ready` answers the one question the other commands do not: not what the state is,
+but what may go now. A task is ready when every symbol it `Needs` is offered by a
+task already done, and two ready tasks are safe together when their `Touches` are
+disjoint.
+
+```
+6 ready now · a worktree each
+  T1  extract the bundle writer              src/cli/adapters/bundle.ts, …
+  T4  record what the harness offers         skills/sluice/scripts/status.sh, …
+  T4 and T5 share skills/sluice/scripts/status.sh, so not together
+
+2 waiting on a contract
+  T2  cursor and gemini write bundles        needs writeBundle
+
+the flip runs alone
+  T8  sluice installs on four harnesses
+```
+
+It reads the graph `plan.sh import` recorded, so a run seeded before that existed
+says so and tells you to re-import rather than reporting everything ready. The
+flip is held out of every wave whatever the graph says, because the invariant it
+establishes is what the tasks after it are checked against.
+
+Derive the wave here rather than writing wave numbers into the plan. A declared
+schedule is wrong the moment one task lands late; this recomputes.
+
 ## Statusline
 
-This is the part that makes a run visible without anyone asking. Give it a line
-of its own rather than a segment among the badges: it then costs nothing when no
-run is live and contends with nothing for width when one is, which is what lets
-it carry the task's name rather than only its number.
+This is the part that makes a run visible without anyone asking. Give it rows of
+its own rather than a segment among the badges: it then costs nothing when no run
+is live and contends with nothing for width when one is, which is what lets the
+bar be wide and the task carry its name rather than only its number.
 
 Capture it wherever the statusline command builds its other lines, keyed off the
 state file existing so a session with no run spawns no process at all:
@@ -134,7 +190,9 @@ case. `%s` rather than `%b`: the render already carries real escape bytes, and
 `workspace.current_dir` from the JSON the harness sends on stdin. It renders as:
 
 ```
-⧗ deep sluice-cross-harness  ▰▰▨◈▱▱▱⚑▱  2/9  ▸T4 record what the harness offers  ⟲1 unreviewed  ◷ 12m
+⧗ deep · sluice-cross-harness   ◷ 38m
+  ▰▰▰ ▰▰▨ ▨▨▨ ◈◈◈ ▱▱▱ ▮▮▮ ▱▱▱ ┃ ▱▱▱ ▱▱▱
+  2/9 done · !T6 model tiers rather than model names +1 · ⟲1 unreviewed
 ```
 
 The colour comes out of the script rather than being applied by the caller,

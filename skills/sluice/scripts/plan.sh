@@ -24,15 +24,28 @@ set -uo pipefail
 
 err() { echo "plan.sh: $*" >&2; }
 
+# ASCII unit separator. Tab would be merged by `read`; see the parser comment.
+SEP="$(printf '\037')"
+
 usage() {
 	echo "usage:" >&2
 	sed -n '/^#   plan.sh validate/,/^# Exit:/p' "$0" | sed 's/^# \{0,2\}//' >&2
 }
 
-# The parser. Emits tab-separated rows on stdout:
+# The parser. Emits rows on stdout separated by 0x1f, the ASCII unit separator,
+# NOT by a tab. Tab is an IFS *whitespace* character, so `read` merges runs of it
+# and drops empty fields: one task with an empty Needs then shifts every later
+# field left, which is how the graph columns silently swapped. 0x1f is
+# non-whitespace, so empty columns survive.
+#
+# Rows:
 #   summary <task count> <flip task or 0>
 #   error|warn  <message>
-#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <flips 1|0>
+#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <flips 1|0>  <needs>  <offers>  <touches>
+#
+# The last three are space-separated and are what answers "which tasks may go
+# now": a task is ready when every Needs it names is offered by something already
+# done, and two ready tasks are safe together when their Touches are disjoint.
 #
 # The tier is a floor derived from what the plan actually settles: an (edit) in
 # Touches means existing code changed, no (test) means nothing executable covers
@@ -43,6 +56,8 @@ usage() {
 # than free markdown. Fenced blocks are skipped: a plan carries signatures and
 # commands in them, and a `- [ ]` inside a fence is an example, not a step.
 PARSER='
+BEGIN { SEP = sprintf("%c", 31) }
+
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
 # Symbols on one side of a Contract line. The two sides are read differently
@@ -55,7 +70,16 @@ function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 #
 # Demand (Needs) is strict, because an extra symbol here is a false error:
 # backticked names and signatures only, falling back to the leading identifier
-# of each comma-separated part when the half carries neither.
+# of each comma-separated part when the half carries neither. Primitive type
+# names are dropped from it: a return shape drags in whatever it is spelled with,
+# and no task in any plan creates `string`.
+function is_primitive(w) {
+	return (w == "string" || w == "number" || w == "boolean" || w == "bool" ||
+	        w == "void" || w == "any" || w == "unknown" || w == "never" ||
+	        w == "null" || w == "undefined" || w == "int" || w == "float" ||
+	        w == "object" || w == "Promise" || w == "Array")
+}
+
 function symbols(half, out, generous,   count, rest, tok, lower, n, parts, i, chunk) {
 	lower = half
 	gsub(/`/, "", lower)
@@ -77,28 +101,43 @@ function symbols(half, out, generous,   count, rest, tok, lower, n, parts, i, ch
 	while (match(rest, /`[^`]*`/)) {
 		chunk = substr(rest, RSTART + 1, RLENGTH - 2)
 		rest = substr(rest, RSTART + RLENGTH)
-		if (match(chunk, /[A-Za-z_][A-Za-z0-9_]*/))
-			out[++count] = substr(chunk, RSTART, RLENGTH)
+		# The leading identifier of a backticked chunk, unless that is a wrapper
+		# like Promise<Config> or Array<TaskRow>: then the dependency is what it
+		# wraps, and taking the leading one both misses the real symbol and
+		# invents a false one.
+		while (match(chunk, /[A-Za-z_][A-Za-z0-9_]*/)) {
+			tok = substr(chunk, RSTART, RLENGTH)
+			chunk = substr(chunk, RSTART + RLENGTH)
+			if (!is_primitive(tok)) { out[++count] = tok; break }
+		}
 	}
 	rest = half
 	gsub(/`/, "", rest)
 	while (match(rest, /[A-Za-z_][A-Za-z0-9_]*\(/)) {
 		tok = substr(rest, RSTART, RLENGTH - 1)
-		out[++count] = tok
+		if (!is_primitive(tok)) out[++count] = tok
 		rest = substr(rest, RSTART + RLENGTH)
 	}
 	if (count == 0) {
 		rest = half
 		gsub(/`/, "", rest)
 		n = split(rest, parts, /[,;]/)
-		for (i = 1; i <= n; i++)
-			if (match(parts[i], /[A-Za-z_][A-Za-z0-9_]*/))
-				out[++count] = substr(parts[i], RSTART, RLENGTH)
+		for (i = 1; i <= n; i++) {
+			chunk = parts[i]
+			# Guarded like the strict rules above. Unguarded, a half whose every
+			# candidate was a primitive fell through to here and the filter was
+			# undone by the code meant to back it up.
+			while (match(chunk, /[A-Za-z_][A-Za-z0-9_]*/)) {
+				tok = substr(chunk, RSTART, RLENGTH)
+				chunk = substr(chunk, RSTART + RLENGTH)
+				if (!is_primitive(tok)) { out[++count] = tok; break }
+			}
+		}
 	}
 	return count
 }
 
-function finding(sev, msg) { out[++nout] = sev "\t" msg }
+function finding(sev, msg) { out[++nout] = sev SEP msg }
 
 /^[ \t]*```/ { fenced = 1 - fenced; next }
 fenced { next }
@@ -177,8 +216,12 @@ in_rules && /^- / { nrules++ }
 	body = substr($0, length("**Touches:**") + 1)
 	n = split(body, parts, /\|/)
 	for (i = 1; i <= n; i++) {
+		# The path is everything before the first parenthesis. Stripping only a
+		# trailing annotation left the rest of a mid-field one in the path, and
+		# those fragments then read as real paths: two tasks with disjoint files
+		# came out sharing "(edit)" and were serialised for nothing.
 		p = parts[i]
-		sub(/\([^)]*\)[ \t]*$/, "", p)
+		if (index(p, "(") > 0) p = substr(p, 1, index(p, "(") - 1)
 		p = trim(p)
 		if (p == "") continue
 		# The annotation is what the tier table turns on, so it is kept rather
@@ -186,16 +229,21 @@ in_rules && /^- / { nrules++ }
 		# the absence of any (test) means nothing executable covers the task.
 		if (parts[i] ~ /\(edit\)/) has_edit[cur] = 1
 		if (parts[i] ~ /\(test\)/) has_test[cur] = 1
+		if (parts[i] ~ /\(new\)/)  has_new[cur] = 1
 		# Under-tiering is the unsafe direction: an unrecognised annotation, or a
 		# missing one, reads as "nothing was edited here" and the task then owes
 		# no review. Say so rather than deriving from a spelling nobody checked.
-		if (parts[i] !~ /\((new|edit|test)\)[ \t]*$/)
+		if (parts[i] !~ /\((new|edit|test)\)/)
 			finding("warn", "task " cur " Touches " p " with no (new), (edit) or (test) annotation, so its tier is derived as if nothing was edited")
+		else if (parts[i] !~ /\((new|edit|test)\)[ \t]*$/)
+			finding("warn", "task " cur " Touches " p " with text after its annotation; the tier reads correctly but the line is not the format")
 		# Accumulated rather than assigned: with three tasks on one path,
 		# reporting a single pair leaves the reader serialising two of them and
 		# still running the third alongside.
 		if (index(" " owners[p] " ", " " cur " ") == 0)
 			owners[p] = owners[p] (owners[p] == "" ? "" : " ") cur
+		if (index(" " paths[cur] " ", " " p " ") == 0)
+			paths[cur] = paths[cur] (paths[cur] == "" ? "" : " ") p
 	}
 	next
 }
@@ -274,24 +322,29 @@ END {
 	# A task matching more than one row takes the highest of them, which is what
 	# the tier table says and the reason this is a max rather than a chain of
 	# elses. Computed once, ahead of both the histogram and the task rows.
-	# Which task first demands each symbol, so "later tasks build on it" is
-	# answerable. The tier table makes that half of tier 1, and a task offering a
-	# contract three others were built blind against is exactly the one whose
-	# review claim is that the Offers matched.
+	# The LAST task demanding each symbol, so "later tasks build on it" answers
+	# for any consumer rather than only the earliest. Kept as a minimum, one early
+	# consumer hid every later one and the producer three tasks were built blind
+	# against came out owing no review at all.
 	for (i = 1; i <= ntasks; i++) {
 		n = split(needs[order[i]], want, " ")
 		for (j = 1; j <= n; j++)
-			if (want[j] != "" && (!(want[j] in demanded_by) || order[i] < demanded_by[want[j]]))
-				demanded_by[want[j]] = order[i]
+			if (want[j] != "" && (!(want[j] in last_demand) || order[i] > last_demand[want[j]]))
+				last_demand[want[j]] = order[i]
 	}
 
 	for (i = 1; i <= ntasks; i++) {
 		id = order[i]
 		t = 0
 		if (id in has_edit) t = 1
+		# A task whose only path is a test is changing a suite that already
+		# exists: the format offers no "(test) (edit)" spelling, so the annotation
+		# cannot say so, and reading it as a creation leaves the task owing
+		# nothing. Under-tiering is the unsafe direction.
+		if ((id in has_test) && !(id in has_new) && !(id in has_edit)) t = 1
 		n = split(offers[id], mine, " ")
 		for (j = 1; j <= n; j++)
-			if (mine[j] != "" && (mine[j] in demanded_by) && demanded_by[mine[j]] > id) t = (t > 1 ? t : 1)
+			if (mine[j] != "" && (mine[j] in last_demand) && last_demand[mine[j]] > id) t = (t > 1 ? t : 1)
 		if (!(id in has_test)) t = (t > 2 ? t : 2)
 		if ((id in has_flips) || (id in has_review)) t = 3
 		tier_of[id] = t
@@ -308,12 +361,13 @@ END {
 		for (i = 1; i <= ntasks; i++) if (tier_of[order[i]] == t) c++
 		if (c > 0) hist = hist (hist == "" ? "" : " ") t ":" c
 	}
-	print "summary\t" ntasks "\t" flip "\t" hist
+	print "summary" SEP ntasks SEP flip SEP hist
 	for (i = 1; i <= nout; i++) print out[i]
 	for (i = 1; i <= ntasks; i++) {
 		id = order[i]
 		tier = tier_of[id]
-		print "task\t" id "\t" name[id] "\t" tier "\t" ((id in has_model) ? 1 : 0) "\t" ((id in has_flips) ? 1 : 0)
+		print "task" SEP id SEP name[id] SEP tier SEP ((id in has_model) ? 1 : 0) SEP ((id in has_flips) ? 1 : 0) \
+			SEP trim(needs[id]) SEP trim(offers[id]) SEP trim(paths[id])
 	}
 }
 '
@@ -326,14 +380,14 @@ parse_plan() {
 	raw="$(awk "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
 
 	local summary
-	summary="$(printf '%s\n' "$raw" | grep '^summary	' | head -1)"
-	NTASKS="$(printf '%s' "$summary" | cut -f2)"
-	FLIP="$(printf '%s' "$summary" | cut -f3)"
-	TIERS="$(printf '%s' "$summary" | cut -f4)"
-	FINDINGS="$(printf '%s\n' "$raw" | grep -E '^(error|warn)	' || true)"
-	TASKROWS="$(printf '%s\n' "$raw" | grep '^task	' || true)"
-	NERR="$(printf '%s\n' "$FINDINGS" | grep -c '^error	' || true)"
-	NWARN="$(printf '%s\n' "$FINDINGS" | grep -c '^warn	' || true)"
+	summary="$(printf '%s\n' "$raw" | grep "^summary$SEP" | head -1)"
+	NTASKS="$(printf '%s' "$summary" | cut -d"$SEP" -f2)"
+	FLIP="$(printf '%s' "$summary" | cut -d"$SEP" -f3)"
+	TIERS="$(printf '%s' "$summary" | cut -d"$SEP" -f4)"
+	FINDINGS="$(printf '%s\n' "$raw" | grep -E "^(error|warn)$SEP" || true)"
+	TASKROWS="$(printf '%s\n' "$raw" | grep "^task$SEP" || true)"
+	NERR="$(printf '%s\n' "$FINDINGS" | grep -c "^error$SEP" || true)"
+	NWARN="$(printf '%s\n' "$FINDINGS" | grep -c "^warn$SEP" || true)"
 }
 
 # "1 error" / "2 errors", so the header does not read as a template.
@@ -370,9 +424,9 @@ case "$SUB" in
 		echo
 		# Errors before warnings. Within each, the parser's own order, which
 		# follows the file.
-		{ printf '%s\n' "$FINDINGS" | grep '^error	' || true
-		  printf '%s\n' "$FINDINGS" | grep '^warn	' || true
-		} | while IFS="$(printf '\t')" read -r sev msg; do
+		{ printf '%s\n' "$FINDINGS" | grep "^error$SEP" || true
+		  printf '%s\n' "$FINDINGS" | grep "^warn$SEP" || true
+		} | while IFS="$SEP" read -r sev msg; do
 			[ -n "$sev" ] || continue
 			printf '  %-5s  %s\n' "$sev" "$msg"
 		done
@@ -431,10 +485,13 @@ case "$SUB" in
 		RECORDED_TIERS="$(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.tier != null) | "\(.id):\(.tier)"] | join(" ")' 2>/dev/null)"
 
-		printf '%s\n' "$TASKROWS" | while IFS="$(printf '\t')" read -r _ id name tier model flips; do
+		printf '%s\n' "$TASKROWS" | while IFS="$SEP" read -r _ id name tier model flips needs offers touches; do
 			[ -n "${id:-}" ] || continue
 			set -- task "$id" --name "$name" --dir "$DIR"
-			[ "$flips" = "1" ] && set -- "$@" --flips
+			# The flip is a plan fact rather than a run decision, so import is
+			# authoritative on it both ways. Add-only left a moved flip set on two
+			# tasks, and the render then named the wrong milestone.
+			if [ "$flips" = "1" ]; then set -- "$@" --flips; else set -- "$@" --no-flips; fi
 			if [ -n "$tier" ] && [ "$tier" != "-" ]; then
 				recorded=""
 				for pair in $RECORDED_TIERS; do
@@ -448,6 +505,10 @@ case "$SUB" in
 				*" $id "*) ;;
 				*) [ "$model" = "1" ] && set -- "$@" --model cheap ;;
 			esac
+			# Passed unconditionally, empty included: the graph is a plan fact like
+			# the flip, so an edge the plan dropped has to be cleared rather than
+			# left behind reporting a contract that no longer exists.
+			set -- "$@" --needs "${needs:-}" --offers "${offers:-}" --touches "${touches:-}"
 			bash "$STATUS" "$@" || exit 1
 		done || exit 1
 		imported="$NTASKS"

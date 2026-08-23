@@ -236,14 +236,22 @@ about it.
 Read the plan as a graph before you read it as a list. `Needs` and `Offers`
 are dependency edges, not only blindness insurance: a task is ready when every
 `Needs` it names is offered by a task already done, and any two ready tasks
-with disjoint `Touches` can go at the same time. Do that read once, before
-Task 1. A plan run in the order it happened to be written is a plan whose
+with disjoint `Touches` can go at the same time.
+
+**`scripts/status.sh ready` does that read.** It prints the ready set, names which
+of them share a path and so cannot go together, says which tasks are still waiting
+on a contract and what for, and holds the flip out of every wave. Run it before
+each wave rather than deriving it again by hand, and note that it also checks the
+candidates against whatever is already `active` or in `review`: those hold their
+paths too, and a wave checked only against itself reads as safe while colliding
+with work in flight. A plan run in the order it happened to be written is a plan whose
 graph nobody looked at, and inert-first ordering tends to put the independent
 tasks at the front, so the opportunity is usually real.
 
 Derive the sets at dispatch rather than writing wave numbers into the plan. A
 declared schedule is wrong the moment one task lands late or comes back with a
-blocking finding. A derived one just recomputes.
+blocking finding. A derived one just recomputes, which is the whole reason `ready`
+reads the run state rather than the plan: it sees what has actually landed.
 
 - One row per task in `run.json`, flipped to `active` and then `done` as it
   moves. That state outlives compaction; your memory doesn't.
