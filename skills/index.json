@@ -283,7 +283,7 @@
     "name": "sluice",
     "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries seven rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment and one status command can answer where the run is, and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Claude Code only; stands down where the superpowers pipeline governs the repo.",
     "type": "prompt",
-    "version": "0.12.1"
+    "version": "0.12.2"
   },
   {
     "name": "temporal-coupling-detector",

@@ -36,9 +36,11 @@ follow from that being worth guaranteeing: a value beginning with `--` is
 rejected rather than accepted as a value, and a flag with no value at all is
 rejected rather than taking the next flag as one.
 
-Gitignore `.sluice/`. It is working state, and everything durable in it lands
-somewhere else anyway: the commits are in git and the reasons are in the record,
-which is the file that does get committed.
+The directory ignores itself: `init` drops a `.gitignore` holding `*` next to
+the state, so no project has to add a line of its own. It is working state, and
+everything durable in it lands somewhere else anyway: the commits are in git and
+the reasons are in the record, which is the file that does get committed. Delete
+that `.gitignore` if you want a run tracked; it is only written when absent.
 
 Open it with `init` when you open the run record, at the same point and for the
 same reason, then seed the rows with `plan.sh import <plan>` rather than a

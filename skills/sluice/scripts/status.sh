@@ -19,7 +19,8 @@
 #   status.sh close
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
-# <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/.
+# <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. The
+# directory ignores itself, so no project needs a .gitignore line for it.
 #
 # Exit: 0 ok, 1 the state could not be written, 2 no live run, 3 a run is
 # already live, 4 bad arguments, 5 jq missing, 6 the state file is unreadable.
@@ -220,6 +221,17 @@ require_readable() {
 	}
 }
 
+# The run state is working state, not history: the run record is what gets
+# committed. So the directory ignores itself, rather than every repo sluice ever
+# runs in having to add a line to its own .gitignore. `*` matches the .gitignore
+# file too, so the whole directory drops out of `git status`. An existing file is
+# left alone, and a tree that refuses the write still gets its run.
+mk_dir() { # <directory to create under .sluice>
+	mkdir -p "$1" || { err "could not create $1"; exit 1; }
+	local ignore="$DIR/.sluice/.gitignore"
+	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
+}
+
 # Written through a temporary file so an interrupted write cannot leave the
 # run state half-serialised, which would read as a corrupted run rather than
 # as a failed command.
@@ -263,7 +275,7 @@ case "$SUB" in
 			exit 3
 		fi
 
-		mkdir -p "$DIR/.sluice"
+		mk_dir "$DIR/.sluice"
 		jq -n \
 			--arg topic "$TOPIC" \
 			--arg channel "$CHANNEL" \
@@ -526,7 +538,7 @@ case "$SUB" in
 		stamp="$(printf '%s' "$started" | tr -cd '0-9TZ')"
 		slug="$(printf '%s' "${topic:-run}" | tr -cs 'A-Za-z0-9._-' '-')"
 		[ -n "$stamp" ] || stamp="unknown"
-		mkdir -p "$ARCHIVE"
+		mk_dir "$ARCHIVE"
 
 		# The archive holds the only copy of a closed run, and two runs sharing a
 		# start second and a topic name the same file. mv would leave one of them,

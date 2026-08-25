@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -110,6 +110,24 @@ describe("init", () => {
 		const r = run(dir, "init", "--topic", "other", "--channel", "fast", "--force");
 		expect(r.code).toBe(0);
 		expect(state(dir).topic).toBe("other");
+	});
+
+	// Run state is working state, not history, and it lands in whatever tree the
+	// run happens in. Ignoring it from inside costs every project nothing; the
+	// alternative is a line in every .gitignore the skill ever touches.
+	test("the run directory ignores itself, so no project .gitignore has to", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		// `*` matches the .gitignore too, so the whole directory drops out of git.
+		expect(readFileSync(join(dir, ".sluice", ".gitignore"), "utf8")).toBe("*\n");
+	});
+
+	test("leaves an existing ignore file alone", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		writeFileSync(join(dir, ".sluice", ".gitignore"), "run.json\n");
+		run(dir, "init", "--topic", "other", "--channel", "fast", "--force");
+		expect(readFileSync(join(dir, ".sluice", ".gitignore"), "utf8")).toBe("run.json\n");
 	});
 
 	test("rejects a channel outside the four", () => {
@@ -358,6 +376,14 @@ describe("close", () => {
 		const archived = [...new Bun.Glob("*.json").scanSync(join(dir, ".sluice", "archive"))];
 		expect(archived).toHaveLength(1);
 		expect(readFileSync(join(dir, ".sluice", "archive", archived[0] as string), "utf8")).toBe("{ truncated");
+	});
+
+	test("restores the ignore file, so the archive stays out of git too", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		rmSync(join(dir, ".sluice", ".gitignore"));
+		expect(run(dir, "close").code).toBe(0);
+		expect(readFileSync(join(dir, ".sluice", ".gitignore"), "utf8")).toBe("*\n");
 	});
 
 	test("exits 2 with nothing to close", () => {
