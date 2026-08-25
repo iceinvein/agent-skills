@@ -20,8 +20,10 @@ here, and it only works because three adapters get a bundle writer first.
 The second half is what sluice does once it arrives somewhere else. Two things
 break by construction: the deep channel is built on subagent dispatch, which no
 other harness has, and `scripts/run-stats.sh` reads the session transcript from
-`$CLAUDE_CODE_SESSION_ID` under `~/.claude/projects/`, which exists nowhere else.
-Neither is fixed by shipping files.
+`$CLAUDE_CODE_SESSION_ID` under `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/`,
+falling back to `~/.claude/projects/` so a machine that has run under both
+profiles still resolves. No other harness writes either location.
+Neither problem is fixed by shipping files.
 
 Decisions taken before writing this: deep **degrades** rather than disappearing,
 reusing the "When dispatch is unavailable" section `deep-channel.md` already

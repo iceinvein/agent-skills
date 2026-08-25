@@ -851,3 +851,98 @@ describe("run-stats: agent concurrency", () => {
 		expect(out).toContain("1.0× concurrent");
 	});
 });
+
+describe("run-stats: resolving the transcript from the session id", () => {
+	/**
+	 * The harness writes a session transcript under
+	 * <config dir>/projects/<slug>/<session id>.jsonl. Plant one there.
+	 */
+	function plantTranscript(configDir: string, sid: string, lines: Line[]): string {
+		const dir = join(configDir, "projects", "-Users-someone-Documents-projects-thing");
+		mkdirSync(dir, { recursive: true });
+		const path = join(dir, `${sid}.jsonl`);
+		writeFileSync(path, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+		return path;
+	}
+
+	/**
+	 * Run with no --transcript, so the script has to resolve one. HOME is faked
+	 * so the real profile is never read, and CLAUDE_CONFIG_DIR is cleared unless
+	 * the case sets it: the suite itself runs under a harness that may set both.
+	 */
+	async function runResolving(
+		sid: string,
+		env: Record<string, string | undefined>,
+	): Promise<{ code: number; out: string; err: string }> {
+		const vars: Record<string, string> = {};
+		for (const [k, v] of Object.entries(process.env)) if (v !== undefined) vars[k] = v;
+		delete vars.CLAUDE_CONFIG_DIR;
+		vars.CLAUDE_CODE_SESSION_ID = sid;
+		for (const [k, v] of Object.entries(env)) {
+			if (v === undefined) delete vars[k];
+			else vars[k] = v;
+		}
+		const proc = Bun.spawn(["bash", SCRIPT], { stdout: "pipe", stderr: "pipe", env: vars });
+		const [out, err] = await Promise.all([
+			new Response(proc.stdout).text(),
+			new Response(proc.stderr).text(),
+		]);
+		return { code: await proc.exited, out, err };
+	}
+
+	const SID = "7b70cd73-009c-47ec-8f0a-cd07a9cd33b0";
+
+	test("reads the default config dir when CLAUDE_CONFIG_DIR is unset", async () => {
+		const home = mkdtempSync(join(tmpdir(), "sluice-home-"));
+		plantTranscript(join(home, ".claude"), SID, mainChannelRun());
+		const { code, out } = await runResolving(SID, { HOME: home, CLAUDE_CONFIG_DIR: undefined });
+		expect(code).toBe(0);
+		expect(out).toContain("1m50s");
+	});
+
+	test("reads the configured dir when CLAUDE_CONFIG_DIR points elsewhere", async () => {
+		const home = mkdtempSync(join(tmpdir(), "sluice-home-"));
+		const configured = join(home, ".claude-quartex");
+		plantTranscript(configured, SID, mainChannelRun());
+		const { code, out } = await runResolving(SID, { HOME: home, CLAUDE_CONFIG_DIR: configured });
+		expect(code).toBe(0);
+		expect(out).toContain("1m50s");
+	});
+
+	test("falls back to the default dir when the configured one has no transcript", async () => {
+		// A machine that has run under both profiles keeps transcripts in both,
+		// so a miss under the configured dir is not the end of the search.
+		const home = mkdtempSync(join(tmpdir(), "sluice-home-"));
+		const configured = join(home, ".claude-quartex");
+		mkdirSync(join(configured, "projects"), { recursive: true });
+		plantTranscript(join(home, ".claude"), SID, mainChannelRun());
+		const { code, out } = await runResolving(SID, { HOME: home, CLAUDE_CONFIG_DIR: configured });
+		expect(code).toBe(0);
+		expect(out).toContain("1m50s");
+	});
+
+	test("prefers the configured dir over the default when both hold the id", async () => {
+		const home = mkdtempSync(join(tmpdir(), "sluice-home-"));
+		const configured = join(home, ".claude-quartex");
+		plantTranscript(configured, SID, mainChannelRun());
+		plantTranscript(join(home, ".claude"), SID, [
+			userPrompt("2026-08-08T09:00:00.000Z", "the wrong profile"),
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing interfaces."),
+			assistant("2026-08-08T09:40:00.000Z", "Done."),
+		]);
+		const { code, out } = await runResolving(SID, { HOME: home, CLAUDE_CONFIG_DIR: configured });
+		expect(code).toBe(0);
+		expect(out).toContain("1m50s");
+		expect(out).not.toContain("39m");
+	});
+
+	test("exits 1 with the reason when no config dir holds the id", async () => {
+		const home = mkdtempSync(join(tmpdir(), "sluice-home-"));
+		const { code, err } = await runResolving(SID, {
+			HOME: home,
+			CLAUDE_CONFIG_DIR: join(home, ".claude-quartex"),
+		});
+		expect(code).toBe(1);
+		expect(err).toContain("transcript not found");
+	});
+});

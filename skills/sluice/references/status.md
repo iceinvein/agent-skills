@@ -169,6 +169,7 @@ state file existing so a session with no run spawns no process at all:
 sluice_line=""
 if [ -n "$cwd" ] && [ -f "$cwd/.sluice/run.json" ]; then
   for sluice_sh in "$cwd/.claude/skills/sluice/scripts/status.sh" \
+                   "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/sluice/scripts/status.sh" \
                    "$HOME/.claude/skills/sluice/scripts/status.sh"; do
     [ -f "$sluice_sh" ] || continue
     sluice_line=$(bash "$sluice_sh" line --full --dir "$cwd" 2>/dev/null)
@@ -187,7 +188,11 @@ if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
 short form makes it exit 1 on every render with no run live, which is the common
 case. `%s` rather than `%b`: the render already carries real escape bytes, and
 `%b` would reinterpret a backslash inside a task name. `$cwd` is
-`workspace.current_dir` from the JSON the harness sends on stdin. It renders as:
+`workspace.current_dir` from the JSON the harness sends on stdin. The configured
+config dir is read before the default because a session started with
+`CLAUDE_CONFIG_DIR` set installs the skill there, which is the one place a
+`$HOME/.claude` lookup will not find it; the two paths collapse to one when the
+variable is unset, at the price of a second `[ -f ]`. It renders as:
 
 ```
 ⧗ deep · sluice-cross-harness   ◷ 38m

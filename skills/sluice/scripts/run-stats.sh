@@ -40,7 +40,14 @@ if [ -z "$TRANSCRIPT" ]; then
     exit 1
   fi
   # The session id is unique across projects, so glob rather than guess the slug.
-  TRANSCRIPT="$(ls "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)"
+  # The harness writes under whichever config dir it was started with, so read
+  # CLAUDE_CONFIG_DIR first and fall back to the default: a machine that has run
+  # under both profiles keeps transcripts in both, and a miss under the
+  # configured one is not the end of the search.
+  for root in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "$HOME/.claude"; do
+    TRANSCRIPT="$(ls "$root"/projects/*/"$sid".jsonl 2>/dev/null | head -1)"
+    [ -n "$TRANSCRIPT" ] && break
+  done
 fi
 
 if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
