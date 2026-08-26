@@ -12,7 +12,7 @@ Given a GitHub PR number, dispatches five specialist subagents in parallel (secu
 - `gh` on PATH, authenticated (`gh auth status`)
 - `git` on PATH
 - `codex` on PATH, authenticated (optional; if absent the peer-review stage falls back to a Claude second-opinion subagent)
-- the code-intelligence MCP server, with a completed index for the repo under review (optional; if absent the specialists review from the diff and worktree alone)
+- code intelligence, with a completed index for the repo under review (optional; if absent the specialists review from the diff and worktree alone). Either interface works: the `code-intel` CLI on PATH, which is preferred because it takes `--repo` per call and needs no session binding, or the code-intelligence MCP server
 
 ## Install
 

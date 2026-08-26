@@ -41,9 +41,11 @@ in an excluded file (a migration implies a model snapshot, a schema change impli
 generated types), open it and cross-check rather than treating it as out of scope.
 ```
 
-5. The `magpie-codebase-intelligence` block below, verbatim, **only** when the context
-   stage logged `codeIntelligence: true`. Omit it entirely otherwise: telling a
-   specialist to use tools it does not have wastes a turn per specialist on discovery.
+5. One `magpie-codebase-intelligence-*` block below, verbatim, **only** when the
+   context stage logged `codeIntelligence: true`: the `-cli` block for
+   `interface: "cli"`, the `-mcp` block for `interface: "mcp"`. Omit it entirely
+   otherwise, and never send both: telling a specialist to use tools it does not have
+   wastes a turn per specialist on discovery.
 6. The brief, when `<RUN_DIR>/brief.json` exists, rendered as:
 
 ```
@@ -130,7 +132,7 @@ Good:
 - `Observation: <one idea, what the diff actually does and where>`
 - `Why it matters: <impact at realistic scale or on a real user path>`
 - `Suggested direction: <one concrete next step, optional if the fix isn't obvious>`
-- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing. When the codebase-intelligence tools are available and one of them could answer the question, look before you hedge. A question you resolved is not a `Needs verification:` paragraph, it is evidence: cite the file:line you found under `Observation:` and omit the paragraph entirely.
+- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing. When codebase intelligence is available, over either interface, and one query could answer the question, look before you hedge. A question you resolved is not a `Needs verification:` paragraph, it is evidence: cite the file:line you found under `Observation:` and omit the paragraph entirely.
 
 One idea per paragraph. Do not collapse them into a single wall of text. Do not invent extra labels. If a section doesn't apply, omit it. The interactive report and the GitHub comment both parse these labels and render them as section headers, so missing labels degrade the output.
 
@@ -145,9 +147,67 @@ If you have no findings, write []. Return as your final tool result a single lin
 
 ## Codebase intelligence
 
-Include this block as part 5 only when the context stage logged `codeIntelligence: true`.
+Include one of these blocks as part 5 when the context stage logged
+`codeIntelligence: true`: the `-cli` block when it logged `interface: "cli"`, the
+`-mcp` block when it logged `interface: "mcp"`. Both reach the same index. Never send
+both: a specialist told about a verb it cannot invoke wastes turns discovering that.
 
-```magpie-codebase-intelligence
+```magpie-codebase-intelligence-cli
+## Codebase intelligence
+
+The `code-intel` CLI queries an index of this exact worktree, including the PR's own
+changes. Every invocation names the workspace with `--repo <RUN_DIR>/worktree`, so
+there is nothing to bind and nothing another agent can change under you. Always pass
+`--json`.
+
+These answer the cross-file questions a diff cannot:
+
+    code-intel ask --repo <RUN_DIR>/worktree --json "<question>"
+      A natural-language question answered with grounded evidence. Start here when you
+      do not yet know which symbol to pivot on.
+    code-intel search --repo <RUN_DIR>/worktree --context snippets --json "<query>"
+      Hybrid semantic and literal search. Use to check whether something already
+      exists before claiming the PR should add it. Hits carry `id`s.
+    code-intel hydrate --repo <RUN_DIR>/worktree --ids <id,id> --json
+      The exact bodies behind ids a search returned, without re-reading whole files.
+    code-intel definition --repo <RUN_DIR>/worktree --json <symbol>
+      The body of a symbol the diff calls but does not show.
+    code-intel references --repo <RUN_DIR>/worktree --json <symbol>
+    code-intel call-hierarchy --repo <RUN_DIR>/worktree --json <symbol>
+      Who calls this, and what does it call. Use for reachability: is the path you are
+      worried about actually reachable. Add `--direction callers|callees`, `--depth N`.
+    code-intel investigate --repo <RUN_DIR>/worktree --mode impact --target <symbol> --json "<question>"
+      The reverse-dependency set for a symbol. Use for blast radius before claiming a
+      change is safe or unsafe.
+    code-intel investigate --repo <RUN_DIR>/worktree --mode data --target <symbol> --json "<question>"
+      Follow a value from its origin to where it is used. Use to confirm that
+      untrusted input actually reaches the sink you are worried about.
+    code-intel dependency-graph --repo <RUN_DIR>/worktree --json <symbol>
+      Module-level edges. Use for cycles and boundaries.
+
+There is no test-coverage command: to find out whether the symbol you are flagging is
+covered, run `references` on it and read the paths for test files.
+
+Exit codes are the contract, not the prose: 5 means no results, which is an answer and
+not a reason to fall back to grep. 3 means the daemon is down and 4 means the workspace
+is not queryable; either way, stop querying and review from the diff and worktree.
+
+Rules:
+
+- Cite what you find as ordinary `file:line` evidence under `Observation:`. Do not
+  say "code intelligence told me"; the location is the evidence.
+- Verify before you report. A finding you could have refuted with one query and did
+  not is worse than no finding: it costs the author trust and the critic a slot.
+- Verify before you hedge. If a query can answer the question, a `Needs verification:`
+  paragraph is a failure to look, not honest uncertainty.
+- If a command fails with `error.code: workspace_unavailable` and an
+  `indexing_in_progress` message, finish reading the diff and retry once. If it is
+  still not ready, review from the diff and worktree alone. Do not block.
+- Never run `code-intel index approve`. Never run `code-intel index refresh`. Starting
+  a full index is a consent-gated operation that is not yours to start.
+```
+
+```magpie-codebase-intelligence-mcp
 ## Codebase intelligence
 
 You have code-intelligence MCP tools against an index of this exact worktree,
@@ -237,7 +297,7 @@ For each potential finding:
 2. Identify the trust boundary: is this crossing from untrusted to trusted context?
 3. Assess exploitability: can an attacker realistically trigger this?
 4. Evaluate impact: what's the blast radius if exploited?
-5. Confirm the flow with `trace_data_flow` from the entry point to the sink before reporting. A taint path you asserted but did not trace is a guess.
+5. Confirm the flow from the entry point to the sink before reporting, with `code-intel investigate --mode data --target <symbol>` or `trace_data_flow` depending on which interface your intelligence block describes. A taint path you asserted but did not trace is a guess.
 
 **Risk guide:**
 - blocker: Realistic path to remote code execution, auth bypass, data breach, or privilege escalation
@@ -302,7 +362,7 @@ For each potential bug:
 3. What's the consequence: crash, data corruption, silent wrong behavior?
 4. Is there an existing guard I'm not seeing?
 
-Question 4 is answerable: `get_call_hierarchy` on the changed symbol shows every caller, and `find_references` shows where the guard would have to live. Check before you file.
+Question 4 is answerable: a call hierarchy on the changed symbol shows every caller, and its references show where the guard would have to live (`code-intel call-hierarchy` / `code-intel references`, or `get_call_hierarchy` / `find_references` on MCP). Check before you file.
 
 **Risk guide:**
 - blocker: Data loss, data corruption, broken auth/session behavior, or consistently crashing a major workflow
@@ -362,7 +422,7 @@ For each potential issue:
 2. How often does this code path execute? (once on init vs. every keystroke)
 3. What's the measurable impact? (milliseconds vs. seconds)
 4. Is the optimization worth the complexity cost?
-5. Establish the call frequency with `find_affected_code` before claiming a path is hot. "Called from one cold init path" and "called per keystroke" are different findings.
+5. Establish the call frequency before claiming a path is hot, with `code-intel investigate --mode impact --target <symbol>` or `find_affected_code`. "Called from one cold init path" and "called per keystroke" are different findings.
 
 **Risk guide:**
 - blocker: Change can make a major workflow unusable or cause unbounded production resource exhaustion
@@ -424,7 +484,7 @@ For each potential smell:
 2. Confirm the smell is introduced or materially worsened by this PR, not merely pre-existing nearby code.
 3. Suggest the smallest refactor that fits the surrounding codebase patterns.
 4. Weigh the cost: do not ask for a new abstraction unless it reduces real duplication, coupling, or reasoning burden now.
-5. Before claiming the PR duplicates something or should reuse an existing helper, find it with `search_code`. Name the file:line of the thing it should have reused, or do not make the claim.
+5. Before claiming the PR duplicates something or should reuse an existing helper, find it: `code-intel search --context snippets` or `search_code`. Name the file:line of the thing it should have reused, or do not make the claim.
 
 **Risk guide:**
 - blocker: Smell creates a high-risk maintenance trap likely to cause defects across modules soon
@@ -483,7 +543,7 @@ For each potential issue:
 2. Is this coupling necessary or incidental?
 3. Would a new team member understand where to make changes?
 4. Is this over-engineered for the current requirements, or appropriately future-proofed?
-5. Confirm boundary and cycle claims with `explore_dependency_graph` on the touched modules. A cycle you inferred from import statements in the diff may already be broken by an interface you cannot see.
+5. Confirm boundary and cycle claims on the touched modules with `code-intel dependency-graph` or `explore_dependency_graph`. A cycle you inferred from import statements in the diff may already be broken by an interface you cannot see.
 
 **Risk guide:**
 - blocker: Change introduces a serious boundary violation or contract break likely to cascade across subsystems

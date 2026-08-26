@@ -6,9 +6,10 @@ with `<<RUN_DIR>>` and `<<PR_NUMBER>>` replaced by the real values first. The
 subagent has no shell variables from your session, so an unexpanded path means it
 writes the brief where nothing will read it.
 
-Substitute `<<CODE_INTELLIGENCE>>` with `available` when the bind probe succeeded and
-`unavailable` otherwise. The scout still runs when code-intelligence is unavailable;
-only the subsystem map degrades.
+Substitute `<<CODE_INTELLIGENCE>>` with the value stage 3's probe assigned: `cli` for
+the `code-intel` CLI, `mcp` for the code-intelligence MCP tools, `unavailable` for
+neither. The scout still runs when code intelligence is unavailable; only the
+subsystem map degrades.
 
 ```magpie-scout
 You are a senior engineer building the orienting brief that five specialist
@@ -30,19 +31,33 @@ Code intelligence: <<CODE_INTELLIGENCE>>
 
 ## Code intelligence
 
-When the line above says `available`, the code-intelligence MCP tools are indexed
-against `<<RUN_DIR>>/worktree`, seeded from the base repository. Call `bind_workspace`
-with `<<RUN_DIR>>/worktree` before your first query. Use them to map where the change
-lands:
+Unless the line above says `unavailable`, an index of `<<RUN_DIR>>/worktree`, seeded
+from the base repository, is queryable. Use it for two things only: name the subsystem
+each touched directory belongs to and what it is responsible for, then say what depends
+on those modules.
 
-- `get_module_summary` on each directory the diff touches, to name the subsystem and
-  say what it is responsible for.
-- `explore_dependency_graph` on the touched modules, to say what depends on them.
+When the line says `cli`, run the `code-intel` CLI. Every call names the workspace, so
+there is nothing to bind first:
 
-If a tool returns `indexing_in_progress`, finish reading the diff and retry once. If
-it still is not ready, or the line above says `unavailable`, write `"subsystems": []`
-and carry on. Never call `approve_indexing`. Never call `refresh_index`. Triggering a
-full index is a consent-gated operation that is not yours to start.
+    code-intel investigate --repo <<RUN_DIR>>/worktree --mode module --file-path <dir> \
+      --json "what is this module responsible for"
+    code-intel dependency-graph --repo <<RUN_DIR>>/worktree --json <symbol>
+
+`code-intel repo-map --repo <<RUN_DIR>>/worktree --json` is the cheaper first look when
+you do not yet know which directories matter. Exit 5 means no results, which is an
+answer. Exit 3 means the daemon is down: stop querying and write `"subsystems": []`.
+
+When the line says `mcp`, call `bind_workspace` with `<<RUN_DIR>>/worktree` before your
+first query, then `get_module_summary` on each touched directory and
+`explore_dependency_graph` on the touched modules.
+
+If a query reports `indexing_in_progress` (the CLI returns
+`error.code: workspace_unavailable` with that prefix), finish reading the diff and retry
+once. If it still is not ready, or the line above says `unavailable`, write
+`"subsystems": []` and carry on. Never call `approve_indexing` and never run
+`code-intel index approve`; never call `refresh_index` and never run
+`code-intel index refresh`. Triggering a full index is a consent-gated operation that
+is not yours to start.
 
 ## How to reason
 

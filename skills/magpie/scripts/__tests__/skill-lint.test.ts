@@ -117,16 +117,63 @@ test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
     expect(text).not.toContain(`\`\`\`${tag}`)
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
-  // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added:
-  // that's real, load-bearing procedure, not bloat.
-  expect(text.split(/\s+/).length).toBeLessThan(3000)
+  // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added,
+  // then from 3000 for the two code-intelligence interfaces: that's real,
+  // load-bearing procedure, not bloat.
+  expect(text.split(/\s+/).length).toBeLessThan(3250)
 })
 
 test('SKILL.md never instructs the agent to approve indexing', async () => {
   const text = await readFile(SKILL, 'utf8')
   // A full index is a consent-gated GPU pass. The context stage degrades instead.
+  // Both interfaces expose the same footgun under different names, so both are named.
   expect(text).toContain('approve_indexing')
   expect(text).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
+  expect(text).toMatch(
+    /never run `code-intel index approve`|do not run `code-intel index approve`/i,
+  )
+})
+
+test('SKILL.md stage 3 probes the code-intel CLI before the MCP tools', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf('### 3. Context')
+  expect(start).toBeGreaterThan(-1)
+  const section = text.slice(start, text.indexOf('\n### 4.', start))
+  // Both interfaces drive the same daemon, but the CLI names the workspace on every
+  // call, so it carries no session binding to leak past cleanup. Prefer it.
+  expect(section).toContain('command -v code-intel')
+  expect(section).toContain('mcp__code-intelligence__')
+  expect(section.indexOf('code-intel')).toBeLessThan(section.indexOf('mcp__code-intelligence__'))
+})
+
+test('SKILL.md gives CODE_INTELLIGENCE a value per interface', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  // The scout and specialist prompts branch on this, so all three values must be
+  // spelled out where the probe assigns them.
+  for (const value of [
+    'CODE_INTELLIGENCE=cli',
+    'CODE_INTELLIGENCE=mcp',
+    'CODE_INTELLIGENCE=unavailable',
+  ]) {
+    expect(text).toContain(value)
+  }
+})
+
+test('the rebind instruction is scoped to the MCP interface everywhere it appears', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  // A CLI run holds no session binding, so an unconditional rebind sends the agent
+  // after an MCP tool that is not in its tool list.
+  const spans: ReadonlyArray<readonly [string, string]> = [
+    ['### 4. Specialists', '\n### 5.'],
+    ['### 10. Cleanup', '\n## '],
+    ['## Aborting', ''],
+  ]
+  for (const [from, to] of spans) {
+    const start = text.indexOf(from)
+    expect(start).toBeGreaterThan(-1)
+    const section = to ? text.slice(start, text.indexOf(to, start)) : text.slice(start)
+    expect(section).toMatch(/CODE_INTELLIGENCE=mcp|MCP path/)
+  }
 })
 
 test('SKILL.md logs codeIntelligence on both the done and skipped context outcomes', async () => {
@@ -295,32 +342,67 @@ test('SKILL.md has the stage walkthrough', async () => {
   expect(text).toMatch(/magpie cleanup/)
 })
 
-test('references/specialists.md carries the codebase-intelligence block', async () => {
+const intelligenceBlock = (text: string, iface: 'cli' | 'mcp') => {
+  const fence = `\`\`\`magpie-codebase-intelligence-${iface}`
+  const start = text.indexOf(fence)
+  expect(start).toBeGreaterThan(-1)
+  return text.slice(start, text.indexOf('\n```', start + fence.length))
+}
+
+test('references/specialists.md carries a codebase-intelligence block per interface', async () => {
   const text = await readFile(ref('specialists.md'), 'utf8')
-  expect(text).toContain('```magpie-codebase-intelligence')
-  const start = text.indexOf('```magpie-codebase-intelligence')
-  const block = text.slice(start, text.indexOf('```', start + 32))
-  expect(block).toContain('bind_workspace')
-  expect(block).toContain('indexing_in_progress')
-  // The one operation a specialist must never perform.
-  expect(block).toMatch(/never call `approve_indexing`|do not call `approve_indexing`/i)
+  for (const iface of ['cli', 'mcp'] as const) {
+    const block = intelligenceBlock(text, iface)
+    expect(block).toContain('indexing_in_progress')
+    // The one operation a specialist must never perform, under either name.
+    expect(block).toMatch(/never (call `approve_indexing`|run `code-intel index approve`)/i)
+  }
 })
 
-test('every focus block names the code-intelligence tool for its focus', async () => {
+test('the CLI intelligence block names the workspace per call instead of binding', async () => {
   const text = await readFile(ref('specialists.md'), 'utf8')
-  const tools: Record<(typeof FOCUSES)[number], string> = {
-    security: 'trace_data_flow',
-    bugs: 'get_call_hierarchy',
-    performance: 'find_affected_code',
-    'code-smells': 'search_code',
-    architecture: 'explore_dependency_graph',
+  const block = intelligenceBlock(text, 'cli')
+  // The CLI has no bind_workspace: every invocation carries --repo, which is what
+  // lets the five specialists query the same worktree in parallel without a
+  // session binding they could clobber for each other.
+  expect(block).not.toContain('bind_workspace')
+  expect(block).toContain('--repo')
+  expect(block).toContain('--json')
+})
+
+test('the MCP intelligence block still binds the workspace first', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(intelligenceBlock(text, 'mcp')).toContain('bind_workspace')
+})
+
+test('every focus block names its intelligence capability on both interfaces', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  // A focus block reaches whichever interface the probe found, so naming only the
+  // MCP tool leaves a CLI specialist with a verb it cannot invoke.
+  const tools: Record<(typeof FOCUSES)[number], readonly [string, string]> = {
+    security: ['trace_data_flow', 'investigate --mode data'],
+    bugs: ['get_call_hierarchy', 'code-intel call-hierarchy'],
+    performance: ['find_affected_code', 'investigate --mode impact'],
+    'code-smells': ['search_code', 'code-intel search'],
+    architecture: ['explore_dependency_graph', 'code-intel dependency-graph'],
   }
   for (const focus of FOCUSES) {
     const fence = `\`\`\`magpie-specialist-${focus}`
     const start = text.indexOf(fence)
     const block = text.slice(start, text.indexOf('```', start + fence.length))
-    expect(block).toContain(tools[focus])
+    for (const tool of tools[focus]) expect(block).toContain(tool)
   }
+})
+
+test('references/scout.md documents both intelligence interfaces', async () => {
+  const text = await readFile(ref('scout.md'), 'utf8')
+  // The scout is dispatched with the same <<CODE_INTELLIGENCE>> value the
+  // specialists get, so it has to know what `cli` and `mcp` each mean.
+  expect(text).toContain('`cli`')
+  expect(text).toContain('`mcp`')
+  expect(text).toContain('code-intel ')
+  expect(text).toContain('bind_workspace')
+  expect(text).toMatch(/never (call `approve_indexing`|run `code-intel index approve`)/i)
 })
 
 test('the output contract tells specialists to look before they hedge', async () => {
