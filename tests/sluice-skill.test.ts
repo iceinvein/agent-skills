@@ -232,6 +232,39 @@ describe("sluice model routing", () => {
 // The design stop exists because a plan written against the wrong design wastes a
 // plan's worth of work. Sluice enforced it with prose, which is the weakest gate
 // available in a harness that has an enforced one.
+// A repo can carry review tiering of its own, and the two schemes do not agree:
+// a repo tier that promises a bigger model for the risky tasks contradicts the
+// table here, which buys a dispatch and never a model. Loading both without a
+// stated precedence leaves a run holding two schemes and no rule for choosing,
+// so the reconciliation has to be written down on this side. It belongs here
+// rather than in the repo's own file, which cannot be expected to know sluice
+// exists.
+describe("sluice precedence over a repo's own review tiering", () => {
+	const policy = section(DEEP, "Review policy");
+
+	test("the table says it governs where a repo carries its own tiering", () => {
+		expect(policy).toMatch(/\brepo\b/i);
+		expect(policy).toMatch(/governs|takes precedence/i);
+	});
+
+	// Precedence over the dispatch decision is not a claim over everything the
+	// repo says. A repo rule this table has no equivalent for still stands, and
+	// saying so is what stops the note reading as "ignore the repo".
+	test("it keeps the repo rules this table has no equivalent for", () => {
+		expect(policy).toMatch(/does not cover|no equivalent|nothing here|not covered/i);
+	});
+
+	// The existing model rule is the thing most likely to be contradicted, so the
+	// note has to resolve it rather than leave the reader to notice the clash.
+	test("it resolves the model claim rather than restating the tiers", () => {
+		const para = policy
+			.split(/\n\n/)
+			.find((b) => /\brepo\b/i.test(b) && /governs|takes precedence/i.test(b));
+		expect(para).toBeDefined();
+		expect(para).toMatch(/model/i);
+	});
+});
+
 describe("sluice design stop and plan mode", () => {
 	test("the router sends the design stop through plan mode", () => {
 		const deep = section(SKILL, "Deep channel");
