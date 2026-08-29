@@ -364,6 +364,17 @@ rule that holds across all of them is that a review never runs below the model
 that built the task, so tiers 1 and 2 over a downshifted task come back up to
 this session's.
 
+**Where the repo carries review tiering of its own, this table governs.** It is
+the more specific of the two: wired into `Flips`, the `Model` marks and the
+count pre-flight prices, so a repo's tiers cannot be honoured without unpicking
+those. The usual clash is a repo tier that buys a bigger model for its risky
+tasks, and it loses to the model rule above for the reason given there. What
+the repo keeps is everything this table does not cover, which is most of what
+such rules are for: its gate on deterministic checks before a task reports
+done, the shape of its skip ledger, what it does after a fix round that touched
+no logic. Take the dispatch decision from here and the rest from there, and say
+in the pre-flight count which side each came from.
+
 A task matching more than one row takes the highest tier of them. Tier is the
 number, not the row order and not which shape sounds more serious. A task that
 only creates files but ships prose is tier 2, and a suite re-bless paired with
