@@ -7,7 +7,7 @@ session that is running it: your partner has to ask, and asking costs a turn
 and gets an answer from memory.
 
 `.sluice/run.json` is that answer in a form something else can read. One file
-per tree, holding only what changes as the run moves.
+per worktree set, holding only what changes as the run moves.
 
 ```
 bash <skill-dir>/scripts/status.sh init --topic <t> --channel deep \
@@ -24,7 +24,9 @@ bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
 
-`--dir <path>` reads another tree, which is what the statusline uses. Statuses
+`--dir <path>` reads another tree, which is what the statusline uses; it names
+a tree in the set rather than a state file, so a worktree resolves to the same
+run as the tree it was cut from. Statuses
 are `todo`, `active`, `review`, `done` and `blocked`. A new id needs `--name`;
 after that every call is a bare flip, so keeping it current costs one command
 per transition rather than a paragraph. `close` archives the run under
@@ -41,6 +43,31 @@ the state, so no project has to add a line of its own. It is working state, and
 everything durable in it lands somewhere else anyway: the commits are in git and
 the reasons are in the record, which is the file that does get committed. Delete
 that `.gitignore` if you want a run tracked; it is only written when absent.
+
+## Worktrees
+
+Ignoring itself is what makes the run invisible to a worktree unless something
+is done about it, and a `deep` run makes worktrees after the plan is written:
+`git worktree add` gives the implementer a clean checkout, and an ignored
+directory is not in a checkout. Read from the tree it was called in, the run
+the plan seeded would be absent from every implementer, `init` there would
+start a second run nothing else reads, and the worktree would take that state
+with it when it went.
+
+So every command anchors on the main worktree of whatever tree it is pointed
+at, and one run covers the set. The statusline renders the same run in every
+window, a flip made by an implementer lands where the controller is watching,
+and `init` from a worktree reports the run that is already live rather than
+replacing it. A submodule anchors on its own checkout, not the superproject's,
+and a directory that is no git work tree keeps its run exactly where it sits.
+
+One file for several writers is one file to contend on, so `init`, `task`,
+`preflight` and `close` take a lock first: four implementers each flipping
+their own row would otherwise have the later write built on a snapshot taken
+before the earlier one landed, dropping that row without saying so. The lock
+carries its holder's pid, so a killed run is broken through rather than waited
+out. Reads take nothing, state being installed through a rename, which is what
+keeps `line` cheap enough to render on.
 
 Open it with `init` when you open the run record, at the same point and for the
 same reason, then seed the rows with `plan.sh import <plan>` rather than a
@@ -169,7 +196,7 @@ state file existing so a session with no run spawns no process at all:
 
 ```bash
 sluice_line=""
-if [ -n "$cwd" ] && [ -f "$cwd/.sluice/run.json" ]; then
+if [ -n "$cwd" ] && { [ -f "$cwd/.sluice/run.json" ] || [ -f "$cwd/.git" ]; }; then
   for sluice_sh in "$cwd/.claude/skills/sluice/scripts/status.sh" \
                    "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/sluice/scripts/status.sh" \
                    "$HOME/.claude/skills/sluice/scripts/status.sh"; do
@@ -185,6 +212,12 @@ then print it last, after whatever else the command emits:
 ```bash
 if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
 ```
+
+The gate is two tests because a linked worktree holds no state file of its own:
+there `.git` is a regular file naming the tree it was cut from, and the script
+resolves the run from it. In a tree with no run and no worktree behind it `.git`
+is a directory, so both tests fail and no process is spawned, which is the
+property the gate is for.
 
 `if` rather than `[ ... ] &&`: as the last command of a statusline script the
 short form makes it exit 1 on every render with no run live, which is the common
