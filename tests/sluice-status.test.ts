@@ -1006,3 +1006,119 @@ describe("ready accounts for work already running", () => {
 		expect(run(dir, "ready").out).toMatch(/src\/shared\.ts/);
 	});
 });
+
+/** A git repo with one commit, so `git worktree add` has something to branch from. */
+function gitRepo(): string {
+	const dir = repo();
+	const git = (...args: string[]) =>
+		Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 });
+	git("init", "-q");
+	git("config", "user.email", "t@example.com");
+	git("config", "user.name", "t");
+	writeFileSync(join(dir, "README.md"), "hi\n");
+	git("add", "-A");
+	git("commit", "-qm", "init");
+	return dir;
+}
+
+/** A linked worktree of `main`, checked out on a fresh branch. */
+function worktree(main: string, branch: string): string {
+	const path = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), branch);
+	Bun.spawnSync({
+		cmd: ["git", "-C", main, "worktree", "add", "-q", path, "-b", branch],
+		timeout: 10000,
+	});
+	return path;
+}
+
+// A deep run plans in one tree and implements in worktrees created after the
+// plan. `.sluice/` is ignored, so it never comes across in the checkout: read
+// per-tree, the run the plan seeded reads as absent from every implementer, and
+// an `init` there lands a rival state file that dies with the worktree.
+describe("a worktree set shares one run", () => {
+	test("a linked worktree reads the run the main worktree started", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first", "--status", "active");
+
+		const wt = worktree(main, "impl");
+		const r = run(wt, "show");
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
+		expect(r.out).toContain("first");
+	});
+
+	test("the statusline renders from inside a worktree", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first", "--status", "active");
+
+		const out = run(worktree(main, "impl"), "line").out;
+		expect(out).toContain("deep");
+		expect(out).toMatch(/T1/);
+	});
+
+	test("a flip made in a worktree lands in the shared state", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first");
+
+		const r = run(worktree(main, "impl"), "task", "1", "--status", "done", "--commit", "abc1234");
+		expect(r.code).toBe(0);
+		expect(state(main).tasks[0]).toMatchObject({ id: 1, status: "done", commit: "abc1234" });
+	});
+
+	// Silently starting a second run is how the plan's rows go missing: the
+	// implementer writes into a file nothing else reads and the worktree takes it.
+	test("init from a worktree refuses while the shared run is live", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+
+		const r = run(worktree(main, "impl"), "init", "--topic", "other", "--channel", "fast");
+		expect(r.code).toBe(3);
+		expect(r.err).toContain("widget");
+		expect(state(main).topic).toBe("widget");
+	});
+
+	test("close from a worktree archives the shared run", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+
+		expect(run(worktree(main, "impl"), "close").code).toBe(0);
+		expect(run(main, "show").code).toBe(2);
+	});
+
+	// Two implementers flipping their own task at the same moment each read the
+	// whole file, edit it and write it back. Unserialised, the later write is
+	// built on a snapshot taken before the earlier one landed and drops that row.
+	test("concurrent flips from separate worktrees keep every row", async () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		for (let i = 1; i <= 6; i++) run(main, "task", String(i), "--name", `T${i}`);
+
+		const trees = [main, worktree(main, "a"), worktree(main, "b")];
+		await Promise.all(
+			[1, 2, 3, 4, 5, 6].map((id) =>
+				Bun.spawn({
+					cmd: [
+						"bash", SCRIPT, "task", String(id), "--status", "done",
+						"--dir", trees[id % trees.length],
+					],
+					stdout: "ignore",
+					stderr: "ignore",
+				}).exited,
+			),
+		);
+
+		const done = state(main).tasks.filter((t) => t.status === "done");
+		expect(done).toHaveLength(6);
+	});
+
+	// A plain directory is not a work tree, and a submodule's own checkout is the
+	// main worktree of its own repo, so neither is redirected anywhere.
+	test("a tree that is not a git work tree keeps its own run", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		expect(state(dir).topic).toBe("widget");
+	});
+});

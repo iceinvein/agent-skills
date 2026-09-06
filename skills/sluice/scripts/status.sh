@@ -92,8 +92,27 @@ if [ -z "$SUB" ]; then
 	exit 4
 fi
 
+# A linked worktree is another view of the same run, not a new one. The run
+# directory ignores itself, so `git worktree add` never carries it across: read
+# from the tree it was called in, the run a plan seeded is absent from every
+# implementer created after that plan, and an `init` there lands a rival state
+# file that dies with the worktree. Every tree in a set anchors on the main
+# worktree instead, which is the one path all of them agree on.
+#
+# `git worktree list` names the main worktree first. A submodule names its own
+# checkout there rather than the superproject's, which is what keeps a
+# submodule's run beside its own working tree, and a directory that is no git
+# work tree at all is left exactly as it was given.
+if [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+	MAIN_TREE="$(git -C "$DIR" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+	if [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
+		DIR="$MAIN_TREE"
+	fi
+fi
+
 STATE="$DIR/.sluice/run.json"
 ARCHIVE="$DIR/.sluice/archive"
+LOCK="$DIR/.sluice/run.lock"
 
 # `line` swallows everything: a missing jq, unreadable state, no run at all.
 # Any of those printing would put permanent clutter in the status bar.
@@ -252,6 +271,45 @@ write_state() {
 	mv "$tmp" "$STATE" || { rm -f "$tmp"; err "could not replace $STATE"; exit 1; }
 }
 
+# One state file now serves a whole worktree set, so two implementers can flip
+# their own task at the same moment. A flip reads the whole file, edits it with
+# jq and writes it back, so unserialised the later write is built on a snapshot
+# taken before the earlier one landed and drops that row without saying so.
+# mkdir is the atomic primitive every platform this runs on has; flock is Linux
+# only. Reads do not take it: write_state installs through a rename, so a reader
+# sees either the whole old file or the whole new one.
+#
+# The holder's pid goes inside the directory so a killed run cannot wedge every
+# later one. A lock whose holder is gone is broken rather than waited out, and
+# one whose holder is alive is waited on for a bounded time and then reported,
+# because a command that hangs in a status bar is worse than one that fails.
+lock_taken=0
+release_lock() {
+	[ "$lock_taken" -eq 1 ] || return 0
+	rm -rf "$LOCK"
+	lock_taken=0
+}
+
+take_lock() {
+	local waited=0 holder
+	while ! mkdir "$LOCK" 2>/dev/null; do
+		holder="$(cat "$LOCK/pid" 2>/dev/null)"
+		if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+			rm -rf "$LOCK"
+			continue
+		fi
+		if [ "$waited" -ge 100 ]; then
+			err "another sluice command has held $LOCK for 10s; remove it if nothing is running"
+			exit 1
+		fi
+		sleep 0.1
+		waited=$((waited + 1))
+	done
+	printf '%s\n' "$$" >"$LOCK/pid" 2>/dev/null || true
+	lock_taken=1
+	trap release_lock EXIT INT TERM
+}
+
 case "$SUB" in
 	init)
 		TOPIC="" CHANNEL="" PLAN="" RECORD="" FORCE=0
@@ -269,13 +327,14 @@ case "$SUB" in
 		[ -n "$CHANNEL" ] || { err "init needs --channel"; exit 4; }
 		in_set "$CHANNEL" "$CHANNELS" || { err "unknown channel: $CHANNEL (one of: $CHANNELS)"; exit 4; }
 
+		mk_dir "$DIR/.sluice"
+		take_lock
 		if [ -f "$STATE" ] && [ "$FORCE" -eq 0 ]; then
 			live="$(jq -r '.topic // "?"' "$STATE" 2>/dev/null || echo "?")"
 			err "a run is already live (topic: $live); pass --force to replace it"
 			exit 3
 		fi
 
-		mk_dir "$DIR/.sluice"
 		jq -n \
 			--arg topic "$TOPIC" \
 			--arg channel "$CHANNEL" \
@@ -332,6 +391,7 @@ case "$SUB" in
 		fi
 
 		require_run
+		take_lock
 		require_readable
 
 		# A row with no name is a number nobody can act on, so a new id has to
@@ -404,6 +464,7 @@ case "$SUB" in
 			exit 4
 		fi
 		require_run
+		take_lock
 		require_readable
 
 		jq --arg review "$REVIEW" --arg model "$MODEL" --arg workspace "$WORKSPACE" '
@@ -528,6 +589,7 @@ case "$SUB" in
 	close)
 		[ $# -eq 0 ] || { err "close takes no arguments"; exit 4; }
 		require_run
+		take_lock
 
 		# Deliberately not `require_readable`. The parse error every other
 		# subcommand raises names close as the way out, so close is the one

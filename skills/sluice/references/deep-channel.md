@@ -285,7 +285,9 @@ reads the run state rather than the plan: it sees what has actually landed.
 - Isolate the workspace before a multi-task plan: the harness's worktree
   tool, not `git worktree` yourself. Implementing straight onto main or
   master needs your partner's say-so, which pre-flight is where you got, and
-  it forecloses concurrent implementers for the whole run.
+  it forecloses concurrent implementers for the whole run. The run state
+  follows the set rather than the tree, so a worktree cut after the plan still
+  reads the rows the plan seeded and flips them where you are watching.
 - **The agent that built the task commits it**, once its own tests pass, and
   only the paths in its `Touches`. Never `git add -A`: the tree is shared, and
   on a branch you did not isolate it holds work that is not this task's. The
