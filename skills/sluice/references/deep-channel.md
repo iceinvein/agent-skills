@@ -353,7 +353,7 @@ and it fails by printing success rather than by erroring.
 
 | Tier | Task shape | Review |
 |------|------------|--------|
-| 0 | Created files only, executable tests exist and pass, Contract matches | No dispatch. Read the commit stat yourself. |
+| 0 | Created files only, tests that meet `references/test-first.md` exist and pass, Contract matches | No dispatch. Read the commit stat yourself. |
 | 1 | Modified existing code, or later tasks build on it | One reviewer dispatch |
 | 2 | No executable test covers it: prose, config, docs | One reviewer dispatch; a stat cannot confirm the words are right |
 | 3 | Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch; the task may not be downshifted |
@@ -381,6 +381,13 @@ A task matching more than one row takes the highest tier of them. Tier is the
 number, not the row order and not which shape sounds more serious. A task that
 only creates files but ships prose is tier 2, and a suite re-bless paired with
 an ADR is tier 2 rather than the free row it resembles.
+
+**A test written to earn tier 0 does not earn it.** The row is a discount on
+review, and a task whose only executable test fails
+`references/test-first.md`'s question, that some plausible change to the code
+turns it red, is a tier 2 task carrying a green line rather than a covered
+one. Price it as tier 2. Buying this table's savings with the one kind of test the rest of the
+skill argues against is the cheapest way to lose them.
 
 Ordering inert tasks first is what keeps this affordable. An inert task that
 only creates files takes tier 0, so a nine-task plan usually buys three
