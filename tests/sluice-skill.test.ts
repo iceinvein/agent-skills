@@ -380,3 +380,91 @@ describe("sluice review debt is reachable from the plan author's file", () => {
 		}
 	});
 });
+
+// Every line in test-first.md argues for another test and nothing in it argues
+// against one. A rule that guards only the skipping direction prices ceremony at
+// zero, so the cases it never reaches are the ones written to look diligent.
+describe("sluice test-first prices a test before it is written", () => {
+	const TF = readFileSync(join(dir, "references", "test-first.md"), "utf8");
+	// Prose wraps at 79 columns, so a phrase these tests pin can straddle two
+	// lines. Wrapping is formatting; matching on it would fail a reflow that
+	// changed no rule.
+	const flat = TF.replace(/\n/g, " ");
+	const paras = TF.split("\n\n").map((para) => para.replace(/\n/g, " "));
+
+	test("failing the red-change question ends in no test, not a weaker one", () => {
+		const gate = paras.find((p) => /would turn it red/.test(p));
+		expect(gate).toBeDefined();
+		expect(gate).toMatch(/no test/i);
+	});
+
+	test("a change something else already rejects does not earn a test", () => {
+		expect(flat).toMatch(/type checker|compiler|linter/i);
+	});
+
+	test("the skip decision is a criterion rather than a closed list", () => {
+		expect(flat).not.toMatch(/list as closed|closed list/i);
+	});
+
+	test("a skipped test is named where the partner reads it", () => {
+		const skip = paras.find((p) => /generated|scaffold/i.test(p));
+		expect(skip).toBeDefined();
+		expect(skip).toMatch(/reply|report/i);
+	});
+
+	test("expected values never come from the code under test", () => {
+		expect(flat).toMatch(/code under test/);
+		expect(flat).toMatch(/bless|snapshot/i);
+	});
+
+	test("it names the shapes that are not worth a test", () => {
+		for (const shape of ["getter", "constant", "framework"]) {
+			expect(flat.toLowerCase()).toContain(shape);
+		}
+	});
+
+	test("coverage is not a target", () => {
+		expect(flat).toMatch(/coverage/i);
+		expect(flat).toMatch(/not a target|never a target/i);
+	});
+
+	test("a test goes when its behaviour goes, and never because it is red", () => {
+		const removal = paras.find((p) => /^\*{0,2}A test goes/.test(p));
+		expect(removal).toBeDefined();
+		expect(removal).toMatch(/red|failing/i);
+	});
+
+	test("it carries a friction line in each direction", () => {
+		expect(flat).toMatch(/friction lines/);
+		const quoted = [...flat.matchAll(/"([^"]+)"/g)].map((m) => m[1] as string);
+		expect(quoted.some((q) => /skip straight to the code/.test(q))).toBe(true);
+		expect(quoted.some((q) => /to be safe|just in case/.test(q))).toBe(true);
+	});
+
+	test("the router's test-first line names the padding direction too", () => {
+		const bullet = section(SKILL, "The rules")
+			.split("\n- ")
+			.find((b) => /\*\*Test first/.test(b));
+		expect(bullet).toBeDefined();
+		expect(bullet).toMatch(/no plausible change|not one you owe|guards nothing/i);
+	});
+});
+
+// Tier 0 buys a task out of a review dispatch on the strength of "tests exist and
+// pass". A test written to satisfy that clause costs less than the review it
+// avoids, so the table pays for exactly the ceremony test-first.md rules out.
+describe("sluice tier 0 cannot be bought with a token test", () => {
+	const policy = section(DEEP, "Review policy");
+
+	test("the tier 0 row names the standard its tests must meet", () => {
+		const row = policy.split("\n").find((l) => l.startsWith("| 0 |"));
+		expect(row).toBeDefined();
+		expect(row).toMatch(/test-first/);
+	});
+
+	test("a test written only to earn the row leaves the task at its real tier", () => {
+		const para = policy.split("\n\n").find((p) => p.startsWith("**A test written"));
+		expect(para).toBeDefined();
+		expect(para).toMatch(/tier 2/);
+	});
+});
