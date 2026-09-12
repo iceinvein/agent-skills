@@ -242,7 +242,7 @@ if [ "$SUB" = "line" ]; then
 		               elif $active  then paint("96"; "▸T\($active.id)") + " " + ($active.name // "")
 		               else "" end)
 		              + (if $attn > 1 then paint("2"; " +\($attn - 1)") else "" end),
-		              (if $debt > 0 then paint("33"; "⟲\($debt) unreviewed") else "" end)
+		              (if $debt > 0 then paint("33"; "⟲ \($debt) unreviewed") else "" end)
 		            ] | join_parts)
 		  )
 	' "$STATE" 2>/dev/null || exit 0

@@ -282,7 +282,7 @@ variable is unset, at the price of a second `[ -f ]`. It renders as:
 ```
 ⧗ deep · sluice-cross-harness   ◷ 38m
   ▰▰▰ ▰▰▨ ▨▨▨ ◈◈◈ ▱▱▱ ▮▮▮ ▱▱▱ ┃ ▱▱▱ ▱▱▱
-  2/9 done · !T6 model tiers rather than model names +1 · ⟲1 unreviewed
+  2/9 done · !T6 model tiers rather than model names +1 · ⟲ 1 unreviewed
 ```
 
 The colour comes out of the script rather than being applied by the caller,

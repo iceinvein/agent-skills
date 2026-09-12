@@ -650,6 +650,16 @@ describe("line --full", () => {
 		expect(rows(dir)[2]).toMatch(/1 unreviewed/);
 	});
 
+	// The debt glyph is ambiguous-width in terminal fonts, so a digit set hard
+	// against it is drawn over it. Every other symbol in the render takes a
+	// space before its text for the same reason.
+	test("the debt glyph is separated from its count by a space", () => {
+		const dir = run9();
+		run(dir, "task", "1", "--status", "done");
+		expect(rows(dir)[2]).toMatch(/⟲ 1 unreviewed/);
+		expect(rows(dir)[2]).not.toMatch(/⟲1/);
+	});
+
 	// Same contract as the compact form: its caller renders on every keystroke.
 	test("is silent and exits 0 with no run", () => {
 		const r = run(repo(), "line", "--full");
