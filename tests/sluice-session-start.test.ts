@@ -107,6 +107,24 @@ describe("session-start.sh", () => {
 		expect(out).toContain("widget");
 	});
 
+	test("a worktree with its own run is shown that run, not the main tree's", () => {
+		const main = repo();
+		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", main, ...args], timeout: 10000 });
+		git("init", "-q");
+		git("config", "user.email", "t@example.com");
+		git("config", "user.name", "t");
+		writeFileSync(join(main, "README.md"), "hi\n");
+		git("add", "-A");
+		git("commit", "-qm", "init");
+		const wt = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "impl");
+		git("worktree", "add", "-q", wt, "-b", "impl");
+		status(main, "init", "--topic", "widget", "--channel", "deep");
+		status(wt, "init", "--topic", "gadget", "--channel", "fast");
+		const out = hook({ cwd: wt, source: "startup" }).out;
+		expect(out).toContain("gadget");
+		expect(out).not.toContain("widget");
+	});
+
 	test("falls back to the working directory when stdin carries no cwd", () => {
 		const dir = repo();
 		status(dir, "init", "--topic", "widget", "--channel", "deep");

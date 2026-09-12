@@ -1070,14 +1070,39 @@ describe("a worktree set shares one run", () => {
 
 	// Silently starting a second run is how the plan's rows go missing: the
 	// implementer writes into a file nothing else reads and the worktree takes it.
-	test("init from a worktree refuses while the shared run is live", () => {
+	// The set shares a run only while the worktree has none of its own. Two
+	// sessions working independently, one per worktree, each start a run in
+	// their tree, and neither is shown the other's.
+	test("init from a worktree starts that worktree's own run", () => {
 		const main = gitRepo();
 		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		const r = run(wt, "init", "--topic", "gadget", "--channel", "fast");
+		expect(r.code).toBe(0);
+		expect(run(wt, "show").out).toContain("gadget");
+		expect(run(main, "show").out).toContain("widget");
+		expect(run(main, "show").out).not.toContain("gadget");
+	});
 
-		const r = run(worktree(main, "impl"), "init", "--topic", "other", "--channel", "fast");
-		expect(r.code).toBe(3);
-		expect(r.err).toContain("widget");
-		expect(state(main).topic).toBe("widget");
+	test("a worktree with its own run flips its own rows, not the main tree's", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(wt, "init", "--topic", "gadget", "--channel", "fast");
+		run(wt, "task", "1", "--name", "own", "--status", "active");
+		expect(state(main).tasks).toEqual([]);
+		expect(run(wt, "line").out).toMatch(/fast/);
+		expect(run(wt, "line").out).toMatch(/T1/);
+	});
+
+	test("close from a worktree with its own run leaves the main tree's run live", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(wt, "init", "--topic", "gadget", "--channel", "fast");
+		expect(run(wt, "close").code).toBe(0);
+		expect(run(wt, "show").out).toContain("widget");
+		expect(run(main, "show").code).toBe(0);
 	});
 
 	test("close from a worktree archives the shared run", () => {

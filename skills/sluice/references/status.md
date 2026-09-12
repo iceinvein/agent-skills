@@ -77,12 +77,17 @@ the plan seeded would be absent from every implementer, `init` there would
 start a second run nothing else reads, and the worktree would take that state
 with it when it went.
 
-So every command anchors on the main worktree of whatever tree it is pointed
-at, and one run covers the set. The statusline renders the same run in every
-window, a flip issued from any tree in the set lands where every other tree is
-watching, and `init` from a worktree reports the run that is already live
-rather than replacing it. A submodule anchors on its own checkout, not the superproject's,
-and a directory that is no git work tree keeps its run exactly where it sits.
+So a tree with no run of its own anchors on the main worktree of its set, and
+the set's run covers it: the statusline renders the controller's run in every
+implementer's window, and a flip issued from any of those trees lands where
+every other one is watching. A tree's own run comes first, though. `init`
+always lands in the tree it is given, and every other command reads that
+tree's state when it has one, so two sessions working independently in two
+worktrees of one repo each keep their own run and neither is shown the
+other's. Anchored unconditionally, as this once was, the first `init` in the
+set took over every other session's statusline and refused every other `init`.
+A submodule anchors on its own checkout, not the superproject's, and a
+directory that is no git work tree keeps its run exactly where it sits.
 
 One file for several writers is one file to contend on, so `init`, `task`,
 `preflight`, `final` and `close` take a lock first: two flips issued at the

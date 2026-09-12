@@ -93,12 +93,17 @@ if [ -z "$SUB" ]; then
 	exit 4
 fi
 
-# A linked worktree is another view of the same run, not a new one. The run
-# directory ignores itself, so `git worktree add` never carries it across: read
-# from the tree it was called in, the run a plan seeded is absent from every
-# implementer created after that plan, and an `init` there lands a rival state
-# file that dies with the worktree. Every tree in a set anchors on the main
-# worktree instead, which is the one path all of them agree on.
+# A tree's own run comes first, and only a tree with none reads the set's. Two
+# layouts share this script and pull opposite ways. A deep run plans in the main
+# tree and cuts implementer worktrees after the plan: the run directory ignores
+# itself, so `git worktree add` never carries it across, and read from the tree
+# it was called in the run would be absent from every implementer. Those trees
+# hold no run of their own, so they anchor on the main worktree, the one path
+# the set agrees on. Independent sessions, one per worktree, each start a run
+# where they sit: anchored unconditionally, the first `init` in the set took
+# over every other session's statusline and refused every other `init`. So
+# `init` always lands in the tree it was given, and every other command reads
+# the tree's own state when it has one.
 #
 # `git worktree list` names the main worktree first. A submodule names its own
 # checkout there rather than the superproject's, which is what keeps a
@@ -109,7 +114,8 @@ fi
 # base defaulted at dispatch is the HEAD of the tree the implementer is about to
 # be cut from, which in a worktree set is not always the main worktree's.
 ORIG_DIR="$DIR"
-if [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+if [ "$SUB" != "init" ] && [ ! -f "$DIR/.sluice/run.json" ] \
+	&& [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
 	MAIN_TREE="$(git -C "$DIR" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
 	if [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
 		DIR="$MAIN_TREE"
