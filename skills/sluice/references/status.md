@@ -20,6 +20,7 @@ bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --model "6 o
      --workspace "one worktree per implementer"
 bash <skill-dir>/scripts/status.sh show
 bash <skill-dir>/scripts/status.sh ready
+bash <skill-dir>/scripts/status.sh final
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
@@ -30,7 +31,29 @@ run as the tree it was cut from. Statuses
 are `todo`, `active`, `review`, `done` and `blocked`. A new id needs `--name`;
 after that every call is a bare flip, so keeping it current costs one command
 per transition rather than a paragraph. `close` archives the run under
-`.sluice/archive/` and frees the tree for the next one.
+`.sluice/archive/`, prints one line saying what it archived, progress, review
+debt and whether the final review landed, and frees the tree for the next one.
+
+The controller writes every row. An implementer reports its SHA in its reply
+and touches nothing under `.sluice/`; the brief in `references/deep-channel.md`
+says so to it. `active` is the dispatch, `review` is the commit in and a
+reviewer out, with the task's paths still held because a finding may send the
+implementer back into them, and `done` is the end: with `--reviewed` when a
+review cleared it, without when the tier owed one and pre-flight declined it,
+which is the row the debt count counts.
+
+A task going `active` with no `--base` takes the HEAD of the tree the command
+is pointed at, `--dir` if given and the current tree otherwise, once; a base
+already on the row is kept. Pass `--base` when the implementer's tree is
+neither.
+
+Every write stamps `updated`. Past a day since the last one, `show` and the
+statusline both say how long the run has sat idle, because a finished plan
+whose run was never closed looks exactly like a live one otherwise, and it
+blocks the next `init`.
+
+`final` records that the plan's final review cleared. `show` reports it
+pending until then, and `close` says which it was.
 
 A command that cannot finish leaves the state exactly as it found it, so a
 failed `task` never costs you the rows already in the file. Two argument rules
@@ -56,15 +79,16 @@ with it when it went.
 
 So every command anchors on the main worktree of whatever tree it is pointed
 at, and one run covers the set. The statusline renders the same run in every
-window, a flip made by an implementer lands where the controller is watching,
-and `init` from a worktree reports the run that is already live rather than
-replacing it. A submodule anchors on its own checkout, not the superproject's,
+window, a flip issued from any tree in the set lands where every other tree is
+watching, and `init` from a worktree reports the run that is already live
+rather than replacing it. A submodule anchors on its own checkout, not the superproject's,
 and a directory that is no git work tree keeps its run exactly where it sits.
 
 One file for several writers is one file to contend on, so `init`, `task`,
-`preflight` and `close` take a lock first: four implementers each flipping
-their own row would otherwise have the later write built on a snapshot taken
-before the earlier one landed, dropping that row without saying so. The lock
+`preflight`, `final` and `close` take a lock first: two flips issued at the
+same moment from different trees would otherwise have the later write built on
+a snapshot taken before the earlier one landed, dropping that row without
+saying so. The lock
 carries its holder's pid, so a killed run is broken through rather than waited
 out. Reads take nothing, state being installed through a rename, which is what
 keeps `line` cheap enough to render on.
@@ -108,8 +132,9 @@ have gone that way. Those are different claims.
 ## Reading it back
 
 `show` prints the whole run: channel, topic, how many tasks are done, the plan
-and record paths, the pre-flight answers, and a row per task with its base,
-commit, tier and model. Run it after compaction instead of reconstructing the
+and record paths, how long it has sat idle once that passes a day, the review
+debt, the final review, the pre-flight answers, and a row per task with its
+base, commit, tier and model. Run it after compaction instead of reconstructing the
 run from what you remember, and run it in the message that hands the work back,
 where "four of nine, task five blocked" is a fact your partner can act on.
 
@@ -184,6 +209,26 @@ establishes is what the tasks after it are checked against.
 Derive the wave here rather than writing wave numbers into the plan. A declared
 schedule is wrong the moment one task lands late; this recomputes.
 
+What a wave of several means is read off the pre-flight workspace answer: an
+answer containing "per implementer", "per concurrent implementer", "each
+implementer" or "worktree each" prints "a worktree each", any other recorded
+answer prints "serial, one at a time in the shared tree", and no answer prints
+neither. It is a match on words, not a reading of the sentence, so record the
+answer in one of those phrases when worktrees were bought and in none of them
+when they were not.
+
+## On session start
+
+`scripts/session-start.sh` is the SessionStart hook a global install wires,
+after the routing directive. On startup, resume, clear and compact it runs
+`show` against the tree the session opened in, a subdirectory or a linked
+worktree included since `show` anchors on the main worktree, and prints the
+run when there is one, with one sentence more: after a compaction, resume or
+clear, that the record is to be read before the next dispatch; on a fresh
+start, that a run not being continued was left open and wants `close`. A tree
+with no run prints nothing. The reading-back rule above still stands; this is
+the harness doing it at the one moment memory has just been cut.
+
 ## Statusline
 
 This is the part that makes a run visible without anyone asking. Give it rows of
@@ -239,6 +284,9 @@ The colour comes out of the script rather than being applied by the caller,
 because the mapping from state to colour belongs next to the state. A caller that
 coloured the line itself would have to re-derive each cell's meaning from its
 glyph, which is the same fact stored twice.
+
+Past a day since the last write the first row gains `· idle 2d1h`, so a run
+nobody closed reads as one.
 
 A run that is only visible to the session running it is a run your partner
 cannot redirect. That is the same argument the channel announcement makes, and

@@ -1122,3 +1122,230 @@ describe("a worktree set shares one run", () => {
 		expect(state(dir).topic).toBe("widget");
 	});
 });
+
+// The base is what the reviewer's diff is cut from, and it is only cheap to
+// know at the moment of dispatch. Left to be recovered later it comes back as
+// `HEAD~1`, so an unstated base is filled in from the tree the command ran in.
+// A state that is not an object is not a run, whatever jq makes of it.
+describe("write_state refuses a non-object state", () => {
+	test("a task flip over a state jq parses as null leaves the file untouched", () => {
+		const dir = seeded(1);
+		const path = join(dir, ".sluice", "run.json");
+		writeFileSync(path, "null");
+		const r = run(dir, "task", "1", "--status", "active");
+		expect(r.code).not.toBe(0);
+		expect(readFileSync(path, "utf8")).toBe("null");
+	});
+});
+
+describe("the base defaults to HEAD at dispatch", () => {
+	function head(dir: string): string {
+		return Bun.spawnSync({ cmd: ["git", "-C", dir, "rev-parse", "--short", "HEAD"], timeout: 10000 })
+			.stdout.toString()
+			.trim();
+	}
+
+	test("flipping a task active with no --base records the current HEAD", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		run(dir, "task", "1", "--name", "first", "--status", "active");
+		expect(state(dir).tasks[0]?.base).toBe(head(dir));
+	});
+
+	test("an explicit --base is kept over the default", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		run(dir, "task", "1", "--name", "first", "--status", "active", "--base", "abc1234");
+		expect(state(dir).tasks[0]?.base).toBe("abc1234");
+	});
+
+	test("a base already on the row is not overwritten by a second flip", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		run(dir, "task", "1", "--name", "first", "--status", "active", "--base", "abc1234");
+		run(dir, "task", "1", "--status", "active");
+		expect(state(dir).tasks[0]?.base).toBe("abc1234");
+	});
+
+	// The implementer is cut from a worktree whose HEAD has moved on from the
+	// main tree's, and the diff the reviewer gets is cut from the base, so the
+	// base has to be the worktree's.
+	test("issued from a linked worktree, the base is that worktree's HEAD", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		writeFileSync(join(wt, "more.md"), "more\n");
+		Bun.spawnSync({ cmd: ["git", "-C", wt, "add", "-A"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", wt, "commit", "-qm", "ahead"], timeout: 10000 });
+		expect(head(wt)).not.toBe(head(main));
+		run(wt, "task", "1", "--name", "first", "--status", "active");
+		expect(state(main).tasks[0]?.base).toBe(head(wt));
+	});
+
+	test("outside a git tree the row simply carries no base", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--status", "active");
+		expect(state(dir).tasks[0]?.base).toBeUndefined();
+	});
+});
+
+// A run nobody has touched for a day is either abandoned or forgotten, and the
+// clock since `started` cannot tell a long run from a dead one. The last write
+// can, so every write stamps it and the readers say when it is old.
+describe("a run knows when it was last written", () => {
+	function age(dir: string, hours: number) {
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.updated = new Date(Date.now() - hours * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+		writeFileSync(path, JSON.stringify(s));
+	}
+
+	test("init and every task flip stamp updated", () => {
+		const dir = repo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		const first = state(dir) as Run & { updated?: string };
+		expect(first.updated).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+		run(dir, "task", "1", "--name", "first", "--status", "active");
+		const second = state(dir) as Run & { updated?: string };
+		expect(second.updated).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+	});
+
+	test("show says how long a run has sat idle once it passes a day", () => {
+		const dir = seeded(2);
+		age(dir, 30);
+		expect(run(dir, "show").out).toMatch(/idle\s+1d6h/);
+	});
+
+	test("a run recorded before updated existed reads idle off its start time", () => {
+		const dir = seeded(1);
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		delete s.updated;
+		s.started = new Date(Date.now() - 72 * 3600 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+		writeFileSync(path, JSON.stringify(s));
+		expect(run(dir, "show").out).toMatch(/idle\s+3d0h/);
+	});
+
+	test("show says nothing about idleness on a run written today", () => {
+		const dir = seeded(2);
+		expect(run(dir, "show").out).not.toMatch(/idle/);
+	});
+
+	test("the statusline carries the idle time in its first row", () => {
+		const dir = seeded(2);
+		age(dir, 49);
+		const rows = run(dir, "line", "--full").out.split("\n");
+		expect(rows[0]).toMatch(/idle 2d1h/);
+	});
+
+	test("and leaves it off a run written today", () => {
+		const dir = seeded(2);
+		expect(run(dir, "line", "--full").out.split("\n")[0]).not.toMatch(/idle/);
+	});
+});
+
+// The per-task debt count says which tasks were owed a dispatch and never got
+// one. It says nothing about the review that covers the plan as a whole, which
+// is the one review every deep run owes whatever the tiers did.
+describe("the final review is recorded", () => {
+	test("show reports it pending until it is marked", () => {
+		const dir = seeded(2);
+		expect(run(dir, "show").out).toMatch(/final review\s+pending/);
+	});
+
+	test("final marks it and show reports it done", () => {
+		const dir = seeded(2);
+		const r = run(dir, "final");
+		expect(r.code).toBe(0);
+		expect(run(dir, "show").out).toMatch(/final review\s+done/);
+	});
+
+	test("final needs a live run", () => {
+		expect(run(repo(), "final").code).toBe(2);
+	});
+
+	test("final takes no arguments", () => {
+		expect(run(seeded(1), "final", "--now").code).toBe(4);
+	});
+
+	test("the mark survives a later write to a task row", () => {
+		const dir = seeded(2);
+		run(dir, "final");
+		run(dir, "task", "1", "--name", "renamed");
+		expect(run(dir, "show").out).toMatch(/final review\s+done/);
+	});
+});
+
+// A run is closed once per plan, and a close that says nothing lets a run with
+// six unreviewed tasks and no final review leave without the fact being read.
+describe("close says what it archived", () => {
+	test("names the topic, the progress, the debt and the final review", () => {
+		const dir = seeded(3);
+		run(dir, "task", "1", "--status", "done", "--tier", "1");
+		run(dir, "task", "2", "--status", "done", "--tier", "1", "--reviewed");
+		const r = run(dir, "close");
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/widget/);
+		expect(r.out).toMatch(/2\/3 done/);
+		expect(r.out).toMatch(/1 unreviewed/);
+		expect(r.out).toMatch(/final review pending/);
+	});
+
+	test("still names the archive when the state could not be summarised", () => {
+		const dir = seeded(1);
+		corrupt(dir);
+		const r = run(dir, "close");
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/closed/);
+		expect(r.out).toMatch(/unreadable/);
+	});
+
+	test("reads clean when nothing is owed", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--status", "done", "--tier", "0");
+		run(dir, "final");
+		const out = run(dir, "close").out;
+		expect(out).toMatch(/1\/1 done/);
+		expect(out).not.toMatch(/unreviewed/);
+		expect(out).toMatch(/final review done/);
+	});
+});
+
+// "A worktree each" is only true when pre-flight bought worktrees. Under a
+// shared tree the same wave runs serially, and the line has to say that or say
+// nothing rather than tell the reader to dispatch four at once.
+describe("ready reads the workspace answer", () => {
+	function two(): string {
+		const dir = repo();
+		run(dir, "init", "--topic", "t", "--channel", "deep");
+		const path = join(dir, ".sluice", "run.json");
+		const s = JSON.parse(readFileSync(path, "utf8"));
+		s.tasks = [
+			{ id: 1, name: "a", status: "todo", tier: 1, touches: ["src/a.ts"] },
+			{ id: 2, name: "b", status: "todo", tier: 1, touches: ["src/b.ts"] },
+			{ id: 3, name: "flip", status: "todo", tier: 3, flips: true, touches: ["src/f.ts"] },
+		];
+		writeFileSync(path, JSON.stringify(s));
+		return dir;
+	}
+
+	test("says a worktree each when pre-flight chose worktrees", () => {
+		const dir = two();
+		run(dir, "preflight", "--workspace", "one worktree per concurrent implementer");
+		expect(run(dir, "ready").out.split("\n")[0]).toMatch(/a worktree each/);
+	});
+
+	test("says serial when pre-flight chose a shared tree", () => {
+		const dir = two();
+		run(dir, "preflight", "--workspace", "shared tree, agents leave it dirty");
+		const first = run(dir, "ready").out.split("\n")[0];
+		expect(first).toMatch(/serial/);
+		expect(first).not.toMatch(/worktree each/);
+	});
+
+	test("says neither when the workspace answer is not recorded", () => {
+		const first = run(two(), "ready").out.split("\n")[0];
+		expect(first).toMatch(/2 ready now/);
+		expect(first).not.toMatch(/worktree each|serial/);
+	});
+});

@@ -82,10 +82,13 @@ export async function removeSkill(cwd: string, skillName: string): Promise<Remov
   // never published to the GitHub master branch). Without it we cannot tell
   // which mcpServers keys inside a shared config file belong to this skill,
   // so those files are never deleted and their mcpServers entries are left
-  // alone. The skill's own SessionStart hook is still keyed by name (see
-  // matchesSkillDirective in ../adapters/claude), so it can be stripped out
-  // safely even without the manifest. Everything else genuinely owned by the
-  // skill (its prompt file, its bundle directory) is still removed.
+  // alone. The skill's own SessionStart hook carries a `skill` marker on any
+  // install since the marker existed (see matchesSkillDirective in
+  // ../adapters/claude), so it can be stripped out without the manifest; an
+  // entry wired before the marker is only recognised by its directive, which
+  // this path does not have, so such an entry survives here. Everything else
+  // genuinely owned by the skill (its prompt file, its bundle directory) is
+  // still removed.
   const removed: string[] = [];
   const warnings: string[] = [];
 

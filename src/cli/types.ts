@@ -11,6 +11,9 @@ export type ActivationConfig = {
   modes: ActivationMode[];
   default: ActivationMode;
   claudeHookDirective?: string;
+  // Bundle-relative path of a script the SessionStart hook runs after echoing
+  // the directive. It receives the harness's session JSON on stdin.
+  claudeHookScript?: string;
 };
 
 export type McpServerConfig = {
@@ -151,6 +154,9 @@ export function validateManifest(data: unknown): ValidationResult {
     }
     if (a.claudeHookDirective !== undefined && typeof a.claudeHookDirective !== "string") {
       return { ok: false, error: "'activation.claudeHookDirective' must be a string" };
+    }
+    if (a.claudeHookScript !== undefined && typeof a.claudeHookScript !== "string") {
+      return { ok: false, error: "'activation.claudeHookScript' must be a string" };
     }
   }
 

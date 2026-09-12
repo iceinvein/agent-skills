@@ -468,3 +468,81 @@ describe("sluice tier 0 cannot be bought with a token test", () => {
 		expect(para).toMatch(/tier 2/);
 	});
 });
+
+const FINISH = readFileSync(join(dir, "references", "finish.md"), "utf8");
+const STATUS = readFileSync(join(dir, "references", "status.md"), "utf8");
+
+// An implementer never loads the skill, so every rule it has to obey reaches it
+// through the brief or not at all.
+describe("sluice dispatch brief", () => {
+	test("the reference names what the brief carries", () => {
+		const brief = section(DEEP, "The dispatch brief");
+		expect(brief).toMatch(/Ground Rules/);
+		expect(brief).toMatch(/test/i);
+		expect(brief).toMatch(/git add -A/);
+		expect(brief).toMatch(/SHA/);
+		expect(brief).toMatch(/\.sluice/);
+	});
+
+	test("the dispatch rule points at the brief rather than sending the task text alone", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		expect(rules).not.toMatch(/that task's text and nothing else/);
+		expect(rules).toMatch(/brief/i);
+	});
+});
+
+// `review` existed in the script and nowhere in the prose, and two files
+// disagreed on who flips a row. One home for each.
+describe("sluice row lifecycle", () => {
+	test("the dispatch rules say when a row is in review and who writes it", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		expect(rules).toMatch(/`review`/);
+		expect(rules).toMatch(/implementer reports/i);
+	});
+
+	test("the state reference no longer has implementers flipping rows", () => {
+		expect(STATUS).not.toMatch(/flip made by an implementer/);
+		expect(STATUS).toMatch(/controller writes every row/i);
+	});
+
+	test("the base is defaulted at the active flip, in both files", () => {
+		expect(section(DEEP, "Review policy")).toMatch(/HEAD of\s+the tree/);
+		expect(STATUS).toMatch(/no `--base` takes the HEAD/);
+	});
+});
+
+// The run had a start and no end: nothing said `close`, so the last run sat
+// live for three weeks at 0/9.
+describe("sluice run lifecycle", () => {
+	test("finish owns the handback message and the close", () => {
+		const handback = section(FINISH, "The handback message");
+		expect(handback).toMatch(/run-stats\.sh/);
+		expect(handback).toMatch(/status\.sh show/);
+		expect(handback).toMatch(/status\.sh close/);
+		expect(handback).toMatch(/final review/i);
+	});
+
+	test("the final review is placed before finish and marked with final", () => {
+		const final = section(DEEP, "The final review");
+		expect(final).toMatch(/before `references\/finish\.md`/);
+		expect(final).toMatch(/status\.sh final/);
+	});
+
+	test("the router names the end of the run", () => {
+		const deep = section(SKILL, "Deep channel");
+		expect(deep).toMatch(/status\.sh close/);
+		expect(deep).toMatch(/status\.sh final/);
+	});
+
+	test("the state reference describes the session-start hook", () => {
+		expect(section(STATUS, "On session start")).toMatch(/session-start\.sh/);
+	});
+});
+
+// The meter finds the run by the announcement, so the one part of its wording
+// that is fixed has to be said where the announcement is written.
+describe("sluice announcement", () => {
+	test("the router fixes the words the meter keys on", () => {
+		expect(section(SKILL, "Route first")).toMatch(/<channel> channel/);
+	});
+});

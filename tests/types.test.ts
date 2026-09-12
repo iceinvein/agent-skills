@@ -137,3 +137,18 @@ test("validateManifest accepts manifest without activation block", () => {
   const result = validateManifest(data);
   expect(result.ok).toBe(true);
 });
+
+test("validateManifest rejects a non-string activation.claudeHookScript", () => {
+  const result = validateManifest({
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md" } },
+    activation: { modes: ["global"], default: "global", claudeHookScript: 3 },
+  });
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toContain("claudeHookScript");
+});

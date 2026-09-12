@@ -15,6 +15,7 @@
 #   status.sh preflight [--review <t>] [--model <t>] [--workspace <t>]
 #   status.sh show [--json]
 #   status.sh ready
+#   status.sh final
 #   status.sh line [--full]
 #   status.sh close
 #
@@ -103,6 +104,11 @@ fi
 # checkout there rather than the superproject's, which is what keeps a
 # submodule's run beside its own working tree, and a directory that is no git
 # work tree at all is left exactly as it was given.
+#
+# The tree the command was issued from, kept apart from the anchored one: a
+# base defaulted at dispatch is the HEAD of the tree the implementer is about to
+# be cut from, which in a worktree set is not always the main worktree's.
+ORIG_DIR="$DIR"
 if [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
 	MAIN_TREE="$(git -C "$DIR" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
 	if [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
@@ -200,11 +206,23 @@ if [ "$SUB" = "line" ]; then
 		            else "◷ \($m / 60 | floor)h\($m % 60)m"
 		            end
 		     end) as $clock
+		# Idle is the time since the last write, and it only shows once it passes
+		# a day: a run in progress is written every few minutes, so a day of
+		# silence is a run that was forgotten or finished without being closed. A
+		# run written before `updated` existed falls back to `started`.
+		| ((.updated // .started // "" | try fromdateiso8601 catch 0) as $u
+		   | if $u == 0 then ""
+		     else (($now - $u) / 3600 | floor) as $h
+		          | if $h < 24 then ""
+		            else "idle \($h / 24 | floor)d\($h % 24)h"
+		            end
+		     end) as $idle
 		| ( paint("1;96"; "⧗") + " "
 		    + ([ paint("1;96"; (.channel // "?")),
 		         paint("2"; (.topic // ""))
 		       ] | join_parts)
 		    + (if $clock == "" then "" else "   " + paint("2"; $clock) end)
+		    + (if $idle == "" then "" else " " + paint("2"; "·") + " " + paint("33"; $idle) end)
 		  ),
 		  # The flip is drawn as a rule before its task: everything left of it is
 		  # inert and safe to leave landed, everything right of it is not. That is
@@ -260,15 +278,21 @@ mk_dir() { # <directory to create under .sluice>
 # stdin, so a jq that died upstream of this feeds it nothing, and installing
 # nothing atomically is still a wipe of the one file in the run that outlives
 # compaction. A command that cannot finish leaves the state as it found it.
+#
+# Every write stamps `updated`, which is what lets a reader tell a run that is
+# moving from one that was left behind: `started` only says how old it is.
 write_state() {
-	local tmp="$STATE.tmp.$$"
+	local tmp="$STATE.tmp.$$" stamped="$STATE.stamped.$$"
 	cat >"$tmp"
-	if [ ! -s "$tmp" ] || ! jq -e . "$tmp" >/dev/null 2>&1; then
-		rm -f "$tmp"
+	# One jq does both the check and the stamp: it fails on malformed input and
+	# writes nothing on empty input, and either leaves the candidate unfit.
+	if ! jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 'if type != "object" then error("state is not an object") else .updated = $now end' "$tmp" >"$stamped" 2>/dev/null || [ ! -s "$stamped" ]; then
+		rm -f "$tmp" "$stamped"
 		err "refusing to write $STATE: the update produced no valid state, so the existing state is unchanged"
 		exit 1
 	fi
-	mv "$tmp" "$STATE" || { rm -f "$tmp"; err "could not replace $STATE"; exit 1; }
+	rm -f "$tmp"
+	mv "$stamped" "$STATE" || { rm -f "$stamped"; err "could not replace $STATE"; exit 1; }
 }
 
 # One state file now serves a whole worktree set, so two implementers can flip
@@ -410,6 +434,20 @@ case "$SUB" in
 			exit 4
 		fi
 
+		# The base is cheap to know at dispatch and archaeology afterwards, and
+		# the guess it gets recovered as is HEAD~1. So a task going active with
+		# no base takes the HEAD of the tree the command was issued from, once:
+		# a base already on the row was a decision and a second flip keeps it.
+		if [ "$STATUS" = "active" ] && [ -z "$BASE" ]; then
+			has_base="$(jq --argjson id "$ID" '[.tasks[]? | select(.id == $id and .base != null)] | length' "$STATE" 2>/dev/null)"
+			case "$has_base" in
+				'' | *[!0-9]*) err "could not read the task list from $STATE"; exit 6 ;;
+			esac
+			if [ "$has_base" = "0" ]; then
+				BASE="$(git -C "$ORIG_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+			fi
+		fi
+
 		patch="$(jq -n \
 			--arg name "$NAME" --arg status "$STATUS" --arg base "$BASE" \
 			--arg commit "$COMMIT" --arg tier "$TIER" --arg model "$MODEL" \
@@ -494,7 +532,7 @@ case "$SUB" in
 		# Header and rows are laid out from the same widths, so the two cannot
 		# drift apart, and an over-long value is clipped with a marker rather
 		# than silently reading as the whole value.
-		jq -r '
+		jq -r --argjson now "$(date -u +%s)" '
 			def dash: if . == null or . == "" then "-" else . end;
 			def cell($w): tostring
 				| if length > $w then .[0:$w - 1] + "…"
@@ -505,11 +543,24 @@ case "$SUB" in
 			                      $c[6]] | join(" "));
 			([.tasks[]? | select(.status == "done")] | length) as $done
 			| ["sluice \(.channel) · \(.topic) · \($done)/\(.tasks | length) done"]
-			+ ["plan        \(.plan | dash)"]
-			+ ["record      \(.record | dash)"]
+			+ ["plan          \(.plan | dash)"]
+			+ ["record        \(.record | dash)"]
+			# Past a day since the last write the run is idle, and that is said
+			# here because a stale run blocks the next init and nothing else
+			# would name it.
+			# A run written before `updated` existed falls back to `started`,
+			# which is the case the line was added for.
+			+ ((.updated // .started // "" | try fromdateiso8601 catch 0) as $u
+			   | if $u == 0 then []
+			     else (($now - $u) / 3600 | floor) as $h
+			          | if $h < 24 then []
+			            else ["idle          \($h / 24 | floor)d\($h % 24)h since the last write"]
+			            end
+			     end)
 			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
-			   | if $debt == 0 then [] else ["unreviewed  \($debt) done, owed a review the tier table promised"] end)
-			+ ["pre-flight  " + (
+			   | if $debt == 0 then [] else ["unreviewed    \($debt) done, owed a review the tier table promised"] end)
+			+ ["final review  " + (if .final_review then "done" else "pending" end)]
+			+ ["pre-flight    " + (
 				if (.preflight // {} | length) == 0 then "not recorded"
 				else [(.preflight | to_entries[] | "\(.key)=\(.value)")] | join("; ")
 				end)]
@@ -558,9 +609,18 @@ case "$SUB" in
 			    "no contract graph in the run state.",
 			    "re-run `plan.sh import <plan>` to record Needs, Offers and Touches."
 			  else
+			    # What a wave of several means depends on what pre-flight bought:
+			    # worktrees per implementer run it at once, anything else runs it
+			    # one at a time, and an answer never recorded says neither.
 			    (
 			      "\($ready | length) ready now"
-			      + (if ($ready | length) > 1 then " · a worktree each" else "" end)
+			      + (if ($ready | length) > 1 then
+			           (.preflight.workspace // "") as $ws
+			           | if $ws == "" then ""
+			             elif ($ws | test("per (concurrent )?implementer|each implementer|worktree each"; "i")) then " · a worktree each"
+			             else " · serial, one at a time in the shared tree"
+			             end
+			         else "" end)
 			    ),
 			    ($ready[] | "  T\(.id)  \(.name // "" | pad(38))\((.touches // []) | join(", "))"),
 			    # A shared path is what rules two ready tasks out of the same wave,
@@ -586,10 +646,35 @@ case "$SUB" in
 		' "$STATE"
 		;;
 
+	final)
+		[ $# -eq 0 ] || { err "final takes no arguments"; exit 4; }
+		require_run
+		take_lock
+		require_readable
+
+		# The per-task marks count dispatches the tier table owed. The final
+		# review is owed by the plan as a whole, so it is a fact about the run
+		# rather than a row, and `show` reports it pending until this lands.
+		jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.final_review = $now' "$STATE" | write_state
+		;;
+
 	close)
 		[ $# -eq 0 ] || { err "close takes no arguments"; exit 4; }
 		require_run
 		take_lock
+
+		# Said once, as the run leaves: a close that archives six unreviewed
+		# tasks and no final review in silence lets those facts leave with it.
+		# Best effort on state nothing else will parse, which is why it is not
+		# allowed to stop the archive.
+		summary="$(jq -r '
+			([.tasks[]? | select(.status == "done")] | length) as $done
+			| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
+			| [ "closed \(.topic // "run"): \($done)/\(.tasks | length) done",
+			    (if $debt > 0 then "\($debt) unreviewed" else empty end),
+			    "final review \(if .final_review then "done" else "pending" end)"
+			  ] | join(" · ")
+		' "$STATE" 2>/dev/null || true)"
 
 		# Deliberately not `require_readable`. The parse error every other
 		# subcommand raises names close as the way out, so close is the one
@@ -612,7 +697,11 @@ case "$SUB" in
 			dest="$ARCHIVE/$stamp-$slug-$n.json"
 			n=$((n + 1))
 		done
-		mv "$STATE" "$dest"
+		mv "$STATE" "$dest" || { err "could not archive $STATE"; exit 1; }
+		# The summary needs parseable state and close is the one command that
+		# does not, so an unreadable run still gets a line naming where it went.
+		[ -n "$summary" ] || summary="closed $(basename "$dest"): state was unreadable, no summary"
+		echo "$summary"
 		;;
 
 	*)

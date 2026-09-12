@@ -2,6 +2,8 @@ import { test, expect, beforeEach, afterEach } from "bun:test";
 import { claudeAdapter, wireSessionStartHook, unwireSessionStartHook } from "../../src/cli/adapters/claude";
 import type { SkillManifest } from "../../src/cli/types";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
+
+type HookGroup = { hooks: Array<{ command: string }> };
 import { join } from "node:path";
 
 const TMP = join(import.meta.dir, ".tmp-hooks");
@@ -235,4 +237,169 @@ test("claudeAdapter.remove unwires hook", async () => {
   await claudeAdapter.remove(TMP, manifest, [".claude/skills/terse/SKILL.md"]);
   const contents = await Bun.file(settingsPath).json();
   expect(contents.hooks).toBeUndefined();
+});
+
+// A directive is a sentence the model reads; a script is something the hook
+// runs. sluice needs the second so a session that starts, resumes or compacts
+// in a tree with a live run is shown that run rather than left to remember it.
+test("wireSessionStartHook runs the skill's script after the directive when one is given", async () => {
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/skills/sluice/scripts/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(
+    "echo 'Pick a channel.'; if [ -f '/opt/skills/sluice/scripts/session-start.sh' ]; then bash '/opt/skills/sluice/scripts/session-start.sh'; fi"
+  );
+});
+
+test("wireSessionStartHook replaces its own entry's command when it changes", async () => {
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.");
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/skills/sluice/scripts/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toContain("session-start.sh");
+});
+
+test("claudeAdapter.install resolves the hook script under the installed bundle root", async () => {
+  const manifest: SkillManifest = {
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    bundle: { include: ["scripts"] },
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "global",
+      claudeHookDirective: "Pick a channel.",
+      claudeHookScript: "scripts/session-start.sh",
+    },
+  };
+  const files = new Map([
+    ["SKILL.md", "# Sluice"],
+    ["scripts/session-start.sh", "#!/usr/bin/env bash\n"],
+  ]);
+  await claudeAdapter.install(TMP, manifest, files, "global");
+  const contents = await Bun.file(join(TMP, ".claude/settings.json")).json();
+  const script = join(TMP, ".claude/skills/sluice/scripts/session-start.sh");
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(
+    `echo 'Pick a channel.'; if [ -f '${script}' ]; then bash '${script}'; fi`
+  );
+});
+
+// Entries wired before the `skill` marker existed carry only the directive. A
+// directive that never says "Activate <name> skill" (sluice's, and terse's
+// current one) was therefore never recognised as the skill's own, so every
+// install appended another copy and none of them ever gained the script.
+test("wireSessionStartHook adopts a plain legacy entry carrying its directive instead of appending", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] }] },
+  }));
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].skill).toBe("sluice");
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toContain("session-start.sh");
+});
+
+test("wireSessionStartHook leaves a hand-edited entry carrying its directive alone and appends nothing", async () => {
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.' ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(custom);
+});
+
+test("unwireSessionStartHook removes a legacy entry when given the directive", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [
+      { hooks: [{ type: "command", command: "echo other" }] },
+      { hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] },
+    ] },
+  }));
+  await unwireSessionStartHook(SETTINGS, "sluice", "Pick a channel.");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe("echo other");
+});
+
+// The command is a shell line the harness runs, so what goes into it is
+// quoted for the shell: a path or directive with an apostrophe must still run,
+// and a script that is not where the install put it must not fail the hook.
+function sh(command: string) {
+  const proc = Bun.spawnSync({ cmd: ["bash", "-c", command], timeout: 5000 });
+  return { code: proc.exitCode, out: proc.stdout.toString() };
+}
+
+test("a single quote in the directive or the script path is quoted for the shell", async () => {
+  const script = join(TMP, "o'brien dir", "session-start.sh");
+  mkdirSync(join(TMP, "o'brien dir"), { recursive: true });
+  await Bun.write(script, "#!/usr/bin/env bash\necho SCRIPT-RAN\n");
+  await wireSessionStartHook(SETTINGS, "sluice", "Don't skip the channel.", script);
+  const command = (await Bun.file(SETTINGS).json()).hooks.SessionStart[0].hooks[0].command as string;
+  const r = sh(command);
+  expect(r.code).toBe(0);
+  expect(r.out).toBe("Don't skip the channel.\nSCRIPT-RAN\n");
+});
+
+// Two identical legacy entries were the symptom of the matcher bug; adopting
+// both would run the hook script twice per session start, so the first is
+// adopted and the rest go.
+test("wireSessionStartHook collapses duplicate legacy entries into one", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [
+      { hooks: [{ type: "command", command: "echo other" }] },
+      { hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] },
+      { hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] },
+    ] },
+  }));
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  const commands = (contents.hooks.SessionStart as HookGroup[]).flatMap((g) => g.hooks.map((h) => h.command));
+  expect(commands).toHaveLength(2);
+  expect(commands[0]).toBe("echo other");
+  expect(commands[1]).toContain("session-start.sh");
+});
+
+test("wireSessionStartHook says so when a hand-written entry means the script was not wired", async () => {
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.' ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: string) => { warnings.push(String(msg)); };
+  try {
+    await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings.join("\n")).toMatch(/session-start\.sh/);
+  expect(warnings.join("\n")).toMatch(/hand|custom|edited/i);
+});
+
+test("unwireSessionStartHook leaves a hand-written entry carrying the directive in place", async () => {
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.' ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [
+      { hooks: [{ type: "command", command: custom }] },
+      { hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] },
+    ] },
+  }));
+  await unwireSessionStartHook(SETTINGS, "sluice", "Pick a channel.");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(custom);
+});
+
+test("a hook whose script is missing still prints the directive and exits 0", async () => {
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/nonexistent/session-start.sh");
+  const command = (await Bun.file(SETTINGS).json()).hooks.SessionStart[0].hooks[0].command as string;
+  const r = sh(command);
+  expect(r.code).toBe(0);
+  expect(r.out.trim()).toBe("Pick a channel.");
 });

@@ -23,25 +23,36 @@ type HookEntry = { type: "command"; command: string; skill?: string };
 type HookGroup = { hooks: HookEntry[] };
 type Settings = Record<string, any>;
 
+// Quotes a string for a POSIX shell single-quoted literal. The hook command is
+// a shell line the harness runs, and both the directive and the install path
+// come from outside it: an apostrophe in either would otherwise end the
+// literal early and take the whole command down, directive included.
+function shq(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
 // Identifies whether a SessionStart hook entry belongs to `skillName`.
 //
 // New entries carry an explicit `skill` field, written by wireSessionStartHook
 // below, so identity never depends on what the directive text happens to say.
-// Entries wired before this field existed (for example terse's hook on real
-// machines today) carry no such field. Those are recognised by the substring
-// heuristic this file used exclusively before: it only ever worked because
-// terse's directive happens to contain the phrase "Activate terse skill", and
-// it silently failed for any directive that does not, which is the bug this
-// marker fixes.
-function matchesSkillDirective(hook: HookEntry, skillName: string): boolean {
+// Entries wired before this field existed carry no such field. Those are
+// recognised two ways: by the directive they echo, when the caller has the
+// manifest and can pass it, and failing that by the "Activate <name> skill"
+// phrase, which is the only heuristic the fallback path in remove.ts has when
+// the manifest could not be fetched. The phrase alone never matched sluice's
+// directive, or terse's current one, so every re-install of either appended a
+// duplicate: that is what the directive match closes.
+function matchesSkillDirective(hook: HookEntry, skillName: string, directive?: string): boolean {
   if (hook.skill !== undefined) return hook.skill === skillName;
+  if (directive !== undefined && hook.command.includes(`echo ${shq(directive)}`)) return true;
   return hook.command.includes(`Activate ${skillName} skill`);
 }
 
 export async function wireSessionStartHook(
   settingsPath: string,
   skillName: string,
-  directive: string
+  directive: string,
+  scriptPath?: string
 ): Promise<void> {
   let settings: Settings = {};
   if (existsSync(settingsPath)) {
@@ -50,13 +61,67 @@ export async function wireSessionStartHook(
   if (!settings.hooks) settings.hooks = {};
   if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
 
-  const command = `echo '${directive}'`;
+  // The script runs after the echo so the directive is the first thing the
+  // session reads, guarded by its own existence so a bundle that moved leaves
+  // the directive in place and the hook exiting 0 rather than 127.
+  const command = scriptPath
+    ? `echo ${shq(directive)}; if [ -f ${shq(scriptPath)} ]; then bash ${shq(scriptPath)}; fi`
+    : `echo ${shq(directive)}`;
+  const legacy = `echo ${shq(directive)}`;
 
-  // Idempotency: skip if any existing entry already matches this skill
+  // An entry that already belongs to this skill is brought up to the current
+  // command rather than left as it was, so a skill that gains a script does not
+  // keep running without one on machines that installed early. A legacy entry
+  // is adopted only when it is exactly the command an earlier install wrote;
+  // one that carries the directive inside something hand-written is the user's,
+  // and is left alone without a second copy being added beside it. Duplicates
+  // of the plain form, which the old matcher produced on every re-install, are
+  // collapsed to the first: adopted as they stand they would run the script
+  // once each per session start.
+  let adopted = false;
+  let custom = false;
+  let changed = false;
   for (const group of settings.hooks.SessionStart as HookGroup[]) {
+    const kept: HookEntry[] = [];
     for (const hook of group.hooks ?? []) {
-      if (matchesSkillDirective(hook, skillName)) return;
+      if (!matchesSkillDirective(hook, skillName, directive)) {
+        kept.push(hook);
+        continue;
+      }
+      const plain = hook.skill !== undefined || hook.command === legacy;
+      if (!plain) {
+        custom = true;
+        kept.push(hook);
+        continue;
+      }
+      if (adopted) {
+        changed = true;
+        continue;
+      }
+      adopted = true;
+      if (hook.command !== command || hook.skill !== skillName) {
+        hook.command = command;
+        hook.skill = skillName;
+        changed = true;
+      }
+      kept.push(hook);
     }
+    if (kept.length !== (group.hooks ?? []).length) group.hooks = kept;
+  }
+  settings.hooks.SessionStart = (settings.hooks.SessionStart as HookGroup[]).filter(
+    (group) => !group.hooks || group.hooks.length > 0
+  );
+  if (adopted || custom) {
+    if (custom && !adopted && scriptPath) {
+      console.warn(
+        `${skillName}: a hand-edited SessionStart hook already carries its directive, so it was left as is and ${scriptPath} was not wired; add it to that entry yourself if you want it.`
+      );
+    }
+    if (changed) {
+      mkdirSync(dirname(settingsPath), { recursive: true });
+      await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    }
+    return;
   }
 
   settings.hooks.SessionStart.push({
@@ -69,7 +134,8 @@ export async function wireSessionStartHook(
 
 export async function unwireSessionStartHook(
   settingsPath: string,
-  skillName: string
+  skillName: string,
+  directive?: string
 ): Promise<void> {
   if (!existsSync(settingsPath)) return;
 
@@ -77,9 +143,16 @@ export async function unwireSessionStartHook(
   const sessionStart = settings.hooks?.SessionStart as HookGroup[] | undefined;
   if (!sessionStart) return;
 
+  // The same rule as wiring: an entry this tool wrote goes, an entry the user
+  // wrote around the directive stays, since removing the skill is no licence
+  // to delete a command that was never the tool's to begin with.
+  const legacy = directive === undefined ? undefined : `echo ${shq(directive)}`;
+  const ours = (h: HookEntry) =>
+    matchesSkillDirective(h, skillName, directive) &&
+    (h.skill !== undefined || legacy === undefined || h.command === legacy);
   const filteredGroups = sessionStart
     .map((group) => ({
-      hooks: (group.hooks ?? []).filter((h) => !matchesSkillDirective(h, skillName)),
+      hooks: (group.hooks ?? []).filter((h) => !ours(h)),
     }))
     .filter((group) => group.hooks.length > 0);
 
@@ -170,7 +243,10 @@ export const claudeAdapter: Adapter = {
 
     if (activation === "global" && manifest.activation?.claudeHookDirective) {
       const settingsPath = join(cwd, ".claude/settings.json");
-      await wireSessionStartHook(settingsPath, manifest.name, manifest.activation.claudeHookDirective);
+      const script = manifest.activation.claudeHookScript;
+      const scriptPath =
+        script && config.bundleRoot ? join(cwd, config.bundleRoot, script) : undefined;
+      await wireSessionStartHook(settingsPath, manifest.name, manifest.activation.claudeHookDirective, scriptPath);
       if (!installed.includes(".claude/settings.json")) {
         installed.push(".claude/settings.json");
       }
@@ -244,7 +320,7 @@ export const claudeAdapter: Adapter = {
 
     if (manifest.activation?.claudeHookDirective) {
       const settingsPath = join(cwd, ".claude/settings.json");
-      await unwireSessionStartHook(settingsPath, manifest.name);
+      await unwireSessionStartHook(settingsPath, manifest.name, manifest.activation.claudeHookDirective);
     }
   },
 };

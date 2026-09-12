@@ -30,8 +30,11 @@ back to you and the run never left your hands.
 
 Name the channel and the signal that actually routed you there. The strings above
 are examples, not fixed copy, and a channel with a two-part signal should say
-which part applied. `bypass` says nothing at all, because a question that gets
-announced stops being a question.
+which part applied. One thing is fixed: the words `<channel> channel` open the
+message or follow a label such as `Sluice:`, because the meter finds the run by
+them and an announcement worded otherwise reports as `not announced`. `bypass`
+says nothing at all, because a question that gets announced stops being a
+question.
 
 **`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**
 The code misbehaving triggers the first: a bug report, a red test, behaviour you
@@ -157,10 +160,16 @@ discharge pre-flight, not the approval: one reply arrives for several
 obligations, so a "yes" with no rows behind it signed off the plan and nothing
 else.
 
-Three from that file that catch people out: concurrent implementers need a
+Four from that file that catch people out: concurrent implementers need a
 worktree each and the flip runs alone, review is tiered rather than automatic,
-and a `deep` run that cannot dispatch has to replace the review tier with
-something, not quietly ship without one.
+a `deep` run that cannot dispatch has to replace the review tier with
+something, not quietly ship without one, and the run ends: `status.sh final`
+when the plan's own review clears, `status.sh close` once the work is no longer
+yours to act on, after a local merge, when the branch is left as it stands, or
+when an open PR lands, not when it opens. A run left open reads as live to the
+statusline and blocks the next one. The SessionStart hook prints a live run at every session start,
+compaction and resume included, so a run you did not start is one you were
+shown, not one you have to remember.
 
 ## Conflicts
 

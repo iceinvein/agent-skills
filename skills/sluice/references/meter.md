@@ -1,7 +1,8 @@
 # Meter the run
 
 Run `scripts/run-stats.sh` as part of the message that hands the work back,
-and paste its output into that message unedited:
+and paste its output into that message unedited; `references/finish.md` says
+where in that message it sits:
 
 ```
 bash <skill-dir>/scripts/run-stats.sh --tests "<what the suite actually printed>"

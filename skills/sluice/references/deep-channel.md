@@ -253,10 +253,18 @@ declared schedule is wrong the moment one task lands late or comes back with a
 blocking finding. A derived one just recomputes, which is the whole reason `ready`
 reads the run state rather than the plan: it sees what has actually landed.
 
-- One row per task in `run.json`, flipped to `active` and then `done` as it
-  moves. That state outlives compaction; your memory doesn't.
-- Each task goes to a fresh agent with that task's text and nothing else.
-  What this session accumulated is yours to hold, not theirs.
+- One row per task in `run.json`, and you are the one who flips it; an
+  implementer reports, it does not write the run state. `active` at dispatch,
+  which records the base as the HEAD of the tree the command is pointed at
+  unless you pass `--base`. `review` when the task's commit is in and its
+  reviewer has gone out: the paths stay held, because a finding may send the
+  implementer back into them. `done --commit <sha> --reviewed` when the review
+  clears, or `done --commit <sha>` alone for a tier 0 task, which was owed a
+  stat read and no dispatch, and for a task whose dispatch pre-flight declined;
+  the debt count counts the second kind and not the first. That state outlives
+  compaction; your memory doesn't.
+- Each task goes to a fresh agent carrying the brief below and nothing this
+  session accumulated. What you hold is yours to hold, not theirs.
 - **Label the dispatch `T<n>: <task name>`.** The harness lists running agents
   under whatever label the dispatch gave them, so labelled by task that list
   reads as the plan and labelled anything else it reads as a row of anonymous
@@ -306,6 +314,31 @@ push, PR and merge, none of which happen here, and a standing instruction to
 commit only when asked is about that outward-facing act. The plan's sign-off
 is the asking. Nothing a task commits reaches anywhere your partner has not
 already agreed to, so the instruction is satisfied rather than excepted.
+
+## The dispatch brief
+
+An implementer sees its task and nothing else, so anything it has to obey that
+is not in the task text has to be in the brief. The rules it would otherwise
+never meet are the ones this skill spends the most words on, and an agent that
+never loaded the skill follows none of them by default. The brief carries, in
+this order:
+
+- **Ground Rules**, verbatim from the plan. They bind every task and are
+  repeated in none, so the brief is where they reach the implementer.
+- **The task**, whole: heading, Contract, Touches, Flips, steps.
+- **The implementer contract**, five lines that are the same for every task:
+  the test comes first and is watched failing before the code
+  (`references/test-first.md`, one paragraph of it, not a pointer the agent
+  cannot follow); nothing outside `Touches` is edited; the commit stages only
+  the paths in `Touches`, never `git add -A`; the reply reports the commit SHA
+  and names any behaviour left untested and why; and `.sluice/` is not written,
+  the run state being yours to flip.
+- **The label**, `T<n>: <task name>`, on the dispatch itself.
+
+Leave out how you got here. The design, the record, the other tasks and this
+session's reasoning are what dispatch exists to keep out of the implementer's
+context, and a brief that carries them has spent the fresh context it was
+buying.
 
 ## When dispatch is unavailable
 
@@ -409,10 +442,12 @@ a reviewer writes nothing, so it collides with nothing. The final review is
 the only one that waits, because it is the only one that needs everything to
 have landed.
 
-Record the base against that task with `status.sh task <id> --base <sha>` when
-you dispatch, before the agent's first commit lands. Recovering it afterwards is archaeology, and the
-answer you will guess at is `HEAD~1`, which `references/review.md` already
-names as the standing mistake.
+The base is recorded when the task goes `active`: the flip takes the HEAD of
+the tree it is pointed at, `--dir` if you passed one and the tree you issued it
+from otherwise, so point it at the tree the implementer is cut from, or pass
+`--base <sha>` where that differs. Recovering it afterwards is
+archaeology, and the answer you will guess at is `HEAD~1`, which
+`references/review.md` already names as the standing mistake.
 
 **A finding surviving two rounds may be a defect in the criterion, not the
 work.** Before a third round, ask whether any output could satisfy it. A
@@ -451,6 +486,14 @@ become a plan change, which is your partner's call rather than something to
 absorb into the next task's brief.
 
 ## The final review
+
+It runs once every task is `done` and every per-task review is back, and it
+comes before `references/finish.md` starts: the suite run there is the last
+check before the three options, and a review that lands after it would be
+reviewing a tree the suite never saw. Mark it with `status.sh final` when it
+clears, so `show` and `close` report it done rather than pending; the per-task
+marks cannot stand in for it, because they count dispatches the tier table owed
+and this one is owed by the plan as a whole.
 
 It covers cross-task integration and everything the record accumulated, not
 lines a per-task review already cleared. It is a dispatch, on this session's
