@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -55,6 +55,15 @@ describe("status.sh syntax", () => {
 		const proc = Bun.spawnSync(["bash", "-n", SCRIPT]);
 		expect(proc.stderr.toString()).toBe("");
 		expect(proc.exitCode).toBe(0);
+	});
+
+	test("usage prints the command list, not the whole script", () => {
+		const r = run(repo());
+		expect(r.code).toBe(4);
+		const lines = r.err.trim().split("\n");
+		expect(lines.length).toBeLessThan(30);
+		expect(r.err).toContain("status.sh move --to");
+		expect(r.err).not.toContain("set -uo pipefail");
 	});
 });
 
@@ -1382,5 +1391,111 @@ describe("ready reads the workspace answer", () => {
 		const first = run(two(), "ready").out.split("\n")[0];
 		expect(first).toMatch(/2 ready now/);
 		expect(first).not.toMatch(/worktree each|serial/);
+	});
+});
+
+// The deep flow used to init in the main tree before the worktree existed, so
+// the run lived where every later session's init would collide with it. move
+// puts a stranded run where its controller actually works.
+// Two runs in one repository is legal, two sessions in two worktrees, and it
+// is also what a stranded run plus a fresh init looks like. init says when the
+// set already holds one, without refusing, so the second session knows.
+describe("init reports other runs in the set", () => {
+	test("names a live run in a sibling tree", () => {
+		const main = gitRepo();
+		const wt = worktree(main, "impl");
+		run(wt, "init", "--topic", "gadget", "--channel", "fast");
+		const r = run(main, "init", "--topic", "widget", "--channel", "deep");
+		expect(r.code).toBe(0);
+		expect(r.err).toMatch(/gadget/);
+		expect(r.err).toMatch(/impl/);
+	});
+
+	test("says nothing when the set holds no other run", () => {
+		const main = gitRepo();
+		worktree(main, "impl");
+		const r = run(main, "init", "--topic", "widget", "--channel", "deep");
+		expect(r.code).toBe(0);
+		expect(r.err).toBe("");
+	});
+});
+
+describe("move", () => {
+	test("relocates the run into another tree and leaves none behind", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first", "--status", "active");
+		const wt = worktree(main, "impl");
+		const r = run(main, "move", "--to", wt);
+		expect(r.code).toBe(0);
+		expect(state(wt).topic).toBe("widget");
+		expect(state(wt).tasks[0]?.name).toBe("first");
+		expect(run(wt, "show").out).toContain("widget");
+		expect(run(main, "show").code).toBe(2);
+	});
+
+	test("the destination ignores itself like any run directory", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(main, "move", "--to", wt);
+		expect(readFileSync(join(wt, ".sluice", ".gitignore"), "utf8")).toBe("*\n");
+	});
+
+	test("refuses when the destination already has a run of its own", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(wt, "init", "--topic", "gadget", "--channel", "fast");
+		const r = run(main, "move", "--to", wt);
+		expect(r.code).toBe(3);
+		expect(state(main).topic).toBe("widget");
+		expect(state(wt).topic).toBe("gadget");
+	});
+
+	test("needs a live run", () => {
+		expect(run(repo(), "move", "--to", repo()).code).toBe(2);
+	});
+
+	test("needs a --to", () => {
+		expect(run(seeded(1), "move").code).toBe(4);
+	});
+
+	// A typo'd destination inside the repo would strand the run at a path no
+	// command issued from the tree resolves, so the destination has to be a work
+	// tree of the same set.
+	test("refuses a destination that is not a work tree of the same set", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		mkdirSync(join(main, "docs"));
+		expect(run(main, "move", "--to", join(main, "docs")).code).toBe(4);
+		expect(run(main, "move", "--to", join(main, ".sluice")).code).toBe(4);
+		expect(run(main, "move", "--to", gitRepo()).code).toBe(4);
+		expect(state(main).topic).toBe("widget");
+	});
+
+	// Once the run has moved, the main tree is free: another session can start
+	// its own run there, and the moved run stays where it went.
+	test("the main tree can start another run after the move", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(main, "move", "--to", wt);
+		expect(run(main, "init", "--topic", "other", "--channel", "fast").code).toBe(0);
+		expect(run(wt, "show").out).toContain("widget");
+		expect(run(main, "show").out).toContain("other");
+	});
+
+	test("refuses a destination that is not a directory", () => {
+		const dir = seeded(1);
+		expect(run(dir, "move", "--to", join(dir, "nowhere")).code).toBe(4);
+		expect(state(dir).topic).toBe("widget");
+	});
+
+	test("init names move as a way out when a run is already live", () => {
+		const dir = seeded(1);
+		const r = run(dir, "init", "--topic", "other", "--channel", "fast");
+		expect(r.code).toBe(3);
+		expect(r.err).toMatch(/move --to/);
 	});
 });

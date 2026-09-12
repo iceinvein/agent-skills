@@ -546,3 +546,36 @@ describe("sluice announcement", () => {
 		expect(section(SKILL, "Route first")).toMatch(/<channel> channel/);
 	});
 });
+
+// A run opened in the main tree before the worktree exists blocks every later
+// session's init there. The order has to be said where the stop is described.
+describe("sluice run opens in the working tree", () => {
+	test("the run record section puts init after pre-flight and inside the worktree", () => {
+		const record = section(DEEP, "The run record");
+		expect(record).toMatch(/after pre-flight/);
+		expect(record).toMatch(/move --to/);
+	});
+
+	test("pre-flight names the order: worktree, then init, then commit there", () => {
+		const pre = section(DEEP, "Pre-flight");
+		expect(pre).toMatch(/cut the worktree\s+first/i);
+		expect(pre).toMatch(/rather than on master/);
+	});
+
+	test("the router says the files open inside the worktree", () => {
+		expect(section(SKILL, "Deep channel")).toMatch(/inside the worktree/);
+	});
+
+	test("plan mode defers the run and record to after pre-flight", () => {
+		const stop = section(DEEP, "The design stop and plan mode");
+		expect(stop).toMatch(/open after pre-flight/);
+	});
+
+	test("the order carries the design and plan into the worktree before import", () => {
+		const pre = section(DEEP, "Pre-flight");
+		expect(pre).toMatch(/fresh\s+worktree/i);
+		expect(pre).toMatch(/mkdir -p/);
+		expect(pre).toMatch(/mv docs\/specs\//);
+		expect(pre).toMatch(/mv docs\/plans\//);
+	});
+});

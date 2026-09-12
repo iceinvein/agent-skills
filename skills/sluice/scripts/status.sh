@@ -16,6 +16,7 @@
 #   status.sh show [--json]
 #   status.sh ready
 #   status.sh final
+#   status.sh move --to <tree>
 #   status.sh line [--full]
 #   status.sh close
 #
@@ -24,7 +25,8 @@
 # directory ignores itself, so no project needs a .gitignore line for it.
 #
 # Exit: 0 ok, 1 the state could not be written, 2 no live run, 3 a run is
-# already live, 4 bad arguments, 5 jq missing, 6 the state file is unreadable.
+# already live (here, or at move's destination), 4 bad arguments, 5 jq missing,
+# 6 the state file is unreadable.
 # `line` is exempt and always exits 0 in silence, because a statusline renders
 # on every keystroke and has nowhere to put an error.
 #
@@ -40,7 +42,7 @@ err() { echo "status.sh: $*" >&2; }
 
 usage() {
 	echo "usage:" >&2
-	sed -n '/^#   status.sh init/,/^# 5 jq missing/p' "$0" | sed 's/^# \{0,2\}//' >&2
+	sed -n '/^#   status.sh init/,/unreadable\.$/p' "$0" | sed 's/^# \{0,2\}//' >&2
 }
 
 # A flag's value has to be checked before `shift 2`, not after. Bash refuses to
@@ -269,9 +271,9 @@ require_readable() {
 # runs in having to add a line to its own .gitignore. `*` matches the .gitignore
 # file too, so the whole directory drops out of `git status`. An existing file is
 # left alone, and a tree that refuses the write still gets its run.
-mk_dir() { # <directory to create under .sluice>
+mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, default $DIR>]
 	mkdir -p "$1" || { err "could not create $1"; exit 1; }
-	local ignore="$DIR/.sluice/.gitignore"
+	local ignore="${2:-$DIR}/.sluice/.gitignore"
 	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
 }
 
@@ -313,30 +315,31 @@ write_state() {
 # later one. A lock whose holder is gone is broken rather than waited out, and
 # one whose holder is alive is waited on for a bounded time and then reported,
 # because a command that hangs in a status bar is worse than one that fails.
-lock_taken=0
+# `move` spans two trees and holds both locks, so the locks taken are a list.
+LOCKS_TAKEN=()
 release_lock() {
-	[ "$lock_taken" -eq 1 ] || return 0
-	rm -rf "$LOCK"
-	lock_taken=0
+	local l
+	for l in "${LOCKS_TAKEN[@]+"${LOCKS_TAKEN[@]}"}"; do rm -rf "$l"; done
+	LOCKS_TAKEN=()
 }
 
-take_lock() {
-	local waited=0 holder
-	while ! mkdir "$LOCK" 2>/dev/null; do
-		holder="$(cat "$LOCK/pid" 2>/dev/null)"
+take_lock() { # [<lock path>, default the run's own]
+	local lock="${1:-$LOCK}" waited=0 holder
+	while ! mkdir "$lock" 2>/dev/null; do
+		holder="$(cat "$lock/pid" 2>/dev/null)"
 		if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
-			rm -rf "$LOCK"
+			rm -rf "$lock"
 			continue
 		fi
 		if [ "$waited" -ge 100 ]; then
-			err "another sluice command has held $LOCK for 10s; remove it if nothing is running"
+			err "another sluice command has held $lock for 10s; remove it if nothing is running"
 			exit 1
 		fi
 		sleep 0.1
 		waited=$((waited + 1))
 	done
-	printf '%s\n' "$$" >"$LOCK/pid" 2>/dev/null || true
-	lock_taken=1
+	printf '%s\n' "$$" >"$lock/pid" 2>/dev/null || true
+	LOCKS_TAKEN+=("$lock")
 	trap release_lock EXIT INT TERM
 }
 
@@ -361,8 +364,23 @@ case "$SUB" in
 		take_lock
 		if [ -f "$STATE" ] && [ "$FORCE" -eq 0 ]; then
 			live="$(jq -r '.topic // "?"' "$STATE" 2>/dev/null || echo "?")"
-			err "a run is already live (topic: $live); pass --force to replace it"
+			err "a run is already live (topic: $live). If it is yours and your work runs in a worktree, put it there: status.sh move --to <worktree>. If it is another session's, leave it and start yours from your own worktree. If it is finished, status.sh close; --force replaces it"
 			exit 3
+		fi
+
+		# Other trees in the set may hold runs of their own, legitimately or as
+		# one stranded before its session moved into a worktree. Said, never
+		# refused: the session starting here cannot tell which, and the one that
+		# can is the owner.
+		if [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+			here="$(cd "$DIR" && pwd -P)"
+			git -C "$DIR" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | while IFS= read -r tree; do
+				[ -d "$tree" ] || continue
+				[ "$(cd "$tree" && pwd -P)" != "$here" ] || continue
+				[ -f "$tree/.sluice/run.json" ] || continue
+				other="$(jq -r '.topic // "?"' "$tree/.sluice/run.json" 2>/dev/null || echo "?")"
+				err "note: another run is live in $tree (topic: $other); if it is this work stranded before a worktree was cut, move it there instead"
+			done
 		fi
 
 		jq -n \
@@ -662,6 +680,53 @@ case "$SUB" in
 		# review is owed by the plan as a whole, so it is a fact about the run
 		# rather than a row, and `show` reports it pending until this lands.
 		jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.final_review = $now' "$STATE" | write_state
+		;;
+
+	move)
+		TO=""
+		while [ $# -gt 0 ]; do
+			case "$1" in
+				--to) need_value --to $# "${2-}"; TO="$2"; shift 2 ;;
+				*) err "unknown flag: $1"; exit 4 ;;
+			esac
+		done
+		[ -n "$TO" ] || { err "move needs --to <tree>"; exit 4; }
+		[ -d "$TO" ] || { err "no such directory: $TO"; exit 4; }
+		TO="$(cd "$TO" && pwd -P)"
+		require_run
+
+		# The destination is taken as given rather than anchored: the whole point
+		# is to put the run in one particular tree, the controller's worktree,
+		# which anchoring would resolve straight back to the main tree it is
+		# leaving. It does have to be a work tree of the same set: a typo would
+		# otherwise strand the run at a path no command issued from the tree
+		# resolves, and the only way back is knowing where it went.
+		src_common="$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)"
+		dst_common="$(git -C "$TO" rev-parse --git-common-dir 2>/dev/null)"
+		dst_top="$(git -C "$TO" rev-parse --show-toplevel 2>/dev/null)"
+		if [ -n "$src_common" ]; then
+			src_common="$(cd "$DIR" && cd "$src_common" 2>/dev/null && pwd -P)"
+			dst_common="$([ -n "$dst_common" ] && cd "$TO" && cd "$dst_common" 2>/dev/null && pwd -P)"
+			if [ -z "$dst_common" ] || [ "$dst_common" != "$src_common" ] || [ "$dst_top" != "$TO" ]; then
+				err "$TO is not a work tree of the same repository as $(cd "$DIR" && pwd -P); move only relocates a run between trees of one set"
+				exit 4
+			fi
+		fi
+		[ "$TO" != "$(cd "$DIR" && pwd -P)" ] || { err "the run is already in $TO"; exit 4; }
+
+		# Both trees' locks: a racing init in the destination takes that tree's
+		# lock, not this one's, and the mv would land on top of what it wrote.
+		take_lock
+		mk_dir "$TO/.sluice" "$TO"
+		take_lock "$TO/.sluice/run.lock"
+		DEST_STATE="$TO/.sluice/run.json"
+		if [ -f "$DEST_STATE" ]; then
+			there="$(jq -r '.topic // "?"' "$DEST_STATE" 2>/dev/null || echo "?")"
+			err "a run is already live in $TO (topic: $there); close it there first"
+			exit 3
+		fi
+		mv "$STATE" "$DEST_STATE" || { err "could not move $STATE to $DEST_STATE"; exit 1; }
+		echo "moved $(jq -r '.topic // "run"' "$DEST_STATE" 2>/dev/null || echo run) to $TO"
 		;;
 
 	close)

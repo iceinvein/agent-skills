@@ -21,13 +21,16 @@ bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --model "6 o
 bash <skill-dir>/scripts/status.sh show
 bash <skill-dir>/scripts/status.sh ready
 bash <skill-dir>/scripts/status.sh final
+bash <skill-dir>/scripts/status.sh move --to <worktree>
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
 
-`--dir <path>` reads another tree, which is what the statusline uses; it names
-a tree in the set rather than a state file, so a worktree resolves to the same
-run as the tree it was cut from. Statuses
+`--dir <path>` reads another tree, which is what the statusline uses. A tree
+with a run of its own is read as itself; one with none resolves to the main
+worktree of its set, which is the tree a worktree is cut from and not the
+controller's own worktree, so once the run lives there `--dir <implementer
+worktree>` finds nothing. Statuses
 are `todo`, `active`, `review`, `done` and `blocked`. A new id needs `--name`;
 after that every call is a bare flip, so keeping it current costs one command
 per transition rather than a paragraph. `close` archives the run under
@@ -44,8 +47,16 @@ which is the row the debt count counts.
 
 A task going `active` with no `--base` takes the HEAD of the tree the command
 is pointed at, `--dir` if given and the current tree otherwise, once; a base
-already on the row is kept. Pass `--base` when the implementer's tree is
-neither.
+already on the row is kept. Issued from the controller's tree that is the
+controller's HEAD, which is what an implementer worktree cut from that branch
+starts at, so the default is right at dispatch. Where the implementer's tree
+has moved on, pass `--base $(git -C <implementer worktree> rev-parse --short
+HEAD)` rather than `--dir` that tree: with the run in your worktree, `--dir`
+pointed at the implementer's resolves to the main tree and finds no run.
+
+`init` reports any other run live in a tree of the same set, without refusing:
+two sessions in two worktrees is legal, and a run stranded in the main tree
+beside a fresh one in a worktree looks the same until someone says so.
 
 Every write stamps `updated`. Past a day since the last one, `show` and the
 statusline both say how long the run has sat idle, because a finished plan
@@ -69,37 +80,35 @@ that `.gitignore` if you want a run tracked; it is only written when absent.
 
 ## Worktrees
 
-Ignoring itself is what makes the run invisible to a worktree unless something
-is done about it, and a `deep` run makes worktrees after the plan is written:
-`git worktree add` gives the implementer a clean checkout, and an ignored
-directory is not in a checkout. Read from the tree it was called in, the run
-the plan seeded would be absent from every implementer, `init` there would
-start a second run nothing else reads, and the worktree would take that state
-with it when it went.
+The run lives with the controller: in the worktree the work runs in when
+pre-flight bought one, in the main tree otherwise. Implementers never read or
+write it, the controller flips every row, so nothing an implementer does
+depends on seeing the run from its own worktree, and two sessions working
+independently in two worktrees of one repo each keep their own run with
+neither shown the other's.
 
-So a tree with no run of its own anchors on the main worktree of its set, and
-the set's run covers it: the statusline renders the controller's run in every
-implementer's window, and a flip issued from any of those trees lands where
-every other one is watching. A tree's own run comes first, though. `init`
-always lands in the tree it is given, and every other command reads that
-tree's state when it has one, so two sessions working independently in two
-worktrees of one repo each keep their own run and neither is shown the
-other's. Anchored unconditionally, as this once was, the first `init` in the
-set took over every other session's statusline and refused every other `init`.
-A submodule anchors on its own checkout, not the superproject's, and a
-directory that is no git work tree keeps its run exactly where it sits.
+`init` therefore always lands in the tree it is given, and every other command
+reads that tree's own state when it has one. A tree with none falls back to the
+main worktree of its set, which is what keeps a session working before this
+rule existed, run in the main tree and worktree cut afterwards, reading the run
+it started. That run stays in the main tree, where it blocks the next
+session's `init`; `move --to <worktree>` relocates it, refusing a destination
+that already holds a run or that is not a work tree of the same repository. A
+submodule anchors on its own checkout, not the superproject's, and a directory
+that is no git work tree keeps its run exactly where it sits.
 
 One file for several writers is one file to contend on, so `init`, `task`,
-`preflight`, `final` and `close` take a lock first: two flips issued at the
-same moment from different trees would otherwise have the later write built on
-a snapshot taken before the earlier one landed, dropping that row without
-saying so. The lock
+`preflight`, `final`, `close` and `move` take a lock first, `move` taking the
+destination tree's as well as its own: two flips issued at the same moment
+from different trees would otherwise have the later write built on a snapshot
+taken before the earlier one landed, dropping that row without saying so. The lock
 carries its holder's pid, so a killed run is broken through rather than waited
 out. Reads take nothing, state being installed through a rename, which is what
 keeps `line` cheap enough to render on.
 
 Open it with `init` when you open the run record, at the same point and for the
-same reason, then seed the rows with `plan.sh import <plan>` rather than a
+same reason, and in the same tree: after pre-flight, inside the worktree when
+one was bought. Then seed the rows with `plan.sh import <plan>` rather than a
 command per task. The ids, names, the flip, the `Model` marks and the tiers are
 all fixed the moment the plan is written and are already in the file, so typing
 them again is transcription with a chance of error in it.
@@ -263,11 +272,12 @@ then print it last, after whatever else the command emits:
 if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
 ```
 
-The gate is two tests because a linked worktree holds no state file of its own:
-there `.git` is a regular file naming the tree it was cut from, and the script
-resolves the run from it. In a tree with no run and no worktree behind it `.git`
-is a directory, so both tests fail and no process is spawned, which is the
-property the gate is for.
+The gate is two tests because a linked worktree may hold no state file of its
+own and still belong to a set with a run: there `.git` is a regular file naming
+the tree it was cut from, and the script falls back to that tree. A worktree
+with its own run passes the first test. In a tree with no run and no worktree
+behind it `.git` is a directory, so both tests fail and no process is spawned,
+which is the property the gate is for.
 
 `if` rather than `[ ... ] &&`: as the last command of a statusline script the
 short form makes it exit 1 on every render with no run live, which is the common

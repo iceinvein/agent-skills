@@ -89,9 +89,14 @@ in follows from who has to read it.
 and commit, its tier, its `Model` mark and its `Flips` line, and the answers
 pre-flight settled. `scripts/status.sh` writes and reads it, and
 `references/status.md` carries the commands and the statusline segment that
-makes a run visible without anyone asking. Open it with `init` when you open the
-record, seed the rows with `scripts/plan.sh import <plan>` rather than typing a
-command per task, then flip each task as it moves. It carries the ids, the names,
+makes a run visible without anyone asking. Open it with `init` when you open
+the record, which is after pre-flight and inside the tree the work runs in, the
+worktree when pre-flight bought one: a run opened in the main tree before the
+worktree exists lives where every later session's `init` collides with it, and
+that session cannot tell an abandoned run from yours. One already stranded
+there moves with `status.sh move --to <worktree>`. Seed the rows with
+`scripts/plan.sh import <plan>` rather than typing a command per task, then
+flip each task as it moves. It carries the ids, the names,
 the flip, the model marks and the tiers, the last of these floored off `Touches`
 and the contract graph rather than guessed. Import is safe to re-run: a status, a
 review mark or a ratified model already recorded is left alone and a tier is only
@@ -144,10 +149,11 @@ mode has exited and the plan is written. One enforced gate does not collapse two
 stops into one; it only makes the first of them hold.
 
 **The harness's plan file is not the artifact.** It belongs to the mode and not
-to the run. On approval, write the design to `docs/specs/YYYY-MM-DD-<topic>.md`,
-the plan to `docs/plans/YYYY-MM-DD-<topic>.md`, and open the run record and
-`run.json`. Those are the durable files, the ones a session resuming next week
-reads, and none of them is the one you drafted in.
+to the run. On approval, write the design to `docs/specs/YYYY-MM-DD-<topic>.md`
+and the plan to `docs/plans/YYYY-MM-DD-<topic>.md`. The run record and
+`run.json` open after pre-flight, in the tree the work runs in, for the reason
+the run record section gives. Those are the durable files, the ones a session
+resuming next week reads, and none of them is the one you drafted in.
 
 Where plan mode is unavailable, the prose stop is what you have and it is the
 same stop: end the turn on the design and let the next instruction start the
@@ -215,9 +221,27 @@ is the declared schedule the dispatch rules reject.
 If one of the two has only one live answer, say which and ask the other. A stop
 down to a single question is still a stop.
 
-**Write the answers down before Task 1's first edit.** Both files:
-`status.sh preflight` for the answers, the run record for the reason each one
-went that way. That pair is what discharges pre-flight, rather than the
+**Write the answers down before Task 1's first edit, in the tree the work runs
+in.** The order on the instruction that follows the stop: cut the worktree
+first, when that was the answer, through the harness's worktree tool. A fresh
+worktree branches from the remote's default branch, so nothing uncommitted or
+unpushed in the main tree comes across, and `docs/` may not exist there yet.
+Move the design and plan into it yourself, each into its own directory since
+the two share a basename and one `mv` into one directory would leave the plan
+where the design was:
+
+```
+mkdir -p <worktree>/docs/specs <worktree>/docs/plans
+mv docs/specs/YYYY-MM-DD-<topic>.md <worktree>/docs/specs/
+mv docs/plans/YYYY-MM-DD-<topic>.md <worktree>/docs/plans/
+```
+
+The main tree is then clean and the worktree holds the only copy. Then `init`,
+`plan.sh import` and `status.sh preflight` from inside it; then the record
+with the reason each answer went that way; then commit design, plan and record
+there, on the branch the work is on rather than on master. Both files carry the
+answers: `status.sh preflight` for what was decided, the run record for why.
+That pair is what discharges pre-flight, rather than the
 approval you got, and the distinction is the whole point: a stop
 that carries the plan and pre-flight together has one reply for two obligations,
 so a bare "yes" satisfies the plan and leaves no trace either way of the
@@ -293,9 +317,11 @@ reads the run state rather than the plan: it sees what has actually landed.
 - Isolate the workspace before a multi-task plan: the harness's worktree
   tool, not `git worktree` yourself. Implementing straight onto main or
   master needs your partner's say-so, which pre-flight is where you got, and
-  it forecloses concurrent implementers for the whole run. The run state
-  follows the set rather than the tree, so a worktree cut after the plan still
-  reads the rows the plan seeded and flips them where you are watching.
+  it forecloses concurrent implementers for the whole run. Cut it before the
+  run opens, so the state lives in it. A worktree cut after `init` still reads
+  the main tree's run, so nothing breaks for you, but the run stays in the main
+  tree where the next session to start a `deep` run finds it blocking `init`;
+  `status.sh move --to <worktree>` puts it where it belongs.
 - **The agent that built the task commits it**, once its own tests pass, and
   only the paths in its `Touches`. Never `git add -A`: the tree is shared, and
   on a branch you did not isolate it holds work that is not this task's. The

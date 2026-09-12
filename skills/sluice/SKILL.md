@@ -155,7 +155,9 @@ there at all, which `references/deep-channel.md` handles separately. Review that
 turns out to be missing is only actionable while the plan can still change.
 
 All three answers go into `run.json` and the run record before Task 1's first
-edit, the answer in the first and the reason in the second. Those rows are what
+edit, the answer in the first and the reason in the second, and both files
+open inside the worktree once it is cut, not in the main tree before it
+exists. Those rows are what
 discharge pre-flight, not the approval: one reply arrives for several
 obligations, so a "yes" with no rows behind it signed off the plan and nothing
 else.
@@ -167,9 +169,9 @@ something, not quietly ship without one, and the run ends: `status.sh final`
 when the plan's own review clears, `status.sh close` once the work is no longer
 yours to act on, after a local merge, when the branch is left as it stands, or
 when an open PR lands, not when it opens. A run left open reads as live to the
-statusline and blocks the next one. The SessionStart hook prints a live run at every session start,
-compaction and resume included, so a run you did not start is one you were
-shown, not one you have to remember.
+statusline and blocks the next one. The SessionStart hook prints a live run at
+every session start, compaction and resume included, so a run you did not
+start is one you were shown, not one you have to remember.
 
 ## Conflicts
 
