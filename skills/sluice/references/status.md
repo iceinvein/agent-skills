@@ -22,6 +22,8 @@ bash <skill-dir>/scripts/status.sh show
 bash <skill-dir>/scripts/status.sh ready
 bash <skill-dir>/scripts/status.sh final
 bash <skill-dir>/scripts/status.sh move --to <worktree>
+bash <skill-dir>/scripts/status.sh pause --reason "waiting on the API key"
+bash <skill-dir>/scripts/status.sh resume
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 ```
@@ -98,7 +100,7 @@ submodule anchors on its own checkout, not the superproject's, and a directory
 that is no git work tree keeps its run exactly where it sits.
 
 One file for several writers is one file to contend on, so `init`, `task`,
-`preflight`, `final`, `close` and `move` take a lock first, `move` taking the
+`preflight`, `final`, `pause`, `resume`, `close` and `move` take a lock first, `move` taking the
 destination tree's as well as its own: two flips issued at the same moment
 from different trees would otherwise have the later write built on a snapshot
 taken before the earlier one landed, dropping that row without saying so. The lock
@@ -242,6 +244,33 @@ clear, that the record is to be read before the next dispatch; on a fresh
 start, that a run not being continued was left open and wants `close`. A tree
 with no run prints nothing. The reading-back rule above still stands; this is
 the harness doing it at the one moment memory has just been cut.
+
+## On stopping
+
+`scripts/stop-guard.sh` is the Stop hook a global install wires. When the model
+tries to end its turn it reads the run in the session's own tree, the git
+top level of the session's working directory, and refuses, with a reason, when
+a `deep` run there is past pre-flight, has tasks still `todo`, `active` or
+`review`, and nothing is `blocked` or paused. The reason says what to do
+instead: dispatch the next wave in the same message, mark the task that needs
+your partner `blocked`, `pause --reason` and say so, or `close` a run that is
+not this session's work. Every real stop is let through: no run in the
+session's tree (the main-tree fallback other commands use is not taken here,
+since a Stop in a runless worktree may be an unrelated session), a channel
+other than `deep`, pre-flight not yet recorded, a blocked task, a paused run,
+every task done, a run idle for a day, and a turn where the harness says a
+stop hook already fired, which is what keeps it from looping. That last rule
+means it refuses once per turn and lets the next attempt through: a nudge, not
+a wall. The gate keys on the git top level of the session's working
+directory and nothing else, so the run has to live in the tree the session
+works in: open it after the worktree is cut, or `move` it there and then enter
+that worktree, since `move` relocates the run and not the session, and a run
+moved out from under a session still sitting in the main tree leaves that
+session unguarded for the rest of the run.
+
+`pause --reason <text>` records why a run is standing still; `show` and the
+statusline carry it, and `resume` clears it. A pause with no reason is refused,
+since the reason is the only thing that separates a pause from a stall.
 
 ## Statusline
 

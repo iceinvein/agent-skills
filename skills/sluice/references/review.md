@@ -37,7 +37,8 @@ offer, so neither is that pass.
 Send findings back to the agent that wrote the code: it already holds the
 task and its reasoning, memory you would otherwise rebuild. Three rounds is
 the cap, and a finding still open when the third one ends is structural, not
-local, so stop there and hand it to your partner.
+local, so stop there and hand it to your partner; in `deep`, mark the task
+`blocked` first, which is what lets that stop through.
 
 Receiving a finding: check it against the codebase before acting, and argue
 back with specifics when it is wrong. Agreeing just to move things along is

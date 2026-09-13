@@ -289,6 +289,22 @@ reads the run state rather than the plan: it sees what has actually landed.
   compaction; your memory doesn't.
 - Each task goes to a fresh agent carrying the brief below and nothing this
   session accumulated. What you hold is yours to hold, not theirs.
+- **The run never ends a turn between pre-flight and the handback.** A
+  message with no tool call in it ends the turn, whatever it says, and a run
+  handed back that way stands still until your partner notices, which
+  overnight is the next morning. So an announcement rides in the same message
+  as the dispatch it announces, a wave's completion is followed in the same
+  message by `status.sh ready` and the next dispatch, and "T4 goes next" is
+  never the last thing a message says. The turns that do end are the two
+  stops, a task marked `blocked` because it genuinely needs your partner, and
+  the handback. Everything else that has to wait on them goes through one of
+  those two doors: a finding still open after three review rounds marks its
+  task `blocked`, and re-dispatching it flips the row back to `active` when
+  your partner has answered; a mid-run request for a dispatch, or a
+  show-or-say offer, is a pause, `status.sh pause --reason "<why>"`, so the reason is on disk and
+  the Stop hook lets you go, with `resume` when it moves again. The hook
+  refuses once per turn and then lets the next attempt through, so it is a
+  nudge with the state in it rather than a wall: the rule is yours to keep.
 - **Label the dispatch `T<n>: <task name>`.** The harness lists running agents
   under whatever label the dispatch gave them, so labelled by task that list
   reads as the plan and labelled anything else it reads as a row of anonymous

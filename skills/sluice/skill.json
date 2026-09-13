@@ -29,6 +29,7 @@
     ],
     "default": "global",
     "claudeHookDirective": "Before acting on a request that changes code, pick a sluice channel and state which one.",
-    "claudeHookScript": "scripts/session-start.sh"
+    "claudeHookScript": "scripts/session-start.sh",
+    "claudeStopScript": "scripts/stop-guard.sh"
   }
 }

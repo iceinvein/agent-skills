@@ -171,7 +171,12 @@ yours to act on, after a local merge, when the branch is left as it stands, or
 when an open PR lands, not when it opens. A run left open reads as live to the
 statusline and blocks the next one. The SessionStart hook prints a live run at
 every session start, compaction and resume included, so a run you did not
-start is one you were shown, not one you have to remember.
+start is one you were shown, not one you have to remember. A Stop hook refuses,
+once per turn, to end a turn while a `deep` run in this tree is past pre-flight
+with tasks still to go and nothing `blocked` or paused:
+`references/deep-channel.md` says why a run never ends a turn between
+pre-flight and the handback, and `status.sh pause --reason` is how one stands
+still on purpose.
 
 ## Conflicts
 

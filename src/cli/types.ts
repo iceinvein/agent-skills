@@ -14,6 +14,9 @@ export type ActivationConfig = {
   // Bundle-relative path of a script the SessionStart hook runs after echoing
   // the directive. It receives the harness's session JSON on stdin.
   claudeHookScript?: string;
+  // Bundle-relative path of a script wired as a Stop hook: run when the model
+  // tries to end its turn, and able to refuse with a reason.
+  claudeStopScript?: string;
 };
 
 export type McpServerConfig = {
@@ -157,6 +160,9 @@ export function validateManifest(data: unknown): ValidationResult {
     }
     if (a.claudeHookScript !== undefined && typeof a.claudeHookScript !== "string") {
       return { ok: false, error: "'activation.claudeHookScript' must be a string" };
+    }
+    if (a.claudeStopScript !== undefined && typeof a.claudeStopScript !== "string") {
+      return { ok: false, error: "'activation.claudeStopScript' must be a string" };
     }
   }
 

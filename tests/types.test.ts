@@ -152,3 +152,18 @@ test("validateManifest rejects a non-string activation.claudeHookScript", () => 
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toContain("claudeHookScript");
 });
+
+test("validateManifest rejects a non-string activation.claudeStopScript", () => {
+  const result = validateManifest({
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md" } },
+    activation: { modes: ["global"], default: "global", claudeStopScript: 3 },
+  });
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toContain("claudeStopScript");
+});

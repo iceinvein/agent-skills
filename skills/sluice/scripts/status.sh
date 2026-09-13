@@ -17,6 +17,8 @@
 #   status.sh ready
 #   status.sh final
 #   status.sh move --to <tree>
+#   status.sh pause --reason <text>
+#   status.sh resume
 #   status.sh line [--full]
 #   status.sh close
 #
@@ -148,7 +150,8 @@ if [ "$SUB" = "line" ]; then
 			    (.channel // "?"),
 			    "\($done)/\(.tasks | length)",
 			    ([.tasks[]? | select(.status == "active") | "▸T\(.id)"] | first // empty),
-			    ([.tasks[]? | select(.status == "blocked") | "!T\(.id)"] | first // empty)
+			    ([.tasks[]? | select(.status == "blocked") | "!T\(.id)"] | first // empty),
+			    (if .paused then "paused" else empty end)
 			  ] | join(" ")
 		' "$STATE" 2>/dev/null || exit 0
 		exit 0
@@ -231,6 +234,7 @@ if [ "$SUB" = "line" ]; then
 		       ] | join_parts)
 		    + (if $clock == "" then "" else "   " + paint("2"; $clock) end)
 		    + (if $idle == "" then "" else " " + paint("2"; "·") + " " + paint("33"; $idle) end)
+		    + (if .paused then " " + paint("2"; "·") + " " + paint("33"; "paused") else "" end)
 		  ),
 		  # The flip is drawn as a rule before its task: everything left of it is
 		  # inert and safe to leave landed, everything right of it is not. That is
@@ -581,6 +585,7 @@ case "$SUB" in
 			            else ["idle          \($h / 24 | floor)d\($h % 24)h since the last write"]
 			            end
 			     end)
+			+ (if .paused then ["paused        \(.paused)"] else [] end)
 			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
 			   | if $debt == 0 then [] else ["unreviewed    \($debt) done, owed a review the tier table promised"] end)
 			+ ["final review  " + (if .final_review then "done" else "pending" end)]
@@ -680,6 +685,33 @@ case "$SUB" in
 		# review is owed by the plan as a whole, so it is a fact about the run
 		# rather than a row, and `show` reports it pending until this lands.
 		jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.final_review = $now' "$STATE" | write_state
+		;;
+
+	pause)
+		REASON=""
+		while [ $# -gt 0 ]; do
+			case "$1" in
+				--reason) need_value --reason $# "${2-}"; REASON="$2"; shift 2 ;;
+				*) err "unknown flag: $1"; exit 4 ;;
+			esac
+		done
+		[ -n "$REASON" ] || { err "pause needs --reason <text>: a pause nobody can read the reason for is a stall"; exit 4; }
+		require_run
+		take_lock
+		require_readable
+
+		# A deliberate handback mid-run, which the stop guard otherwise refuses.
+		# The reason is the whole point: it is what the partner reads in `show`
+		# and what the next session reads to know why the run is standing still.
+		jq --arg reason "$REASON" '.paused = $reason' "$STATE" | write_state
+		;;
+
+	resume)
+		[ $# -eq 0 ] || { err "resume takes no arguments"; exit 4; }
+		require_run
+		take_lock
+		require_readable
+		jq 'del(.paused)' "$STATE" | write_state
 		;;
 
 	move)

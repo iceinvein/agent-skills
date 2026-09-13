@@ -403,3 +403,84 @@ test("a hook whose script is missing still prints the directive and exits 0", as
   expect(r.code).toBe(0);
   expect(r.out.trim()).toBe("Pick a channel.");
 });
+
+// A Stop hook is the second hook kind a skill can carry: a script the harness
+// runs when the model tries to end its turn. Marker-keyed like the rest.
+import { wireStopHook, unwireStopHook } from "../../src/cli/adapters/claude";
+
+test("wireStopHook adds a marked Stop entry running the script", async () => {
+  await wireStopHook(SETTINGS, "sluice", "/opt/s/stop-guard.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.Stop).toHaveLength(1);
+  expect(contents.hooks.Stop[0].hooks[0].skill).toBe("sluice");
+  expect(contents.hooks.Stop[0].hooks[0].command).toBe(
+    "if [ -f '/opt/s/stop-guard.sh' ]; then bash '/opt/s/stop-guard.sh'; fi"
+  );
+});
+
+test("wireStopHook updates its own entry rather than appending", async () => {
+  await wireStopHook(SETTINGS, "sluice", "/opt/s/stop-guard.sh");
+  await wireStopHook(SETTINGS, "sluice", "/opt/t/stop-guard.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.Stop).toHaveLength(1);
+  expect(contents.hooks.Stop[0].hooks[0].command).toContain("/opt/t/");
+});
+
+test("unwireStopHook removes only the skill's Stop entry", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { Stop: [{ hooks: [{ type: "command", command: "echo other" }] }] },
+  }));
+  await wireStopHook(SETTINGS, "sluice", "/opt/s/stop-guard.sh");
+  await unwireStopHook(SETTINGS, "sluice");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.Stop).toHaveLength(1);
+  expect(contents.hooks.Stop[0].hooks[0].command).toBe("echo other");
+});
+
+test("claudeAdapter.install wires the Stop hook under the bundle root, and remove unwires it", async () => {
+  const manifest: SkillManifest = {
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    bundle: { include: ["scripts"] },
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" } },
+    activation: {
+      modes: ["session", "global"],
+      default: "global",
+      claudeHookDirective: "Pick a channel.",
+      claudeStopScript: "scripts/stop-guard.sh",
+    },
+  };
+  const files = new Map([
+    ["SKILL.md", "# Sluice"],
+    ["scripts/stop-guard.sh", "#!/usr/bin/env bash\n"],
+  ]);
+  const installed = await claudeAdapter.install(TMP, manifest, files, "global");
+  const settingsPath = join(TMP, ".claude/settings.json");
+  const contents = await Bun.file(settingsPath).json();
+  expect(contents.hooks.Stop[0].hooks[0].command).toContain(join(TMP, ".claude/skills/sluice/scripts/stop-guard.sh"));
+  await claudeAdapter.remove(TMP, manifest, installed);
+  const after = await Bun.file(settingsPath).json();
+  expect(after.hooks?.Stop).toBeUndefined();
+});
+
+test("claudeAdapter.install does not wire the Stop hook for a session activation", async () => {
+  const manifest: SkillManifest = {
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    files: { prompt: "SKILL.md" },
+    bundle: { include: ["scripts"] },
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" } },
+    activation: { modes: ["session", "global"], default: "global", claudeStopScript: "scripts/stop-guard.sh" },
+  };
+  await claudeAdapter.install(TMP, manifest, new Map([["SKILL.md", "# S"]]), "session");
+  expect(existsSync(join(TMP, ".claude/settings.json"))).toBe(false);
+});

@@ -169,6 +169,56 @@ export async function unwireSessionStartHook(
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
+// A Stop hook carries no directive, so it is keyed by the marker alone: one
+// entry per skill, brought up to the current command on every install.
+export async function wireStopHook(
+  settingsPath: string,
+  skillName: string,
+  scriptPath: string
+): Promise<void> {
+  let settings: Settings = {};
+  if (existsSync(settingsPath)) {
+    settings = await Bun.file(settingsPath).json();
+  }
+  if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.Stop) settings.hooks.Stop = [];
+
+  const command = `if [ -f ${shq(scriptPath)} ]; then bash ${shq(scriptPath)}; fi`;
+  let found = false;
+  for (const group of settings.hooks.Stop as HookGroup[]) {
+    for (const hook of group.hooks ?? []) {
+      if (hook.skill !== skillName) continue;
+      found = true;
+      hook.command = command;
+    }
+  }
+  if (!found) {
+    settings.hooks.Stop.push({ hooks: [{ type: "command", command, skill: skillName }] });
+  }
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+export async function unwireStopHook(settingsPath: string, skillName: string): Promise<void> {
+  if (!existsSync(settingsPath)) return;
+  const settings: Settings = await Bun.file(settingsPath).json();
+  const stop = settings.hooks?.Stop as HookGroup[] | undefined;
+  if (!stop) return;
+
+  const filtered = stop
+    .map((group) => ({ hooks: (group.hooks ?? []).filter((h) => h.skill !== skillName) }))
+    .filter((group) => group.hooks.length > 0);
+  if (filtered.length === 0) {
+    delete settings.hooks.Stop;
+  } else {
+    settings.hooks.Stop = filtered;
+  }
+  if (settings.hooks && Object.keys(settings.hooks).length === 0) {
+    delete settings.hooks;
+  }
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
 export type Adapter = {
   name: string;
   install(
@@ -252,6 +302,14 @@ export const claudeAdapter: Adapter = {
       }
     }
 
+    if (activation === "global" && manifest.activation?.claudeStopScript && config.bundleRoot) {
+      const settingsPath = join(cwd, ".claude/settings.json");
+      await wireStopHook(settingsPath, manifest.name, join(cwd, config.bundleRoot, manifest.activation.claudeStopScript));
+      if (!installed.includes(".claude/settings.json")) {
+        installed.push(".claude/settings.json");
+      }
+    }
+
     if (config.postinstall && config.bundleRoot) {
       const scriptPath = join(cwd, config.bundleRoot, config.postinstall);
       const result = runScript(scriptPath, join(cwd, config.bundleRoot));
@@ -321,6 +379,9 @@ export const claudeAdapter: Adapter = {
     if (manifest.activation?.claudeHookDirective) {
       const settingsPath = join(cwd, ".claude/settings.json");
       await unwireSessionStartHook(settingsPath, manifest.name, manifest.activation.claudeHookDirective);
+    }
+    if (manifest.activation?.claudeStopScript) {
+      await unwireStopHook(join(cwd, ".claude/settings.json"), manifest.name);
     }
   },
 };

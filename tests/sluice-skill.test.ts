@@ -579,3 +579,25 @@ describe("sluice run opens in the working tree", () => {
 		expect(pre).toMatch(/mv docs\/plans\//);
 	});
 });
+
+// A message with no tool call ends the turn, and a live run handed back with
+// nothing to decide is how an overnight run dies half way.
+describe("sluice never ends a turn mid-run", () => {
+	test("the dispatch rules say announcements ride with the dispatch", () => {
+		const rules = section(DEEP, "Dispatch rules");
+		expect(rules).toMatch(/never ends a turn/i);
+		expect(rules).toMatch(/same message/i);
+		expect(rules).toMatch(/pause --reason/);
+	});
+
+	test("the state reference describes the stop guard", () => {
+		const guard = section(STATUS, "On stopping");
+		expect(guard).toMatch(/stop-guard\.sh/);
+		expect(guard).toMatch(/blocked/);
+		expect(guard).toMatch(/pause/);
+	});
+
+	test("the router names the guard", () => {
+		expect(section(SKILL, "Deep channel")).toMatch(/Stop hook|stop guard/i);
+	});
+});
