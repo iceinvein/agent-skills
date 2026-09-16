@@ -1,5 +1,11 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { claudeAdapter, wireSessionStartHook, unwireSessionStartHook } from "../../src/cli/adapters/claude";
+import {
+  claudeAdapter,
+  wireSessionStartHook,
+  unwireSessionStartHook,
+  wireStatusLine,
+  unwireStatusLine,
+} from "../../src/cli/adapters/claude";
 import type { SkillManifest } from "../../src/cli/types";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 
@@ -483,4 +489,210 @@ test("claudeAdapter.install does not wire the Stop hook for a session activation
   };
   await claudeAdapter.install(TMP, manifest, new Map([["SKILL.md", "# S"]]), "session");
   expect(existsSync(join(TMP, ".claude/settings.json"))).toBe(false);
+});
+
+// One skill claiming the single statusLine slot is only safe while it refuses
+// to take one that is already spoken for, and gives it back on removal. Both
+// directions are the test; the wiring on its own is the easy half.
+test("wireStatusLine claims the slot when it is empty", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.statusLine.type).toBe("command");
+  expect(contents.statusLine.command).toContain("/bundle/skills/sluice/scripts/statusline-command.sh");
+});
+
+test("wireStatusLine creates settings.json when the file is missing", async () => {
+  rmSync(SETTINGS, { force: true });
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  expect(existsSync(SETTINGS)).toBe(true);
+});
+
+test("wireStatusLine leaves a statusline someone else configured alone", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    statusLine: { type: "command", command: 'bash "$HOME/.claude/mine.sh"' },
+  }));
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.statusLine.command).toBe('bash "$HOME/.claude/mine.sh"');
+});
+
+test("wireStatusLine preserves unrelated top-level settings", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({ effortLevel: "high" }));
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.effortLevel).toBe("high");
+  expect(contents.statusLine).toBeDefined();
+});
+
+test("wireStatusLine is idempotent", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const first = await Bun.file(SETTINGS).text();
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  expect(await Bun.file(SETTINGS).text()).toBe(first);
+});
+
+// A path that moved between installs is still ours: the slot is re-pointed
+// rather than left aimed at a script that is no longer there.
+test("wireStatusLine re-points its own entry when the bundle path changes", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/old/.claude/skills/sluice/scripts/statusline-command.sh");
+  await wireStatusLine(SETTINGS, "sluice", "/new/.claude/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.statusLine.command).toContain("/new/.claude/skills/sluice");
+  expect(contents.statusLine.command).not.toContain("/old/");
+});
+
+// Sharing a filename is not sharing an owner. Matching on the basename alone
+// would claim this on install and delete it on removal.
+test("wireStatusLine leaves a same-named script of the user's own alone", async () => {
+  const theirs = 'bash "$HOME/dotfiles/scripts/statusline-command.sh"';
+  await Bun.write(SETTINGS, JSON.stringify({ statusLine: { type: "command", command: theirs } }));
+
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(theirs);
+
+  await unwireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(theirs);
+});
+
+test("unwireStatusLine gives the slot back when it is still ours", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  await unwireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.statusLine).toBeUndefined();
+});
+
+test("unwireStatusLine leaves a statusline someone else configured alone", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({
+    statusLine: { type: "command", command: 'bash "$HOME/.claude/mine.sh"' },
+  }));
+  await unwireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.statusLine.command).toBe('bash "$HOME/.claude/mine.sh"');
+});
+
+test("unwireStatusLine on a settings file with no statusline is a no-op", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({ effortLevel: "high" }));
+  await unwireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.effortLevel).toBe("high");
+});
+
+// A path carrying an apostrophe would otherwise close the shell literal early
+// and take the whole command down with it.
+test("wireStatusLine quotes a path containing an apostrophe", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/it's/scripts/statusline-command.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  const proc = Bun.spawnSync(["bash", "-n", "-c", contents.statusLine.command]);
+  expect(proc.exitCode).toBe(0);
+});
+
+// Wiring through the adapter, not the helper: the gate on global activation and
+// the bundle-relative path resolution are what a session-mode install depends
+// on, and neither is visible from wireStatusLine on its own.
+const STATUSLINE_MANIFEST: SkillManifest = {
+  name: "sluice",
+  version: "0.19.0",
+  description: "d",
+  author: "a",
+  type: "prompt",
+  tools: ["claude"],
+  files: { prompt: "SKILL.md" },
+  bundle: { include: ["scripts"] },
+  install: { claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" } },
+  activation: {
+    modes: ["session", "global"],
+    default: "global",
+    claudeStatuslineScript: "scripts/statusline-command.sh",
+  },
+};
+
+test("a global install claims an empty statusline slot", async () => {
+  await claudeAdapter.install(TMP, STATUSLINE_MANIFEST, new Map(), "global");
+  const contents = await Bun.file(join(TMP, ".claude/settings.json")).json();
+  expect(contents.statusLine.command).toContain(
+    join(TMP, ".claude/skills/sluice/scripts/statusline-command.sh")
+  );
+});
+
+test("a session install claims nothing", async () => {
+  await claudeAdapter.install(TMP, STATUSLINE_MANIFEST, new Map(), "session");
+  expect(existsSync(join(TMP, ".claude/settings.json"))).toBe(false);
+});
+
+test("removal gives back a slot the install claimed", async () => {
+  await claudeAdapter.install(TMP, STATUSLINE_MANIFEST, new Map(), "global");
+  await claudeAdapter.remove(TMP, STATUSLINE_MANIFEST, []);
+  const contents = await Bun.file(join(TMP, ".claude/settings.json")).json();
+  expect(contents.statusLine).toBeUndefined();
+});
+
+// Every other command this adapter writes is guarded by its own existence, and
+// the reason is in the comment on the SessionStart one: a bundle that moved
+// leaves the hook exiting 0 rather than 127. The statusline is the command that
+// runs on every keystroke, so it is the last one that should go unguarded.
+test("the statusline command is guarded by the script existing", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/gone/skills/sluice/scripts/statusline-command.sh");
+  const { command } = (await Bun.file(SETTINGS).json()).statusLine;
+  const proc = Bun.spawnSync(["bash", "-c", command]);
+  expect(proc.exitCode).toBe(0);
+  expect(proc.stderr.toString()).toBe("");
+});
+
+// "statusLine": null is a live way to have the key present and the feature off.
+// Read as occupied it would leave the slot unusable and unclaimable for good.
+test("a null statusline counts as an empty slot", async () => {
+  await Bun.write(SETTINGS, JSON.stringify({ statusLine: null }));
+  await wireStatusLine(SETTINGS, "sluice", "/bundle/skills/sluice/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toContain("/bundle/skills/sluice");
+});
+
+// A command that merely CONTAINS ours still belongs to whoever composed it, and
+// overwriting it destroys the other half.
+test("a command with ours composed into it is left whole", async () => {
+  const theirs = `bash ~/prompt.sh; bash '/x/skills/sluice/scripts/statusline-command.sh'`;
+  await Bun.write(SETTINGS, JSON.stringify({ statusLine: { type: "command", command: theirs } }));
+
+  await wireStatusLine(SETTINGS, "sluice", "/x/skills/sluice/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(theirs);
+
+  await unwireStatusLine(SETTINGS, "sluice", "/x/skills/sluice/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(theirs);
+});
+
+// The slot is one slot. Ownership keyed off a constant rather than the skill
+// installing would let the second skill to declare the field take the first
+// one's statusline on install and delete it on removal.
+test("another skill neither claims nor removes this skill's statusline", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/x/skills/sluice/scripts/statusline-command.sh");
+  const ours = (await Bun.file(SETTINGS).json()).statusLine.command;
+
+  await wireStatusLine(SETTINGS, "terse", "/x/skills/terse/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(ours);
+
+  await unwireStatusLine(SETTINGS, "terse", "/x/skills/terse/scripts/statusline-command.sh");
+  expect((await Bun.file(SETTINGS).json()).statusLine.command).toBe(ours);
+});
+
+// An apostrophe in the path would end the shell literal early and take the
+// command down with it. Proved by running the command and seeing the real
+// script execute, rather than by reading the quoting back and agreeing with it.
+test("wireStatusLine writes a command that runs the script it was given", async () => {
+  const dir = join(TMP, "it's", "skills", "sluice", "scripts");
+  mkdirSync(dir, { recursive: true });
+  const script = join(dir, "statusline-command.sh");
+  await Bun.write(script, "#!/usr/bin/env bash\necho RAN\n");
+
+  await wireStatusLine(SETTINGS, "sluice", script);
+  const { command } = (await Bun.file(SETTINGS).json()).statusLine;
+  const proc = Bun.spawnSync(["bash", "-c", command]);
+  expect(proc.stdout.toString().trim()).toBe("RAN");
+  expect(proc.exitCode).toBe(0);
+});
+
+// Removal without the manifest still knows the skill's name, and the slot names
+// the skill, so there is nothing stopping this path from giving it back.
+test("removal without a manifest still gives the slot back", async () => {
+  await wireStatusLine(SETTINGS, "sluice", "/x/skills/sluice/scripts/statusline-command.sh");
+  await unwireStatusLine(SETTINGS, "sluice");
+  expect((await Bun.file(SETTINGS).json()).statusLine).toBeUndefined();
 });

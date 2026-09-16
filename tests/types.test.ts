@@ -167,3 +167,72 @@ test("validateManifest rejects a non-string activation.claudeStopScript", () => 
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toContain("claudeStopScript");
 });
+
+test("validateManifest rejects a non-string activation.claudeStatuslineScript", () => {
+  const result = validateManifest({
+    name: "sluice",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    install: { claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" } },
+    activation: { modes: ["global"], default: "global", claudeStatuslineScript: 3 },
+  });
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toContain("claudeStatuslineScript");
+});
+
+// Every one of these three is a bundle-relative path, and the install resolves
+// it against bundleRoot. Without one the manifest validates clean and then
+// wires nothing at all, which is the silent no-op this rejects instead.
+for (const field of ["claudeHookScript", "claudeStopScript", "claudeStatuslineScript"]) {
+  test(`validateManifest rejects activation.${field} with no install.claude.bundleRoot`, () => {
+    const result = validateManifest({
+      name: "sluice",
+      version: "1.0.0",
+      description: "x",
+      author: "a",
+      type: "prompt",
+      tools: ["claude"],
+      install: { claude: { prompt: ".claude/skills/sluice/SKILL.md" } },
+      activation: { modes: ["global"], default: "global", [field]: "scripts/x.sh" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain(field);
+      expect(result.error).toContain("bundleRoot");
+    }
+  });
+
+  test(`validateManifest accepts activation.${field} alongside a bundleRoot`, () => {
+    const result = validateManifest({
+      name: "sluice",
+      version: "1.0.0",
+      description: "x",
+      author: "a",
+      type: "prompt",
+      tools: ["claude"],
+      install: {
+        claude: { prompt: ".claude/skills/sluice/SKILL.md", bundleRoot: ".claude/skills/sluice" },
+      },
+      activation: { modes: ["global"], default: "global", [field]: "scripts/x.sh" },
+    });
+    expect(result.ok).toBe(true);
+  });
+}
+
+// A directive on its own needs no bundle: the hook echoes it and runs nothing.
+test("validateManifest accepts a bare claudeHookDirective with no bundleRoot", () => {
+  const result = validateManifest({
+    name: "terse",
+    version: "1.0.0",
+    description: "x",
+    author: "a",
+    type: "prompt",
+    tools: ["claude"],
+    install: { claude: { prompt: ".claude/skills/terse/SKILL.md" } },
+    activation: { modes: ["global"], default: "global", claudeHookDirective: "Activate terse." },
+  });
+  expect(result.ok).toBe(true);
+});

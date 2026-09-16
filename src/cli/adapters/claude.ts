@@ -219,6 +219,87 @@ export async function unwireStopHook(settingsPath: string, skillName: string): P
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
+// The statusLine is a single slot, not a list like the hook keys, so claiming
+// it is only safe while it refuses one that is already spoken for. An empty
+// slot is taken and given back on removal; anything already there is left
+// exactly as it stands, on install and on removal alike, because a statusline
+// someone wrote is not ours to replace or to delete.
+//
+// Guarded by the script's own existence, exactly as the two hook commands above
+// are and for the same reason: a bundle that moved leaves the bar silent rather
+// than running a path that is gone. That reason is sharper here than it is for
+// a hook, because this is the command that runs on every keystroke, so an
+// unguarded one spends the rest of the session printing 127 to stderr.
+function statusLineCommand(scriptPath: string): string {
+  return `if [ -f ${shq(scriptPath)} ]; then bash ${shq(scriptPath)}; fi`;
+}
+
+// Whether the slot holds a command this tool wrote for `skillName`.
+//
+// Matched as the whole command, never as a substring: `bash mine.sh; bash
+// ours.sh` contains ours and belongs to whoever composed it, and overwriting it
+// destroys the half we did not write. The skill directory has to be in the path
+// because the slot is shared between every skill that might declare one, and
+// keying it off a fixed name would let the second such skill take the first
+// one's statusline on install and delete it on removal.
+//
+// What this deliberately cannot tell apart: someone who vendored this skill
+// into their own tree and pointed the slot at their copy. That command is
+// byte-identical to one of ours, so it is treated as ours, re-pointed on
+// install and cleared on removal. Their file is never touched, only the
+// setting, and recording ownership properly would mean a marker field inside a
+// value the harness defines.
+function ownsStatusLine(command: unknown, skillName: string, scriptPath?: string): boolean {
+  if (typeof command !== "string") return false;
+  if (scriptPath !== undefined && command === statusLineCommand(scriptPath)) return true;
+
+  const shape = /^if \[ -f '(.*)' \]; then bash '(.*)'; fi$/.exec(command);
+  if (shape === null || shape[1] !== shape[2]) return false;
+  return shape[1]!.includes(`/skills/${skillName}/`);
+}
+
+export async function wireStatusLine(
+  settingsPath: string,
+  skillName: string,
+  scriptPath: string
+): Promise<void> {
+  let settings: Settings = {};
+  if (existsSync(settingsPath)) {
+    settings = await Bun.file(settingsPath).json();
+  }
+
+  // `null` is how the key is present and the feature off, which is an empty
+  // slot. Read as occupied it would be unclaimable for good.
+  const existing = settings.statusLine;
+  if (existing !== undefined && existing !== null) {
+    if (!ownsStatusLine(existing?.command, skillName, scriptPath)) return;
+  }
+
+  const command = statusLineCommand(scriptPath);
+  if (existing?.type === "command" && existing?.command === command) return;
+
+  settings.statusLine = { type: "command", command };
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+// `scriptPath` is optional because the offline removal path has the skill's
+// name but no manifest to resolve a bundle path from, and the slot names the
+// skill either way.
+export async function unwireStatusLine(
+  settingsPath: string,
+  skillName: string,
+  scriptPath?: string
+): Promise<void> {
+  if (!existsSync(settingsPath)) return;
+  const settings: Settings = await Bun.file(settingsPath).json();
+  if (settings.statusLine === undefined || settings.statusLine === null) return;
+  if (!ownsStatusLine(settings.statusLine?.command, skillName, scriptPath)) return;
+
+  delete settings.statusLine;
+  await Bun.write(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
 export type Adapter = {
   name: string;
   install(
@@ -310,6 +391,18 @@ export const claudeAdapter: Adapter = {
       }
     }
 
+    if (activation === "global" && manifest.activation?.claudeStatuslineScript && config.bundleRoot) {
+      const settingsPath = join(cwd, ".claude/settings.json");
+      await wireStatusLine(
+        settingsPath,
+        manifest.name,
+        join(cwd, config.bundleRoot, manifest.activation.claudeStatuslineScript)
+      );
+      if (!installed.includes(".claude/settings.json")) {
+        installed.push(".claude/settings.json");
+      }
+    }
+
     if (config.postinstall && config.bundleRoot) {
       const scriptPath = join(cwd, config.bundleRoot, config.postinstall);
       const result = runScript(scriptPath, join(cwd, config.bundleRoot));
@@ -382,6 +475,13 @@ export const claudeAdapter: Adapter = {
     }
     if (manifest.activation?.claudeStopScript) {
       await unwireStopHook(join(cwd, ".claude/settings.json"), manifest.name);
+    }
+    if (manifest.activation?.claudeStatuslineScript && config.bundleRoot) {
+      await unwireStatusLine(
+        join(cwd, ".claude/settings.json"),
+        manifest.name,
+        join(cwd, config.bundleRoot, manifest.activation.claudeStatuslineScript)
+      );
     }
   },
 };

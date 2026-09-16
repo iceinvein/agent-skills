@@ -19,7 +19,8 @@
   "install": {
     "claude": {
       "prompt": ".claude/skills/sluice/SKILL.md",
-      "bundleRoot": ".claude/skills/sluice"
+      "bundleRoot": ".claude/skills/sluice",
+      "postinstall": "scripts/postinstall.sh"
     }
   },
   "activation": {
@@ -30,6 +31,7 @@
     "default": "global",
     "claudeHookDirective": "Before acting on a request that changes code, pick a sluice channel and state which one.",
     "claudeHookScript": "scripts/session-start.sh",
-    "claudeStopScript": "scripts/stop-guard.sh"
+    "claudeStopScript": "scripts/stop-guard.sh",
+    "claudeStatuslineScript": "scripts/statusline-command.sh"
   }
 }

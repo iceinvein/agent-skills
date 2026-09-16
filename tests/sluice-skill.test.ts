@@ -121,13 +121,6 @@ describe("sluice run state", () => {
 		expect(STATUS).toMatch(/drift/i);
 	});
 
-	test("the statusline segment is carried literally, not described", () => {
-		const fenced = fencedBlocks(STATUS).find((b) => b.includes("statusline") || b.includes("sluice_line"));
-		expect(fenced).toBeDefined();
-		expect(fenced).toContain("run.json");
-		expect(fenced).toContain("status.sh");
-	});
-
 	// A status bar renders on every keystroke and has nowhere to put an error, so
 	// the silent-and-zero contract is the one property the caller depends on.
 	test("the reference states the silent contract the statusline relies on", () => {

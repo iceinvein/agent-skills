@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { readLockfile, removeSkillFromLockfile } from "../lockfile";
 import { fetchSkillManifest } from "../github";
 import { getAdapter } from "../adapters";
-import { unwireSessionStartHook } from "../adapters/claude";
+import { unwireSessionStartHook, unwireStatusLine } from "../adapters/claude";
 import type { ToolName } from "../types";
 
 type RemoveResult =
@@ -97,9 +97,14 @@ export async function removeSkill(cwd: string, skillName: string): Promise<Remov
       const fullPath = join(cwd, file);
       if (existsSync(fullPath)) {
         await unwireSessionStartHook(fullPath, skillName);
+        // The statusLine slot names the skill in the path it points at, so it
+        // can be given back without the manifest. Leaving it would point a
+        // command that runs on every keystroke at a bundle this same loop is
+        // about to delete.
+        await unwireStatusLine(fullPath, skillName);
       }
       warnings.push(
-        `Manifest unavailable (${manifestResult.error}). Left '${file}' in place, only removing '${skillName}'s SessionStart hook from it; any MCP server entries it owns were not touched.`
+        `Manifest unavailable (${manifestResult.error}). Left '${file}' in place, removing '${skillName}'s SessionStart hook and status line from it; any MCP server entries it owns were not touched.`
       );
       continue;
     }

@@ -279,20 +279,11 @@ its own rather than a segment among the badges: it then costs nothing when no ru
 is live and contends with nothing for width when one is, which is what lets the
 bar be wide and the task carry its name rather than only its number.
 
-Capture it wherever the statusline command builds its other lines, keyed off the
-state file existing so a session with no run spawns no process at all:
+Capture it wherever the statusline command builds its other lines, passing the
+directory the session is in and nothing else:
 
 ```bash
-sluice_line=""
-if [ -n "$cwd" ] && { [ -f "$cwd/.sluice/run.json" ] || [ -f "$cwd/.git" ]; }; then
-  for sluice_sh in "$cwd/.claude/skills/sluice/scripts/status.sh" \
-                   "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/sluice/scripts/status.sh" \
-                   "$HOME/.claude/skills/sluice/scripts/status.sh"; do
-    [ -f "$sluice_sh" ] || continue
-    sluice_line=$(bash "$sluice_sh" line --full --dir "$cwd" 2>/dev/null)
-    break
-  done
-fi
+sluice_line=$(bash "$HOME/.claude/skills/sluice/scripts/statusline.sh" --dir "$cwd" 2>/dev/null)
 ```
 
 then print it last, after whatever else the command emits:
@@ -301,28 +292,71 @@ then print it last, after whatever else the command emits:
 if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
 ```
 
-The gate is two tests because a linked worktree may hold no state file of its
-own and still belong to a set with a run: there `.git` is a regular file naming
-the tree it was cut from, and the script falls back to that tree. A worktree
-with its own run passes the first test. In a tree with no run and no worktree
-behind it `.git` is a directory, so both tests fail and no process is spawned,
-which is the property the gate is for.
+`$cwd` is `workspace.current_dir` from the JSON the harness sends on stdin.
+Substitute the install path: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` where a
+session may set one, or `$cwd/.claude/skills/sluice/scripts/statusline.sh` for a
+project-local install.
+
+Those two lines are the whole contract, and they are deliberately empty of
+judgement. Whether a run is visible from a given directory is a question about
+this skill's layout, and the answer has moved twice: once when the run anchored
+on the worktree set, once when a deep run began opening inside the implementer
+worktree. Both times a caller carrying the test went stale and stopped drawing
+without saying so, which is indistinguishable from no run being live. A caller
+that contributes only a path cannot go stale, and every install brings
+`statusline.sh` up to date behind it.
+
+`scripts/statusline.sh` holds what used to sit in the caller: it resolves the
+directory it was given, walks up looking for a state file or a worktree marker,
+stops at an ordinary tree root or at `$HOME` with neither, and dispatches to
+`status.sh line --full` only when there is something to draw. The walk is what
+lets a session sitting in a subdirectory see the run in its tree, which testing
+the session's own directory alone never did, and it resolves symlinks first
+because a linked directory's lexical parents lead away from the tree rather than
+up it.
+
+It answers only whether a run might be visible from here, never where one is.
+`status.sh` stays the single authority on that, and is handed the directory the
+caller passed rather than the one the walk stopped at. A gate that were ever
+narrower than the resolution behind it would blank the bar on a run that
+resolves perfectly well, which is the failure this whole arrangement exists to
+end, so it errs permissive: a wasted spawn is the acceptable direction.
+
+The gate is kept rather than dropped because it costs about 8ms against the 33ms
+an ungated `status.sh` pays to work out there is no run, and the common case on
+any machine is a tree with no run at all. Depth barely moves it, 7.7ms stopping
+at a `.git` directory against 8.4ms walking to the root, because 5.4ms of that
+is the bash spawn and the walk itself forks nothing.
 
 `if` rather than `[ ... ] &&`: as the last command of a statusline script the
 short form makes it exit 1 on every render with no run live, which is the common
 case. `%s` rather than `%b`: the render already carries real escape bytes, and
-`%b` would reinterpret a backslash inside a task name. `$cwd` is
-`workspace.current_dir` from the JSON the harness sends on stdin. The configured
-config dir is read before the default because a session started with
-`CLAUDE_CONFIG_DIR` set installs the skill there, which is the one place a
-`$HOME/.claude` lookup will not find it; the two paths collapse to one when the
-variable is unset, at the price of a second `[ -f ]`. It renders as:
+`%b` would reinterpret a backslash inside a task name. It renders as:
 
 ```
 ⧗ deep · sluice-cross-harness   ◷ 38m
   ▰▰▰ ▰▰▨ ▨▨▨ ◈◈◈ ▱▱▱ ▮▮▮ ▱▱▱ ┃ ▱▱▱ ▱▱▱
   2/9 done · !T6 model tiers rather than model names +1 · ⟲ 1 unreviewed
 ```
+
+On a machine with no status line at all there is nothing to paste into, so the
+install claims the empty `statusLine` slot and points it at
+`scripts/statusline-command.sh`, a complete command that reads the harness JSON
+on stdin and draws the run and nothing else. A slot already holding someone
+else's command is never touched, on install or on removal, and the one the
+install claimed is given back when the skill is removed, including on the
+removal path that has no manifest to read.
+
+Three things make claiming a single shared slot safe. The command is written
+guarded by its own script's existence, as the hook commands are, so a bundle
+that moved leaves the bar silent rather than running a path that is gone on
+every keystroke. Ownership is matched on the whole command and never as a
+substring, so a command with ours composed into it belongs to whoever composed
+it and is left whole. And the path it matches carries the skill's own directory,
+so the second skill to declare a statusline cannot take the first one's slot on
+install or delete it on removal. That is why the bundled
+command draws no prompt of its own: it exists for the empty slot, not to compete
+for a full one, so with no run live it prints nothing rather than an empty row.
 
 The colour comes out of the script rather than being applied by the caller,
 because the mapping from state to colour belongs next to the state. A caller that

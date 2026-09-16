@@ -17,6 +17,10 @@ export type ActivationConfig = {
   // Bundle-relative path of a script wired as a Stop hook: run when the model
   // tries to end its turn, and able to refuse with a reason.
   claudeStopScript?: string;
+  // Bundle-relative path of a complete statusline command. Unlike the hook
+  // keys, statusLine is a single slot, so it is claimed only when empty and
+  // given back on removal; one already configured is never touched.
+  claudeStatuslineScript?: string;
 };
 
 export type McpServerConfig = {
@@ -163,6 +167,27 @@ export function validateManifest(data: unknown): ValidationResult {
     }
     if (a.claudeStopScript !== undefined && typeof a.claudeStopScript !== "string") {
       return { ok: false, error: "'activation.claudeStopScript' must be a string" };
+    }
+    if (a.claudeStatuslineScript !== undefined && typeof a.claudeStatuslineScript !== "string") {
+      return { ok: false, error: "'activation.claudeStatuslineScript' must be a string" };
+    }
+
+    // All three are bundle-relative paths the install resolves against
+    // bundleRoot. Declared without one, the manifest validated clean and then
+    // wired nothing: the Stop hook and the statusline were skipped outright and
+    // the SessionStart hook echoed its directive with no script behind it. A
+    // skill that asks for a script and silently gets none is the boundary to
+    // fail at, and the manifest is where it can be said plainly.
+    const claudeBundleRoot = (d.install as Record<string, any>).claude?.bundleRoot;
+    if (claudeBundleRoot === undefined) {
+      for (const field of ["claudeHookScript", "claudeStopScript", "claudeStatuslineScript"] as const) {
+        if (a[field] !== undefined) {
+          return {
+            ok: false,
+            error: `'activation.${field}' is resolved against 'install.claude.bundleRoot', which is not set`,
+          };
+        }
+      }
     }
   }
 
