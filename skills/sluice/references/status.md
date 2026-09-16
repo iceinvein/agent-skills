@@ -272,6 +272,24 @@ session unguarded for the rest of the run.
 statusline carry it, and `resume` clears it. A pause with no reason is refused,
 since the reason is the only thing that separates a pause from a stall.
 
+## Free text
+
+Every value a command stores is later drawn onto a terminal: by the statusline,
+by `show`, by the SessionStart hook and by the stop guard's refusal. A control
+character in one is not text there, it is an instruction the terminal obeys, and
+task names are model-written and routinely pasted out of issue titles. `ESC[2J`
+in a name clears the screen on every render for as long as the run is open; a
+carriage return walks the cursor back over the row just drawn.
+
+So every flag value is refused if it carries one, with exit 4 naming the flag,
+rather than being quietly stripped: a name that is not the name the caller
+passed is its own surprise, and no legitimate value has ever needed a control
+byte. `plan.sh import` writes task names through the same door and inherits it.
+
+The renders drop them as well. State written before the check existed, or edited
+by hand, is an input like any other, and the only control bytes a render should
+emit are the colour sequences it writes itself.
+
 ## Statusline
 
 This is the part that makes a run visible without anyone asking. Give it rows of

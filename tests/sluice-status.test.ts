@@ -13,6 +13,7 @@ type Run = {
 	plan?: string;
 	record?: string;
 	preflight?: Record<string, string>;
+	paused?: string;
 	tasks: Array<Record<string, unknown>>;
 };
 
@@ -1497,5 +1498,100 @@ describe("move", () => {
 		const r = run(dir, "init", "--topic", "other", "--channel", "fast");
 		expect(r.code).toBe(3);
 		expect(r.err).toMatch(/move --to/);
+	});
+});
+
+// A task name is model-written and routinely pasted from an issue title, and it
+// is drawn straight onto a terminal by the statusline, by `show`, and by the
+// SessionStart hook. A control byte in one is therefore an escape sequence the
+// terminal obeys: ESC[2J clears the screen on every render, and a carriage
+// return walks the cursor back over the row sluice just drew.
+describe("free text cannot carry control bytes to a terminal", () => {
+	const ESC = "";
+
+	test("a name carrying an escape sequence is refused", () => {
+		const dir = seeded(1);
+		const r = run(dir, "task", "1", "--name", `a${ESC}[2Jb`);
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--name");
+	});
+
+	test("the refused name is not written", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--name", `a${ESC}[2Jb`);
+		expect(state(dir).tasks[0]!.name).toBe("T1");
+	});
+
+	test("a carriage return in a name is refused", () => {
+		const dir = seeded(1);
+		expect(run(dir, "task", "1", "--name", `first${String.fromCharCode(13)}overwrite`).code).toBe(4);
+	});
+
+	test("a newline in a name is refused", () => {
+		const dir = seeded(1);
+		expect(run(dir, "task", "1", "--name", `first${String.fromCharCode(10)}second`).code).toBe(4);
+	});
+
+	test("a topic carrying an escape sequence is refused", () => {
+		const r = run(repo(), "init", "--topic", `x${ESC}[2Jy`, "--channel", "deep");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--topic");
+	});
+
+	test("a pause reason carrying an escape sequence is refused", () => {
+		const dir = seeded(1);
+		expect(run(dir, "pause", "--reason", `wait${ESC}[2J`).code).toBe(4);
+	});
+
+	// The check must not cost ordinary names the punctuation and non-ASCII they
+	// legitimately carry.
+	test("punctuation, quotes and non-ASCII in a name are untouched", () => {
+		const dir = seeded(1);
+		const name = "Rebuild the \"timeline\" band — 1 glyph/event (≤80%)";
+		expect(run(dir, "task", "1", "--name", name).code).toBe(0);
+		expect(state(dir).tasks[0]!.name).toBe(name);
+	});
+});
+
+// State already on disk was written before the check existed, or by hand, so
+// the render cannot assume its input is clean. Everything the render emits
+// itself is an SGR colour sequence; strip those and nothing but newlines should
+// be left, whatever the state holds.
+describe("the render emits no control bytes of its own but colour", () => {
+	const ESC = "";
+	const LEFTOVER = /[ -	-]/;
+
+	/** Writes a run whose free text is full of control bytes, bypassing the CLI. */
+	function poisoned(dir: string) {
+		const s = state(dir);
+		s.topic = `topic${ESC}[2J`;
+		s.tasks[0]!.name = `name${ESC}[2J
+more`;
+		s.paused = `why${ESC}[2J`;
+		writeFileSync(join(dir, ".sluice", "run.json"), JSON.stringify(s, null, 2));
+	}
+
+	/** Output with its SGR colour sequences removed. */
+	function bare(out: string): string {
+		return out.replace(/\[[0-9;]*m/g, "");
+	}
+
+	test("the wide statusline render carries none through", () => {
+		const dir = seeded(1);
+		run(dir, "task", "1", "--status", "active");
+		poisoned(dir);
+
+		const out = run(dir, "line", "--full").out;
+		expect(out).toContain("topic");
+		expect(bare(out)).not.toMatch(LEFTOVER);
+	});
+
+	test("show carries none through", () => {
+		const dir = seeded(1);
+		poisoned(dir);
+
+		const out = run(dir, "show").out;
+		expect(out).toContain("topic");
+		expect(bare(out)).not.toMatch(LEFTOVER);
 	});
 });

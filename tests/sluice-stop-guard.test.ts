@@ -123,6 +123,20 @@ describe("stop-guard.sh", () => {
 		status(dir, "task", "4", "--status", "active");
 		expect(decision(guard({ cwd: dir, stop_hook_active: false }).out)).toBe("block");
 	});
+
+	// The refusal reason is printed by the harness, so a control byte in the
+	// topic it carries reaches a terminal exactly as the statusline's would.
+	test("a topic with a control byte does not reach the refusal reason", () => {
+		const dir = midRun(5, 3);
+		const run = JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8"));
+		run.topic = `top${String.fromCharCode(27)}[2J`;
+		writeFileSync(join(dir, ".sluice", "run.json"), JSON.stringify(run, null, 2));
+
+		const r = guard({ cwd: dir, stop_hook_active: false });
+		const reason = JSON.parse(r.out).reason as string;
+		expect(reason).toContain("top[2J");
+		expect(reason).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
+	});
 });
 
 // The guard reads the session's own tree and nothing else. The fallback that

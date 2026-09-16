@@ -60,6 +60,16 @@ need_value() { # <flag> <remaining $#> <candidate>
 	case "$3" in
 		--*) err "$1 needs a value, but the next argument is the flag $3"; exit 4 ;;
 	esac
+	# Every value this script stores is later drawn onto a terminal, by the
+	# statusline, by `show` and by the SessionStart hook. A control byte in one is
+	# not text there, it is a command the terminal obeys: ESC[2J clears the screen
+	# on every render for as long as the run is open, and a carriage return walks
+	# the cursor back over the row just drawn. Refused rather than stripped,
+	# because a name that is not the name the caller passed is its own surprise,
+	# and no legitimate value has ever needed one.
+	case "$3" in
+		*[[:cntrl:]]*) err "$1 value contains a control character, which a terminal would act on rather than print"; exit 4 ;;
+	esac
 }
 
 # A word from a space-separated set. Keeps validation in one place so every
@@ -171,6 +181,12 @@ if [ "$SUB" = "line" ]; then
 	jq -r \
 		--argjson now "$(date -u +%s)" \
 		--arg esc "$(printf '\033')" '
+		# The state file is an input like any other: it predates the check on the
+		# way in, or was hand-edited, so what it holds is not known to be drawable.
+		# Everything this render emits deliberately is an SGR colour sequence, so any
+		# other control byte reaching the terminal came from the state, and is dropped
+		# here rather than obeyed.
+		def clean: if type == "string" then gsub("[\u0000-\u001f\u007f]"; "") else . end;
 		def paint($c; $t): "\($esc)[\($c)m\($t)\($esc)[0m";
 		def join_parts: map(select(. != null and . != "")) | join(" \($esc)[2m·\($esc)[0m ");
 		# Done splits in two. A task that is done and was owed a review nobody has
@@ -230,7 +246,7 @@ if [ "$SUB" = "line" ]; then
 		     end) as $idle
 		| ( paint("1;96"; "⧗") + " "
 		    + ([ paint("1;96"; (.channel // "?")),
-		         paint("2"; (.topic // ""))
+		         paint("2"; (.topic // "" | clean))
 		       ] | join_parts)
 		    + (if $clock == "" then "" else "   " + paint("2"; $clock) end)
 		    + (if $idle == "" then "" else " " + paint("2"; "·") + " " + paint("33"; $idle) end)
@@ -244,8 +260,8 @@ if [ "$SUB" = "line" ]; then
 		                + cellgroup($w)
 		            ] | join($gap)) ),
 		  ( "  " + ([ paint("1"; "\($done)/\(.tasks | length)") + " done",
-		              (if   $blocked then paint("1;91"; "!T\($blocked.id) \($blocked.name // "")")
-		               elif $active  then paint("96"; "▸T\($active.id)") + " " + ($active.name // "")
+		              (if   $blocked then paint("1;91"; "!T\($blocked.id) \($blocked.name // "" | clean)")
+		               elif $active  then paint("96"; "▸T\($active.id)") + " " + ($active.name // "" | clean)
 		               else "" end)
 		              + (if $attn > 1 then paint("2"; " +\($attn - 1)") else "" end),
 		              (if $debt > 0 then paint("33"; "⟲ \($debt) unreviewed") else "" end)
@@ -562,7 +578,12 @@ case "$SUB" in
 		# than silently reading as the whole value.
 		jq -r --argjson now "$(date -u +%s)" '
 			def dash: if . == null or . == "" then "-" else . end;
-			def cell($w): tostring
+			# Same reason as the statusline render: state written before the check
+			# on the way in, or edited by hand, holds bytes a terminal would act on
+			# rather than print. Every table cell passes through `cell`, so the
+			# table is covered there; the lines built outside it clean their own.
+			def clean: if type == "string" then gsub("[\u0000-\u001f\u007f]"; "") else . end;
+			def cell($w): tostring | clean
 				| if length > $w then .[0:$w - 1] + "…"
 				  else . + (" " * ($w - length))
 				  end;
@@ -570,9 +591,9 @@ case "$SUB" in
 			                      ($c[3] | cell(9)), ($c[4] | cell(9)), ($c[5] | cell(4)),
 			                      $c[6]] | join(" "));
 			([.tasks[]? | select(.status == "done")] | length) as $done
-			| ["sluice \(.channel) · \(.topic) · \($done)/\(.tasks | length) done"]
-			+ ["plan          \(.plan | dash)"]
-			+ ["record        \(.record | dash)"]
+			| ["sluice \(.channel | clean) · \(.topic | clean) · \($done)/\(.tasks | length) done"]
+			+ ["plan          \(.plan | dash | clean)"]
+			+ ["record        \(.record | dash | clean)"]
 			# Past a day since the last write the run is idle, and that is said
 			# here because a stale run blocks the next init and nothing else
 			# would name it.
@@ -585,13 +606,13 @@ case "$SUB" in
 			            else ["idle          \($h / 24 | floor)d\($h % 24)h since the last write"]
 			            end
 			     end)
-			+ (if .paused then ["paused        \(.paused)"] else [] end)
+			+ (if .paused then ["paused        \(.paused | clean)"] else [] end)
 			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
 			   | if $debt == 0 then [] else ["unreviewed    \($debt) done, owed a review the tier table promised"] end)
 			+ ["final review  " + (if .final_review then "done" else "pending" end)]
 			+ ["pre-flight    " + (
 				if (.preflight // {} | length) == 0 then "not recorded"
-				else [(.preflight | to_entries[] | "\(.key)=\(.value)")] | join("; ")
+				else [(.preflight | to_entries[] | "\(.key | clean)=\(.value | clean)")] | join("; ")
 				end)]
 			+ [""]
 			+ [row(["id", "status", "task", "base", "commit", "tier", "model"])]

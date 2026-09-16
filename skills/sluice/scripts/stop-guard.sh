@@ -84,7 +84,11 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" '
 	  # A run nobody has written to for a day is a stale run, not a live one;
 	  # refusing its stop would press an abandoned plan on whoever opened here.
 	  elif $idle_h >= 24 then {block: false}
-	  else {block: true, progress: "\($done)/\($t | length)", topic: (.topic // "run")}
+	  # The topic lands in a reason the harness prints, so a control byte in it
+	  # would be acted on by the terminal rather than read. State written before
+	  # status.sh refused those, or edited by hand, can still hold one.
+	  else {block: true, progress: "\($done)/\($t | length)",
+	        topic: (.topic // "run" | gsub("[\u0000-\u001f\u007f]"; ""))}
 	  end
 ' 2>/dev/null)" || exit 0
 
