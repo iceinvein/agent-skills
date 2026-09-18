@@ -43,12 +43,16 @@ the one list of them. In order:
 2. The ledger, `scripts/run-stats.sh --tests "<that result>"`, pasted
    unedited. `references/meter.md`
 3. In `deep`, `status.sh show`, pasted, so "four of nine, task five blocked,
-   two unreviewed, final review pending" is on the page rather than in your
-   account of it. `references/status.md`
+   two done at tier 1+ with no dispatch, final review pending" is on the page
+   rather than in your account of it. `references/status.md`
 4. One clause on review: dispatched and clear, dispatched with findings still
    open, or not dispatched and why. In `deep` that clause covers the per-task
-   tiers and the final review separately, because the debt count carries one
-   and not the other.
+   tiers and the final review separately, because the count carries one and not
+   the other. Where pre-flight priced the level, say what was covered and how,
+   not that review is outstanding: "reviewed at the level you chose, a
+   controller stat read plus the final whole-plan pass rather than a per-task
+   dispatch" is the accurate line, and it is a coverage level rather than a
+   debt. Where nothing was priced, it is a debt and says so.
 5. The three options, and nothing after them.
 
 A `deep` run closes when the work stops being yours to act on: after a local

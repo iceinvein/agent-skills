@@ -36,16 +36,20 @@ worktree>` finds nothing. Statuses
 are `todo`, `active`, `review`, `done` and `blocked`. A new id needs `--name`;
 after that every call is a bare flip, so keeping it current costs one command
 per transition rather than a paragraph. `close` archives the run under
-`.sluice/archive/`, prints one line saying what it archived, progress, review
-debt and whether the final review landed, and frees the tree for the next one.
+`.sluice/archive/`, prints one line saying what it archived, progress, how many
+tasks shipped without a dispatch and whether the final review landed, and frees
+the tree for the next one.
 
 The controller writes every row. An implementer reports its SHA in its reply
 and touches nothing under `.sluice/`; the brief in `references/deep-channel.md`
 says so to it. `active` is the dispatch, `review` is the commit in and a
 reviewer out, with the task's paths still held because a finding may send the
 implementer back into them, and `done` is the end: with `--reviewed` when a
-review cleared it, without when the tier owed one and pre-flight declined it,
-which is the row the debt count counts.
+review cleared it, without when the tier qualified for one and pre-flight
+declined it, which is the row the no-dispatch count counts. Declining is meant
+to show up there: the count describes the artifact, not the decision, and a
+chosen skip that erased itself would leave a number that only ever recorded
+accidents.
 
 A task going `active` with no `--base` takes the HEAD of the tree the command
 is pointed at, `--dir` if given and the current tree otherwise, once; a base
@@ -148,8 +152,8 @@ have gone that way. Those are different claims.
 ## Reading it back
 
 `show` prints the whole run: channel, topic, how many tasks are done, the plan
-and record paths, how long it has sat idle once that passes a day, the review
-debt, the final review, the pre-flight answers, and a row per task with its
+and record paths, how long it has sat idle once that passes a day, the tasks
+that shipped without a dispatch, the final review, the pre-flight answers, and a row per task with its
 base, commit, tier and model. Run it after compaction instead of reconstructing the
 run from what you remember, and run it in the message that hands the work back,
 where "four of nine, task five blocked" is a fact your partner can act on.
@@ -170,9 +174,9 @@ from what the whole bar would occupy, gaps included, rather than from the task
 count: keyed off the count alone the schedule was not monotonic, and thirty tasks
 at two cells each ran wider than twelve at three.
 
-**A done task still owed a review trails the review glyph**, `▰▰▨` against
-`▰▰▰`. Debt then reads in position rather than only as a count at the end of the
-row, which is the difference between knowing how much there is and knowing where.
+**A done task that got no dispatch trails the review glyph**, `▰▰▨` against
+`▰▰▰`. The gap then reads in position rather than only as a count at the end of
+the row, which is the difference between knowing how much there is and knowing where.
 Tier 0 was never owed a dispatch, so it reads as plainly done. On a plan long
 enough to narrow cells to one, there is no trailing cell to give up and the
 positional reading stops: the count in the third row is then the only carrier,
@@ -186,16 +190,40 @@ flips and `import` clears a stale one, so the bar is only ever asked to draw the
 single legal case.
 
 The third row carries the progress count, whichever task wants attention, and the
-review debt. A blocked task displaces the active one there, being the one of the
-two worth interrupting for, and a `+n` follows when more than one task shares that
-state, since a plan running four wide has four actives by design.
+no-dispatch count. A blocked task displaces the active one there, being the one of
+the two worth interrupting for, and a `+n` follows when more than one task shares
+that state, since a plan running four wide has four actives by design.
 
 Mark a review with `task <id> --reviewed` when a reviewer comes back. What that
-buys is the debt count: a task that is done, that the tier table owed a dispatch,
-and that nobody marked. Tier 0 is excluded, having only ever been owed a stat
-read. Without it "review outstanding" first appears in the closing summary, at
-the one moment your partner can no longer do anything about it, and `show` and
-the statusline both carry it from the moment it exists.
+buys is the count: a task that is done, that the tier table qualified for a
+dispatch, and that nobody marked. Tier 0 is excluded, having only ever been owed
+a stat read. Without it that count first appears in the closing summary, at the
+one moment your partner can no longer do anything about it, and `show` and the
+statusline both carry it from the moment it exists.
+
+## Coverage against debt
+
+The same count reads two ways, and which one it gets turns on whether
+`preflight --review` has an answer on file.
+
+With an answer, the level was priced at the stop and the tasks it skipped were
+spent rather than forgotten. `show` calls it `coverage`, with the answer itself
+on the `pre-flight` row three lines below rather than repeated beside the count;
+the bar says `⟲ 9 at the chosen level` dim rather than in the warning colour, and
+`close` says `9 at the chosen review level`. That is a fact about how
+far review reached, not a thing still to do, and a run that keeps calling it
+outstanding is nagging your partner about a decision they already made.
+
+With no answer on file, nobody priced anything. `show` calls it `unreviewed`, the
+bar and `close` say the same, and the warning colour stays: the dispatches the
+tier table promised are genuinely owed, and the absence of a pre-flight answer is
+the evidence that nobody weighed them.
+
+What never changes is the number. Nine tasks that shipped without a second pair
+of eyes carry the same risk whether the skip was chosen or forgotten, and the
+count is there to say how far coverage reached. Erasing a chosen skip would turn
+it into a measure of diligence, which is not what anyone reads it for. So the
+word moves and the number does not.
 
 ## The next wave
 

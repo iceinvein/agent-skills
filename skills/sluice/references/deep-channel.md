@@ -180,8 +180,15 @@ your sign-off and Task 1 begins.
 **Review.** Name the tasks the table below sends to a reviewer, each with the
 trigger that qualified it, and say how many of the rest skip with a ledger
 line. Then offer the choice: dispatch a reviewer at each of them, dispatch
-only at tier 3, or hand back with those tasks listed as
-review outstanding. The options are what makes the cost legible.
+only at tier 3, or hand back with the whole tier table skipped. The options are
+what makes the cost legible.
+
+Whichever comes back, record it with `status.sh preflight --review`. That row is
+what turns the tasks it skips into a coverage level rather than a debt: the count
+stays, because the code is the same either way, but `show`, the bar and `close`
+then name it as the level your partner chose. Unrecorded,
+the same tasks read as unreviewed to the end of the run, which is a nag about a
+decision that was already made. `references/status.md` has the two readings.
 "Four of nine need a reviewer" is a decision your partner can price; "I will
 review where appropriate" is not.
 
@@ -251,9 +258,10 @@ intending to, and the questions are still cheap here and unaskable an hour from
 now.
 
 A session that forbids subagents does not skip this; it changes what the
-review options are. Skipping it is how "review outstanding" first appears in
+review options are. Skipping it is how the unreviewed count first appears in
 the closing summary, at the one moment your partner can no longer do anything
-about it.
+about it, and with no answer on file it stays worded as a debt rather than as
+the level anyone chose.
 
 ## Dispatch rules
 
@@ -285,8 +293,10 @@ reads the run state rather than the plan: it sees what has actually landed.
   implementer back into them. `done --commit <sha> --reviewed` when the review
   clears, or `done --commit <sha>` alone for a tier 0 task, which was owed a
   stat read and no dispatch, and for a task whose dispatch pre-flight declined;
-  the debt count counts the second kind and not the first. That state outlives
-  compaction; your memory doesn't.
+  the count counts the second kind and not the first. A declined dispatch is
+  meant to show up there, because the count describes the artifact rather than
+  the decision, and the recorded pre-flight answer is what makes it read as
+  coverage rather than debt. That state outlives compaction; your memory doesn't.
 - Each task goes to a fresh agent carrying the brief below and nothing this
   session accumulated. What you hold is yours to hold, not theirs.
 - **The run never ends a turn between pre-flight and the handback.** A
@@ -405,9 +415,10 @@ One thing does not change: the work still owes a review. Reading your own diff
 is not one, and the table below still names which tasks needed the stronger
 tier. Name those tasks at pre-flight, not at handback, so the choice of what
 to do about them is still open: shrink the plan, take the flip on its own, or
-accept the gap knowingly. Whatever is left then gets listed as review
-outstanding rather than review passed, and twice is the cap on saying so here
-too: `references/review.md` has that rule. A `deep` run that ships with nobody
+accept the gap knowingly. Record the answer with `preflight --review` and say at
+the handback what was covered and how, rather than claiming those tasks passed a
+review; twice is the cap on saying so here too, and `references/review.md` has
+that rule. A `deep` run that ships with nobody
 having read it has become a `fast` run with a design document attached, and
 your partner is entitled to know that while it can still change the plan.
 
@@ -471,12 +482,17 @@ dispatch, the tasks are interleaved rather than ordered, and reordering them
 is cheaper than reviewing them.
 
 **Mark each review with `status.sh task <id> --reviewed` when it comes back.**
-What that buys is a count of what this table promised and nobody delivered: tasks
-that are done, that qualified for a dispatch, and that carry no mark. `show` and
-the statusline both carry it from the moment it exists, which is the whole point.
-Unmarked, the count sits permanently non-zero and stops being a signal, and
-"review outstanding" goes back to first appearing in the closing summary, at the
-one moment your partner can no longer do anything about it.
+What that buys is a count of the tasks this table sent to a reviewer and nobody
+marked: done, qualified for a dispatch, and carrying no mark. `show` and the
+statusline both carry it from the moment it exists, which is the whole point.
+Unmarked, the count sits permanently non-zero and stops being a signal, and it
+goes back to first appearing in the closing summary, at the one moment your
+partner can no longer do anything about it.
+
+With the pre-flight answer on file the same count is the coverage this run
+bought, worded as such and drawn dim. Without it the count is a debt and stays in
+the warning colour. Neither wording shrinks it: what changes is whether the
+number reads as spent or as owed.
 
 Reviews are reads, so they are always parallel. Every review a wave earned
 goes out in one message, and they run while the next wave's implementers work:

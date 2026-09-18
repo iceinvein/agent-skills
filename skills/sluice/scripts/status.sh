@@ -189,22 +189,23 @@ if [ "$SUB" = "line" ]; then
 		def clean: if type == "string" then gsub("[\u0000-\u001f\u007f]"; "") else . end;
 		def paint($c; $t): "\($esc)[\($c)m\($t)\($esc)[0m";
 		def join_parts: map(select(. != null and . != "")) | join(" \($esc)[2m·\($esc)[0m ");
-		# Done splits in two. A task that is done and was owed a review nobody has
-		# marked keeps the done shape but trails the review glyph, so the debt reads
-		# in position rather than only as a count. Tier 0 was never owed a dispatch,
-		# so it is plainly done.
-		def cellgroup($w):
+		# Done splits in two. A task that is done and got no dispatch keeps the done
+		# shape but trails the review glyph, so where the gap is reads in position
+		# rather than only as a count. Tier 0 was never owed a dispatch, so it is
+		# plainly done. $mark is the marker colour: a level pre-flight chose is a
+		# fact about coverage and draws dim, one nobody priced is a warning.
+		def cellgroup($w; $mark):
 			(.status == "done"
 			 and (.tier // 0) >= 1
-			 and (.reviewed // false) == false) as $owed
+			 and (.reviewed // false) == false) as $nodispatch
 			| (if   .status == "done"    then ["32", "▰"]
 			   elif .status == "active"  then ["96", "◈"]
 			   elif .status == "review"  then ["33", "▨"]
 			   elif .status == "blocked" then ["91", "▮"]
 			   else ["2", "▱"]
 			   end) as $s
-			| if $owed and $w > 1
-			  then paint($s[0]; ($s[1] * ($w - 1))) + paint("33"; "▨")
+			| if $nodispatch and $w > 1
+			  then paint($s[0]; ($s[1] * ($w - 1))) + paint($mark; "▨")
 			  else paint($s[0]; ($s[1] * $w))
 			  end;
 
@@ -219,7 +220,12 @@ if [ "$SUB" = "line" ]; then
 		   else 1 end) as $w
 		| (if $w > 1 then " " else "" end) as $gap
 		| ([.tasks[]? | select(.status == "done")] | length) as $done
-		| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
+		| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $nodispatch
+		# A pre-flight review answer on file means the stop happened and the level
+		# was priced, so the tasks it skipped were spent rather than forgotten. The
+		# count is the same either way, because the gap in the code is the same; the
+		# word is not, and "unreviewed" on a level someone chose reads as a nag.
+		| (((.preflight.review // "") | length) > 0) as $priced
 		| [.tasks[]? | select(.status == "blocked")] as $blockedAll
 		| [.tasks[]? | select(.status == "active")] as $activeAll
 		| ($blockedAll | first) as $blocked
@@ -257,14 +263,17 @@ if [ "$SUB" = "line" ]; then
 		  # what the flip means, and a name in the header could not say it.
 		  ( "  " + ([ .tasks[]?
 		              | (if .flips then paint("95"; "┃") + $gap else "" end)
-		                + cellgroup($w)
+		                + cellgroup($w; (if $priced then "2" else "33" end))
 		            ] | join($gap)) ),
 		  ( "  " + ([ paint("1"; "\($done)/\(.tasks | length)") + " done",
 		              (if   $blocked then paint("1;91"; "!T\($blocked.id) \($blocked.name // "" | clean)")
 		               elif $active  then paint("96"; "▸T\($active.id)") + " " + ($active.name // "" | clean)
 		               else "" end)
 		              + (if $attn > 1 then paint("2"; " +\($attn - 1)") else "" end),
-		              (if $debt > 0 then paint("33"; "⟲ \($debt) unreviewed") else "" end)
+		              (if $nodispatch == 0 then ""
+		               elif $priced then paint("2"; "⟲ \($nodispatch) at the chosen level")
+		               else paint("33"; "⟲ \($nodispatch) unreviewed")
+		               end)
 		            ] | join_parts)
 		  )
 	' "$STATE" 2>/dev/null || exit 0
@@ -607,8 +616,17 @@ case "$SUB" in
 			            end
 			     end)
 			+ (if .paused then ["paused        \(.paused | clean)"] else [] end)
-			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
-			   | if $debt == 0 then [] else ["unreviewed    \($debt) done, owed a review the tier table promised"] end)
+			# Same count, two readings. A pre-flight review answer on file says the
+			# level was priced at the stop, so what it skipped is the coverage of this
+			# run. With no answer on file nobody priced anything and the dispatches in
+			# the tier table are still owed. The answer itself is not repeated here:
+			# the pre-flight row below carries it, three lines down.
+			+ (([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $nodispatch
+			   | if $nodispatch == 0 then []
+			     elif ((.preflight.review // "") | length) > 0
+			     then ["coverage      \($nodispatch) done at tier 1+, no dispatch"]
+			     else ["unreviewed    \($nodispatch) done at tier 1+, owed a review and no pre-flight answer"]
+			     end)
 			+ ["final review  " + (if .final_review then "done" else "pending" end)]
 			+ ["pre-flight    " + (
 				if (.preflight // {} | length) == 0 then "not recorded"
@@ -793,9 +811,13 @@ case "$SUB" in
 		# allowed to stop the archive.
 		summary="$(jq -r '
 			([.tasks[]? | select(.status == "done")] | length) as $done
-			| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $debt
+			| ([.tasks[]? | select(.status == "done" and (.tier // 0) >= 1 and (.reviewed // false) == false)] | length) as $nodispatch
+			| (((.preflight.review // "") | length) > 0) as $priced
 			| [ "closed \(.topic // "run"): \($done)/\(.tasks | length) done",
-			    (if $debt > 0 then "\($debt) unreviewed" else empty end),
+			    (if   $nodispatch == 0 then empty
+			     elif $priced then "\($nodispatch) at the chosen review level"
+			     else "\($nodispatch) unreviewed"
+			     end),
 			    "final review \(if .final_review then "done" else "pending" end)"
 			  ] | join(" · ")
 		' "$STATE" 2>/dev/null || true)"

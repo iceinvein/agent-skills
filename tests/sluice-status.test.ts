@@ -1595,3 +1595,92 @@ more`;
 		expect(bare(out)).not.toMatch(LEFTOVER);
 	});
 });
+
+// A skip that pre-flight priced and a skip nobody noticed leave the same gap in
+// the code, so both stay in the count. What separates them is the word: the
+// first was spent, the second is owed. `.preflight.review` is the record of the
+// stop having happened, so it is what tells the two apart.
+describe("a review level chosen at pre-flight reads as coverage, not debt", () => {
+	/** Two done tier 1 tasks, neither reviewed. */
+	function skipped(): string {
+		const dir = seeded(2);
+		run(dir, "task", "1", "--tier", "1", "--status", "done");
+		run(dir, "task", "2", "--tier", "1", "--status", "done");
+		return dir;
+	}
+
+	test("show calls the count coverage once a review answer is on file", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		const out = run(dir, "show").out;
+		expect(out).toMatch(/coverage\s+2 done at tier 1\+, no dispatch/);
+		expect(out).not.toMatch(/^unreviewed/m);
+		expect(out).not.toMatch(/owed/);
+	});
+
+	// The answer is on the page either way: the pre-flight row carries it three
+	// lines below, and saying it twice in a seven-line header is repetition.
+	test("but does not repeat the answer the pre-flight row already carries", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		const out = run(dir, "show").out;
+		expect(out.match(/tier 3 only/g)).toHaveLength(1);
+		expect(out).toMatch(/pre-flight\s+review=tier 3 only/);
+	});
+
+	test("show still calls it unreviewed when no review answer was recorded", () => {
+		const out = run(skipped(), "show").out;
+		expect(out).toMatch(/unreviewed\s+2 done at tier 1\+, owed a review/);
+		expect(out).not.toMatch(/coverage/);
+	});
+
+	test("a pre-flight that priced only the model has not priced review", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--model", "6 of 9 cheap");
+		expect(run(dir, "show").out).toMatch(/unreviewed\s+2 done/);
+	});
+
+	test("the statusline names the chosen level rather than nagging unreviewed", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		const detail = plain(run(dir, "line", "--full").out).split("\n")[2] ?? "";
+		expect(detail).toMatch(/⟲ 2 at the chosen level/);
+		expect(detail).not.toMatch(/unreviewed/);
+	});
+
+	test("and draws it dim rather than in the warning colour", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		const detail = run(dir, "line", "--full").out.split("\n")[2] ?? "";
+		expect(detail).toContain("\x1b[2m⟲ 2 at the chosen level");
+	});
+
+	test("close reports the level chosen rather than a debt", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		const out = run(dir, "close").out;
+		expect(out).toMatch(/2 at the chosen review level/);
+		expect(out).not.toMatch(/unreviewed/);
+	});
+
+	test("close still reports a debt when nobody priced review", () => {
+		expect(run(skipped(), "close").out).toMatch(/2 unreviewed/);
+	});
+
+	test("a reviewed task leaves the count whichever way review was priced", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "tier 3 only");
+		run(dir, "task", "1", "--reviewed");
+		expect(run(dir, "show").out).toMatch(/coverage\s+1 done at tier 1\+/);
+	});
+
+	test("nothing is said at all when every task that qualified was reviewed", () => {
+		const dir = skipped();
+		run(dir, "preflight", "--review", "every task");
+		run(dir, "task", "1", "--reviewed");
+		run(dir, "task", "2", "--reviewed");
+		const out = run(dir, "show").out;
+		expect(out).not.toMatch(/coverage/);
+		expect(out).not.toMatch(/unreviewed/);
+	});
+});
