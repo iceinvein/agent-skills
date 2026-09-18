@@ -11,6 +11,7 @@ import { mkdirSync, rmSync, existsSync } from "node:fs";
 
 type HookGroup = { hooks: Array<{ command: string }> };
 import { join } from "node:path";
+import { homedir } from "node:os";
 
 const TMP = join(import.meta.dir, ".tmp-hooks");
 const SETTINGS = join(TMP, "settings.json");
@@ -416,6 +417,84 @@ test("and still leaves that entry exactly as it was written", async () => {
   const contents = await Bun.file(SETTINGS).json();
   expect(contents.hooks.SessionStart).toHaveLength(1);
   expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(custom);
+});
+
+// The installer passes the resolved absolute path, while a hand-written command
+// almost always spells the same file through $HOME or CLAUDE_CONFIG_DIR: that is
+// what makes a settings file portable between machines. Compared as raw strings
+// the two never match, so the warning fired at exactly the people who had done
+// what it asked.
+test("wireSessionStartHook sees a script spelled through $HOME", async () => {
+  const script = `${homedir()}/.claude/skills/sluice/scripts/session-start.sh`;
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.'; if [ -f "$HOME/.claude/skills/sluice/scripts/session-start.sh" ]; then bash "$HOME/.claude/skills/sluice/scripts/session-start.sh"; fi ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: string) => { warnings.push(String(msg)); };
+  try {
+    await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", script);
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings).toEqual([]);
+});
+
+test("and one spelled through ${HOME} or a leading tilde", async () => {
+  const script = `${homedir()}/.claude/skills/sluice/scripts/session-start.sh`;
+  for (const spelling of ["${HOME}/.claude/skills/sluice/scripts/session-start.sh", "~/.claude/skills/sluice/scripts/session-start.sh"]) {
+    await Bun.write(SETTINGS, JSON.stringify({
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command: `echo 'Pick a channel.'; bash "${spelling}"` }] }] },
+    }));
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (msg: string) => { warnings.push(String(msg)); };
+    try {
+      await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", script);
+    } finally {
+      console.warn = original;
+    }
+    expect(warnings).toEqual([]);
+  }
+});
+
+// The config directory is wherever settings.json lives, which is the one path
+// the adapter knows without guessing.
+test("and one spelled through CLAUDE_CONFIG_DIR", async () => {
+  const script = join(TMP, "skills", "sluice", "scripts", "session-start.sh");
+  const custom = `echo 'Pick a channel.'; bash "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/sluice/scripts/session-start.sh"`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: string) => { warnings.push(String(msg)); };
+  try {
+    await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", script);
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings).toEqual([]);
+});
+
+// The warning still has a job: an entry that names the directive and nothing
+// else reports a gap the person may not know they have.
+test("but a command naming a different script still gets the warning", async () => {
+  const script = `${homedir()}/.claude/skills/sluice/scripts/session-start.sh`;
+  const custom = `echo 'Pick a channel.'; bash "$HOME/.claude/skills/other/scripts/session-start.sh"`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: string) => { warnings.push(String(msg)); };
+  try {
+    await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", script);
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings.join("\n")).toMatch(/hand|custom|edited/i);
 });
 
 test("unwireSessionStartHook leaves a hand-written entry carrying the directive in place", async () => {

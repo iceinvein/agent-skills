@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, rmSync, rmdirSync, statSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ActivationMode, SkillManifest } from "../types";
 
@@ -48,6 +49,30 @@ function matchesSkillDirective(hook: HookEntry, skillName: string, directive?: s
   return hook.command.includes(`Activate ${skillName} skill`);
 }
 
+// Does a hand-written hook command already run this script? The installer holds
+// the resolved absolute path, while a settings file that has to work on more
+// than one machine spells the same file through $HOME or CLAUDE_CONFIG_DIR.
+// Compared as raw strings the two never match, so the check expands those
+// spellings first, against the home directory and the directory settings.json
+// itself lives in, which is the config directory without guessing at it.
+//
+// Expanded by substitution, never by eval: the command is someone elses shell
+// string, and running it to find out what it says is not a thing an installer
+// may do.
+function commandRunsScript(command: string, scriptPath: string, settingsPath: string): boolean {
+  const home = homedir();
+  const config = dirname(settingsPath);
+  const expanded = command
+    .replaceAll("${CLAUDE_CONFIG_DIR:-$HOME/.claude}", config)
+    .replaceAll("${CLAUDE_CONFIG_DIR:-${HOME}/.claude}", config)
+    .replaceAll("${CLAUDE_CONFIG_DIR}", config)
+    .replaceAll("$CLAUDE_CONFIG_DIR", config)
+    .replaceAll("${HOME}", home)
+    .replaceAll("$HOME", home)
+    .replaceAll("~/", `${home}/`);
+  return expanded.includes(scriptPath);
+}
+
 export async function wireSessionStartHook(
   settingsPath: string,
   skillName: string,
@@ -95,7 +120,9 @@ export async function wireSessionStartHook(
         // Someone who already put the script into their own command has done the
         // one thing the warning below asks for, and repeating it on every update
         // is the one notice they have no way to switch off.
-        if (scriptPath && hook.command?.includes(scriptPath)) customRunsScript = true;
+        if (scriptPath && commandRunsScript(hook.command ?? "", scriptPath, settingsPath)) {
+          customRunsScript = true;
+        }
         kept.push(hook);
         continue;
       }
