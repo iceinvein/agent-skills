@@ -1,6 +1,6 @@
 {
   "name": "@iceinvein/agent-skills",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "description": "Install agent skills into AI coding tools",
   "author": "iceinvein",
   "license": "MIT",
