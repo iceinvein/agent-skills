@@ -80,6 +80,7 @@ export async function wireSessionStartHook(
   // once each per session start.
   let adopted = false;
   let custom = false;
+  let customRunsScript = false;
   let changed = false;
   for (const group of settings.hooks.SessionStart as HookGroup[]) {
     const kept: HookEntry[] = [];
@@ -91,6 +92,10 @@ export async function wireSessionStartHook(
       const plain = hook.skill !== undefined || hook.command === legacy;
       if (!plain) {
         custom = true;
+        // Someone who already put the script into their own command has done the
+        // one thing the warning below asks for, and repeating it on every update
+        // is the one notice they have no way to switch off.
+        if (scriptPath && hook.command?.includes(scriptPath)) customRunsScript = true;
         kept.push(hook);
         continue;
       }
@@ -112,7 +117,7 @@ export async function wireSessionStartHook(
     (group) => !group.hooks || group.hooks.length > 0
   );
   if (adopted || custom) {
-    if (custom && !adopted && scriptPath) {
+    if (custom && !adopted && scriptPath && !customRunsScript) {
       console.warn(
         `${skillName}: a hand-edited SessionStart hook already carries its directive, so it was left as is and ${scriptPath} was not wired; add it to that entry yourself if you want it.`
       );

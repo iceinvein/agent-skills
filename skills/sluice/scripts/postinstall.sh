@@ -31,6 +31,52 @@ CONFIGURED="$(jq -r '.statusLine.command // empty' "$SETTINGS" 2>/dev/null || tr
 [ -n "$CONFIGURED" ] || exit 0
 
 RENDER="$(cd "$(dirname "$RENDER")" && pwd)/$(basename "$RENDER")"
+# Physical, and so is every candidate below it: a tmpdir or a home reached
+# through a symlink resolves one way from here and the other way out of a
+# settings string, and the containment check below compares the two.
+CONFIG="$(cd "$BUNDLE/../.." && pwd -P)"
+
+# Someone who pasted the two lines a release ago has nothing left to do, and
+# saying it again on every update is the one thing they cannot switch off. So
+# the script the slot runs is read before anything is printed.
+#
+# It is recovered rather than known: settings.json holds a shell command, so
+# every token carrying a slash is tried as a path, with the two variables a
+# config path is ever written through expanded by substitution. Not by eval,
+# which on a settings file means running its contents. A token that resolves to
+# nothing is skipped and the instructions print as they did before, so a command
+# this cannot read costs a notice rather than a wrong silence.
+#
+# Only paths inside the config directory this skill installed into are opened.
+# The slot is someone elses shell string and may name anything; a postinstall
+# that followed it wherever it pointed would be reading arbitrary files off a
+# line it does not control.
+statusline_script() {
+	local tok path dir
+	for tok in $(printf '%s' "$1" | tr -s "\"'| \t" '\n'); do
+		case "$tok" in */*) ;; *) continue ;; esac
+		path="$tok"
+		path="${path//\$\{CLAUDE_CONFIG_DIR:-\$HOME\/.claude\}/$CONFIG}"
+		path="${path//\$\{CLAUDE_CONFIG_DIR\}/$CONFIG}"
+		path="${path//\$CLAUDE_CONFIG_DIR/$CONFIG}"
+		path="${path//\$\{HOME\}/$HOME}"
+		path="${path//\$HOME/$HOME}"
+		case "$path" in "~/"*) path="$HOME/${path#\~/}" ;; esac
+		[ -f "$path" ] || continue
+		dir="$(cd "$(dirname "$path")" 2>/dev/null && pwd -P)"
+		[ -n "$dir" ] || continue
+		path="$dir/$(basename "$path")"
+		case "$path" in "$CONFIG"/*) ;; *) continue ;; esac
+		printf '%s\n' "$path"
+		return 0
+	done
+	return 1
+}
+
+SLOT_SCRIPT="$(statusline_script "$CONFIGURED" || true)"
+if [ -n "$SLOT_SCRIPT" ] && grep -q "skills/sluice/scripts/statusline.sh" "$SLOT_SCRIPT" 2>/dev/null; then
+	exit 0
+fi
 
 # The slot points at the bundled command: the install claimed it and there is
 # nothing for anyone to paste. Say so rather than print instructions that would

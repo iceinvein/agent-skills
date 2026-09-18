@@ -388,6 +388,36 @@ test("wireSessionStartHook says so when a hand-written entry means the script wa
   expect(warnings.join("\n")).toMatch(/hand|custom|edited/i);
 });
 
+// The warning is a to-do list of one item. Someone who has already wired the
+// script into their own command has done it, and repeating it on every update
+// turns a one-time instruction into noise they cannot switch off.
+test("wireSessionStartHook stays quiet when the hand-written entry already runs the script", async () => {
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.'; bash /opt/s/session-start.sh ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (msg: string) => { warnings.push(String(msg)); };
+  try {
+    await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  } finally {
+    console.warn = original;
+  }
+  expect(warnings).toEqual([]);
+});
+
+test("and still leaves that entry exactly as it was written", async () => {
+  const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.'; bash /opt/s/session-start.sh ;; esac`;
+  await Bun.write(SETTINGS, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: "command", command: custom }] }] },
+  }));
+  await wireSessionStartHook(SETTINGS, "sluice", "Pick a channel.", "/opt/s/session-start.sh");
+  const contents = await Bun.file(SETTINGS).json();
+  expect(contents.hooks.SessionStart).toHaveLength(1);
+  expect(contents.hooks.SessionStart[0].hooks[0].command).toBe(custom);
+});
+
 test("unwireSessionStartHook leaves a hand-written entry carrying the directive in place", async () => {
   const custom = `case "\${CLAUDE_CONFIG_DIR:-}" in *other*) ;; *) echo 'Pick a channel.' ;; esac`;
   await Bun.write(SETTINGS, JSON.stringify({

@@ -346,6 +346,67 @@ describe("the install notice", () => {
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("");
 	});
+
+	// Someone who pasted the two lines a release ago has nothing left to do, and
+	// saying it again every update is the one thing they cannot switch off. The
+	// script the slot runs is recovered rather than known, so a command this
+	// cannot resolve keeps printing, which is what it did before.
+	describe("a statusline that already carries the render", () => {
+		/** An install whose configured statusline script holds `body`. */
+		function withScript(body: string, command?: string) {
+			const { root, bundle } = installed(null);
+			const script = join(root, "statusline-command.sh");
+			writeFileSync(script, body);
+			writeFileSync(
+				join(root, "settings.json"),
+				JSON.stringify({
+					statusLine: {
+						type: "command",
+						command: command ?? `bash "${script}"`,
+					},
+				})
+			);
+			const proc = Bun.spawnSync({ cmd: ["bash", POSTINSTALL], cwd: join(bundle, ".."), timeout: 5000 });
+			return { code: proc.exitCode, out: proc.stdout.toString(), root };
+		}
+
+		const WIRED_BODY = '#!/usr/bin/env bash\nsluice_line=$(bash "$HOME/.claude/skills/sluice/scripts/statusline.sh" --dir "$cwd" 2>/dev/null)\n';
+
+		test("says nothing, because there is nothing left to paste", () => {
+			const r = withScript(WIRED_BODY);
+			expect(r.code).toBe(0);
+			expect(r.out).toBe("");
+		});
+
+		test("still says it when the script does not carry the render", () => {
+			const r = withScript("#!/usr/bin/env bash\necho hello\n");
+			expect(r.out).toContain("sluice_line=");
+		});
+
+		// $HOME and CLAUDE_CONFIG_DIR are the two ways a config path is ever
+		// written, and they are expanded by substitution rather than by eval,
+		// which on a settings file would be running its contents.
+		test("resolves a path written through CLAUDE_CONFIG_DIR", () => {
+			const { root, bundle } = installed(null);
+			writeFileSync(join(root, "statusline-command.sh"), WIRED_BODY);
+			writeFileSync(
+				join(root, "settings.json"),
+				JSON.stringify({
+					statusLine: {
+						type: "command",
+						command: 'bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/statusline-command.sh"',
+					},
+				})
+			);
+			const proc = Bun.spawnSync({ cmd: ["bash", POSTINSTALL], cwd: join(bundle, ".."), timeout: 5000 });
+			expect(proc.stdout.toString()).toBe("");
+		});
+
+		test("a command naming no file it can find keeps printing the instructions", () => {
+			const r = withScript(WIRED_BODY, "my-prompt-tool --statusline");
+			expect(r.out).toContain("sluice_line=");
+		});
+	});
 });
 
 // The complete statusline command, for a machine that had none. statusline.sh
