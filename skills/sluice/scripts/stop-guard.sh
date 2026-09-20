@@ -45,13 +45,114 @@ fi
 
 cwd="$PWD"
 active="false"
+sid=""
+transcript=""
 if [ -n "$input" ]; then
 	got="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null || true)"
 	[ -n "$got" ] && cwd="$got"
 	active="$(printf '%s' "$input" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
+	sid="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null || true)"
+	transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
 fi
 [ "$active" = "true" ] && exit 0
 [ -d "$cwd" ] || exit 0
+
+# ---- entry check --------------------------------------------------------
+# The run guard below only arms once .sluice/run.json exists, and that file
+# only exists once the skill has been invoked. So the session that never
+# routed at all, the one this whole guard is for, walks straight past it in
+# silence. This catches that session from the other end: the tree moved while
+# it held it, and no channel was ever announced.
+#
+# The comparison is against where the tree stood when the session opened, not
+# against whether it is dirty now. A session that opens on someone's
+# work-in-progress and only answers questions changed nothing, and nudging it
+# would teach its partner to ignore the nudge.
+#
+# Refused once and then never again for this session: the check cannot tell
+# a partner who routed afterwards from one who read the nudge and chose to
+# carry on, and only the first of those is worth a second refusal.
+#
+# The stamp is per session and the tree it watches is not, so anything else
+# writing to the tree reads as this session's work: a second session, the
+# partner's own editor, an install touching a lockfile, a build emitting
+# something the tree does not ignore. There is nothing in a git tree that
+# attributes a change to who made it, so this is not fixable here, only
+# bounded: one refusal per session, and a reason that offers "not mine" as an
+# answer and takes it.
+entry_nudge() {
+	local stamps tree line_tree line_digest now
+	[ -n "$sid" ] || return 0
+	case "$sid" in */* | .*) return 0 ;; esac
+
+	# Two directories rather than one name and one suffixed name: sharing a
+	# namespace means a session id ending in `.nudged` silently disarms the
+	# session whose id is its prefix.
+	local root="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/sluice"
+	stamps="$root/stamps"
+	[ -f "$stamps/$sid" ] || return 0
+	[ -f "$root/nudged/$sid" ] && return 0
+
+	tree="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 0
+	[ -n "$tree" ] || return 0
+
+	line_tree="$(sed -n '1p' "$stamps/$sid" 2>/dev/null)"
+	line_digest="$(sed -n '2p' "$stamps/$sid" 2>/dev/null)"
+	[ -n "$line_tree" ] && [ -n "$line_digest" ] || return 0
+	# A session that moved trees carries a baseline for the one it left, and
+	# reading this tree's changes against it would be reading someone else's.
+	[ "$line_tree" = "$tree" ] || return 0
+
+	# A tree that cannot be read is unknown, not moved. Losing git's exit
+	# status here would turn a held lock or a rebase in flight into a refused
+	# turn over a tree nobody touched.
+	now="$(bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
+	[ -n "$now" ] || return 0
+	[ "$now" = "$line_digest" ] && return 0
+
+	# Whether the session routed is read exactly the way run-stats.sh reads it,
+	# from a copy of its `marker` and `lead` patterns and its `invokes_sluice`:
+	# a gate that disagreed with the meter would refuse turns the ledger
+	# reports as a run. The copy is kept in step with that file by hand.
+	#
+	# Lines are parsed one at a time and unparseable ones dropped, because the
+	# harness is still appending to this file while the hook reads it and the
+	# last line is regularly half written. Slurping would fail on that whole
+	# file and read a routed session as an unrouted one.
+	[ -f "$transcript" ] || return 0
+	jq -e -n -R '
+		def marker: "^[*_#>[:space:]]*(fast|main|deep)[[:space:]]+channel";
+		def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(fast|main|deep)[[:space:]]+channel";
+		def texts: [ .message.content[]? | select(.type == "text") | .text ] | join("\n");
+		def invokes_sluice: [ .message.content[]?
+			| select(.type == "tool_use" and .name == "Skill")
+			| .input.skill? // empty ] | any(. == "sluice");
+		[ inputs | fromjson? // empty ]
+		| any(.[];
+			(.type == "assistant") and (((.isMeta == true) or (.isSidechain == true)) | not)
+			and ((texts | test(marker; "i") or test(lead; "i")) or invokes_sluice))
+	' "$transcript" >/dev/null 2>&1
+	case "$?" in
+		# 0 routed, 1 not. Anything else is jq failing rather than an answer
+		# about this session, and an unanswered question is not a refusal.
+		0) return 0 ;;
+		1) ;;
+		*) return 0 ;;
+	esac
+
+	mkdir -p "$root/nudged" 2>/dev/null || true
+	: >"$root/nudged/$sid" 2>/dev/null || true
+	jq -n '{
+		decision: "block",
+		reason: "sluice: this session has changed the tree since it opened and no channel was ever announced, so the work is running with none of the rules that its shape calls for and nothing to meter it from. Invoke the sluice skill now, route what you have been doing, and say which channel it is. If it genuinely changed nothing you own (a scratch file, or an edit that was not yours), say so and stop; this will not ask twice."
+	}'
+	return 1
+}
+
+if ! entry_nudge; then
+	exit 0
+fi
+
 [ -f "$STATUS" ] || exit 0
 
 # The session's own tree, and only that. status.sh lets a tree with no run of

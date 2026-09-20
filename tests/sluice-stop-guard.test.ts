@@ -266,3 +266,415 @@ describe("pause and resume", () => {
 		expect(status(dir, "line").stdout.toString()).toMatch(/paused/);
 	});
 });
+
+// The deep guard above only arms once a run exists, and a run only exists once
+// the skill has been invoked. A session that never routed at all therefore
+// passes it in silence, which is how a whole session's worth of code changes
+// reaches the handback with no channel behind it. This check is the entry
+// side: the tree moved while this session held it, and nothing was announced.
+describe("stop-guard.sh entry check", () => {
+	function gitRepo(): string {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-entry-"));
+		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 });
+		git("init", "-q");
+		git("config", "user.email", "t@example.com");
+		git("config", "user.name", "t");
+		writeFileSync(join(dir, "README.md"), "hi\n");
+		git("add", "-A");
+		git("commit", "-qm", "init");
+		return dir;
+	}
+
+	/** A config dir standing in for ~/.claude, so stamps land somewhere disposable. */
+	function configDir(): string {
+		return mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+	}
+
+	/** The baseline, taken by the hook that really takes it: the two scripts
+	 * agreeing on the stamp's format is half of what this guard rests on. */
+	function stamp(cfg: string, sid: string, tree: string) {
+		Bun.spawnSync({
+			cmd: ["bash", join(SCRIPTS, "session-start.sh")],
+			stdin: new TextEncoder().encode(JSON.stringify({ cwd: tree, session_id: sid, source: "startup" })),
+			cwd: tmpdir(),
+			env: { ...process.env, CLAUDE_CONFIG_DIR: cfg },
+			timeout: 5000,
+		});
+	}
+
+	/** A transcript holding one assistant message with the given text. */
+	function transcript(text: string): string {
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(path, `${JSON.stringify({
+			type: "assistant",
+			message: { role: "assistant", content: [{ type: "text", text }] },
+		})}\n`);
+		return path;
+	}
+
+	function entryGuard(input: Record<string, unknown>, cfg: string) {
+		const proc = Bun.spawnSync({
+			cmd: ["bash", GUARD],
+			stdin: new TextEncoder().encode(JSON.stringify(input)),
+			cwd: tmpdir(),
+			env: { ...process.env, CLAUDE_CONFIG_DIR: cfg },
+			timeout: 5000,
+		});
+		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
+	}
+
+	test("nudges when the tree moved this session and no channel was announced", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "s1", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "s1", transcript_path: transcript("Done, that works."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.code).toBe(0);
+		expect(decision(r.out)).toBe("block");
+		expect(JSON.parse(r.out).reason as string).toMatch(/sluice/i);
+	});
+
+	test("stays silent when the session announced a channel", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "s2", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{
+				cwd: dir,
+				session_id: "s2",
+				transcript_path: transcript("Fast channel, existing interfaces. Test first."),
+				stop_hook_active: false,
+			},
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// A session that opens on an already-dirty tree and only answers questions
+	// must not be nudged for changes it never made.
+	test("stays silent when the tree has not moved since the session opened", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		writeFileSync(join(dir, "pre-existing.ts"), "export const y = 2;\n");
+		stamp(cfg, "s3", dir);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "s3", transcript_path: transcript("Here is why that fails."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	test("nudges only once per session", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "s4", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+		const input = {
+			cwd: dir,
+			session_id: "s4",
+			transcript_path: transcript("Done."),
+			stop_hook_active: false,
+		};
+
+		expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		expect(entryGuard(input, cfg).out).toBe("");
+	});
+
+	test("stays silent when the session left no stamp", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "nope", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// The stamp names the tree it was taken in. A session that moved to another
+	// tree must not have that tree's changes read against its own baseline.
+	test("stays silent when the stamp belongs to another tree", () => {
+		const cfg = configDir();
+		const mine = gitRepo();
+		const other = gitRepo();
+		stamp(cfg, "s5", other);
+		writeFileSync(join(mine, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: mine, session_id: "s5", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// The gate reads announcements the way the meter does, from a copy of its
+	// two patterns. These are the wordings that decide whether a session counts
+	// as routed, and they are the reason the copy has to stay in step.
+	test.each([
+		["Fast channel, existing interfaces. Test first.", true],
+		["Deep channel, several subsystems. Design before code.", true],
+		["Sluice: **deep channel**", true],
+		["Tier 2 (new contract surface) = **deep channel**", true],
+		// The skill's own wording rule: this one reports as `not announced` to
+		// the meter, so the gate must not accept it either.
+		["**Channel: deep**", false],
+		["I could take this through the deep channel if you want.", false],
+		["Done, that works.", false],
+	])("announcement %p counts as routed: %p", (text, routed) => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "w", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "w", transcript_path: transcript(text as string), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out === "").toBe(routed as boolean);
+	});
+
+	// Work that got committed leaves the tree as clean as it started, so a
+	// baseline made only of `git status --porcelain` reads a whole session's
+	// worth of commits as "nothing happened".
+	test("nudges when the session committed its work and announced nothing", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "c1", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "feature"], timeout: 10000 });
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "c1", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	// The accepted limit, pinned so it is a decision rather than a surprise.
+	// A git tree records no author, so a branch that moved under the session
+	// is indistinguishable from a session that wrote code. Recall was chosen
+	// over precision; the cost is this, bounded to one nudge per session.
+	test("a branch switch onto a different commit is read as a change", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		const base = Bun.spawnSync({ cmd: ["git", "-C", dir, "symbolic-ref", "--short", "HEAD"] })
+			.stdout.toString().trim();
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "checkout", "-q", "-b", "feature"], timeout: 10000 });
+		writeFileSync(join(dir, "other.ts"), "export const z = 3;\n");
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "other"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "checkout", "-q", base], timeout: 10000 });
+		stamp(cfg, "c2", dir);
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "checkout", "-q", "feature"], timeout: 10000 });
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "c2", transcript_path: transcript("Switched branches for you."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	test("returning to the commit the session opened on is not a change", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "c3", dir);
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "checkout", "-q", "-b", "scratch"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", dir, "checkout", "-q", "-"], timeout: 10000 });
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "c3", transcript_path: transcript("Looked around."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// The stamp and the already-nudged marker used to share a namespace, so a
+	// session id ending in `.nudged` disarmed the session named by its prefix.
+	test("a session id ending in .nudged does not disarm its prefix", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "zz.nudged", dir);
+		stamp(cfg, "zz", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "zz", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	function git(dir: string, ...args: string[]) {
+		return Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 });
+	}
+
+	// A baseline made of the porcelain's shape alone says "` M wip.ts`" both
+	// before and after the file is rewritten, so the commonest unrouted
+	// session of all — one that edits work already in progress — is missed.
+	test("nudges when the session rewrote a file that was already modified", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		writeFileSync(join(dir, "README.md"), "hi\nwip\n");
+		stamp(cfg, "d1", dir);
+		writeFileSync(join(dir, "README.md"), "completely different\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d1", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	test("nudges when the session filled a directory that was already untracked", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		mkdirSync(join(dir, "build"), { recursive: true });
+		writeFileSync(join(dir, "build", "one.js"), "1\n");
+		stamp(cfg, "d2", dir);
+		for (let i = 0; i < 10; i++) writeFileSync(join(dir, "build", `gen${i}.js`), `${i}\n`);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d2", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	// SessionStart fires again on compact, and a long session is exactly the
+	// one that compacts. Re-stamping there would rebaseline onto the work in
+	// progress and disarm the check for the sessions it most exists for.
+	test("a compact partway through does not rebaseline the session", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d3", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+		Bun.spawnSync({
+			cmd: ["bash", join(SCRIPTS, "session-start.sh")],
+			stdin: new TextEncoder().encode(JSON.stringify({ cwd: dir, session_id: "d3", source: "compact" })),
+			cwd: tmpdir(),
+			env: { ...process.env, CLAUDE_CONFIG_DIR: cfg },
+			timeout: 5000,
+		});
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d3", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
+	// Reading the tree can fail for reasons that are not a change: an
+	// interrupted index, a lock held by another git, a rebase in flight.
+	// A guard that reads failure as movement blocks a turn over nothing.
+	test("stays silent when the tree cannot be read at stop time", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		writeFileSync(join(dir, "wip.ts"), "export const y = 2;\n");
+		stamp(cfg, "d4", dir);
+		writeFileSync(join(dir, ".git", "index"), "corrupt");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d4", transcript_path: transcript("Done."), stop_hook_active: false },
+			cfg,
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+	});
+
+	// The harness appends to the transcript while the hook reads it, so the
+	// last line can be half written. Treating that as "never announced"
+	// blocks a session that did route.
+	test("a half-written last line does not hide an announcement", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d5", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: { role: "assistant", content: [{ type: "text", text: "Fast channel, existing interfaces." }] },
+			})}\n{"type":"assis`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d5", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// The meter counts a session as routed when it invoked the skill, whatever
+	// the announcement then said. A gate that disagreed would refuse turns the
+	// ledger reports as a run.
+	test("invoking the skill counts as routed even when the wording does not", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d6", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: {
+					role: "assistant",
+					content: [
+						{ type: "tool_use", name: "Skill", input: { skill: "sluice" } },
+						{ type: "text", text: "**Channel: deep**" },
+					],
+				},
+			})}\n`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d6", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+
+	// Both hooks must survive an environment with no HOME: they run wherever
+	// the harness was launched from, and exiting non-zero breaks the contract
+	// that a stop hook always exits 0.
+	test("survives an environment with no HOME", () => {
+		for (const script of ["stop-guard.sh", "session-start.sh"]) {
+			const proc = Bun.spawnSync({
+				cmd: ["env", "-u", "HOME", "-u", "CLAUDE_CONFIG_DIR", "bash", join(SCRIPTS, script)],
+				stdin: new TextEncoder().encode(JSON.stringify({ cwd: tmpdir(), session_id: "h1" })),
+				cwd: tmpdir(),
+				timeout: 5000,
+			});
+			expect({ script, code: proc.exitCode, err: proc.stderr.toString() }).toEqual({
+				script,
+				code: 0,
+				err: "",
+			});
+		}
+	});
+
+	test("honours the harness flag so the two guards cannot loop", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "s6", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "s6", transcript_path: transcript("Done."), stop_hook_active: true },
+			cfg,
+		);
+		expect(r.out).toBe("");
+	});
+});

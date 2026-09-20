@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -139,5 +139,121 @@ describe("session-start.sh", () => {
 		const r = hook({ cwd: dir, source: "startup" });
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("");
+	});
+});
+
+// The stop guard's entry check compares the tree against where it stood when
+// the session opened. Only this hook runs at that moment, so the baseline is
+// taken here or not at all.
+describe("session-start.sh baseline stamp", () => {
+	function gitRepo(): string {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-stamp-"));
+		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 });
+		git("init", "-q");
+		git("config", "user.email", "t@example.com");
+		git("config", "user.name", "t");
+		writeFileSync(join(dir, "README.md"), "hi\n");
+		git("add", "-A");
+		git("commit", "-qm", "init");
+		return dir;
+	}
+
+	function stampedHook(input: Record<string, unknown>, cfg: string) {
+		const proc = Bun.spawnSync({
+			cmd: ["bash", HOOK],
+			stdin: new TextEncoder().encode(JSON.stringify(input)),
+			cwd: tmpdir(),
+			env: { ...process.env, CLAUDE_CONFIG_DIR: cfg },
+			timeout: 5000,
+		});
+		return { code: proc.exitCode, out: proc.stdout.toString() };
+	}
+
+	function stampPath(cfg: string, sid: string) {
+		return join(cfg, "sluice", "stamps", sid);
+	}
+
+	test("records the tree and a digest for the session that opened", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		const r = stampedHook({ cwd: dir, session_id: "abc", source: "startup" }, cfg);
+
+		expect(r.code).toBe(0);
+		expect(existsSync(stampPath(cfg, "abc"))).toBe(true);
+		const [tree, digest] = readFileSync(stampPath(cfg, "abc"), "utf8").trim().split("\n");
+		// git resolves symlinks, and on macOS the temp dir is one.
+		const top = Bun.spawnSync({ cmd: ["git", "-C", dir, "rev-parse", "--show-toplevel"] })
+			.stdout.toString().trim();
+		expect(tree).toBe(top);
+		expect(digest).not.toBe("");
+	});
+
+	test("a tree that is already dirty is what the baseline records", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		writeFileSync(join(dir, "wip.ts"), "export const y = 2;\n");
+		stampedHook({ cwd: dir, session_id: "def", source: "startup" }, cfg);
+
+		const clean = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const other = gitRepo();
+		stampedHook({ cwd: other, session_id: "ghi", source: "startup" }, clean);
+
+		const dirty = readFileSync(stampPath(cfg, "def"), "utf8").trim().split("\n")[1];
+		const pristine = readFileSync(stampPath(clean, "ghi"), "utf8").trim().split("\n")[1];
+		expect(dirty).not.toBe(pristine);
+	});
+
+	test("writes no stamp outside a git tree", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const r = stampedHook({ cwd: repo(), session_id: "jkl", source: "startup" }, cfg);
+		expect(r.code).toBe(0);
+		expect(existsSync(stampPath(cfg, "jkl"))).toBe(false);
+	});
+
+	test("writes no stamp when the harness names no session", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const r = stampedHook({ cwd: gitRepo(), source: "startup" }, cfg);
+		expect(r.code).toBe(0);
+		expect(existsSync(join(cfg, "sluice", "stamps"))).toBe(false);
+	});
+
+	// `compact` and `resume` both re-fire with the session's own id, and they
+	// are not the same event. A compact happens inside a session that never
+	// stopped holding the tree; a resume reopens one that was closed, and
+	// whatever happened to the tree in between belongs to nobody.
+	test("a resume takes a fresh baseline, a compact keeps the first", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		stampedHook({ cwd: dir, session_id: "res", source: "startup" }, cfg);
+		const first = readFileSync(stampPath(cfg, "res"), "utf8");
+
+		writeFileSync(join(dir, "changed.ts"), "export const x = 1;\n");
+		stampedHook({ cwd: dir, session_id: "res", source: "compact" }, cfg);
+		expect(readFileSync(stampPath(cfg, "res"), "utf8")).toBe(first);
+
+		stampedHook({ cwd: dir, session_id: "res", source: "resume" }, cfg);
+		expect(readFileSync(stampPath(cfg, "res"), "utf8")).not.toBe(first);
+	});
+
+	test("a resume clears the nudge the previous sitting already spent", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		stampedHook({ cwd: dir, session_id: "res2", source: "startup" }, cfg);
+		mkdirSync(join(cfg, "sluice", "nudged"), { recursive: true });
+		writeFileSync(join(cfg, "sluice", "nudged", "res2"), "");
+
+		stampedHook({ cwd: dir, session_id: "res2", source: "resume" }, cfg);
+		expect(existsSync(join(cfg, "sluice", "nudged", "res2"))).toBe(false);
+	});
+
+	// The hook still has its own job, and stamping must not disturb it.
+	test("still prints a live run alongside the stamp", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		status(dir, "init", "--topic", "widget", "--channel", "deep");
+		const r = stampedHook({ cwd: dir, session_id: "mno", source: "startup" }, cfg);
+
+		expect(r.out).toMatch(/widget/);
+		expect(existsSync(stampPath(cfg, "mno"))).toBe(true);
 	});
 });

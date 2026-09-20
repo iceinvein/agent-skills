@@ -36,6 +36,12 @@ them and an announcement worded otherwise reports as `not announced`. `bypass`
 says nothing at all, because a question that gets announced stops being a
 question.
 
+A session that changes the tree without ever announcing is stopped once and
+asked to route, because nothing else catches it: the run state that everything
+else reads is written by the channels, so a session that skipped the router
+leaves nothing behind to notice it skipped. The stop names no channel for you.
+Route what you have already done and say which one it was.
+
 **`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**
 The code misbehaving triggers the first: a bug report, a red test, behaviour you
 cannot account for. An integration event, merging, pushing, or opening a PR,
