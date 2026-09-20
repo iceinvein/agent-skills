@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.278",
+  "startedAt": "2026-09-20T01:52:06.287Z",
+  "durationSeconds": 33,
+  "costUsd": 0.11528100000000001,
+  "partial": false,
+  "suite": {
+    "root": "/Users/dikrana/Documents/projects/agent-skills/skills/sluice",
+    "ablation": "none",
+    "caseFilter": "bypass-*",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "sluice",
+        "path": "/Users/dikrana/Documents/projects/agent-skills/skills/sluice"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "bypass-question-stays-silent",
+      "dir": "evals/bypass-question-stays-silent",
+      "source": "prose",
+      "promptMarkdown": "What's the difference between an idempotency key and a request ID? I keep seeing both in payment APIs and I'm not sure when each one earns its place.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "answers-the-question",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The reply should answer a conceptual question about two identifiers used in payment APIs.\n\nPASS if the reply explains that an idempotency key is supplied by the caller to make a retried write safe (the server returns the original result instead of performing the operation twice), and that a request ID identifies one call for tracing, logging, or support, without affecting what the server does.\nFAIL if the reply conflates the two, describes only one of them, asks a clarifying question instead of answering, or answers with a plan of work rather than an explanation.",
+          "config": {
+            "criteria": "The reply should answer a conceptual question about two identifiers used in payment APIs.\n\nPASS if the reply explains that an idempotency key is supplied by the caller to make a retried write safe (the server returns the original result instead of performing the operation twice), and that a request ID identifies one call for tracing, logging, or support, without affecting what the server does.\nFAIL if the reply conflates the two, describes only one of them, asks a clarifying question instead of answering, or answers with a plan of work rather than an explanation.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-channel-announcement",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "(bypass|fast|main|deep)\\s+channel",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "writes-nothing",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "**/*",
+            "exists": false
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.11528100000000001,
+            "judgeCostUsd": 0.0030900000000000003,
+            "durationSeconds": 33,
+            "startedAt": "2026-09-20T01:52:06.306Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-cN9KZf/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-the-question",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "They answer different questions, and the cleanest way to keep them straight is cardinality across a retry:\n\n**One idempotency key spans many request IDs.** If your client sends a charge, times out, and retries three times, that's one idempotency key and four request IDs.\n\n## Idempotency key\n\nClient-generated, semantic, part of the API contract. It means: *\"these attempts are the same logical operation — do the work at most once.\"*\n\nThe server has to actually do something with it: store key → (request fingerprint, response), and on a repeat return the stored response instead of re-executing. That implies real machinery:\n\n- **Conflict handling** — same key, different payload is a client bug; reject it (422/409) rather than silently replaying the old response.\n- **In-flight handling** — two concurrent requests with the same key need a lock and a 409, not two charges.\n- **Scoping** — keys must be namespaced per API key/account, or one tenant's UUID collision becomes another tenant's replayed response.\n- **Expiry** — typically 24h (Stripe's window). After that the key is forgotten and a retry executes for real, which is why it's a retry-safety mechanism, not a permanent dedup ledger.\n\nThe subtle client-side requirement: generate the key *before* the first attempt and persist it alongside the pending operation. A key that only lives in the retry loop's memory is lost on process restart, and the retry-after-crash — the exact case you most needed it for — double-charges.\n\n## Request ID\n\nPer-attempt identifier, usually server-generated and echoed in a header (`X-Request-Id`) and in error bodies. It's for correlation: logs, traces, support tickets, \"here's the ID, what happened to my call.\"\n\nIt costs nothing in the request path — no storage, no locking, no conflict semantics — and it is *deliberately different on every attempt*, because distinguishing attempt 1 from attempt 4 is the entire point when you're debugging a retry storm.\n\n## When each earns its place\n\n**Request ID: always.** It's nearly free and the first thing you want when something goes wrong.\n\n**Idempotency key: only for non-idempotent state mutations where a duplicate is expensive.** Creating a charge, a transfer, a refund. You don't need one for:\n\n- `GET`s — already idempotent.\n- `PUT`/`DELETE` against a specific resource path — idempotent by construction.\n- Creates where the client already supplies a natural unique key (your own `order_id` with a uniqueness constraint). That's a dedup mechanism you already have; a second one adds failure modes without adding safety.\n\n## The two ways people get this wrong\n\n**Using the request ID as the idempotency key.** Clients regenerate request IDs per attempt, so every retry looks like a fresh operation. This is the double-charge bug, and it passes testing because it only fires on timeouts.\n\n**Using the idempotency key as the trace ID.** All four attempts collapse into one trace, and you lose the ability to see that there *were* four attempts — which is usually the thing you're trying to diagnose.\n\nOne nicety worth adding if you're building the server side: flag replays explicitly (`Idempotent-Replayed: true`). It lets clients distinguish \"this succeeded just now\" from \"this succeeded earlier and you're seeing a recording,\" which matters for their own logging and for reconciliation."
+              },
+              {
+                "name": "no-channel-announcement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "writes-nothing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "**/* absent as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}
