@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: deep-run-blocks-on-a-real-decision
+context:
+  scaffold_script: fixture.sh

@@ -20,3 +20,6 @@ terse-workspace
 AGENTS.md
 # sluice run state: working state, not history. The run record is what gets committed.
 .sluice/
+
+# plugin eval output
+skills/*/evals/results/
