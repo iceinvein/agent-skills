@@ -65,7 +65,11 @@ done
 d="$(cd "$DIR" 2>/dev/null && pwd -P)" || exit 0
 [ -n "$d" ] || exit 0
 
-# Four answers end the walk. A state file is a run, wherever it was found. A
+# Five answers end the walk. A state file is a run, wherever it was found. So is
+# a forwarding note beside where one used to be: the run moved out into a
+# worktree, this tree is where the session that moved it is still sitting, and
+# testing only the state file blanked its bar on a live run -- ahead of the
+# `.git` directory below, which would otherwise answer for this tree first. A
 # `.git` that is a regular file is a linked worktree or a submodule, which may
 # hold no state of its own and still belong to a set that does, so it is a maybe
 # and status.sh resolves it. A `.git` that is a directory is the top of an
@@ -78,6 +82,7 @@ d="$(cd "$DIR" 2>/dev/null && pwd -P)" || exit 0
 # would put the gate's cost in the same range as the render it is avoiding.
 while :; do
 	[ -f "$d/.sluice/run.json" ] && break
+	[ -f "$d/.sluice/run.at" ] && break
 	[ -f "$d/.git" ] && break
 	[ -d "$d/.git" ] && exit 0
 	[ "$d" = "${HOME:-}" ] && exit 0

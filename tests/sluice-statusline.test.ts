@@ -110,6 +110,21 @@ describe("statusline.sh renders a live run", () => {
 		expect(r.out).toContain("widget");
 	});
 
+	// The gate stops at a `.git` directory, so the main tree answers "no run
+	// here" before status.sh is ever consulted. Once the run has moved into a
+	// worktree, that is the one tree the controller's own session is most likely
+	// to be sitting in, and its bar went blank on a live run.
+	test("the tree the run moved out of still renders it", () => {
+		const main = gitRepo();
+		seed(main);
+		status(main, "move", "--to", worktree(main, "impl"));
+
+		const r = render("--dir", main);
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
+		expect(r.out).toMatch(/T1/);
+	});
+
 	// A directory reached through a symlink has lexical parents that are not its
 	// real ones. Walking those climbs away from the tree instead of up it.
 	test("a symlinked session directory sees the run behind the link", () => {

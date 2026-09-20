@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -155,9 +155,9 @@ describe("stop-guard.sh reads only the session's own tree", () => {
 		git("commit", "-qm", "init");
 		return dir;
 	}
-	function worktree(main: string): string {
-		const path = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "impl");
-		Bun.spawnSync({ cmd: ["git", "-C", main, "worktree", "add", "-q", path, "-b", "impl"], timeout: 10000 });
+	function worktree(main: string, branch = "impl"): string {
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), branch);
+		Bun.spawnSync({ cmd: ["git", "-C", main, "worktree", "add", "-q", path, "-b", branch], timeout: 10000 });
 		return path;
 	}
 	function midRunIn(dir: string) {
@@ -186,6 +186,63 @@ describe("stop-guard.sh reads only the session's own tree", () => {
 		midRunIn(main);
 		mkdirSync(join(main, "src", "deep"), { recursive: true });
 		expect(decision(guard({ cwd: join(main, "src", "deep"), stop_hook_active: false }).out)).toBe("block");
+	});
+
+	// `move` relocates the run and not the session, so the controller goes on
+	// sitting in the tree the run left. Read as the tree's own state and nothing
+	// else, that session stopped being guarded at the moment it moved its run,
+	// which is the middle of the run it is guarded for.
+	test("the tree the run moved out of is still guarded", () => {
+		const main = gitRepo();
+		midRunIn(main);
+		status(main, "move", "--to", worktree(main));
+
+		expect(decision(guard({ cwd: main, stop_hook_active: false }).out)).toBe("block");
+	});
+
+	test("the refusal names the tree the run moved to", () => {
+		const main = gitRepo();
+		midRunIn(main);
+		const wt = worktree(main);
+		status(main, "move", "--to", wt);
+
+		const reason = JSON.parse(guard({ cwd: main, stop_hook_active: false }).out).reason as string;
+		expect(reason).toContain(realpathSync(wt));
+		expect(reason).toMatch(/move this session/);
+	});
+
+	// Closing is the remedy for a run left open in the tree you are in. Here the
+	// run is live in another tree and may be another session's, and archiving it
+	// from this one would take the run out from under whoever is running it.
+	test("the refusal does not offer close from the tree the run left", () => {
+		const main = gitRepo();
+		midRunIn(main);
+		status(main, "move", "--to", worktree(main));
+
+		const reason = JSON.parse(guard({ cwd: main, stop_hook_active: false }).out).reason as string;
+		expect(reason).not.toMatch(/status\.sh close/);
+	});
+
+	test("a worktree is let stop though the main tree forwards a run to another", () => {
+		const main = gitRepo();
+		midRunIn(main);
+		status(main, "move", "--to", worktree(main, "controller"));
+
+		expect(guard({ cwd: worktree(main, "other"), stop_hook_active: false }).out).toBe("");
+	});
+
+	// The forward is followed only while the run it names is really there. A
+	// note that outlived its run is stale, not a run to refuse a stop over.
+	test("a forward to a tree with no run is let stop", () => {
+		const main = gitRepo();
+		midRunIn(main);
+		const wt = worktree(main);
+		status(main, "move", "--to", wt);
+		status(wt, "close");
+
+		mkdirSync(join(main, ".sluice"), { recursive: true });
+		writeFileSync(join(main, ".sluice", "run.at"), `${wt}\n`);
+		expect(guard({ cwd: main, stop_hook_active: false }).out).toBe("");
 	});
 
 	test("a run idle for more than a day is a stale run, not a live one, and is let stop", () => {

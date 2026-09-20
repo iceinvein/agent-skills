@@ -30,9 +30,13 @@ bash <skill-dir>/scripts/status.sh close
 
 `--dir <path>` reads another tree, which is what the statusline uses. A tree
 with a run of its own is read as itself; one with none resolves to the main
-worktree of its set, which is the tree a worktree is cut from and not the
-controller's own worktree, so once the run lives there `--dir <implementer
-worktree>` finds nothing. Statuses
+worktree of its set, and from there to whatever tree the run has since moved
+into. So any tree in the set reads the one run, wherever in the set it lives,
+and `--dir <implementer worktree>` finds it too. `show` prints a `tree` row
+naming where the run is whenever that is not the tree it was pointed at, since
+a run read from a tree it does not live in otherwise answers "where is this"
+with the tree the reader is already in. `show --json` stays the state file
+verbatim, and the row is not in it. Statuses
 are `todo`, `active`, `review`, `done` and `blocked`. A new id needs `--name`;
 after that every call is a bare flip, so keeping it current costs one command
 per transition rather than a paragraph. `close` archives the run under
@@ -56,9 +60,10 @@ is pointed at, `--dir` if given and the current tree otherwise, once; a base
 already on the row is kept. Issued from the controller's tree that is the
 controller's HEAD, which is what an implementer worktree cut from that branch
 starts at, so the default is right at dispatch. Where the implementer's tree
-has moved on, pass `--base $(git -C <implementer worktree> rev-parse --short
-HEAD)` rather than `--dir` that tree: with the run in your worktree, `--dir`
-pointed at the implementer's resolves to the main tree and finds no run.
+has moved on, point the command at that tree: `--dir <implementer worktree>`
+resolves the run through the set and takes the base from the tree it was
+pointed at, which is the one about to be built in. `--base $(git -C
+<implementer worktree> rev-parse --short HEAD)` says the same thing outright.
 
 `init` reports any other run live in a tree of the same set, without refusing:
 two sessions in two worktrees is legal, and a run stranded in the main tree
@@ -102,6 +107,24 @@ session's `init`; `move --to <worktree>` relocates it, refusing a destination
 that already holds a run or that is not a work tree of the same repository. A
 submodule anchors on its own checkout, not the superproject's, and a directory
 that is no git work tree keeps its run exactly where it sits.
+
+`move` is half a step, and the half it cannot take is the session. The harness
+holds one working directory and no command here reaches it, so the controller
+goes on asking about the tree it is still sitting in: its statusline draws for
+that tree, so does the SessionStart hook, and so does every bare `git`, build
+and test command it runs. **Move the session into the tree the run went to**,
+with the harness's worktree tool where there is one, entering the worktree by
+path when it was cut by hand. `move` says so on the way out, because that is
+the moment it is still cheap.
+
+Until the session moves, the tree it came from reads the run rather than
+denying it: `move` leaves `.sluice/run.at` at the main worktree, one line
+naming the tree the run is in, and a tree with no run of its own follows it.
+The note lives at the main worktree and nowhere else, so a run moved twice
+forwards once rather than down a chain of trees, and it is followed only while
+the run it names is really there. `close` removes a note naming its own tree,
+because a note that outlived its run would hand the next run opened in that
+tree to whoever reads the main tree.
 
 One file for several writers is one file to contend on, so `init`, `task`,
 `preflight`, `final`, `pause`, `resume`, `close` and `move` take a lock first, `move` taking the
@@ -290,11 +313,22 @@ every task done, a run idle for a day, and a turn where the harness says a
 stop hook already fired, which is what keeps it from looping. That last rule
 means it refuses once per turn and lets the next attempt through: a nudge, not
 a wall. The gate keys on the git top level of the session's working
-directory and nothing else, so the run has to live in the tree the session
-works in: open it after the worktree is cut, or `move` it there and then enter
-that worktree, since `move` relocates the run and not the session, and a run
-moved out from under a session still sitting in the main tree leaves that
-session unguarded for the rest of the run.
+directory: the run this tree answers for is the state beside it, or the state
+it forwarded into a worktree when `move` sent the run on without the session.
+Both are this tree's, and a controller that moved its run out and stayed put is
+guarded for the rest of the run rather than quietly let go at the moment it
+moved. The main-worktree fallback stays untaken, so a session in a worktree
+that merely reads the set's run is let stop as before.
+
+Once the run is in another tree the remedy changes with it. The refusal names
+that tree and says to move the session into it, and it stops offering `close`:
+from here that would archive a run live somewhere else, which may be another
+session's, and talking anyone into that is the one thing this hook must not do.
+The offer comes back when the run is in the tree the stop came from. None of
+this makes staying put correct: open the run after the worktree is cut, or
+`move` it and enter that worktree, since `move` relocates the run and not the
+session, and every bare `git`, build and test command meanwhile still lands in
+the tree the work left.
 
 `pause --reason <text>` records why a run is standing still; `show` and the
 statusline carry it, and `resume` clears it. A pause with no reason is refused,

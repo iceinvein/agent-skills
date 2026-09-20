@@ -98,7 +98,7 @@ stamp_baseline "$sid" "$source"
 shown="$(bash "$STATUS" show --dir "$cwd" 2>/dev/null)" || exit 0
 [ -n "$shown" ] || exit 0
 
-echo "A sluice run is live in this tree. Its state, from .sluice/run.json:"
+echo "A sluice run is live. Its state, from .sluice/run.json:"
 echo
 echo "$shown"
 echo

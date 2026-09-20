@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -307,6 +307,46 @@ describe("show", () => {
 		const r = run(dir, "show", "--json");
 		expect(r.code).toBe(0);
 		expect(JSON.parse(r.out)).toEqual(state(dir));
+	});
+});
+
+// "Where is this run" is the question the state file exists to answer, and a
+// run read from a tree it does not live in answers it silently wrong: the
+// reader takes the tree they are in. Worth a row exactly when the answer is
+// not the tree they asked about.
+describe("show says where the run is when it is not here", () => {
+	test("the tree the run moved to is named", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(main, "move", "--to", wt);
+
+		expect(run(main, "show").out).toContain(realpathSync(wt));
+	});
+
+	test("a worktree reading the set's run is told which tree holds it", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+
+		expect(run(worktree(main, "impl"), "show").out).toContain(realpathSync(main));
+	});
+
+	test("a tree holding its own run is told nothing about trees", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+
+		expect(run(dir, "show").out).not.toContain(realpathSync(dir));
+	});
+
+	// A directory inside the tree the run is in is that tree, one level down,
+	// and a row there would fire on every session that works from a subdirectory.
+	test("a subdirectory of the tree holding the run is told nothing about trees", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		const nested = join(dir, "src", "deep");
+		mkdirSync(nested, { recursive: true });
+
+		expect(run(nested, "show").out).not.toContain(realpathSync(dir));
 	});
 });
 
@@ -1227,6 +1267,23 @@ describe("the base defaults to HEAD at dispatch", () => {
 		expect(state(main).tasks[0]?.base).toBe(head(wt));
 	});
 
+	// Dispatch from the controller's own worktree into another: the run is in
+	// neither the main tree nor the tree being built in, and the base still has
+	// to be the one the implementer starts at.
+	test("with the run moved out, --dir the implementer's tree still takes its HEAD", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const controller = worktree(main, "controller");
+		run(main, "move", "--to", controller);
+		const impl = worktree(main, "impl");
+		writeFileSync(join(impl, "more.md"), "more\n");
+		Bun.spawnSync({ cmd: ["git", "-C", impl, "add", "-A"], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", impl, "commit", "-qm", "ahead"], timeout: 10000 });
+
+		run(impl, "task", "1", "--name", "first", "--status", "active");
+		expect(state(controller).tasks[0]?.base).toBe(head(impl));
+	});
+
 	test("outside a git tree the row simply carries no base", () => {
 		const dir = seeded(1);
 		run(dir, "task", "1", "--status", "active");
@@ -1432,7 +1489,7 @@ describe("move", () => {
 		expect(state(wt).topic).toBe("widget");
 		expect(state(wt).tasks[0]?.name).toBe("first");
 		expect(run(wt, "show").out).toContain("widget");
-		expect(run(main, "show").code).toBe(2);
+		expect(existsSync(join(main, ".sluice", "run.json"))).toBe(false);
 	});
 
 	test("the destination ignores itself like any run directory", () => {
@@ -1498,6 +1555,90 @@ describe("move", () => {
 		const r = run(dir, "init", "--topic", "other", "--channel", "fast");
 		expect(r.code).toBe(3);
 		expect(r.err).toMatch(/move --to/);
+	});
+
+	// The session that moves the run does not always move with it: the harness
+	// holds one working directory and a `git worktree add` does not change it.
+	// Resolved per tree, the run then reads as absent from the tree the
+	// controller is still sitting in, which is the tree its statusline, its
+	// SessionStart hook and its bare `show` all ask about.
+	test("a session left in the tree the run came from still reads it", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first", "--status", "active");
+		run(main, "move", "--to", worktree(main, "impl"));
+
+		const r = run(main, "show");
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
+		expect(r.out).toContain("first");
+	});
+
+	test("a flip issued from the tree the run came from lands in the moved run", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "task", "1", "--name", "first");
+		const wt = worktree(main, "impl");
+		run(main, "move", "--to", wt);
+
+		expect(run(main, "task", "1", "--status", "done", "--commit", "abc1234").code).toBe(0);
+		expect(state(wt).tasks[0]).toMatchObject({ id: 1, status: "done", commit: "abc1234" });
+		expect(existsSync(join(main, ".sluice", "run.json"))).toBe(false);
+	});
+
+	test("a second move forwards to the tree the run is in now", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const first = worktree(main, "impl");
+		run(main, "move", "--to", first);
+		const second = worktree(main, "controller");
+		run(first, "move", "--to", second);
+
+		expect(state(second).topic).toBe("widget");
+		expect(run(main, "show").out).toContain("widget");
+		expect(existsSync(join(first, ".sluice", "run.json"))).toBe(false);
+	});
+
+	// A note left pointing at a tree whose run is closed does not go quiet: the
+	// next run started in that tree inherits the forward and reads as this
+	// tree's, though nobody here opened it.
+	test("a closed run stops forwarding, even when its tree starts another", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+		run(main, "move", "--to", wt);
+		expect(run(wt, "close").code).toBe(0);
+		run(wt, "init", "--topic", "gadget", "--channel", "fast");
+
+		expect(run(main, "show").code).toBe(2);
+		expect(run(main, "show").out).not.toContain("gadget");
+	});
+
+	// Everything sluice writes into a tree is working state, and a tree that
+	// only forwarded a run away has nothing of its own to commit.
+	test("the move leaves the tree it came from clean", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		run(main, "move", "--to", worktree(main, "impl"));
+
+		const porcelain = Bun.spawnSync({
+			cmd: ["git", "-C", main, "status", "--porcelain"],
+			timeout: 10000,
+		});
+		expect(porcelain.stdout.toString()).toBe("");
+	});
+
+	// The move is only half done while the session is still elsewhere, and the
+	// half that is missing is the one no command can do for it.
+	test("the move says the session has to follow the run", () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		const wt = worktree(main, "impl");
+
+		const r = run(main, "move", "--to", wt);
+		expect(r.code).toBe(0);
+		expect(r.out).toContain(wt);
+		expect(r.out).toMatch(/session/);
 	});
 });
 

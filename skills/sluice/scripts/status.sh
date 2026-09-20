@@ -23,8 +23,11 @@
 #   status.sh close
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
-# <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. The
-# directory ignores itself, so no project needs a .gitignore line for it.
+# <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. A tree the
+# run has moved out of keeps <dir>/.sluice/run.at, one line naming the tree it
+# went to, so a session still sitting there resolves the run rather than reading
+# it as gone. The directory ignores itself, so no project needs a .gitignore
+# line for it.
 #
 # Exit: 0 ok, 1 the state could not be written, 2 no live run, 3 a run is
 # already live (here, or at move's destination), 4 bad arguments, 5 jq missing,
@@ -107,6 +110,15 @@ if [ -z "$SUB" ]; then
 	exit 4
 fi
 
+# One function rather than the same pipeline at three call sites, because they
+# have to agree: the tree resolution anchors on and the tree `move` and `close`
+# leave their forwarding note in are the same tree by definition, and a note
+# left anywhere else is a note nothing reads. Empty for a directory that is no
+# git work tree.
+main_tree() { # <dir>
+	git -C "$1" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'
+}
+
 # A tree's own run comes first, and only a tree with none reads the set's. Two
 # layouts share this script and pull opposite ways. A deep run plans in the main
 # tree and cuts implementer worktrees after the plan: the run directory ignores
@@ -130,9 +142,29 @@ fi
 ORIG_DIR="$DIR"
 if [ "$SUB" != "init" ] && [ ! -f "$DIR/.sluice/run.json" ] \
 	&& [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
-	MAIN_TREE="$(git -C "$DIR" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+	MAIN_TREE="$(main_tree "$DIR")"
 	if [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
 		DIR="$MAIN_TREE"
+
+		# Then forward, where the main tree's run has moved on into a worktree.
+		# A `move` is half a step: it relocates the state and cannot relocate the
+		# session, the harness holding one working directory that no command here
+		# reaches. So the controller's session goes on asking about the tree it
+		# still sits in, and per-tree resolution answers that the run is gone --
+		# to its statusline, to the SessionStart hook and to a bare `show`, all
+		# on a run that is live two directories away.
+		#
+		# The note lives at the main tree and nowhere else, so a run moved twice
+		# forwards once rather than down a chain, and so the tree every other
+		# tree in the set already resolves to is the tree that knows. It is
+		# followed only while the run it names is really there: a note outliving
+		# its run is stale, not a second answer.
+		if [ ! -f "$DIR/.sluice/run.json" ] && [ -f "$DIR/.sluice/run.at" ]; then
+			# `read`, not `cat`: a builtin, and the first line is the whole note.
+			AT=""
+			IFS= read -r AT <"$DIR/.sluice/run.at" 2>/dev/null || true
+			[ -n "$AT" ] && [ -f "$AT/.sluice/run.json" ] && DIR="$AT"
+		fi
 	fi
 fi
 
@@ -304,6 +336,16 @@ mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, def
 	mkdir -p "$1" || { err "could not create $1"; exit 1; }
 	local ignore="${2:-$DIR}/.sluice/.gitignore"
 	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
+}
+
+# Where the set's run went, written at the main tree for resolution to follow.
+# Not `mk_dir`, which exits: this runs after the state has already arrived in
+# the destination, and a note that could not be written is a blank statusline
+# in one tree rather than a move that failed. The caller reports it instead.
+leave_note() { # <main tree> <tree the run is now in>
+	mkdir -p "$1/.sluice" 2>/dev/null || return 1
+	[ -e "$1/.sluice/.gitignore" ] || printf '*\n' >"$1/.sluice/.gitignore" 2>/dev/null || true
+	printf '%s\n' "$2" >"$1/.sluice/run.at" 2>/dev/null
 }
 
 # Written through a temporary file so an interrupted write cannot leave the
@@ -582,10 +624,28 @@ case "$SUB" in
 			exit 0
 		fi
 
+		# Where the run is, said only when that is not the tree the command was
+		# pointed at. A run read from a tree it does not live in answers "where
+		# is this" silently wrong otherwise: the reader takes the tree they are
+		# in, which after a `move` is the one tree the run is not in.
+		#
+		# A directory inside the tree holding the run is that tree, one level
+		# down, not somewhere else -- without that, the row would fire on every
+		# session that works from a subdirectory.
+		ELSEWHERE=""
+		run_tree="$(cd "$DIR" 2>/dev/null && pwd -P)"
+		asked="$(cd "$ORIG_DIR" 2>/dev/null && pwd -P)"
+		if [ -n "$run_tree" ] && [ -n "$asked" ]; then
+			case "$asked" in
+				"$run_tree" | "$run_tree"/*) ;;
+				*) ELSEWHERE="$run_tree" ;;
+			esac
+		fi
+
 		# Header and rows are laid out from the same widths, so the two cannot
 		# drift apart, and an over-long value is clipped with a marker rather
 		# than silently reading as the whole value.
-		jq -r --argjson now "$(date -u +%s)" '
+		jq -r --argjson now "$(date -u +%s)" --arg elsewhere "$ELSEWHERE" '
 			def dash: if . == null or . == "" then "-" else . end;
 			# Same reason as the statusline render: state written before the check
 			# on the way in, or edited by hand, holds bytes a terminal would act on
@@ -601,6 +661,7 @@ case "$SUB" in
 			                      $c[6]] | join(" "));
 			([.tasks[]? | select(.status == "done")] | length) as $done
 			| ["sluice \(.channel | clean) · \(.topic | clean) · \($done)/\(.tasks | length) done"]
+			+ (if $elsewhere == "" then [] else ["tree          \($elsewhere | clean)"] end)
 			+ ["plan          \(.plan | dash | clean)"]
 			+ ["record        \(.record | dash | clean)"]
 			# Past a day since the last write the run is idle, and that is said
@@ -797,7 +858,26 @@ case "$SUB" in
 			exit 3
 		fi
 		mv "$STATE" "$DEST_STATE" || { err "could not move $STATE to $DEST_STATE"; exit 1; }
+
+		# After the state has arrived, never before: a note pointing at a run
+		# that never got there is worse than no note, being indistinguishable
+		# from one pointing at a run that did.
+		NOTE_TREE="$(main_tree "$TO")"
+		if [ -n "$NOTE_TREE" ] && [ -d "$NOTE_TREE" ]; then
+			if [ "$NOTE_TREE" = "$TO" ]; then
+				# The run is back where resolution already looks, so a note would
+				# only point the main tree at itself.
+				rm -f "$NOTE_TREE/.sluice/run.at"
+			elif ! leave_note "$NOTE_TREE" "$TO"; then
+				err "note: the run moved, but $NOTE_TREE/.sluice/run.at could not be written, so a session in $NOTE_TREE will read no run until it moves to $TO"
+			fi
+		fi
+
 		echo "moved $(jq -r '.topic // "run"' "$DEST_STATE" 2>/dev/null || echo run) to $TO"
+		# The session is the half of the move no command can make. Left where it
+		# was, every bare git, build and test command it runs still lands in the
+		# tree the run just left.
+		echo "move this session there too, with the harness's worktree tool where it has one; every status.sh call from elsewhere needs --dir $TO"
 		;;
 
 	close)
@@ -844,6 +924,18 @@ case "$SUB" in
 			n=$((n + 1))
 		done
 		mv "$STATE" "$dest" || { err "could not archive $STATE"; exit 1; }
+
+		# A note naming this tree has outlived the run it forwarded to. Left
+		# behind, it does not go quiet: the next run opened in this tree inherits
+		# the forward and reads as the main tree's, though nobody there opened
+		# it. Only a note naming this tree is ours to remove -- one naming
+		# another tree belongs to a run this close knows nothing about.
+		NOTE_TREE="$(main_tree "$DIR")"
+		if [ -n "$NOTE_TREE" ] && [ -f "$NOTE_TREE/.sluice/run.at" ]; then
+			AT=""
+			IFS= read -r AT <"$NOTE_TREE/.sluice/run.at" 2>/dev/null || true
+			[ "$AT" = "$(cd "$DIR" && pwd -P)" ] && rm -f "$NOTE_TREE/.sluice/run.at"
+		fi
 		# The summary needs parseable state and close is the one command that
 		# does not, so an unreadable run still gets a line naming where it went.
 		[ -n "$summary" ] || summary="closed $(basename "$dest"): state was unreadable, no summary"

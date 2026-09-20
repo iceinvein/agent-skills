@@ -234,7 +234,9 @@ down to a single question is still a stop.
 
 **Write the answers down before Task 1's first edit, in the tree the work runs
 in.** The order on the instruction that follows the stop: cut the worktree
-first, when that was the answer, through the harness's worktree tool. A fresh
+first, when that was the answer, through the harness's worktree tool, which
+puts this session inside it: everything below is issued from there, and issued
+from the main tree instead it lands in the tree the work is not in. A fresh
 worktree branches from the remote's default branch, so nothing uncommitted or
 unpushed in the main tree comes across, and `docs/` may not exist there yet.
 Move the design and plan into it yourself, each into its own directory since
@@ -345,13 +347,18 @@ reads the run state rather than the plan: it sees what has actually landed.
   `Flips`. The invariant it establishes is what later tasks are checked
   against, and whatever landed beside it was checked against nothing.
 - Isolate the workspace before a multi-task plan: the harness's worktree
-  tool, not `git worktree` yourself. Implementing straight onto main or
+  tool, not `git worktree` yourself. That tool moves this session into the
+  worktree, which `git worktree add` does not: cut by hand, the files are
+  isolated and the session is still in the tree they came from, so every bare
+  `git`, build and test command you run lands in the wrong one. Enter it by
+  path if it already exists. Implementing straight onto main or
   master needs your partner's say-so, which pre-flight is where you got, and
   it forecloses concurrent implementers for the whole run. Cut it before the
   run opens, so the state lives in it. A worktree cut after `init` still reads
   the main tree's run, so nothing breaks for you, but the run stays in the main
   tree where the next session to start a `deep` run finds it blocking `init`;
-  `status.sh move --to <worktree>` puts it where it belongs.
+  `status.sh move --to <worktree>` puts it where it belongs, and the session
+  has to follow it there.
 - **The agent that built the task commits it**, once its own tests pass, and
   only the paths in its `Touches`. Never `git add -A`: the tree is shared, and
   on a branch you did not isolate it holds work that is not this task's. The

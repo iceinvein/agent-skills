@@ -10,9 +10,9 @@
 # Every stop that is a real stop is let through: no run, a channel other than
 # deep, pre-flight not yet answered (that stop is owed), a blocked task, a run
 # paused on purpose with `status.sh pause --reason`, every task done (the
-# handback), a run idle for a day, a run that lives in another tree than the
-# session's, and any attempt where the harness says a stop hook already fired
-# this turn, which is what keeps this from looping. One refusal per turn, then:
+# handback), a run idle for a day, a run another tree owns rather than one this
+# tree moved out, and any attempt where the harness says a stop hook already
+# fired this turn, which is what keeps this from looping. One refusal per turn, then:
 # a nudge with the state in it rather than a wall.
 #
 # Reads the harness's stop JSON on stdin for `cwd` and `stop_hook_active`. To
@@ -155,21 +155,37 @@ fi
 
 [ -f "$STATUS" ] || exit 0
 
-# The session's own tree, and only that. status.sh lets a tree with no run of
-# its own read the main worktree's, for a controller that moved after init; a
-# Stop in such a tree may be an unrelated session, and a remedy printed to it
-# would reach into somebody else's run. So the run has to sit in the tree the
-# session's cwd belongs to, or there is nothing here to guard.
+# The run the session's own tree answers for, and only that: the state beside
+# it, or the state it forwarded into a worktree when `move` sent the run on
+# without the session. status.sh also lets a tree with no run of its own read
+# the main worktree's, and that one is not taken here: a Stop in such a tree may
+# be an unrelated session, and a remedy printed to it would reach into somebody
+# else's run.
+#
+# The forward is read here rather than left to status.sh's resolution because
+# the two questions differ. Resolution answers "which run can this tree read",
+# which is the right question for a render and the wrong one for a refusal. The
+# tree named in the note is then passed as `--dir`, so what follows asks about
+# one named tree and carries no layout knowledge of its own.
 top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
 [ -n "$top" ] || top="$cwd"
-[ -f "$top/.sluice/run.json" ] || exit 0
+if [ -f "$top/.sluice/run.json" ]; then
+	tree="$top"
+elif [ -f "$top/.sluice/run.at" ]; then
+	tree=""
+	IFS= read -r tree <"$top/.sluice/run.at" 2>/dev/null || exit 0
+	# A note outliving the run it named is stale, not a run to refuse a stop over.
+	[ -n "$tree" ] && [ -f "$tree/.sluice/run.json" ] || exit 0
+else
+	exit 0
+fi
 
-run="$(bash "$STATUS" show --json --dir "$top" 2>/dev/null)" || exit 0
+run="$(bash "$STATUS" show --json --dir "$tree" 2>/dev/null)" || exit 0
 [ -n "$run" ] || exit 0
 
 # One JSON object out, read back with jq: the topic is user text, and word
 # splitting it would truncate at the first space and glob on the rest.
-verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" '
+verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree "$tree" --arg here "$top" '
 	(.tasks // []) as $t
 	| ([$t[] | select(.status == "done")] | length) as $done
 	| ([$t[] | select(.status == "blocked")] | length) as $blocked
@@ -185,18 +201,33 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" '
 	  # A run nobody has written to for a day is a stale run, not a live one;
 	  # refusing its stop would press an abandoned plan on whoever opened here.
 	  elif $idle_h >= 24 then {block: false}
-	  # The topic lands in a reason the harness prints, so a control byte in it
-	  # would be acted on by the terminal rather than read. State written before
-	  # status.sh refused those, or edited by hand, can still hold one.
+	  # The topic and the tree land in a reason the harness prints, so a control
+	  # byte in either would be acted on by the terminal rather than read. State
+	  # written before status.sh refused those, or edited by hand, can still hold
+	  # one, and so can a path.
 	  else {block: true, progress: "\($done)/\($t | length)",
-	        topic: (.topic // "run" | gsub("[\u0000-\u001f\u007f]"; ""))}
+	        topic: (.topic // "run" | gsub("[\u0000-\u001f\u007f]"; "")),
+	        tree: ($tree | gsub("[\u0000-\u001f\u007f]"; "")),
+	        elsewhere: ($tree != $here)}
 	  end
 ' 2>/dev/null)" || exit 0
 
 [ "$(printf '%s' "$verdict" | jq -r '.block' 2>/dev/null)" = "true" ] || exit 0
 
+# Two remedies, because the last line of the local one is wrong once the run
+# has moved: `close` from here would archive a run that is live in another tree
+# and may be another session's, which is the one thing this hook must never talk
+# anyone into. What replaces it is the step `move` could not take -- the session
+# following the run -- because a controller guarded here is a controller sitting
+# in the tree its own run left.
 printf '%s' "$verdict" | jq 2>/dev/null '{
 	decision: "block",
-	reason: ("sluice: the deep run \(.topic) is \(.progress) done with tasks still to go and nothing marked blocked or paused, so ending the turn here hands a live run back with nothing for your partner to decide. Continue: run status.sh ready and dispatch the next wave in this same message. If a task genuinely needs them, mark it: status.sh task <id> --status blocked. If the run has to stand still for a reason, record it: status.sh pause --reason \"<why>\", then say so and stop. If this run is not the work you were asked to do, it was left open: status.sh close.")
+	reason: ("sluice: the deep run \(.topic) is \(.progress) done with tasks still to go and nothing marked blocked or paused, so ending the turn here hands a live run back with nothing for your partner to decide."
+		+ (if .elsewhere then " The run lives in \(.tree), not in this tree: `move` relocated the run and not this session. If it is yours, move this session into that tree -- the worktree tool in your harness enters one that already exists -- and go on from there." else "" end)
+		+ " Continue: run status.sh ready and dispatch the next wave in this same message. If a task genuinely needs them, mark it: status.sh task <id> --status blocked. If the run has to stand still for a reason, record it: status.sh pause --reason \"<why>\", then say so and stop."
+		+ (if .elsewhere
+		   then " If the run is not yours, it belongs to the session working in \(.tree): say so and stop, rather than closing it from here."
+		   else " If this run is not the work you were asked to do, it was left open: status.sh close."
+		   end))
 }'
 exit 0
