@@ -2,8 +2,8 @@
 name: main-new-interface
 description: Adding a port the repo does not have is the main channel. Pins the announcement and agreeing the shape before building.
 tags: [routing, main, scaffold, write]
-max_turns: 30
-timeout_seconds: 900
+max_turns: 80
+timeout_seconds: 2400
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]
 expected_outcome: Announces the main channel, states the port's shape and a recommendation before implementing, then builds it test-first with the suite green.
 ---

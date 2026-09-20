@@ -23,19 +23,18 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Six cases scaffold a small Node repo and then change it, so they need the
+Seven cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. From the repo root:
 
 ```bash
 claude plugin eval skills/sluice --scaffold --allow-tools Bash Write Edit
 ```
 
-`--case` takes one glob and is not repeatable, so the two cases that need
-less run one command each:
+`--case` takes one glob and is not repeatable, so the one case that needs
+less runs on its own:
 
 ```bash
 claude plugin eval skills/sluice --case 'bypass-*'
-claude plugin eval skills/sluice --case 'superpowers-*' --scaffold
 ```
 
 Useful while iterating on graders: `--ablation none` drops the no-plugin arm
@@ -70,10 +69,32 @@ only from the case's own directory.
 
 ## Verification status
 
-`bypass-question-stays-silent` and `superpowers-conflict-stands-down` have each
-been run once (`--runs 1 --ablation none`) and scored 1.00, so the fixture's
-`CLAUDE.md` does reach the child session. The six scaffold-and-write cases have
-been checked for grader reachability under the full flag set and produce no
-warnings, and their fixtures were run directly to confirm the plan validates and
-the suite starts green, but no agent has been run against them end to end.
-Expect to tune their `llm` rubrics on the first real pass.
+Every case has been run end to end at least once and scored 1.00. The two that
+needed the least (`bypass-question-stays-silent`, `superpowers-conflict-stands-down`)
+were run at `--runs 1 --ablation none`; the other six were run the same way, and
+`deep-plan-across-subsystems` and `main-new-interface` twice each after the
+fixes below.
+
+Three defects the first full pass turned up, all in the suite rather than in
+sluice:
+
+- `announces-<channel>-channel` matched `<channel> channel` anywhere in the
+  trace, and the trace carries SKILL.md's routing table, which names all four.
+  Those graders passed whenever the skill loaded. They now anchor on the
+  announcement opening an assistant message, the same anchor `run-stats.sh`
+  meters by. `fast-flag-on-existing-command` and
+  `explicit-instruction-collapses-to-fast` still carry the old pattern.
+- `deep-plan-across-subsystems` shipped no `fixture.sh`, so the run landed in an
+  empty tree and the case flipped between designing against the prompt alone and
+  stopping to ask where the repo was. It has a fixture now: three callers
+  through one upstream client. Its `no-implementation-yet` grader went with it,
+  because `file_exists: 'src/**', exists: false` reported absent against a tree
+  holding four source files.
+- `shape-agreed-before-building` was an `llm` grader over the trace, and the
+  judge is given a head-and-tail window of it. In a run this long the shape
+  statement lands in the dropped middle, so the judge voted FAIL six times out
+  of six on runs that had stated the shape plainly. `focus` accepts only
+  `last_message`, `trace` or a file, and `main` agrees in a message rather than
+  a file, so there was no slice to point it at. It is a regex over the
+  chronological trace now, which pins the order but not whether a
+  recommendation came with the shape.
