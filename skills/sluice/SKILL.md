@@ -102,7 +102,10 @@ your partner states a preference. Get the design signed off before code.
 Take the design stop through the harness's plan mode where there is one. Its
 gate is enforced rather than requested and it holds edits shut while it is open,
 so nothing gets built against a design nobody signed. It carries the first stop
-only; pre-flight still wants answers, and an approval is not one.
+only; pre-flight still wants answers, and an approval is not one. Where there is
+no plan mode, nothing is holding the draft: write the design to its file before
+you end the turn on it, because a design that lives only in the message you just
+sent is gone at the next compaction.
 
 The run's state goes in `.sluice/run.json`, written a command at a time by
 `scripts/status.sh`. That is what makes the breakdown readable from outside the

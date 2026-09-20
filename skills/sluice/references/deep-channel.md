@@ -156,9 +156,13 @@ the run record section gives. Those are the durable files, the ones a session
 resuming next week reads, and none of them is the one you drafted in.
 
 Where plan mode is unavailable, the prose stop is what you have and it is the
-same stop: end the turn on the design and let the next instruction start the
-plan. Nothing else about this section changes, because the obligation was never
-the mode's, only the enforcement was.
+same stop, with one thing you now do yourself: nothing is holding the draft, so
+write the design to `docs/specs/YYYY-MM-DD-<topic>.md` before you end the turn
+on it. A design that exists only in the message you just sent is gone at the
+next compaction, which is what the durable files are for. Write it, end the turn
+on it, and let the next instruction start the plan. Nothing else about this
+section changes, because the obligation was never the mode's, only the
+enforcement was.
 
 ## Pre-flight
 
