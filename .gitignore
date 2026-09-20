@@ -23,3 +23,6 @@ AGENTS.md
 
 # plugin eval output
 skills/*/evals/results/
+
+# eval run output at the repo root; the per-skill rule above covers the rest
+evals/results/
