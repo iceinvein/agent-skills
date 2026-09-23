@@ -118,10 +118,27 @@ describe("stop-guard.sh", () => {
 		expect(r.out).toBe("");
 	});
 
-	test("a run with an active task still in flight is blocked too", () => {
-		const dir = midRun(5, 3);
-		status(dir, "task", "4", "--status", "active");
-		expect(decision(guard({ cwd: dir, stop_hook_active: false }).out)).toBe("block");
+	// `active` is set at dispatch and `review` when the reviewer goes out, so
+	// either one means an agent is running that the harness will report back
+	// on, and waiting for it is a stop the run wants.
+	test("lets a run stop while a dispatched task is active", () => {
+		const dir = midRun(3, 1);
+		status(dir, "task", "2", "--status", "active");
+		const r = guard({ cwd: dir, stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+	});
+
+	test("lets a run stop while a task is out for review", () => {
+		const dir = midRun(3, 1);
+		status(dir, "task", "2", "--status", "review");
+		const r = guard({ cwd: dir, stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+	});
+
+	test("blocks a stop when the open tasks are all todo and nothing is in flight", () => {
+		expect(decision(guard({ cwd: midRun(3, 1), stop_hook_active: false }).out)).toBe("block");
 	});
 
 	// The refusal reason is printed by the harness, so a control byte in the
@@ -273,11 +290,15 @@ describe("stop-guard.sh reason text", () => {
 		status(dir, "task", "2", "--name", "quiet flag parsing", "--tier", "1");
 		status(dir, "task", "3", "--name", "route progress", "--tier", "1");
 		status(dir, "task", "1", "--status", "done");
-		status(dir, "task", "3", "--status", "active");
 		status(dir, "preflight", "--review", "x");
 		const reason = JSON.parse(guard({ cwd: dir, stop_hook_active: false }).out).reason as string;
 		expect(reason).toContain("open: T2 quiet flag parsing, T3 route progress");
-		expect(reason).toContain("If one is blocked, mark it and say what is blocking it.");
+	});
+
+	test("says how to mark a blocked task once, by the command", () => {
+		const reason = JSON.parse(guard({ cwd: midRun(3, 1), stop_hook_active: false }).out).reason as string;
+		expect(reason.split("status.sh task <id> --status blocked").length - 1).toBe(1);
+		expect(reason).not.toContain("If one is blocked, mark it and say what is blocking it.");
 	});
 
 	// Task names are user text written into run.json, and the reason is printed
