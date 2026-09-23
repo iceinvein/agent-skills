@@ -190,6 +190,15 @@ skill rather than the grader: nothing in `references/deep-channel.md` tells the
 controller to settle a choice the plan leaves open before dispatch and log it
 in the run record.
 
+The dispatch brief section now says exactly that. Rerun once afterwards (USD
+1.34, `results/2026-09-23T15-00-42-301Z`):
+the brief read "The prefix is `->` (decided)" and `record-names-the-prefix`
+passed. The handback judge split FAIL PASS FAIL on a message that reported
+everything done and green, then raised dry-run behaviour the spec does not
+cover as "Needs your decision" and offered a test fix before finishing. The
+grader now allows out-of-plan findings, so this is the borderline between a
+finding and a question put to the user; one sample does not settle it.
+
 **Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
 2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
 cutting worktrees by hand after the harness refused isolation, and most of the
