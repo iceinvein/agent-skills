@@ -703,6 +703,41 @@ describe("stop-guard.sh entry check", () => {
 		expect(r.out).toBe("");
 	});
 
+	// A model that routes in its thinking writes no announcing text, and the
+	// route call is then the only announcement the meter sees. The gate has to
+	// read it the same way or it refuses a run the ledger counts.
+	test("a route call counts as routed with no announcing text and no skill call", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d7", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: {
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							name: "Bash",
+							input: { command: "bash ~/.claude/skills/sluice/scripts/status.sh route fast" },
+						},
+					],
+				},
+			})}\n`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d7", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+	});
+
 	// Both hooks must survive an environment with no HOME: they run wherever
 	// the harness was launched from, and exiting non-zero breaks the contract
 	// that a stop hook always exits 0.

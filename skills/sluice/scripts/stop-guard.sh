@@ -111,9 +111,10 @@ entry_nudge() {
 	[ "$now" = "$line_digest" ] && return 0
 
 	# Whether the session routed is read exactly the way run-stats.sh reads it,
-	# from a copy of its `marker` and `lead` patterns and its `invokes_sluice`:
-	# a gate that disagreed with the meter would refuse turns the ledger
-	# reports as a run. The copy is kept in step with that file by hand.
+	# from a copy of its `marker`, `lead` and `route` patterns and its
+	# `invokes_sluice`: a gate that disagreed with the meter would refuse turns
+	# the ledger reports as a run. The copy is kept in step with that file by
+	# hand.
 	#
 	# Lines are parsed one at a time and unparseable ones dropped, because the
 	# harness is still appending to this file while the hook reads it and the
@@ -123,14 +124,17 @@ entry_nudge() {
 	jq -e -n -R '
 		def marker: "^[*_#>[:space:]]*(fast|main|deep)[[:space:]]+channel";
 		def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(fast|main|deep)[[:space:]]+channel";
+		def route: "(^|[[:space:]/])status\\.sh[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:]]|$)";
 		def texts: [ .message.content[]? | select(.type == "text") | .text ] | join("\n");
+		def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+			| (.input.command // "") | select(test(route)) ];
 		def invokes_sluice: [ .message.content[]?
 			| select(.type == "tool_use" and .name == "Skill")
 			| .input.skill? // empty ] | any(. == "sluice");
 		[ inputs | fromjson? // empty ]
 		| any(.[];
 			(.type == "assistant") and (((.isMeta == true) or (.isSidechain == true)) | not)
-			and ((texts | test(marker; "i") or test(lead; "i")) or invokes_sluice))
+			and ((texts | test(marker; "i") or test(lead; "i")) or (routes | length > 0) or invokes_sluice))
 	' "$transcript" >/dev/null 2>&1
 	case "$?" in
 		# 0 routed, 1 not. Anything else is jq failing rather than an answer
