@@ -211,3 +211,32 @@ test("remove deletes a supporting file installed outside bundleRoot", async () =
 
   expect(existsSync(join(TMP, ".claude/agents/a.md"))).toBe(false);
 });
+
+test("remove of a supporting file outside bundleRoot leaves the cwd standing when it would be empty", async () => {
+  const files = new Map<string, string>([["agents/a.md", "body\n"]]);
+
+  const installed = await claudeAdapter.install(TMP, agentManifest, files);
+  await claudeAdapter.remove(TMP, agentManifest, installed);
+
+  expect(existsSync(TMP)).toBe(true);
+});
+
+test("remove of a supporting file outside bundleRoot leaves .claude standing when it would be empty", async () => {
+  const files = new Map<string, string>([["agents/a.md", "body\n"]]);
+
+  const installed = await claudeAdapter.install(TMP, agentManifest, files);
+  await claudeAdapter.remove(TMP, agentManifest, installed);
+
+  expect(existsSync(join(TMP, ".claude/agents"))).toBe(false);
+  expect(existsSync(join(TMP, ".claude"))).toBe(true);
+});
+
+test("remove of a supporting file outside bundleRoot keeps what else .claude holds", async () => {
+  writeFileSync(join(TMP, ".claude/settings.json"), "{}\n");
+  const files = new Map<string, string>([["agents/a.md", "body\n"]]);
+
+  const installed = await claudeAdapter.install(TMP, agentManifest, files);
+  await claudeAdapter.remove(TMP, agentManifest, installed);
+
+  expect(readFileSync(join(TMP, ".claude/settings.json"), "utf-8")).toBe("{}\n");
+});

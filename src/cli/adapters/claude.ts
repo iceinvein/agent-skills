@@ -473,10 +473,15 @@ export const claudeAdapter: Adapter = {
             unlinkSync(fullPath);
           }
         } catch {}
-        // Clean up empty parent directories walking up to bundleRoot
+        // Clean up empty parent directories, stopping at bundleRoot's parent,
+        // .claude or the cwd, whichever comes first. A supporting file such as
+        // .claude/agents/x.md never passes bundleRoot's parent, so without the
+        // other two stops the walk would climb on and delete .claude and the
+        // project directory itself whenever they happened to be empty.
+        const stops = [join(cwd, ".claude"), cwd];
+        if (config.bundleRoot) stops.push(join(cwd, config.bundleRoot, ".."));
         let dir = dirname(fullPath);
-        const stopAt = config.bundleRoot ? join(cwd, config.bundleRoot, "..") : cwd;
-        while (dir !== stopAt && dir !== "/" && dir.startsWith(cwd)) {
+        while (!stops.includes(dir) && dir.startsWith(`${cwd}/`)) {
           // rmdirSync, not rmSync: rmSync on a directory throws unless it is
           // recursive, so this walk used to break on its first step and leave
           // the skill's directory standing empty after every removal. rmdirSync
