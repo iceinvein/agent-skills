@@ -13,3 +13,7 @@ FAIL if the final message reports the milestone and stops, announces the next
 task without having taken it, offers to carry on, asks whether to proceed, or
 otherwise hands back with tasks still outstanding for any reason other than a
 decision only the user can make.
+
+Ending the final message on the user's finish choice (merge, open a PR, or
+leave the branch as it stands) is part of a handback, not a check-in, and does
+not by itself make it a FAIL.
