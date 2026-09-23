@@ -208,6 +208,46 @@ one "Decision for you" on the same uncovered dry-run behaviour). A fresh agent
 run, not a re-judge of the old message, but the pattern that split Haiku did
 not split Opus. The split verdicts above are as likely the judge as the run.
 
+**Full pass, Opus 5.5 judge.** All fourteen cases once each with
+`--judge-model claude-opus-5-5` (USD 11.50, 591s at `-j 4`,
+`results/2026-09-23T15-29-36-693Z`). The current baseline; ten at 1.00:
+
+| Case | Score | Reading |
+|---|---|---|
+| `bypass-question-stays-silent` | 1.00 | |
+| `fast-flag-on-existing-command` | 1.00 | |
+| `explicit-instruction-collapses-to-fast` | 1.00 | |
+| `announcement-reaches-the-ledger` | 1.00 | |
+| `fast-reads-the-unmentioned-convention` | 1.00 | |
+| `deep-run-finishes-every-task` | 1.00 | |
+| `deep-run-blocks-on-a-real-decision` | 1.00 | |
+| `deep-run-survives-a-milestone` | 1.00 | |
+| `deep-run-decides-a-non-blocking-choice` | 1.00 | |
+| `deep-run-waits-for-a-running-agent` | 1.00 | |
+| `main-new-interface` | 0.71 | The shape was stated mid-turn and landed as a thinking summary, which the text-anchored grader cannot see (below) |
+| `deep-plan-across-subsystems` | 0.75 | Asked one design question (where the shared counters live) before writing any design, so `docs/specs/` was empty at the stop |
+| `superpowers-conflict-stands-down` | 0.50 | Announced "Fast channel" and ran `route fast` before reading `CLAUDE.md`, then retracted and stood down; the retraction names the channel |
+| `deep-run-fans-out` | 0.63 | Sent Tasks 1 to 3 in one message with worktree isolation, which the harness refused; hand-cut worktrees failed on the nested-git shim, so it fell back to serial and the judge failed what ran |
+
+What each says:
+
+- `main-new-interface` is the thinking-summary problem the route call was
+  built for, surfacing in a grader that still reads only `"text"`: the
+  summary did name `build()`, `upload()` and `activate()`. Either the grader
+  also reads `"thinking"`, or the skill has main state the shape in the
+  announcing message, the one that opens the turn and stays text.
+- `deep-plan-across-subsystems` sits between two rules: intent is agreed one
+  question at a time, and a design stop writes the design down first. The
+  question was a real fork (network store or local file). Which rule wins at
+  the design stop is a skill decision, not a grader one.
+- `superpowers-conflict-stands-down` is 5.5 getting to work quickly: it routed
+  before it had read the repo's instructions. The skill's Conflicts section
+  says to stand down in the same breath as naming a channel; it does not say
+  to read the repo's own instructions before routing. In a normal session
+  Claude Code loads the project `CLAUDE.md` up front, so this may be sharper in
+  the eval child than in real use.
+- `deep-run-fans-out` is the sandbox, as in the rerun.
+
 **Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
 2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
 cutting worktrees by hand after the harness refused isolation, and most of the
