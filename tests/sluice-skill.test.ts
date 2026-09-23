@@ -216,6 +216,17 @@ describe("sluice effort routing", () => {
 		expect(bullet).toContain("Effort: low");
 	});
 
+	// An eval run copied an open choice into the brief, let the implementer pick,
+	// and left no trace of which answer the run took.
+	test("a choice the plan leaves open is settled before dispatch and logged in the record", () => {
+		const brief = section(DEEP, "The dispatch brief").replace(/\n/g, " ");
+		const sentence = brief.split(/(?<=\.)\s+/).find((s) => /leaves open/.test(s));
+		expect(sentence).toBeDefined();
+		expect(sentence).toMatch(/before (the )?dispatch/);
+		expect(sentence).toMatch(/the brief states/);
+		expect(sentence).toMatch(/run record/);
+	});
+
 	test("review never runs below the effort that built the task", () => {
 		const policy = section(DEEP, "Review policy").replace(/\n/g, " ");
 		expect(policy).toMatch(/never runs below the effort/i);

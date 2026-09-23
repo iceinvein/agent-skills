@@ -419,7 +419,11 @@ this order:
 
 - **Ground Rules**, verbatim from the plan. They bind every task and are
   repeated in none, so the brief is where they reach the implementer.
-- **The task**, whole: heading, Contract, Touches, Flips, steps.
+- **The task**, whole: heading, Contract, Touches, Flips, steps. A choice the
+  plan leaves open ("either is fine") is yours to settle before the dispatch:
+  the brief states the answer as part of the task, and the run record logs it
+  with its reason. Passed on open, the implementer picks, and nothing on disk
+  says which way the run went.
 - **The implementer contract**, five lines that are the same for every task:
   the test comes first and is watched failing before the code
   (`references/test-first.md`, one paragraph of it, not a pointer the agent
