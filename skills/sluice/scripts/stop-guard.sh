@@ -205,12 +205,15 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree 
 	  # A run nobody has written to for a day is a stale run, not a live one;
 	  # refusing its stop would press an abandoned plan on whoever opened here.
 	  elif $idle_h >= 24 then {block: false}
-	  # The topic and the tree land in a reason the harness prints, so a control
-	  # byte in either would be acted on by the terminal rather than read. State
-	  # written before status.sh refused those, or edited by hand, can still hold
-	  # one, and so can a path.
+	  # The topic, the task names and the tree land in a reason the harness
+	  # prints, so a control byte in any of them would be acted on by the
+	  # terminal rather than read. State written before status.sh refused those,
+	  # or edited by hand, can still hold one, and so can a path.
 	  else {block: true, progress: "\($done)/\($t | length)",
 	        topic: (.topic // "run" | gsub("[\u0000-\u001f\u007f]"; "")),
+	        open: ([$t[] | select(.status == "todo" or .status == "active" or .status == "review")
+	                | "T\(.id)" + (.name // "" | gsub("[\u0000-\u001f\u007f]"; "") | if . == "" then "" else " " + . end)]
+	               | join(", ")),
 	        tree: ($tree | gsub("[\u0000-\u001f\u007f]"; "")),
 	        elsewhere: ($tree != $here)}
 	  end
@@ -226,7 +229,7 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree 
 # in the tree its own run left.
 printf '%s' "$verdict" | jq 2>/dev/null '{
 	decision: "block",
-	reason: ("sluice: the deep run \(.topic) is \(.progress) done with tasks still to go and nothing marked blocked or paused, so ending the turn here hands a live run back with nothing for your partner to decide."
+	reason: ("sluice: the deep run \(.topic) is \(.progress) done with tasks still to go and nothing marked blocked or paused, so ending the turn here hands a live run back with nothing for your partner to decide. Still open: \(.open). If one is blocked, mark it and say what is blocking it."
 		+ (if .elsewhere then " The run lives in \(.tree), not in this tree: `move` relocated the run and not this session. If it is yours, move this session into that tree -- the worktree tool in your harness enters one that already exists -- and go on from there." else "" end)
 		+ " Continue: run status.sh ready and dispatch the next wave in this same message. If a task genuinely needs them, mark it: status.sh task <id> --status blocked. If the run has to stand still for a reason, record it: status.sh pause --reason \"<why>\", then say so and stop."
 		+ (if .elsewhere

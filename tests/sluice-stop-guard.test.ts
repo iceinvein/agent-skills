@@ -266,6 +266,33 @@ describe("stop-guard.sh reason text", () => {
 		expect(JSON.parse(r.out).reason).toContain("rewrite the * exporter");
 	});
 
+	test("names every open task by id and name", () => {
+		const dir = repo();
+		status(dir, "init", "--topic", "widget", "--channel", "deep");
+		status(dir, "task", "1", "--name", "installer copy", "--tier", "1");
+		status(dir, "task", "2", "--name", "quiet flag parsing", "--tier", "1");
+		status(dir, "task", "3", "--name", "route progress", "--tier", "1");
+		status(dir, "task", "1", "--status", "done");
+		status(dir, "task", "3", "--status", "active");
+		status(dir, "preflight", "--review", "x");
+		const reason = JSON.parse(guard({ cwd: dir, stop_hook_active: false }).out).reason as string;
+		expect(reason).toContain("open: T2 quiet flag parsing, T3 route progress");
+		expect(reason).toContain("If one is blocked, mark it and say what is blocking it.");
+	});
+
+	// Task names are user text written into run.json, and the reason is printed
+	// by the harness, so they get the same treatment as the topic.
+	test("a task name with a control byte reaches the reason with the byte removed", () => {
+		const dir = midRun(3, 1);
+		const run = JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8"));
+		run.tasks[1].name = `wipe${String.fromCharCode(27)}[2J`;
+		writeFileSync(join(dir, ".sluice", "run.json"), JSON.stringify(run, null, 2));
+
+		const reason = JSON.parse(guard({ cwd: dir, stop_hook_active: false }).out).reason as string;
+		expect(reason).toContain("open: T2 wipe[2J, T3 T3");
+		expect(reason).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
+	});
+
 	test("offers close for a run that is not this session's work", () => {
 		const reason = JSON.parse(guard({ cwd: midRun(5, 3), stop_hook_active: false }).out).reason as string;
 		expect(reason).toMatch(/status\.sh close/);
