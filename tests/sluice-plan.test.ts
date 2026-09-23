@@ -276,6 +276,21 @@ describe("the effort mark against the tier table", () => {
 		expect(r.code).toBe(0);
 		expect(r.out).not.toMatch(/effort/i);
 	});
+
+	// The mark exists to send a task to the low-effort implementer, the only
+	// downshift there is. A plan that wrote another level would otherwise be
+	// read as low, which is the opposite of what it asked for.
+	test("an Effort mark naming a level other than low is rejected", () => {
+		const r = validate(
+			broken(
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Effort:** high, this one is hard\n",
+			),
+		);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/task 1/);
+		expect(r.out).toContain("**Effort:** low");
+	});
 });
 
 describe("concurrency the Touches lines rule out", () => {

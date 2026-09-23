@@ -252,7 +252,11 @@ in_rules && /^- / { nrules++ }
 /^\*\*Flips:\*\*/ { has_flips[cur] = 1; nflips++; flips_list = flips_list (flips_list == "" ? "" : ", ") cur; next }
 /^\*\*Review:\*\*/ { has_review[cur] = 1; next }
 /^\*\*Model:\*\*/  { has_model[cur] = 1; next }
-/^\*\*Effort:\*\*/ { has_effort[cur] = 1; next }
+# Low is the only level a mark can ask for, because the low-effort implementer
+# is the only downshift. Any other value is recorded as a mistake rather than
+# read as the mark, so a plan asking for more is not quietly given less.
+/^\*\*Effort:\*\*[[:space:]]*low([,[:space:]]|$)/ { has_effort[cur] = 1; next }
+/^\*\*Effort:\*\*/ { bad_effort[cur] = 1; next }
 
 /^- \[[ xX]\]/ {
 	nsteps[cur]++
@@ -291,6 +295,8 @@ END {
 			# the switch would otherwise validate clean and downshift nothing.
 			if (id in has_model)
 				finding("error", "task " id " carries a Model mark, which is retired; mark a mechanical task **Effort:** low, <why> instead")
+			if (id in bad_effort)
+				finding("error", "task " id " carries an Effort mark other than low; the only downshift is **Effort:** low, <why>, and a task that needs more is left unmarked")
 			if ((id in has_effort) && (id in has_flips))
 				finding("error", "task " id " carries Flips and an Effort mark; the flip is tier 3 and may not be downshifted")
 			if ((id in has_effort) && (id in has_review))
