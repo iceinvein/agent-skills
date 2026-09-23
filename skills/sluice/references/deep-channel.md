@@ -295,9 +295,9 @@ blocking finding. A derived one just recomputes, which is the whole reason `read
 reads the run state rather than the plan: it sees what has actually landed.
 
 - One row per task in `run.json`, and you are the one who flips it; an
-  implementer reports, it does not write the run state. `active` at dispatch,
-  which records the base as the HEAD of the tree the command is pointed at
-  unless you pass `--base`. `review` when the task's commit is in and its
+  implementer reports, it does not write the run state. `active` at the
+  dispatch, in the same message as it, which records the base as the HEAD of
+  the tree the command is pointed at unless you pass `--base`. `review` when the task's commit is in and its
   reviewer has gone out: the paths stay held, because a finding may send the
   implementer back into them. `done --commit <sha> --reviewed` when the review
   clears, or `done --commit <sha>` alone for a tier 0 task, which was owed a
@@ -323,8 +323,12 @@ reads the run state rather than the plan: it sees what has actually landed.
   deciding this is a good place to report because the turn has been long or a
   milestone landed. The turns that do end are the two stops, a task marked
   `blocked` because it genuinely needs your partner, a pause recorded with its
-  reason, and the handback. Everything else that has to wait on your partner
-  goes through `blocked` or a pause: a finding still open after three review
+  reason, waiting on a dispatched implementer or reviewer, and the handback.
+  The wait counts because its row went `active` at the dispatch and not
+  before, or `review` when the reviewer went out: that row is how the Stop hook
+  knows an agent is out and will report back, and a row flipped ahead of its
+  dispatch lets a turn end with nothing running. Everything else that has to
+  wait on your partner goes through `blocked` or a pause: a finding still open after three review
   rounds marks its task `blocked`, and re-dispatching it flips the row back to `active` when
   your partner has answered; a mid-run request for a dispatch, or a
   show-or-say offer, is a pause, `status.sh pause --reason "<why>"`, so the reason is on disk and

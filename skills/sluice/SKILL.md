@@ -185,7 +185,7 @@ statusline and blocks the next one. The SessionStart hook prints a live run at
 every session start, compaction and resume included, so a run you did not
 start is one you were shown, not one you have to remember. A Stop hook refuses,
 once per turn, to end a turn while a `deep` run in this tree is past pre-flight
-with tasks still to go and nothing `blocked` or paused:
+with tasks still to go, nothing `blocked` or paused, and no dispatch in flight:
 `references/deep-channel.md` says why a run never ends a turn between
 pre-flight and the handback and names the four early stops that look like a
 place to end and are not, and `status.sh pause --reason` is how one stands
