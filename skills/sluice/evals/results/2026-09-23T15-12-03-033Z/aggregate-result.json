@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.280",
+  "startedAt": "2026-09-23T15:12:03.033Z",
+  "durationSeconds": 395,
+  "costUsd": 1.8537585999999997,
+  "partial": false,
+  "suite": {
+    "root": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice",
+    "ablation": "none",
+    "modelOverride": "claude-opus-5-5",
+    "judgeModel": "claude-opus-5-5",
+    "caseFilter": "deep-run-decides-a-non-blocking-choice",
+    "threshold": 0,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "sluice",
+        "path": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "deep-run-decides-a-non-blocking-choice",
+      "dir": "evals/deep-run-decides-a-non-blocking-choice",
+      "source": "mixed",
+      "promptMarkdown": "Plan's signed off and pre-flight's answered, it's all in `.sluice/run.json`. Go.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 2400,
+      "maxTurns": 80,
+      "graders": [
+        {
+          "name": "every-task-done",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": ".sluice/run.json"
+            },
+            "pattern": "\"status\":\\s*\"done\"",
+            "flags": "",
+            "match": "count:3"
+          }
+        },
+        {
+          "name": "hands-back-not-a-decision-list",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "The agent was handed a signed-off plan with three tasks and told to go. Task 1\nleft the progress prefix open between `->` and `>>`, and said either is\nacceptable and nothing downstream depends on which.\n\nPASS if the final message is a handback for finished work: it reports the three\ntasks as complete and the suite as green. Mentioning which prefix was chosen is\nfine. Inside this eval's sandbox `npm test` cannot start its script, so a suite\nreported green by running the command it wraps (`node --test \"tests/*.test.js\"`)\ncounts as green.\nFAIL if the final message asks the user to choose the prefix, or puts to the\nuser any other choice the plan itself left open for the agent to make, reports\nsome tasks done and waits on a choice, or otherwise hands back with tasks still\noutstanding.\n\nFindings about behaviour the plan does not cover, reported for the user to act\non later once every task is done, are part of a handback and do not by\nthemselves make it a FAIL. Neither does ending the final message on the user's\nfinish choice (merge, open a PR, or leave the branch as it stands).",
+          "config": {
+            "criteria": "The agent was handed a signed-off plan with three tasks and told to go. Task 1\nleft the progress prefix open between `->` and `>>`, and said either is\nacceptable and nothing downstream depends on which.\n\nPASS if the final message is a handback for finished work: it reports the three\ntasks as complete and the suite as green. Mentioning which prefix was chosen is\nfine. Inside this eval's sandbox `npm test` cannot start its script, so a suite\nreported green by running the command it wraps (`node --test \"tests/*.test.js\"`)\ncounts as green.\nFAIL if the final message asks the user to choose the prefix, or puts to the\nuser any other choice the plan itself left open for the agent to make, reports\nsome tasks done and waits on a choice, or otherwise hands back with tasks still\noutstanding.\n\nFindings about behaviour the plan does not cover, reported for the user to act\non later once every task is done, are part of a handback and do not by\nthemselves make it a FAIL. Neither does ending the final message on the user's\nfinish choice (merge, open a PR, or leave the branch as it stands).",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "nothing-blocked",
+          "type": "regex",
+          "weight": 3,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": ".sluice/run.json"
+            },
+            "pattern": "\"status\":\\s*\"blocked\"",
+            "flags": "",
+            "match": "count:0"
+          }
+        },
+        {
+          "name": "record-names-the-prefix",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "docs/plans/2026-09-22-progress-lines-record.md"
+            },
+            "pattern": "prefix[\\s\\S]{0,120}(->|>>)|(->|>>)[\\s\\S]{0,120}prefix",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "sluice-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?sluice\""
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 27,
+            "costUsd": 1.8537585999999997,
+            "judgeCostUsd": 0.023572,
+            "durationSeconds": 395,
+            "startedAt": "2026-09-23T15:12:03.077Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-x36sP3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "every-task-done",
+                "passed": true,
+                "weight": 2,
+                "explanation": "found 3 matches (expected 3)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "hands-back-not-a-decision-list",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`deploy --progress` now prints one line per step (`-> build`, `-> upload`, `-> activate`) before the summary line. Without the flag the output is exactly what it was before. All 3 tasks are done and 12/12 tests pass.\n\n**How it went**\n- **Tasks 1 and 2:** implemented and committed as planned. Pre-flight chose \"tier 3 only\", so neither got its own reviewer; the final review covered them.\n- **Task 3 (the flip):** reviewed, nothing blocking. The reviewer found the tests would still pass if `deploy` wrongly printed step lines with `progress: false`, which is what the CLI actually passes. I added tests to cover that.\n- **Final review:** nothing blocking, but it found test gaps in Tasks 1 and 2. The worst: nothing checked that running with no flags leaves progress off. A second test-only round covered it, and each gap now fails a test when I plant a bug.\n- **Prefix:** the plan allowed `->` or `>>`; I picked `->`. The record logs why.\n\n**Sandbox problems (both logged in the record)**\n- `/usr/bin/git` fails because xcrun can't write its cache, so everything used `/Library/Developer/CommandLineTools/usr/bin/git` directly.\n- `npm test` exits 255 because npm can't start a shell. Every test run used the command it wraps, `node --test \"tests/*.test.js\"`.\n\n**Decision for you:** `--dry-run --progress` prints the three step lines and then `dry run: 3 steps skipped`. That matches the goal as written, but the plan never said whether skipped steps should get a progress line. I left it without a test so it isn't locked in until you decide.\n\n**Meter:** `run-stats.sh` couldn't find the session transcript (it tried to read `<unresolved>`), probably because the sandbox blocks that directory. So I don't have elapsed time or controller tokens. The agents' own usage reports give 6 dispatches, about 145k subagent tokens and about 3.7 minutes of agent time:\n\n| Agent | Tokens | Time |\n|---|---|---|\n| T1 | 21.5k | 43s |\n| T2 | 17.7k | 22s |\n| T3 | 18.4k | 25s |\n| T3 review | 23.3k | 38s |\n| T3 fix round | 18.5k | 23s |\n| Final review | 26.0k | 47s |\n| Final fix round | 19.4k | 27s |\n\n**Branch state:** six commits on `master` since `6c22d5a`, including the record and `run.json`, and the tree is clean. Pre-flight answered \"shared tree\", so the work went straight onto `master`, not the `main` branch. The run's status is final review done, not closed. Nothing has been pushed, merged or opened as a PR.\n\nHow do you want to finish it: merge `master` into `main`, open a PR, or leave it as it is? I'll close the run once you've picked."
+              },
+              {
+                "name": "nothing-blocked",
+                "passed": true,
+                "weight": 3,
+                "explanation": "found 0 matches (expected 0)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "record-names-the-prefix",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched prefix[\\s\\S]{0,120}(->|>>)|(->|>>)[\\s\\S]{0,120}prefix",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "sluice-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}

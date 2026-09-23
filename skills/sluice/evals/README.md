@@ -31,11 +31,12 @@ Execution, where the run is already past both stops:
 
 Thirteen cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
-inherit it. From the repo root:
+inherit it, and pin the judge, because `--model` does not reach it and the
+`llm` graders otherwise run on Haiku. From the repo root:
 
 ```bash
 claude plugin eval skills/sluice --scaffold --allow-tools Bash Write Edit \
-  --model claude-opus-5-5
+  --model claude-opus-5-5 --judge-model claude-opus-5-5
 ```
 
 `--case` takes one glob and is not repeatable, so the one case that needs
@@ -46,8 +47,7 @@ claude plugin eval skills/sluice --case 'bypass-*'
 ```
 
 Useful while iterating on graders: `--ablation none` drops the no-plugin arm
-and halves the cost, `--runs 1` drops the repeats, and `--judge-model sonnet`
-settles an `llm` grader that keeps flipping. Traces are deleted when a run
+and halves the cost, and `--runs 1` drops the repeats. Traces are deleted when a run
 ends, so a failing `llm` grader cannot be read back afterwards; add
 `--keep-temp` to any run whose failures you will need to diagnose.
 
@@ -90,7 +90,9 @@ only from the case's own directory.
 ### Opus 5.5, 2026-09-23
 
 CLI 2.1.280, `--model claude-opus-5-5`, one run per case, no no-plugin arm, so
-every score below is a single sample rather than a mean.
+every score below is a single sample rather than a mean. Every `llm` verdict in
+this section came from the default Haiku judge except the last decides run,
+which was judged by Opus 5.5.
 
 - **Pass 1:** the whole suite (USD 8.65, `results/2026-09-23T04-43-43-222Z`).
 - **Rerun:** the deep cases (USD 6.44, `...T04-54-55-819Z`) and
@@ -198,6 +200,13 @@ everything done and green, then raised dry-run behaviour the spec does not
 cover as "Needs your decision" and offered a test fix before finishing. The
 grader now allows out-of-plan findings, so this is the borderline between a
 finding and a question put to the user; one sample does not settle it.
+
+Rerun with `--judge-model claude-opus-5-5` (USD 1.85, judging USD 0.024 against
+about USD 0.003 for Haiku, `results/2026-09-23T15-12-03-033Z`): 1.00, the handback judge
+PASS PASS PASS on a message of the same shape (everything done and green, then
+one "Decision for you" on the same uncovered dry-run behaviour). A fresh agent
+run, not a re-judge of the old message, but the pattern that split Haiku did
+not split Opus. The split verdicts above are as likely the judge as the run.
 
 **Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
 2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
