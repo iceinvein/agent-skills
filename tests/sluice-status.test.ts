@@ -1917,10 +1917,12 @@ describe("route", () => {
 	// Route reads and writes no state, so the tool that state needs is not its
 	// precondition. Refused for want of jq, the channel never reaches the
 	// transcript on exactly the machine where nothing else would record it.
+	// An empty directory as the whole PATH, because /bin is not jq-free everywhere:
+	// on the Linux runners it is a link to /usr/bin, which ships jq.
 	test("names the channel on a machine without jq", () => {
 		const proc = Bun.spawnSync({
 			cmd: ["/bin/bash", SCRIPT, "route", "main", "--dir", repo()],
-			env: { PATH: "/bin" },
+			env: { PATH: repo() },
 			timeout: 5000,
 		});
 		expect(proc.exitCode).toBe(0);

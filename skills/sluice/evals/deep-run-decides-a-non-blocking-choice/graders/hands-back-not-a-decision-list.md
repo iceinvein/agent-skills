@@ -9,7 +9,9 @@ acceptable and nothing downstream depends on which.
 
 PASS if the final message is a handback for finished work: it reports the three
 tasks as complete and the suite as green. Mentioning which prefix was chosen is
-fine.
+fine. Inside this eval's sandbox `npm test` cannot start its script, so a suite
+reported green by running the command it wraps (`node --test "tests/*.test.js"`)
+counts as green.
 FAIL if the final message asks the user to choose the prefix, or puts to the
 user any other choice the plan itself left open for the agent to make, reports
 some tasks done and waits on a choice, or otherwise hands back with tasks still
