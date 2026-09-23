@@ -102,36 +102,55 @@ Results are under `results/2026-09-23T04-43-43-222Z`, `...T04-54-55-819Z` and
 | `fast-flag-on-existing-command` | 1.00 | | |
 | `main-new-interface` | 1.00 | | |
 | `deep-plan-across-subsystems` | 1.00 | | |
-| `explicit-instruction-collapses-to-fast` | 0.75 | 1.00 | Judge noise: the same behaviour passed on the rerun |
+| `explicit-instruction-collapses-to-fast` | 0.75 | 1.00 | Pass 1 ended on a merge/PR question and the judge failed it 3/3; the rerun ended without one and passed |
 | `superpowers-conflict-stands-down` | 1.00 | | |
 | `announcement-reaches-the-ledger` | 1.00 | | Routed fast, then re-routed to main with a second route call |
 | `fast-reads-the-unmentioned-convention` | 1.00 | | |
-| `deep-run-finishes-every-task` | 0.73 | 0.73 | Confounded by git (below): every task built, nothing committed |
-| `deep-run-blocks-on-a-real-decision` | 0.75 | 0.50 | **Real regression**: stops before Task 2 (below) |
-| `deep-run-survives-a-milestone` | 0.67 | 0.67 | Confounded by git: all six tasks built past the milestone, nothing committed |
+| `deep-run-finishes-every-task` | 0.73 | 0.73 | Every task built, suite green, nothing committed; judge failure likely git, finish question not ruled out (below) |
+| `deep-run-blocks-on-a-real-decision` | 0.75 | 0.50 | Stopped before Task 2; the fixture has a second contract break the case does not account for (below) |
+| `deep-run-survives-a-milestone` | 0.67 | 0.67 | All six tasks built past the milestone, nothing committed; same reading as finishes-every-task |
 | `deep-run-decides-a-non-blocking-choice` | 0.82 | 1.00 | Pass 1 did not write the choice into the record; the rerun did |
-| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | Pass 1 never dispatched; the rerun dispatched, waited and committed, and its judge still failed the handback |
-| `deep-run-fans-out` | 0.13 | 0.13 | Confounded by git: paused before Task 1 because no worktree could be cut |
+| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | Pass 1 never dispatched; the rerun dispatched, waited and committed, and its judge was shown a trace with every dispatch and result elided (below) |
+| `deep-run-fans-out` | 0.13 | 0.13 | Paused before Task 1 because no worktree could be cut without git |
 
 **Git does not run inside the eval sandbox on this machine.** `/usr/bin/git` is
 Apple's xcrun shim, and inside the sandbox it can neither read
 `/Library/Developer/CommandLineTools` nor write its cache under
-`/var/folders`, so every call fails. Nothing documented lets a case or a flag
-reach it. The deep execution cases commit per task and cut worktrees, so on this
-machine their `llm` judges read a handback that lists the uncommitted work as
-outstanding, and `deep-run-fans-out` stops, correctly, before it starts. One run
-found Xcode's bundled git and committed normally, so the failure is not even
-consistent. Those four scores measure the sandbox as much as sluice and should
-not be read as a 5.5 baseline for execution. The 2026-09-20 passes below ran on
-CLI 2.1.278 and committed without trouble.
+`/var/folders`, so every call fails; the Xcode copy under `/Applications` was
+reachable in one run by exporting its path. Nothing documented lets a case or a
+flag reach it. The deep execution cases commit per task and cut worktrees, so on
+this machine `deep-run-fans-out` stops, correctly, before it starts, and every
+other deep execution case either builds without committing or has to find its
+own git. Those scores measure the sandbox as much as sluice and should not be
+read as a 5.5 baseline for execution.
 
-**`deep-run-blocks-on-a-real-decision` regressed on 5.5.** In both passes the
-run read the contract collision at the start and stopped before Task 2, putting
-the Task 4 decision to the partner with Tasks 2 and 3 unbuilt. The graders are
-right: those two tasks are inert and independent of the collision, and the
-skill's rule is that only the blocked task stops. The same case scored 1.00
-in the 2026-09-20 pass, whose report does not record the model; the other
-reports from that day that do record one name `claude-opus-5`.
+**Three suite defects the traces show, none fixed yet.**
+
+- `deep-run-blocks-on-a-real-decision` has a second break its graders do not
+  know about. Its `API.md` publishes `deploy` from `src/cli/index.js` as
+  importable downstream, and Task 3's Contract makes `sink` a required second
+  parameter, so Task 3 breaks the published signature too. Both 5.5 runs named
+  that break; pass 1 also caught that Task 2's plan text contradicts the
+  existing dry-run test. Stopping before Task 3 therefore has a real basis, and
+  only leaving Task 2 unbuilt is a clean miss; pass 1 also made resuming
+  conditional on git. The case needs `sink` to default to a printing sink, or
+  `deploy` out of `API.md`, before its score can say anything about 5.5. The
+  2026-09-20 pass scored it 1.00, which may only mean that model did not notice
+  the Task 3 break.
+- The handback judges in `deep-run-finishes-every-task`,
+  `deep-run-survives-a-milestone` and `deep-run-waits-for-a-running-agent` FAIL
+  a final message that "asks whether to proceed". All three runs ended on the
+  merge, PR or leave-it choice that `references/finish.md` requires, and the
+  waits run failed its judge with every commit in place. The judges give no
+  reason beyond their votes, so a judge reading the required finish question
+  as a check-in is not ruled out. The grader prompts should say that question
+  is part of a handback.
+- The `deep-run-waits-for-a-running-agent` judge (`focus: trace`) received
+  100 KB of a 448 KB trace with the middle elided, and what it was shown holds
+  no dispatch and no agent result, so it could not check the order it is asked
+  about. This is the head-and-tail window failure described for
+  `shape-agreed-before-building` below; the order wants a `tool_order` or regex
+  grader instead.
 
 **No time-budget baseline.** `deep-run-fans-out` never reached a dispatch, so
 the A/B the design proposed (the brief with and without a sentence saying time
@@ -143,7 +162,9 @@ Every case has been run end to end at least once and scored 1.00. The two that
 needed the least (`bypass-question-stays-silent`, `superpowers-conflict-stands-down`)
 were run at `--runs 1 --ablation none`; the other six were run the same way, and
 `deep-plan-across-subsystems` and `main-new-interface` twice each after the
-fixes below. That was the eight-case suite, on `claude-opus-5`.
+fixes below. That was the eight-case suite. The result directories from that
+day that record a model name `claude-opus-5`; the two committed here do not
+record one.
 
 Three defects the first full pass turned up, all in the suite rather than in
 sluice:
