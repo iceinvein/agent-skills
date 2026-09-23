@@ -166,11 +166,18 @@ describe("statusline.sh is silent where there is nothing to show", () => {
 		expect(r.err).toBe("");
 	});
 
+	// With no --dir the script reads the tree it is run from, so the test picks
+	// that tree rather than inheriting the suite's, which holds a live run
+	// whenever sluice is used on this repo.
 	test("no --dir at all prints nothing and exits 0", () => {
-		const r = render();
-		expect(r.code).toBe(0);
-		expect(r.out).toBe("");
-		expect(r.err).toBe("");
+		const proc = Bun.spawnSync({
+			cmd: ["bash", SCRIPT],
+			cwd: repo(),
+			timeout: 5000,
+		});
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toBe("");
+		expect(proc.stderr.toString()).toBe("");
 	});
 
 	test("an unreadable run prints nothing and exits 0", () => {

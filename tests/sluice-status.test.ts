@@ -708,11 +708,13 @@ describe("line --full", () => {
 		expect(groups).toEqual(["▰▰▰", "◈◈◈", "▨▨▨", "▮▮▮", "▱▱▱"]);
 	});
 
+	// Building the three runs is about seventy status.sh spawns, which sits near
+	// bun's 5s default on a loaded machine; the time is setup, not the render.
 	test("cells narrow as the task count grows", () => {
 		const cell = (n: number) => (bar(run9(n, n)).split(/\s+/).find((g) => !g.includes("┃")) ?? "").length;
 		expect(cell(9)).toBeGreaterThan(cell(20));
 		expect(cell(20)).toBeGreaterThan(cell(40));
-	});
+	}, 20000);
 
 	test("the third row carries the progress count", () => {
 		const dir = run9();
@@ -1910,5 +1912,18 @@ describe("route", () => {
 		const dir = repo();
 		expect(run(dir, "route", "deep").code).toBe(0);
 		expect(existsSync(join(dir, ".sluice"))).toBe(false);
+	});
+
+	// Route reads and writes no state, so the tool that state needs is not its
+	// precondition. Refused for want of jq, the channel never reaches the
+	// transcript on exactly the machine where nothing else would record it.
+	test("names the channel on a machine without jq", () => {
+		const proc = Bun.spawnSync({
+			cmd: ["/bin/bash", SCRIPT, "route", "main", "--dir", repo()],
+			env: { PATH: "/bin" },
+			timeout: 5000,
+		});
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toBe("sluice: main channel\n");
 	});
 });
