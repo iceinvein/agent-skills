@@ -5,7 +5,7 @@ tags: [routing, deep, execution, blocked, scaffold, write]
 max_turns: 80
 timeout_seconds: 2400
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]
-expected_outcome: Task 2 lands, Task 3 is marked blocked, and the turn ends on one question with options. The public-API test is left exactly as it was.
+expected_outcome: Tasks 2 and 3 land, Task 4 is marked blocked, and the turn ends on one question with options. The public-API test is left exactly as it was.
 ---
 
 Plan's signed off and pre-flight's answered, it's all in `.sluice/run.json`. Go.
