@@ -500,6 +500,9 @@ case "$SUB" in
 				--base) need_value --base $# "${2-}"; BASE="$2"; shift 2 ;;
 				--commit) need_value --commit $# "${2-}"; COMMIT="$2"; shift 2 ;;
 				--tier) need_value --tier $# "${2-}"; TIER="$2"; shift 2 ;;
+				# Named rather than left to the unknown-flag branch: a caller still
+				# on the old mark needs to be told what replaced it.
+				--model) err "--model is retired; use --effort"; exit 4 ;;
 				--effort) need_value --effort $# "${2-}"; EFFORT="$2"; shift 2 ;;
 				--flips) FLIPS=true; shift ;;
 				--no-flips) UNFLIP=true; shift ;;
@@ -609,6 +612,7 @@ case "$SUB" in
 		while [ $# -gt 0 ]; do
 			case "$1" in
 				--review) need_value --review $# "${2-}"; REVIEW="$2"; shift 2 ;;
+				--model) err "--model is retired; use --effort"; exit 4 ;;
 				--effort) need_value --effort $# "${2-}"; EFFORT="$2"; shift 2 ;;
 				--workspace) need_value --workspace $# "${2-}"; WORKSPACE="$2"; shift 2 ;;
 				*) err "unknown flag: $1"; exit 4 ;;

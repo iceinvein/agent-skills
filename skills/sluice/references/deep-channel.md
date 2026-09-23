@@ -323,9 +323,9 @@ reads the run state rather than the plan: it sees what has actually landed.
   deciding this is a good place to report because the turn has been long or a
   milestone landed. The turns that do end are the two stops, a task marked
   `blocked` because it genuinely needs your partner, a pause recorded with its
-  reason, and the handback. Everything else that has to wait on them goes
-  through one of those two doors: a finding still open after three review rounds marks its
-  task `blocked`, and re-dispatching it flips the row back to `active` when
+  reason, and the handback. Everything else that has to wait on your partner
+  goes through `blocked` or a pause: a finding still open after three review
+  rounds marks its task `blocked`, and re-dispatching it flips the row back to `active` when
   your partner has answered; a mid-run request for a dispatch, or a
   show-or-say offer, is a pause, `status.sh pause --reason "<why>"`, so the reason is on disk and
   the Stop hook lets you go, with `resume` when it moves again. The hook

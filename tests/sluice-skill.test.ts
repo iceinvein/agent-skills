@@ -178,7 +178,13 @@ describe("sluice per-task dispatch", () => {
 describe("sluice effort routing", () => {
 	test("no tier escalates to an unspecified stronger model or higher effort", () => {
 		expect(DEEP).not.toMatch(/stronger[ -]model/i);
-		expect(DEEP).not.toMatch(/higher[ -]effort/i);
+		// The rule itself says "no tier buys ... more effort", and the repo clash
+		// that loses to it says the same words, so only an unnegated claim counts.
+		const sentences = DEEP.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/);
+		const escalating = sentences.filter(
+			(s) => /\b(higher|more)[ -]effort\b/i.test(s) && !/\bno tier\b|\bloses to\b/i.test(s),
+		);
+		expect(escalating).toEqual([]);
 	});
 
 	test("the skeleton carries the per-task Effort marker and not the Model one", () => {
@@ -641,6 +647,7 @@ describe("sluice never ends a turn mid-run", () => {
 		expect(flat).toMatch(/announces the next step/i);
 		expect(flat).toMatch(/offer to carry on/i);
 		expect(flat).toMatch(/decisions none of which blocks/i);
+		expect(flat).toMatch(/turn has been long/i);
 		expect(flat).toMatch(/milestone/i);
 	});
 
@@ -650,9 +657,11 @@ describe("sluice never ends a turn mid-run", () => {
 			.find((b) => /never ends a turn/i.test(b));
 		expect(bullet).toBeDefined();
 		const flat = (bullet as string).replace(/\s+/g, " ");
-		expect(flat).toMatch(/two stops/);
-		expect(flat).toMatch(/`blocked`/);
-		expect(flat).toMatch(/pause/);
-		expect(flat).toMatch(/handback/);
+		const ends = flat.split(/(?<=\.)\s+/).find((s) => /^The turns that do end/.test(s));
+		expect(ends).toBeDefined();
+		expect(ends).toMatch(/two stops/);
+		expect(ends).toMatch(/`blocked`/);
+		expect(ends).toMatch(/a pause recorded with its reason/);
+		expect(ends).toMatch(/handback/);
 	});
 });

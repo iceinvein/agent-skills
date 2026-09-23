@@ -201,7 +201,7 @@ describe("task", () => {
 		const dir = seeded(1);
 		const r = run(dir, "task", "1", "--model", "cheap");
 		expect(r.code).toBe(4);
-		expect(r.err).toContain("--model");
+		expect(r.err).toContain("--model is retired; use --effort");
 		expect(state(dir).tasks[0]).not.toHaveProperty("model");
 	});
 
@@ -272,7 +272,7 @@ describe("preflight", () => {
 		const dir = seeded(1);
 		const r = run(dir, "preflight", "--model", "6 of 9 cheap");
 		expect(r.code).toBe(4);
-		expect(r.err).toContain("--model");
+		expect(r.err).toContain("--model is retired; use --effort");
 		expect(state(dir)).not.toHaveProperty("preflight");
 	});
 

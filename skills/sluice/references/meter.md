@@ -16,12 +16,7 @@ than a number nobody checked. `--base <ref>` overrides the diff base when the
 merge-base with `main` or `master` is not where this branch actually began.
 
 The run starts at your channel announcement, or at the point this skill was
-invoked by name when that came first, not at the session. The announcement is
-found two ways: by the words `<channel> channel` opening a message, and by the
-`status.sh route <channel>` call that rides with it. The call is the one the
-ledger can always anchor on, because prose written between tool calls can land
-in a thinking block as a paraphrase and leave the literal words nowhere in the
-transcript, while a tool input is kept as written. Three unrelated tasks
+invoked by name when that came first, not at the session. Three unrelated tasks
 in one session therefore report as three runs, and a previous ledger closes the
 run before it. `bypass` announces nothing, so there is nothing there to meter,
 and the rule does not fire; if you run the script anyway in a session that
