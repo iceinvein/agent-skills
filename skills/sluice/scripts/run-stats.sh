@@ -109,10 +109,22 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
   # deep channel job" announce. The lead-in cannot cross a sentence or a line,
   # which is what keeps a session reviewing sluice from starting a run per quote.
   def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(?<c>fast|main|deep)[[:space:]]+channel";
+  # A model that routes in its thinking writes no announcing text at all, so the
+  # route call is the announcement that survives. The script has to be invoked:
+  # a quoted mention, as in a grep for the call, follows a quote mark and so
+  # misses the anchor. stop-guard.sh reads the same pattern and must stay equal.
+  def route: "(^|[[:space:]/])status\\.sh[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:]]|$)";
+  def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+                | (.input.command // "") | select(test(route)) ];
   def announces: (.type == "assistant") and (is_meta | not)
-    and ((texts | test(marker; "i")) or (texts | test(lead; "i")));
-  def chan: (if (texts | test(marker; "i")) then (texts | capture(marker; "i"))
-             else (texts | capture(lead; "i")) end) | .c | ascii_downcase;
+    and ((texts | test(marker; "i")) or (texts | test(lead; "i")) or (routes | length > 0));
+  # Prose comes before the calls in a message, so its channel goes into the
+  # trail first and a route call in the same message can escalate from it.
+  def chan: ((if (texts | test(marker; "i")) then (texts | capture(marker; "i") | .c)
+              elif (texts | test(lead; "i")) then (texts | capture(lead; "i") | .c)
+              else empty end),
+             (routes[] | match(route).captures[1].string))
+            | ascii_downcase;
   def invokes_sluice: (.type == "assistant") and (is_meta | not) and ([
       .message.content[]? | select(.type == "tool_use" and .name == "Skill")
       | select((.input.skill // "") == "sluice")

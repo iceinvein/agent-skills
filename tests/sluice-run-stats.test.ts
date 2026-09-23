@@ -427,6 +427,51 @@ describe("run-stats: the ledger", () => {
 		expect(out).toMatch(/channel\s+fast → main/);
 	});
 
+	test("takes the channel from a route call when the only announcement was thought", async () => {
+		// A model that routes in its thinking writes no announcing text, so the
+		// route call is the one place the channel reaches the transcript.
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "tweak the parser"),
+			assistant("2026-08-08T09:00:10.000Z", null, [
+				toolUse("s1", "Skill", { skill: "sluice", args: "tweak the parser" }),
+			]),
+			assistant("2026-08-08T09:00:20.000Z", null, [
+				{ type: "thinking", thinking: "Routing this as a small change." },
+				toolUse("t1", "Bash", { command: "bash scripts/status.sh route fast" }),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Done.", [toolUse("t2", "Edit", {})]),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(0);
+		expect(out).toMatch(/channel\s+fast$/m);
+	});
+
+	test("puts a later route call into the trail after a text announcement", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "tweak the parser"),
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing flag."),
+			assistant("2026-08-08T09:01:00.000Z", null, [
+				toolUse("t1", "Bash", { command: "bash skills/sluice/scripts/status.sh route main" }),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/channel\s+fast → main$/m);
+	});
+
+	test("a command that only quotes the route call does not announce", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "where is routing documented?"),
+			assistant("2026-08-08T09:00:05.000Z", null, [
+				toolUse("t1", "Bash", { command: "grep 'status.sh route deep' SKILL.md" }),
+			]),
+			assistant("2026-08-08T09:00:10.000Z", "In the channel table."),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(2);
+		expect(out.trim()).toBe("");
+	});
+
 	test("counts time spent waiting on the partner", async () => {
 		const path = writeTranscript([
 			userPrompt("2026-08-08T09:00:00.000Z", "build it"),
