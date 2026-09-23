@@ -96,8 +96,9 @@ every score below is a single sample rather than a mean.
 - **Rerun:** the deep cases (USD 6.44, `...T04-54-55-819Z`) and
   `explicit-instruction-collapses-to-fast` (USD 0.30, `...T04-54-57-642Z`)
   again with `--keep-temp`, same suite.
-- **Pass 2:** the deep cases after the fixture and grader fixes below, with
-  Homebrew git installed (USD 10.55, `...T06-24-47-981Z`).
+- **Pass 2:** the deep cases after the fixture and grader fixes below
+  (USD 10.55, `...T06-24-47-981Z`). Homebrew git was installed by then, but two
+  of the six runs did not use it (below).
 
 | Case | Pass 1 | Rerun | Pass 2 | Reading |
 |---|---|---|---|---|
@@ -109,33 +110,39 @@ every score below is a single sample rather than a mean.
 | `superpowers-conflict-stands-down` | 1.00 | | | |
 | `announcement-reaches-the-ledger` | 1.00 | | | Routed fast, then re-routed to main with a second route call |
 | `fast-reads-the-unmentioned-convention` | 1.00 | | | |
-| `deep-run-finishes-every-task` | 0.73 | 0.73 | 1.00 | Pass 2 committed every task |
+| `deep-run-finishes-every-task` | 0.73 | 0.73 | 1.00 | Pass 2 committed every remaining task (Task 1 lands in the fixture) |
 | `deep-run-blocks-on-a-real-decision` | 0.75 | 0.50 | 1.00 | Pass 2 landed Tasks 2 and 3 and blocked Task 4 on the contract |
 | `deep-run-survives-a-milestone` | 0.67 | 0.67 | 1.00 | Pass 2 carried all six tasks past the milestone and committed them |
 | `deep-run-decides-a-non-blocking-choice` | 0.82 | 1.00 | 0.73 | Pass 2 decided the prefix and finished, then listed two findings outside the plan as "Decisions for you"; the judge split 2 to 1 (below) |
-| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | 0.63 | Pass 2 waited on every agent and handed back after the last; the judge failed a handback that said `npm test` had not passed in the sandbox (below) |
-| `deep-run-fans-out` | 0.13 | 0.13 | 1.00 | Pass 2 ran Tasks 1 to 3 at once in worktrees, then the flip |
+| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | 0.63 | Pass 2 waited on every agent and handed back after the last; the judge failed it 3/3, most likely on its **Still open** section (below) |
+| `deep-run-fans-out` | 0.13 | 0.13 | 1.00 | Pass 2 ran Tasks 1 to 3 at once in worktrees it cut by hand (the harness refused isolation), then the flip |
 
 Pass 1 and the rerun measure the sandbox as much as sluice, for the git reason
-below. Pass 2 is the first 5.5 read of the deep execution cases.
+below. Pass 2 is the first read where every deep case had working git.
 
-**Git inside the eval sandbox.** `/usr/bin/git` is Apple's xcrun shim, and the
-sandbox denies it both `/Library/Developer/CommandLineTools` and its cache
-under `/var/folders`, so a bare `git` fails. Homebrew's git runs there by full
-path, but the child's Bash tool resolves a bare `git` to the shim even with
-`/opt/homebrew/bin` first on PATH (under zsh and bash alike; `/usr/bin/env git`
-finds Homebrew's). In pass 2 every run found `/opt/homebrew/bin/git` itself
-after the shim failed, and committed. That is the agent working around the
-harness, so a deep score on this machine still depends on it; a Linux runner,
-where `git` is an ordinary binary, gives the clean read.
+**Git inside the eval sandbox.** A bare `git` resolves to `/usr/bin/git`,
+Apple's xcrun shim, which fails there because it cannot write its cache under
+`/var/folders`. The real binaries run when called by full path: the sandbox
+refuses listing `/Library/Developer/CommandLineTools`, but
+`/Library/Developer/CommandLineTools/usr/bin/git` executes and commits, and so
+does Homebrew's `/opt/homebrew/bin/git`. The child's Bash tool resolves a bare
+`git` to the shim even with `/opt/homebrew/bin` first on PATH, under zsh and
+bash alike, while `/usr/bin/env git` finds Homebrew's. In pass 2, four runs
+(decides, fans-out, survives, waits) used Homebrew's git; blocks called the
+Command Line Tools git by full path, and finishes put a wrapper for it on its
+own PATH. The rerun's fans-out saw the listing refusal and stopped, so "no git"
+in the earlier passes was partly a misreading of that refusal. Every pass-2
+commit is the agent working around the harness, so a deep score on this
+machine still depends on it; a Linux runner, where `git` is an ordinary binary,
+gives the clean read.
 
 **Fixed between the rerun and pass 2.**
 
 - `deep-run-blocks-on-a-real-decision` carried a second contract break: Task
   3's Contract made `sink` a required parameter of the published `deploy`.
   `sink` now defaults to a printing sink, so Task 4 is the only collision, and
-  every deep fixture's Task 2 now says the existing dry-run test gains
-  `quiet: false` rather than claiming it still passes.
+  every deep fixture's Task 2 now says the existing dry-run test gains the new
+  key set to false rather than claiming it still passes.
 - The three handback judges now say that ending on the finish choice
   (`references/finish.md`) is part of a handback, and the waits judge reads the
   last message rather than an elided trace; the order it used to judge is held
@@ -146,18 +153,26 @@ where `git` is an ordinary binary, gives the clean read.
 
 **Open.**
 
-- `deep-run-waits-for-a-running-agent`: `npm test` exits 255 inside the sandbox
-  while `node --test` passes, and the run said so honestly. The judge's PASS
-  asks for "the suite green", which that message cannot claim. Either the
-  fixture's `test` script or the grader's wording has to account for it.
-- `deep-run-decides-a-non-blocking-choice`: the grader fails any list of
-  decisions in the final message, and pass 2's list held findings outside the
-  plan, not the choice the case is about. Whether a handback may raise those is
-  a grader policy question.
+- `deep-run-waits-for-a-running-agent`: the run did what the case pins and said
+  "the suite passes 12/12", and none of the grader's FAIL clauses happened. The
+  likeliest cause is its **Still open** section, led by "`npm test` hasn't
+  passed yet" (inside the sandbox `npm test` exits 255 while `node --test`
+  passes) and four more open items, which a judge can read as outstanding work.
+  finishes and survives gave a milder `npm test` note against the same "suite
+  as green" wording and passed 3/3. One sample; the grader or the fixture's
+  `test` script may need to account for the sandbox.
+- `deep-run-decides-a-non-blocking-choice`: its final message listed two
+  findings outside the plan as "Decisions for you", which matches the grader's
+  FAIL clause for any list of decisions, not the choice the case is about.
+  Whether a handback may raise those is a grader policy question. This grader
+  also did not get the finish-choice sentence the other three did, and the
+  message ends on the finish options.
 
-**Time-budget baseline.** `deep-run-fans-out` pass 2 took 487s at USD 2.73 with
-three implementers out at once. That is the baseline for the A/B the design
-proposed (the dispatch brief with and without a sentence saying time matters).
+**Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
+2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
+cutting worktrees by hand after the harness refused isolation, and most of the
+rest is the serial flip, two review rounds and the final review. It is a
+baseline for the whole run, not a clean fan-out measurement.
 
 ### Opus 5, 2026-09-20
 
