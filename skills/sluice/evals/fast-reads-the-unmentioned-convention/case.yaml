@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: fast-reads-the-unmentioned-convention
+context:
+  scaffold_script: fixture.sh
