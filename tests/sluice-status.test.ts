@@ -1825,3 +1825,41 @@ describe("a review level chosen at pre-flight reads as coverage, not debt", () =
 		expect(out).not.toMatch(/unreviewed/);
 	});
 });
+
+// The call exists so the chosen channel lands in the transcript as a command
+// that ran, which run-stats and the stop guard read back. A route is taken
+// before any run is opened, so it must not leave a half-made one behind.
+describe("route", () => {
+	test("names the channel on stdout", () => {
+		const r = run(repo(), "route", "fast");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: fast channel\n");
+	});
+
+	test("refuses bypass, the channel that runs no script", () => {
+		const r = run(repo(), "route", "bypass");
+		expect(r.code).toBe(4);
+		expect(r.out).toBe("");
+		expect(r.err).toMatch(/bypass/);
+	});
+
+	test("refuses a channel that does not exist", () => {
+		const r = run(repo(), "route", "sideways");
+		expect(r.code).toBe(4);
+		expect(r.out).toBe("");
+		expect(r.err).toMatch(/sideways/);
+	});
+
+	test("refuses a missing channel", () => {
+		const r = run(repo(), "route");
+		expect(r.code).toBe(4);
+		expect(r.out).toBe("");
+		expect(r.err).toMatch(/one of: fast main deep/);
+	});
+
+	test("leaves no run state behind", () => {
+		const dir = repo();
+		expect(run(dir, "route", "deep").code).toBe(0);
+		expect(existsSync(join(dir, ".sluice"))).toBe(false);
+	});
+});

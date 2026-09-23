@@ -21,6 +21,7 @@
 #   status.sh resume
 #   status.sh line [--full]
 #   status.sh close
+#   status.sh route <fast|main|deep>
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
 # <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. A tree the
@@ -415,6 +416,21 @@ take_lock() { # [<lock path>, default the run's own]
 }
 
 case "$SUB" in
+	# Exists to put the channel into the transcript verbatim, as a command that
+	# ran, which run-stats and the stop guard read back. So it touches no state:
+	# a route is called before any run is opened, and fast opens none at all.
+	# Bypass is refused because it is no code change, and a marker for it would
+	# read back as a routed change that never happened.
+	route)
+		ROUTE_CHANNELS="fast main deep"
+		[ $# -le 1 ] || { err "route takes one channel"; exit 4; }
+		ROUTE="${1-}"
+		[ -n "$ROUTE" ] || { err "route needs a channel (one of: $ROUTE_CHANNELS)"; exit 4; }
+		[ "$ROUTE" != "bypass" ] || { err "bypass is no code change, so there is nothing to route; just answer"; exit 4; }
+		in_set "$ROUTE" "$ROUTE_CHANNELS" || { err "unknown channel: $ROUTE (one of: $ROUTE_CHANNELS)"; exit 4; }
+		echo "sluice: $ROUTE channel"
+		;;
+
 	init)
 		TOPIC="" CHANNEL="" PLAN="" RECORD="" FORCE=0
 		while [ $# -gt 0 ]; do
