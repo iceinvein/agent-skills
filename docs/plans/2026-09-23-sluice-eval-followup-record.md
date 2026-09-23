@@ -48,3 +48,12 @@
   could state that the default sink keeps the published stdout behaviour; the
   plan's Task 3 Offers says `quiet: false` where three fixtures use their own
   key; one long commit subject; one long comment line in stop-guard.sh.
+- After the handback, main channel at the partner's ask ("do the six"): items
+  1, 2, 3, 5, 6, 7 of the open list. Route no longer needs jq; the statusline
+  no-dir test runs from a temp dir; the cells test gets a 20s timeout; the
+  decides and waits graders accept out-of-plan findings and a sandboxed npm;
+  the escalation grader is anchored (checked against real compact tool-input
+  JSON). Review: nothing blocking; its two should-fix items taken (the no-jq
+  test now uses an empty PATH so it holds on Linux, verified to fail against
+  the old script; the waits case gains suite-was-run). Suite 1600 pass, 0 fail.
+  Not taken: widening the route pattern (item 4, the partner's call).
