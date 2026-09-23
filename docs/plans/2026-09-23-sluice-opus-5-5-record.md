@@ -72,3 +72,15 @@
   - Retracted: the dispatch tool appears as `Agent` in eval traces (the init
     tool list says `Task`), so the Agent graders are not wrong.
   - Task 11 blocked: a full pass now measures the sandbox as much as sluice.
+- Eval baseline recorded (Task 11) at the partner's pick: no full pass. Spend
+  USD 15.39 of 100. The Task 11 reviewer found two blocking readings, both
+  corrected in 1f8f2e7: deep-run-blocks-on-a-real-decision carries a second
+  contract break in Task 3 (the published `deploy` gains a required `sink`),
+  so its low score is partly the fixture; and the handback judges may read the
+  finish question as a check-in. Both are open suite defects.
+- Final review: no blocking findings. Fixed: an `**Effort:**` line naming any
+  level was imported as low; validate now rejects anything but low (plan.sh +
+  test, one commit). Not taken, for the partner: widening the route marker to
+  accept a quoted script path and a trailing `;`/`&&` (changes a Ground Rule);
+  the unanchored escalation grader; the duplicated blocked sentence in the Stop
+  hook reason; the agent file's extra reply line; `route` needing jq.
