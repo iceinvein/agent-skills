@@ -687,12 +687,34 @@ describe("sluice never ends a turn mid-run", () => {
 		expect(flat).toMatch(/`active` at the dispatch,? (and )?not before/i);
 	});
 
-	test("the router's Stop hook paragraph lets a turn end while a dispatch is in flight", () => {
+	test("the router's Stop hook paragraph lets a turn end while a task is `active` or in `review`", () => {
 		const para = section(SKILL, "Deep channel")
 			.split("\n\n")
 			.find((p) => /Stop hook/.test(p));
 		expect(para).toBeDefined();
 		const flat = (para as string).replace(/\s+/g, " ");
-		expect(flat).toMatch(/dispatch (is )?in flight/i);
+		expect(flat).toMatch(/no task `active` or in `review`/);
+	});
+
+	// A row left `active` or `review` after its agent is back reads to the Stop
+	// hook as an agent still running, which lets a stall through.
+	test("the run-state rows are flipped in the message that reads the agent's report", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /One row per task/.test(b));
+		expect(bullet).toBeDefined();
+		const flat = (bullet as string).replace(/\s+/g, " ");
+		expect(flat).toMatch(/same message that reads the agent's report/);
+		expect(flat).toMatch(/lets a stall through/);
+	});
+
+	test("the never-ends-a-turn rule pauses for a question about a dispatch, not for a wait on one", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /never ends a turn/i.test(b));
+		expect(bullet).toBeDefined();
+		const flat = (bullet as string).replace(/\s+/g, " ");
+		expect(flat).not.toMatch(/request for a dispatch/);
+		expect(flat).toMatch(/question to your partner about a dispatch/);
 	});
 });

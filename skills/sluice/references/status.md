@@ -307,15 +307,16 @@ the harness doing it at the one moment memory has just been cut.
 `scripts/stop-guard.sh` is the Stop hook a global install wires. When the model
 tries to end its turn it reads the run in the session's own tree, the git
 top level of the session's working directory, and refuses, with a reason, when
-a `deep` run there is past pre-flight, has tasks still `todo`, `active` or
-`review`, and nothing is `blocked` or paused. The reason says what to do
+a `deep` run there is past pre-flight, has tasks still to go and all of them
+`todo`, and nothing is `blocked` or paused. The reason says what to do
 instead: dispatch the next wave in the same message, mark the task that needs
 your partner `blocked`, `pause --reason` and say so, or `close` a run that is
 not this session's work. Every real stop is let through: no run in the
 session's tree (the main-tree fallback other commands use is not taken here,
 since a Stop in a runless worktree may be an unrelated session), a channel
 other than `deep`, pre-flight not yet recorded, a blocked task, a paused run,
-every task done, a run idle for a day, and a turn where the harness says a
+a task `active` or in `review` (an agent is out and will report back), every
+task done, a run idle for a day, and a turn where the harness says a
 stop hook already fired, which is what keeps it from looping. That last rule
 means it refuses once per turn and lets the next attempt through: a nudge, not
 a wall. The gate keys on the git top level of the session's working

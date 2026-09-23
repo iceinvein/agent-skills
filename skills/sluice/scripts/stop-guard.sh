@@ -9,7 +9,8 @@
 #
 # Every stop that is a real stop is let through: no run, a channel other than
 # deep, pre-flight not yet answered (that stop is owed), a blocked task, a run
-# paused on purpose with `status.sh pause --reason`, every task done (the
+# paused on purpose with `status.sh pause --reason`, a task `active` or in
+# `review` (an agent is out and will report back), every task done (the
 # handback), a run idle for a day, a run another tree owns rather than one this
 # tree moved out, and any attempt where the harness says a stop hook already
 # fired this turn, which is what keeps this from looping. One refusal per turn, then:
@@ -194,7 +195,7 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree 
 	| ([$t[] | select(.status == "done")] | length) as $done
 	| ([$t[] | select(.status == "blocked")] | length) as $blocked
 	| ([$t[] | select(.status == "active" or .status == "review")] | length) as $inflight
-	| ([$t[] | select(.status == "todo" or .status == "active" or .status == "review")] | length) as $open
+	| ([$t[] | select(.status == "todo")] | length) as $open
 	| ((.updated // .started // "" | try fromdateiso8601 catch 0) as $u
 	   | if $u == 0 then 0 else (($now - $u) / 3600 | floor) end) as $idle_h
 	| if (.channel // "") != "deep" then {block: false}
@@ -216,7 +217,7 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree 
 	  # or edited by hand, can still hold one, and so can a path.
 	  else {block: true, progress: "\($done)/\($t | length)",
 	        topic: (.topic // "run" | gsub("[\u0000-\u001f\u007f]"; "")),
-	        open: ([$t[] | select(.status == "todo" or .status == "active" or .status == "review")
+	        open: ([$t[] | select(.status == "todo")
 	                | "T\(.id)" + (.name // "" | gsub("[\u0000-\u001f\u007f]"; "") | if . == "" then "" else " " + . end)]
 	               | join(", ")),
 	        tree: ($tree | gsub("[\u0000-\u001f\u007f]"; "")),

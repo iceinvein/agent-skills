@@ -103,7 +103,8 @@ flip each task as it moves. It carries the ids, the names,
 the flip, the effort marks and the tiers, the last of these floored off `Touches`
 and the contract graph rather than guessed. Import is safe to re-run: a status, a
 review mark or a ratified effort already recorded is left alone and a tier is only
-ever raised, so resuming after a compaction cannot rewind the run.
+ever raised, so resuming after a compaction cannot rewind the run, and an
+`active` row survives it whether or not its agent did.
 
 The record is the other file, and it holds what a status cannot: the reason
 review went the way it did, the reason a task was downshifted, the reason the
@@ -128,9 +129,12 @@ which is the one thing the file exists to replace.
 A file only outlives compaction if you go back to it. Run `status.sh show` and
 read the record before the next dispatch whenever this session has been
 summarised, and treat what they say over what you remember, including where the
-two agree. Each task closes by writing its commit into `run.json`, which means
-asking the implementer to report the SHA it committed and passing it to
-`status.sh task <id> --status done --commit <sha>` rather than deriving it later.
+two agree. An `active` row with no running agent behind it is re-dispatched or
+reset to `todo`: left as it is, it tells the Stop hook work is in flight and
+lets the turn end on a stall. Each task closes by writing its commit into
+`run.json`, which means asking the implementer to report the SHA it committed
+and passing it to `status.sh task <id> --status done --commit <sha>` rather
+than deriving it later.
 
 ## The design stop and plan mode
 
@@ -297,15 +301,21 @@ reads the run state rather than the plan: it sees what has actually landed.
 - One row per task in `run.json`, and you are the one who flips it; an
   implementer reports, it does not write the run state. `active` at the
   dispatch, in the same message as it, which records the base as the HEAD of
-  the tree the command is pointed at unless you pass `--base`. `review` when the task's commit is in and its
-  reviewer has gone out: the paths stay held, because a finding may send the
-  implementer back into them. `done --commit <sha> --reviewed` when the review
-  clears, or `done --commit <sha>` alone for a tier 0 task, which was owed a
-  stat read and no dispatch, and for a task whose dispatch pre-flight declined;
-  the count counts the second kind and not the first. A declined dispatch is
+  the tree the command is pointed at unless you pass `--base`. `review` when
+  the task's commit is in and its reviewer has gone out: the paths stay held,
+  because a finding may send the implementer back into them.
+  `done --commit <sha> --reviewed` when the review clears, or
+  `done --commit <sha>` alone for a tier 0 task, which was owed a stat read and
+  no dispatch, and for a task whose dispatch pre-flight declined; the count
+  counts the second kind and not the first. A declined dispatch is
   meant to show up there, because the count describes the artifact rather than
   the decision, and the recorded pre-flight answer is what makes it read as
-  coverage rather than debt. That state outlives compaction; your memory doesn't.
+  coverage rather than debt. Each later flip goes in the same message that
+  reads the agent's report: `review` with the reviewer's dispatch, `done` when
+  the review clears, and back to `todo` or `blocked` when an agent failed or
+  will not report. A row left `active` or `review` after its agent is back
+  tells the Stop hook something is still running, which lets a stall through.
+  That state outlives compaction; your memory doesn't.
 - Each task goes to a fresh agent carrying the brief below and nothing this
   session accumulated. What you hold is yours to hold, not theirs.
 - **The run never ends a turn between pre-flight and the handback.** A
@@ -328,11 +338,12 @@ reads the run state rather than the plan: it sees what has actually landed.
   before, or `review` when the reviewer went out: that row is how the Stop hook
   knows an agent is out and will report back, and a row flipped ahead of its
   dispatch lets a turn end with nothing running. Everything else that has to
-  wait on your partner goes through `blocked` or a pause: a finding still open after three review
-  rounds marks its task `blocked`, and re-dispatching it flips the row back to `active` when
-  your partner has answered; a mid-run request for a dispatch, or a
-  show-or-say offer, is a pause, `status.sh pause --reason "<why>"`, so the reason is on disk and
-  the Stop hook lets you go, with `resume` when it moves again. The hook
+  wait on your partner goes through `blocked` or a pause: a finding still open
+  after three review rounds marks its task `blocked`, and re-dispatching it
+  flips the row back to `active` when your partner has answered; a question to
+  your partner about a dispatch, or a show-or-say offer, is a pause,
+  `status.sh pause --reason "<why>"`, so the reason is on disk and the Stop
+  hook lets you go, with `resume` when it moves again. The hook
   refuses once per turn and then lets the next attempt through, so it is a
   nudge with the state in it rather than a wall: the rule is yours to keep.
 - **Label the dispatch `T<n>: <task name>`.** The harness lists running agents
