@@ -114,7 +114,7 @@ parameter and, when `timings` is set, prints each step with its duration.
 **Contract:** Needs: none | Offers: `parseArgs(argv: string[]) -> { dryRun: boolean, timings: boolean }`
 **Touches:** src/cli/args.js (edit) | tests/args.test.js (test)
 
-- [ ] Add a test asserting `parseArgs(["--timings"])` returns `{ dryRun: false, timings: true }` -> the new test fails, the existing dry-run test still passes
+- [ ] Add a test asserting `parseArgs(["--timings"])` returns `{ dryRun: false, timings: true }` -> the new test fails
 - [ ] Update the dry-run test to expect `{ dryRun: true, timings: false }` -> it fails on the missing key
 - [ ] Read `--timings` off argv alongside `--dry-run` -> `npm test` green
 
@@ -154,7 +154,7 @@ cat > .sluice/run.json <<'JSON'
   "schema": 1,
   "topic": "step-timings",
   "channel": "deep",
-  "started": "2026-09-23T04:31:45Z",
+  "started": "2026-09-23T06:14:12Z",
   "plan": "docs/plans/2026-09-22-step-timings.md",
   "record": "docs/plans/2026-09-22-step-timings-record.md",
   "tasks": [
@@ -236,7 +236,7 @@ cat > .sluice/run.json <<'JSON'
       ]
     }
   ],
-  "updated": "2026-09-23T04:31:46Z",
+  "updated": "2026-09-23T06:14:13Z",
   "preflight": {
     "review": "tier 3 only",
     "effort": "0 of 4 low",

@@ -159,22 +159,22 @@ is quiet. The summary line does not go through the sink.
 **Contract:** Needs: none | Offers: `parseArgs(argv: string[]) -> { dryRun: boolean, quiet: boolean }`
 **Touches:** src/cli/args.js (edit) | tests/args.test.js (test)
 
-- [ ] Add a test asserting `parseArgs(["--quiet"])` returns `{ dryRun: false, quiet: true }` -> the new test fails, the existing dry-run test still passes
+- [ ] Add a test asserting `parseArgs(["--quiet"])` returns `{ dryRun: false, quiet: true }` -> the new test fails
 - [ ] Add a test asserting `parseArgs([])` returns `{ dryRun: false, quiet: false }` -> it fails on the missing key
-- [ ] Read `--quiet` off argv alongside `--dry-run` -> `npm test` green
+- [ ] Read `--quiet` off argv alongside `--dry-run`, and update the existing dry-run test to expect `{ dryRun: true, quiet: false }` now that the key exists -> `npm test` green
 
 ### Task 3: route progress through the sink
 
-**Contract:** Needs: `createSink({ quiet: boolean }) -> { write(line: string): void }` | Offers: `deploy(args: { dryRun: boolean }, sink: { write(line: string): void }) -> void`
+**Contract:** Needs: `createSink({ quiet: boolean }) -> { write(line: string): void }` | Offers: `deploy(args: { dryRun: boolean }, sink?: { write(line: string): void }) -> void`
 **Touches:** src/cli/deploy.js (edit) | tests/deploy.test.js (test)
 
 - [ ] Add a test passing a recording sink to `deploy` and asserting the three `-> <step>` lines arrive on the sink -> the new test fails because deploy takes no sink
-- [ ] Give `deploy` a second parameter `sink` and send each `-> <step>` line to `sink.write` -> the new test passes
-- [ ] Keep the summary line on `console.log` and keep both original deploy tests asserting the exact lines `dry run: 3 steps skipped` and `deployed: 3 steps` -> `npm test` green
+- [ ] Give `deploy` an optional second parameter `sink`, defaulting to `createSink({ quiet: false })` so `deploy(args)` still prints, and send each `-> <step>` line to `sink.write` -> the new test passes
+- [ ] Keep the summary line on `console.log` and keep both original deploy tests, which call `deploy(args)` with no sink, asserting the exact lines `dry run: 3 steps skipped` and `deployed: 3 steps` -> `npm test` green
 
 ### Task 4: turn quiet on
 
-**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, quiet: boolean }`, `createSink({ quiet: boolean }) -> { write(line: string): void }`, `deploy(args: { dryRun: boolean }, sink: { write(line: string): void }) -> void` | Offers: `main(argv: string[]) -> void`
+**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, quiet: boolean }`, `createSink({ quiet: boolean }) -> { write(line: string): void }`, `deploy(args: { dryRun: boolean }, sink?: { write(line: string): void }) -> void` | Offers: `main(argv: string[]) -> void`
 **Touches:** src/cli/main.js (new) | tests/main.test.js (test)
 **Flips:** the three progress lines become suppressible; before this task `--quiet` parses and changes nothing
 
@@ -206,7 +206,7 @@ cat > .sluice/run.json <<'JSON'
   "schema": 1,
   "topic": "quiet-flag",
   "channel": "deep",
-  "started": "2026-09-23T04:31:42Z",
+  "started": "2026-09-23T06:14:08Z",
   "plan": "docs/plans/2026-09-20-quiet-flag.md",
   "record": "docs/plans/2026-09-20-quiet-flag-record.md",
   "tasks": [
@@ -296,7 +296,7 @@ cat > .sluice/run.json <<'JSON'
       ]
     }
   ],
-  "updated": "2026-09-23T04:31:42Z",
+  "updated": "2026-09-23T06:14:08Z",
   "preflight": {
     "review": "tier 3 only",
     "effort": "0 of 3 low",

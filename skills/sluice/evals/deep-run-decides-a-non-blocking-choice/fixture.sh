@@ -111,7 +111,7 @@ other output names the prefix.
 **Contract:** Needs: none | Offers: `parseArgs(argv: string[]) -> { dryRun: boolean, progress: boolean }`
 **Touches:** src/cli/args.js (edit) | tests/args.test.js (test)
 
-- [ ] Add a test asserting `parseArgs(["--progress"])` returns `{ dryRun: false, progress: true }` -> the new test fails, the existing dry-run test still passes
+- [ ] Add a test asserting `parseArgs(["--progress"])` returns `{ dryRun: false, progress: true }` -> the new test fails
 - [ ] Update the dry-run test to expect `{ dryRun: true, progress: false }` -> it fails on the missing key
 - [ ] Read `--progress` off argv alongside `--dry-run` -> `npm test` green
 
@@ -141,7 +141,7 @@ cat > .sluice/run.json <<'JSON'
   "schema": 1,
   "topic": "progress-lines",
   "channel": "deep",
-  "started": "2026-09-23T04:31:38Z",
+  "started": "2026-09-23T06:14:11Z",
   "plan": "docs/plans/2026-09-22-progress-lines.md",
   "record": "docs/plans/2026-09-22-progress-lines-record.md",
   "tasks": [
@@ -202,7 +202,7 @@ cat > .sluice/run.json <<'JSON'
       ]
     }
   ],
-  "updated": "2026-09-23T04:31:38Z",
+  "updated": "2026-09-23T06:14:11Z",
   "preflight": {
     "review": "tier 3 only",
     "effort": "0 of 3 low",
