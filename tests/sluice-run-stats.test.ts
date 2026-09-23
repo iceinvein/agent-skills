@@ -487,6 +487,21 @@ describe("run-stats: the ledger", () => {
 		expect(out).toMatch(/channel\s+main$/m);
 	});
 
+	// The documented call carries its path, so a search for it usually does too,
+	// and the closing quote of that search must not read as the end of a call.
+	test("a search for the route call by its path does not announce", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "where is routing documented?"),
+			assistant("2026-08-08T09:00:05.000Z", null, [
+				toolUse("t1", "Bash", { command: 'grep -rn "scripts/status.sh route deep" skills' }),
+			]),
+			assistant("2026-08-08T09:00:10.000Z", "In the channel table."),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(2);
+		expect(out.trim()).toBe("");
+	});
+
 	test("a command that only quotes the route call does not announce", async () => {
 		const path = writeTranscript([
 			userPrompt("2026-08-08T09:00:00.000Z", "where is routing documented?"),

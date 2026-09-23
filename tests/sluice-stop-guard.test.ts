@@ -820,6 +820,39 @@ describe("stop-guard.sh entry check", () => {
 		expect(r.out).toBe("");
 	});
 
+	// A search for the documented call is not a call, and reading it as one would
+	// wave through exactly the unrouted session this check exists to catch.
+	test("a search for the route call by its path is not routing", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d9", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: {
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							name: "Bash",
+							input: { command: 'grep -rn "scripts/status.sh route deep" skills' },
+						},
+					],
+				},
+			})}\n`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d9", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
 	// Both hooks must survive an environment with no HOME: they run wherever
 	// the harness was launched from, and exiting non-zero breaks the contract
 	// that a stop hook always exits 0.

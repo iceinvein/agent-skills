@@ -6,7 +6,7 @@ type: tool_order
 # script has to be invoked at the start of the command or after whitespace or
 # a slash, so a quoted mention such as grep 'status.sh route fast' does not
 # count.
-before: { tool: Bash, input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+fast(?:\s|\\[nt]|[;&|'']|\\"|")' }
-after: { tool: Bash, input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+main(?:\s|\\[nt]|[;&|'']|\\"|")' }
+before: { tool: Bash, input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+fast(?:\s|\\[nt]|[;&|]|")' }
+after: { tool: Bash, input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+main(?:\s|\\[nt]|[;&|]|")' }
 weight: 3
 ---
