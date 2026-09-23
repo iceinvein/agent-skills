@@ -84,3 +84,14 @@
   accept a quoted script path and a trailing `;`/`&&` (changes a Ground Rule);
   the unanchored escalation grader; the duplicated blocked sentence in the Stop
   hook reason; the agent file's extra reply line; `route` needing jq.
+- Sandbox version-control follow-up (after handback, at the partner's ask).
+  Homebrew's 2.55.0 installed at /opt/homebrew/bin. One deep-run-finishes-every-task
+  run (USD 1.30) scored 1.00 and committed every task, but only because the
+  agent found /opt/homebrew/bin itself and used it by path. Five throwaway
+  probe cases (about USD 0.50, removed afterwards) showed: the child's PATH
+  lists /opt/homebrew/bin before /usr/bin; the Homebrew binary passes -x and
+  runs by full path; `/usr/bin/env <tool> --version` finds Homebrew's; yet the
+  Bash tool's own lookup (`type -a`, `command -v`, a bare call) resolves the
+  /usr/bin xcrun shim, with no alias, hash entry or function behind it, under
+  zsh and under SHELL=/bin/bash alike. Not fixable from the suite or the skill;
+  the resolution happens inside the harness's Bash tool.
