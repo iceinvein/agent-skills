@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: report-ends-the-turn
+context:
+  scaffold_script: fixture.sh

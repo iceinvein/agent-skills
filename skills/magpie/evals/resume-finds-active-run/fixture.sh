@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+# A fresh "review PR 1337" ask, with an interrupted run on that same PR still
+# active. Stage 0 checks --list-runs before it mints an id: starting over
+# throws away a run that is one stage from the report, and re-fetches the diff.
+#
+# The run directories sit under the workspace rather than ~/.magpie because
+# file graders refuse to follow a link out of the workspace. `magpie
+# --list-runs` is what names the path a resume uses, so the shim reports these.
+set -euo pipefail
+
+RUN_ID="pr-1337-1789600000"
+RUN_DIR="$PWD/runs/$RUN_ID"
+OLD_ID="pr-1201-1789000000.archived-1789100000"
+OLD_DIR="$PWD/runs/$OLD_ID"
+CALLS="$PWD/.magpie-calls.log"
+
+mkdir -p "$RUN_DIR"/findings "$RUN_DIR"/state "$OLD_DIR" "$HOME/shims"
+: > "$CALLS"
+
+cat > "$HOME/shim-config" <<EOF
+RUN_ID="$RUN_ID"
+RUN_DIR="$RUN_DIR"
+OLD_ID="$OLD_ID"
+OLD_DIR="$OLD_DIR"
+CALLS="$CALLS"
+PORT=4599
+EOF
+
+# The real magpie and gh are outside the eval sandbox and cannot be executed
+# from inside it, so the child gets fakes rather than exit 126. The fake setup
+# records the call and does nothing, so a run that wrongly starts over is
+# visible in the call log instead of fetching a diff.
+mkdir -p "$HOME/tmp"
+cat > "$HOME/.zshenv" <<'RC'
+export PATH="$HOME/shims:/usr/bin:/bin:/usr/sbin:/sbin"
+# /usr/bin/python3 is the Xcode shim, and without a writable TMPDIR it fails
+# trying to create its xcrun cache in a directory the sandbox blocks.
+export TMPDIR="$HOME/tmp"
+RC
+
+cat > "$HOME/shims/magpie" <<'SHIM'
+#!/usr/bin/env bash
+. "$HOME/shim-config"
+echo "magpie $*" >> "$CALLS"
+case "${1:-}" in
+  --list-runs)
+    printf '%s\tactive\t%s\n' "$RUN_ID" "$RUN_DIR"
+    printf '%s\tarchived\t%s\n' "$OLD_ID" "$OLD_DIR"
+    ;;
+  status)
+    python3 - "${2:-$RUN_DIR}" <<'STATUS'
+import json, pathlib, sys
+
+ORDER = ['setup', 'context', 'specialists', 'dedupe', 'critic', 'peer-review', 'report', 'post']
+last, error = None, None
+for line in (pathlib.Path(sys.argv[1]) / 'log.jsonl').read_text().splitlines():
+    if not line.strip():
+        continue
+    try:
+        entry = json.loads(line)
+    except ValueError:
+        continue
+    if entry.get('status') == 'error':
+        error = entry.get('stage')
+        break
+    if entry.get('status') in ('done', 'skipped') and entry.get('stage') in ORDER:
+        last = entry['stage']
+index = ORDER.index(last) + 1 if last else 0
+print(json.dumps({'lastCompleted': last, 'next': ORDER[index] if index < len(ORDER) else 'cleanup', 'error': error}))
+STATUS
+    ;;
+  setup) echo "fake magpie: setup would fetch the PR and rebuild the worktree" ;;
+  serve)
+    mkdir -p "$RUN_DIR/screen" "$RUN_DIR/state"
+    # The eval sandbox refuses listening sockets, so no fake can hold a port
+    # open: this writes the server-info the walkthrough reads and exits. The
+    # page is never reachable in a case, so no case pins the browser surface.
+    echo "http://127.0.0.1:$PORT" > "$RUN_DIR/state/server-info"
+    echo "serving $RUN_DIR on http://127.0.0.1:$PORT"
+    ;;
+  render)
+    mkdir -p "$RUN_DIR/screen"
+    python3 - "${2:-$RUN_DIR}" "${3:-progress}" <<'RENDER'
+import json, pathlib, sys
+
+run, screen = pathlib.Path(sys.argv[1]), sys.argv[2]
+findings = run / 'findings.final.json'
+rows = ''
+if screen == 'findings' and findings.exists():
+    for finding in json.loads(findings.read_text()):
+        rows += f'<li><input type="checkbox" data-finding-id="{finding["id"]}"> {finding["id"]}: {finding["title"]}</li>'
+buttons = '<button>Post Selected</button><button>Post Recommended</button>' if rows else ''
+(run / 'screen').mkdir(exist_ok=True)
+(run / 'screen' / f'{screen}.html').write_text(
+    f'<html><body><h1>magpie {screen}</h1><ul>{rows}</ul>{buttons}</body></html>'
+)
+RENDER
+    echo "rendered ${3:-progress} -> $RUN_DIR/screen/${3:-progress}.html"
+    ;;
+  *) echo "fake magpie: unsupported subcommand: $*" >&2; exit 64 ;;
+esac
+SHIM
+chmod +x "$HOME/shims/magpie"
+
+cat > "$HOME/shims/gh" <<'SHIM'
+#!/usr/bin/env bash
+. "$HOME/shim-config"
+echo "gh $*" >> "$CALLS"
+echo "fake gh: no request was made" >&2
+exit 1
+SHIM
+chmod +x "$HOME/shims/gh"
+
+cat > "$RUN_DIR/pr.json" <<'JSON'
+{
+  "number": 1337,
+  "title": "Cache tenant settings in the request path",
+  "author": { "login": "asha-platform" },
+  "headRefName": "feat/tenant-settings-cache",
+  "baseRefName": "main",
+  "headRefOid": "9f3a8c0211dbb5fe7a82a2c1b08e0a45c2d1ee01",
+  "url": "https://github.com/example/repo/pull/1337"
+}
+JSON
+
+cat > "$RUN_DIR/log.jsonl" <<'LOG'
+{"stage":"preflight","status":"done","missingOptional":["codex"]}
+{"stage":"setup","status":"done"}
+{"stage":"context","status":"done","codeIntelligence":false,"interface":"none"}
+{"stage":"specialists","status":"done"}
+{"stage":"dedupe","status":"done"}
+{"stage":"critic","status":"done"}
+{"stage":"peer-review","status":"done","provider":"claude"}
+LOG
+
+# The PR under review, as setup would have left it: the filtered diff, and a
+# worktree holding the head state the diff produces. The hunk headers count the
+# lines they carry, and every finding below cites a line inside a hunk, so
+# nothing here contradicts anything else.
+cat > "$RUN_DIR/diff.patch" <<'PATCH'
+diff --git a/src/settings/cache.ts b/src/settings/cache.ts
+--- a/src/settings/cache.ts
++++ b/src/settings/cache.ts
+@@ -1,5 +1,13 @@
+ const store = new Map<string, Settings>()
+ 
++export function put(tenantId: string, settings: Settings) {
++  store.set(tenantId, settings)
++}
++
++export function get(tenantId: string): Settings | undefined {
++  return store.get(tenantId)
++}
++
+ export function clear() {
+   store.clear()
+ }
+diff --git a/src/settings/loader.ts b/src/settings/loader.ts
+--- a/src/settings/loader.ts
++++ b/src/settings/loader.ts
+@@ -9,3 +9,7 @@
+ export async function load(tenantId: string) {
+-  return fetchSettings(tenantId)
++  const hit = get(tenantId)
++  if (hit) return hit
++  const fresh = await fetchSettings(tenantId)
++  put(tenantId, fresh)
++  return fresh
+ }
+PATCH
+
+mkdir -p "$RUN_DIR/worktree/src/settings"
+
+cat > "$RUN_DIR/worktree/src/settings/cache.ts" <<'TS'
+const store = new Map<string, Settings>()
+
+export function put(tenantId: string, settings: Settings) {
+  store.set(tenantId, settings)
+}
+
+export function get(tenantId: string): Settings | undefined {
+  return store.get(tenantId)
+}
+
+export function clear() {
+  store.clear()
+}
+TS
+
+cat > "$RUN_DIR/worktree/src/settings/loader.ts" <<'TS'
+import { get, put } from './cache'
+
+type Settings = { theme: string }
+
+async function fetchSettings(tenantId: string): Promise<Settings> {
+  return { theme: 'default' }
+}
+
+export async function load(tenantId: string) {
+  const hit = get(tenantId)
+  if (hit) return hit
+  const fresh = await fetchSettings(tenantId)
+  put(tenantId, fresh)
+  return fresh
+}
+TS
+
+cat > "$RUN_DIR/findings.final.json" <<'JSON'
+[
+  {
+    "id": "security-1",
+    "file": "src/settings/cache.ts",
+    "line": 4,
+    "severity": "high",
+    "risk": { "impact": "high", "likelihood": "likely", "confidence": "high", "action": "must-fix" },
+    "domain": "security",
+    "title": "Tenant settings cache is a process-global Map with no eviction",
+    "description": "Observation: put() writes into a module-level Map with no bound and no TTL.\n\nWhy it matters: a settings change never reaches the cached copy.\n\nSuggested direction: bound the map and give entries a TTL."
+  },
+  {
+    "id": "bugs-1",
+    "file": "src/settings/loader.ts",
+    "line": 12,
+    "severity": "medium",
+    "risk": { "impact": "medium", "likelihood": "possible", "confidence": "medium", "action": "should-fix" },
+    "domain": "bugs",
+    "title": "Concurrent loads for the same tenant each hit the network",
+    "description": "Observation: load() awaits fetchSettings before writing back.\n\nWhy it matters: N concurrent first requests produce N fetches.\n\nSuggested direction: cache the in-flight promise."
+  }
+]
+JSON
+
+echo '[]' > "$RUN_DIR/findings/tests.json"
+echo "an earlier, finished review of a different PR" > "$OLD_DIR/README.txt"
