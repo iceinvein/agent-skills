@@ -57,3 +57,12 @@
   test now uses an empty PATH so it holds on Linux, verified to fail against
   the old script; the waits case gains suite-was-run). Suite 1600 pass, 0 fail.
   Not taken: widening the route pattern (item 4, the partner's call).
+- Route marker widened (open-list item 4, at the partner's ask): a quote may
+  follow `status.sh` (a quoted path) and a separator may follow the channel.
+  Review found the first cut also took a trailing quote, which let a
+  path-prefixed search (`grep -rn "scripts/status.sh route deep"`) read as a
+  call in the meter and the entry check; the terminator now takes whitespace,
+  `;`, `&`, `|` or end only, with negative tests in both suites. Gives up only
+  a route call nested inside a quoted `bash -c`. The first plan's Ground Rule
+  literal for the marker is superseded by the definition in run-stats.sh.
+  Suite 1605 pass, 0 fail.
