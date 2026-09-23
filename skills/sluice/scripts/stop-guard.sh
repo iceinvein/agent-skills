@@ -125,7 +125,7 @@ entry_nudge() {
 	jq -e -n -R '
 		def marker: "^[*_#>[:space:]]*(fast|main|deep)[[:space:]]+channel";
 		def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(fast|main|deep)[[:space:]]+channel";
-		def route: "(^|[[:space:]/])status\\.sh[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:]]|$)";
+		def route: "(^|[[:space:]/])status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:];&|\"\u0027]|$)";
 		def texts: [ .message.content[]? | select(.type == "text") | .text ] | join("\n");
 		def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
 			| (.input.command // "") | select(test(route)) ];

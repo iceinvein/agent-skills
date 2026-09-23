@@ -112,8 +112,11 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
   # A model that routes in its thinking writes no announcing text at all, so the
   # route call is the announcement that survives. The script has to be invoked:
   # a quoted mention, as in a grep for the call, follows a quote mark and so
-  # misses the anchor. stop-guard.sh reads the same pattern and must stay equal.
-  def route: "(^|[[:space:]/])status\\.sh[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:]]|$)";
+  # misses the anchor. A quote after the script name is a quoted path, which a
+  # skill directory with a space in it needs, and the channel may be followed
+  # by a separator when the call is chained. stop-guard.sh reads the same
+  # pattern and must stay equal.
+  def route: "(^|[[:space:]/])status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:];&|\"\u0027]|$)";
   def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
                 | (.input.command // "") | select(test(route)) ];
   def announces: (.type == "assistant") and (is_meta | not)

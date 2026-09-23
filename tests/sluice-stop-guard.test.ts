@@ -786,6 +786,40 @@ describe("stop-guard.sh entry check", () => {
 		expect(r.out).toBe("");
 	});
 
+	// The same marker run-stats reads, so a quoted script path, the form a path
+	// with a space needs, has to count here too or the gate and the meter disagree.
+	test("a route call through a quoted script path counts as routed", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d8", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: {
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							name: "Bash",
+							input: { command: 'bash "/Users/a b/.claude/skills/sluice/scripts/status.sh" route fast; ls' },
+						},
+					],
+				},
+			})}\n`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d8", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+	});
+
 	// Both hooks must survive an environment with no HOME: they run wherever
 	// the harness was launched from, and exiting non-zero breaks the contract
 	// that a stop hook always exits 0.

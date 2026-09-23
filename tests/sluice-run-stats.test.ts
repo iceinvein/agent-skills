@@ -459,6 +459,34 @@ describe("run-stats: the ledger", () => {
 		expect(out).toMatch(/channel\s+fast → main$/m);
 	});
 
+	// A skill directory under a path with a space has to be quoted to run at all,
+	// and a route call is often chained ahead of the next command.
+	test("reads a route call through a quoted script path", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "tweak the parser"),
+			assistant("2026-08-08T09:00:10.000Z", null, [
+				toolUse("t1", "Bash", { command: 'bash "/Users/a b/.claude/skills/sluice/scripts/status.sh" route deep' }),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Done."),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(0);
+		expect(out).toMatch(/channel\s+deep$/m);
+	});
+
+	test("reads a route call chained ahead of the next command", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "tweak the parser"),
+			assistant("2026-08-08T09:00:10.000Z", null, [
+				toolUse("t1", "Bash", { command: "bash $S/status.sh route main&&bash $S/status.sh show" }),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Done."),
+		]);
+		const { code, out } = await run(["--transcript", path]);
+		expect(code).toBe(0);
+		expect(out).toMatch(/channel\s+main$/m);
+	});
+
 	test("a command that only quotes the route call does not announce", async () => {
 		const path = writeTranscript([
 			userPrompt("2026-08-08T09:00:00.000Z", "where is routing documented?"),
