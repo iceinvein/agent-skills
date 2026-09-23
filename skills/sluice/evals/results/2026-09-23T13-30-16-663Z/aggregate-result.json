@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.280",
+  "startedAt": "2026-09-23T13:30:16.663Z",
+  "durationSeconds": 55,
+  "costUsd": 0.29589099999999996,
+  "partial": false,
+  "suite": {
+    "root": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice",
+    "ablation": "none",
+    "modelOverride": "claude-opus-5-5",
+    "caseFilter": "announcement-reaches-the-ledger",
+    "threshold": 0,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "sluice",
+        "path": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "announcement-reaches-the-ledger",
+      "dir": "evals/announcement-reaches-the-ledger",
+      "source": "mixed",
+      "promptMarkdown": "Add a `--verbose` flag to the deploy command. After each step's progress line it prints one more line saying the step finished, for example `   build done`. Without the flag the output stays exactly as it is.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 1800,
+      "maxTurns": 60,
+      "graders": [
+        {
+          "name": "escalates-fast-to-main",
+          "type": "tool_order",
+          "weight": 3,
+          "config": {
+            "before": {
+              "tool": "Bash",
+              "input_match": "\"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:[\\s/]|\\\\[nt]))?status\\.sh(?:\\\\\"|')?(?:\\s|\\\\[nt])+route(?:\\s|\\\\[nt])+fast(?:\\s|\\\\[nt]|[;&|]|\")"
+            },
+            "after": {
+              "tool": "Bash",
+              "input_match": "\"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:[\\s/]|\\\\[nt]))?status\\.sh(?:\\\\\"|')?(?:\\s|\\\\[nt])+route(?:\\s|\\\\[nt])+main(?:\\s|\\\\[nt]|[;&|]|\")"
+            }
+          }
+        },
+        {
+          "name": "sluice-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?sluice\""
+          }
+        },
+        {
+          "name": "suite-was-run",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "(npm test|node --test)",
+            "min": 2
+          }
+        },
+        {
+          "name": "verbose-flag-implemented",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": {
+              "source": "file",
+              "path": "src/cli/deploy.js"
+            },
+            "pattern": "--verbose",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 20,
+            "costUsd": 0.29589099999999996,
+            "judgeCostUsd": 0,
+            "durationSeconds": 55,
+            "startedAt": "2026-09-23T13:30:16.703Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-WgUw0n/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "escalates-fast-to-main",
+                "passed": true,
+                "weight": 3,
+                "explanation": "Bash@1 precedes Bash@8",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "sluice-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "suite-was-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 3x (expected 2..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "verbose-flag-implemented",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched --verbose",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}

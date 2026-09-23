@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eval report — sluice</title>
+</head>
+<body>
+<style>
+:root{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}}
+:root[data-theme="dark"]{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}
+:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);
+  font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%}
+.wrap{max-width:880px;margin:0 auto;padding:40px 24px 64px;display:flex;flex-direction:column;gap:20px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+header h1{margin:2px 0 0;font-size:24px;font-weight:600;line-height:1.25;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;color:var(--ink-2);font-size:13px}
+.meta .num{font-variant-numeric:tabular-nums lining-nums}
+.banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;
+  border:1px solid var(--hairline);background:var(--surface);font-size:13px}
+.banner .chip-warn{color:var(--warning);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:4px}
+.tile .label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.tile .value{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums lining-nums;line-height:1.1}
+.tile.hero .value{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:48px}
+.tile .sub{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.tile .value.delta-pos{color:var(--delta-good)}
+.tile .value.delta-neg{color:var(--critical)}
+.toolbar{display:flex;gap:8px;justify-content:flex-end}
+.toolbar button{font:12px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--hairline);border-radius:6px;padding:4px 10px;cursor:pointer}
+.toolbar button:hover{color:var(--ink)}
+.toolbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.case{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:18px 20px;
+  display:flex;flex-direction:column;gap:10px}
+.case-regressed{border-left:3px solid var(--critical)}
+.verdict{margin:6px 0 0;font-size:15px}
+.verdict .delta{font-size:15px}
+.flag{font-size:11px;font-weight:600;color:var(--warning);white-space:nowrap}
+.star{color:var(--warning);font-size:.45em;vertical-align:super;line-height:0;cursor:help}
+.legend summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.legend-list{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2)}
+.case-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.case-head h2{margin:0;font-size:16px;font-weight:600}
+.case-head .spacer{flex:1}
+.case-score{font-size:15px;font-weight:600}
+.mono{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.muted{color:var(--ink-3);font-size:12px}
+.meter{display:inline-block;position:relative;width:120px;height:6px;border-radius:4px;background:var(--grid);
+  vertical-align:middle}
+.meter>span{display:block;height:100%;border-radius:4px;max-width:100%}
+.meter .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-3);border-radius:1px}
+.m-accent>span{background:var(--accent)}
+.m-base>span{background:var(--base-fill)}
+.delta{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.delta-pos{color:var(--delta-good)}
+.delta-neg{color:var(--critical)}
+.delta-zero{color:var(--ink-3)}
+details.section{border-top:1px solid var(--grid);padding-top:10px}
+details.section>summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink-2);list-style-position:outside;margin-left:2px}
+details.section>summary:hover{color:var(--ink)}
+details.section[open]>summary{margin-bottom:8px}
+.md{display:flex;flex-direction:column;gap:8px;background:var(--inset);border-radius:8px;
+  padding:12px 14px;overflow-wrap:break-word}
+.md>:first-child{margin-top:0}
+.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:4px 0 0;font-size:1em;font-weight:600;line-height:1.3}
+.md p,.md ul,.md ol,.md blockquote,.md table,.md pre,.md hr{margin:0}
+.md ul,.md ol{display:flex;flex-direction:column;gap:4px;padding-left:20px}
+.md blockquote{border-left:2px solid var(--hairline);padding-left:10px;color:var(--ink-2)}
+.md :not(pre)>code{background:var(--inset);padding:1px 4px;border-radius:4px;
+  font:.92em "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre{background:var(--inset);border:1px solid var(--hairline);padding:10px 12px;border-radius:6px;
+  overflow-x:auto;font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre code{background:none;padding:0;font:inherit}
+.md table{width:100%;border-collapse:collapse}
+.md th,.md td{padding:5px 8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--grid)}
+.md th{font-weight:600;color:var(--ink-2)}
+.md a{color:var(--accent);text-decoration:none}
+.md a:hover{text-decoration:underline}
+.grader-def{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.grader-def+.grader-def{border-top:1px solid var(--grid)}
+.grader-def-head{display:flex;align-items:baseline;gap:8px}
+.grader-name{font:13px "SF Mono",ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+.badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);
+  border:1px solid var(--hairline);border-radius:999px;padding:1px 8px}
+.config{display:flex;flex-direction:column;gap:2px;background:var(--inset);border-radius:8px;padding:10px 14px}
+.config code{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.arm{display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.arm+.arm{border-top:1px dashed var(--grid);margin-top:4px;padding-top:12px}
+.arm-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.arm-label{font-size:13px;font-weight:600}
+.run{border:1px solid var(--grid);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.run-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.run-title{font-size:12px;font-weight:600;color:var(--ink-2)}
+.run-error .explanation{color:var(--ink-2)}
+.note{font-size:12px;color:var(--ink-2)}
+.graders{display:flex;flex-direction:column;gap:4px}
+details.grader{border-radius:6px}
+details.grader>summary{cursor:pointer;display:flex;align-items:baseline;gap:8px;padding:3px 4px;
+  border-radius:6px;list-style:none}
+details.grader>summary::-webkit-details-marker{display:none}
+details.grader>summary::before{content:'▸';font-size:10px;color:var(--ink-3);flex:none;
+  transition:transform .12s ease}
+details.grader[open]>summary::before{transform:rotate(90deg)}
+details.grader>summary:hover{background:var(--inset)}
+details.grader>summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.grader-body{padding:6px 8px 8px 24px;display:flex;flex-direction:column;gap:6px}
+.chip{font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.chip-pass{color:var(--good);border:1px solid currentColor}
+.chip-fail{color:var(--critical);border:1px solid currentColor}
+.chip.chip-warn{color:var(--warning);border:1px solid currentColor}
+.explanation{margin:0;font-size:13px;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:break-word}
+.kv{display:flex;gap:8px;font-size:12px;color:var(--ink-3)}
+.votes{font-variant-numeric:tabular-nums;letter-spacing:.1em}
+pre.evidence{margin:0;background:var(--inset);border:1px solid var(--hairline);border-radius:6px;
+  padding:8px 10px;overflow-x:auto;max-height:320px;
+  font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:break-word}
+footer{color:var(--ink-3);font-size:12px;text-align:center;padding-top:8px}
+@media (prefers-reduced-motion:no-preference){
+  details.grader>summary,.toolbar button{transition:background .12s ease,color .12s ease}
+}
+@media (prefers-reduced-motion:reduce){
+  details.grader>summary::before{transition:none}
+}
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+  body{background:#fff}
+  .toolbar{display:none}
+  .case,.run,.grader-def{break-inside:avoid}
+  pre.evidence{max-height:none}
+}
+</style>
+<div class="wrap">
+<header>
+<div class="eyebrow">Plugin eval report</div>
+<h1>sluice</h1>
+
+<div class="meta">
+<span class="mono">.</span>
+<span>Claude Code v2.1.280</span>
+<span class="num">2026-09-23 13:30 UTC</span>
+<span class="num">44s</span>
+<span class="num">$0.29</span>
+<span class="num">1 runs</span>
+
+
+<span>model claude-opus-5-5</span>
+<span>judge default</span>
+<span class="num">threshold 0%</span>
+<span>filtered: --case fast-flag-on-existing-command</span>
+</div>
+</header>
+
+<section class="tiles">
+<div class="tile hero"><span class="label">Suite score</span><span class="value">100%</span><span class="sub">mean of per-case scores</span></div>
+
+<div class="tile"><span class="label">Cases</span><span class="value num">1</span><span class="sub">1 of 1 ≥ 0% threshold</span></div>
+<div class="tile"><span class="label">Perfect runs</span><span class="value num">100%</span><span class="sub">runs where every grader passed</span></div>
+</section>
+<details class="section legend">
+<summary>How to read this report</summary>
+<ul class="legend-list">
+<li>A run's score is the weighted fraction of its graders that passed; a "perfect" run passed every grader.</li>
+<li>A case's score is the mean of its runs; a case passes when its score is at or above the 0% threshold (the tick on each case bar).</li>
+<li>The suite score is the mean of the per-case scores.</li>
+<li>Judge votes are independent samples of the LLM judge; the majority decides pass or fail.</li>
+<li><strong>No baseline arm was run</strong> (ablation off) — this report shows absolute scores only and cannot say whether the plugin caused them. Re-run with <code>--ablation with-without</code> to measure the plugin’s effect.</li>
+
+</ul>
+</details>
+<div class="toolbar"><button type="button" data-act="expand">Expand all</button><button type="button" data-act="collapse">Collapse all</button></div>
+<article class="case" id="case-1">
+<div class="case-head">
+<h2>fast-flag-on-existing-command</h2>
+<span class="muted mono">evals/fast-flag-on-existing-command</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">17 turns · $0.29 · 13:30:17 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">announces-fast-channel</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">matched &quot;command&quot;:&quot;(?:(?:[^&quot;\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\&quot;|&apos;)?(?:\s|\\[nt])+route(?:\s|\\[nt])+fast(?:\s|\\[nt]|[;&amp;|]|&quot;)|&quot;text&quot;:&quot;(?:[^.!?\n&quot;]{0,100}[:=]\s*)?[\s*_#&gt;\\]*fast channel</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">quiet-flag-implemented</span>  </summary>
+<div class="grader-body">
+<p class="explanation">matched --quiet</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">stayed-in-fast</span>  </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">{&quot;type&quot;:&quot;system&quot;,&quot;subtype&quot;:&quot;init&quot;,&quot;cwd&quot;:&quot;/private/tmp/e-fQJpoy/home/cwd&quot;,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;tools&quot;:[&quot;Task&quot;,&quot;Bash&quot;,&quot;Edit&quot;,&quot;Glob&quot;,&quot;Grep&quot;,&quot;NotebookEdit&quot;,&quot;Read&quot;,&quot;Skill&quot;,&quot;TaskStop&quot;,&quot;ToolSearch&quot;,&quot;Write&quot;],&quot;mcp_servers&quot;:[],&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;permissionMode&quot;:&quot;dontAsk&quot;,&quot;slash_commands&quot;:[&quot;deep-research&quot;,&quot;sluice:sluice&quot;,&quot;dataviz&quot;,&quot;update-config&quot;,&quot;verify&quot;,&quot;debug&quot;,&quot;code-review&quot;,&quot;simplify&quot;,&quot;batch&quot;,&quot;fewer-permission-prompts&quot;,&quot;doctor&quot;,&quot;loop&quot;,&quot;schedule&quot;,&quot;claude-api&quot;,&quot;workflow-authoring&quot;,&quot;run&quot;,&quot;run-skill-generator&quot;,&quot;agents&quot;,&quot;auto-mode-setup&quot;,&quot;autocompact&quot;,&quot;clear&quot;,&quot;color&quot;,&quot;compact&quot;,&quot;config&quot;,&quot;output-style&quot;,&quot;context&quot;,&quot;effort&quot;,&quot;fast&quot;,&quot;heapdump&quot;,&quot;init&quot;,&quot;mcp&quot;,&quot;model&quot;,&quot;__remote-workflow&quot;,&quot;workflow-launch-exec&quot;,&quot;reload-plugins&quot;,&quot;reload-skills&quot;,&quot;rename&quot;,&quot;security-review&quot;,&quot;usage&quot;,&quot;insights&quot;,&quot;recap&quot;,&quot;goal&quot;,&quot;list-agents&quot;,&quot;team-onboarding&quot;],&quot;terminal_slash_commands&quot;:[&quot;doctor&quot;,&quot;color&quot;,&quot;reload-plugins&quot;],&quot;apiKeySource&quot;:&quot;none&quot;,&quot;claude_code_version&quot;:&quot;2.1.280&quot;,&quot;output_style&quot;:&quot;default&quot;,&quot;agents&quot;:[&quot;claude&quot;,&quot;Explore&quot;,&quot;general-purpose&quot;,&quot;Plan&quot;,&quot;sluice:sluice-implementer-low&quot;,&quot;statusline-setup&quot;],&quot;skills&quot;:[&quot;deep-research&quot;,&quot;sluice:sluice&quot;,&quot;dataviz&quot;,&quot;update-config&quot;,&quot;verify&quot;,&quot;debug&quot;,&quot;code-review&quot;,&quot;simplify&quot;,&quot;batch&quot;,&quot;fewer-permission-prompts&quot;,&quot;doctor&quot;,&quot;loop&quot;,&quot;schedule&quot;,&quot;claude-api&quot;,&quot;workflow-authoring&quot;,&quot;run&quot;,&quot;run-skill-generator&quot;],&quot;plugins&quot;:[{&quot;name&quot;:&quot;sluice&quot;,&quot;path&quot;:&quot;/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice&quot;,&quot;source&quot;:&quot;sluice@inline&quot;}],&quot;capabilities&quot;:[&quot;interrupt_receipt_v1&quot;,&quot;interrupt_cancel_queued_v1&quot;,&quot;msg_lifecycle_v1&quot;,&quot;mcp_read_resource_v1&quot;,&quot;mcp_tool_ui_meta_v1&quot;],&quot;analytics_disabled&quot;:true,&quot;product_feedback_disabled&quot;:false,&quot;uuid&quot;:&quot;6eb3f8df-22e1-4547-bc69-4345090025cc&quot;,&quot;memory_paths&quot;:{&quot;auto&quot;:&quot;/private/tmp/e-fQJpoy/config/projects/-private-tmp-e-fQJpoy-home-cwd/memory/&quot;},&quot;messaging_socket_path&quot;:&quot;/private/tmp/e-fQJpoy/tmp/cc-socks/54381.sock&quot;,&quot;fast_mode_state&quot;:&quot;off&quot;,&quot;fast_mode_disabled_reason&quot;:&quot;sdk_opt_in_required&quot;}
+{&quot;type&quot;:&quot;assistant&quot;,&quot;message&quot;:{&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;id&quot;:&quot;msg_011CfLTCgDTiYKqYdyuvv8rv&quot;,&quot;type&quot;:&quot;message&quot;,&quot;role&quot;:&quot;assistant&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;thinking&quot;,&quot;thinking&quot;:&quot;&quot;,&quot;signature&quot;:&quot;CAQSxQUKEAgSGAI4AUIIdGhpbmtpbmcSDLDiAChDvuVSGGPUeBoMXXxWYswJkWsi+XqaIjBy4Xdt4/Mi0QB0QsOP19mfMbvOaCpD0029ENKH4QgfAMB/4Hp1qFwAFIbqAV+7bj8q4gRxzkZMEPZmX5EjtIUx5YBTOV34KwxWvP57ZJim7YjPDdp6yTfZvJmzc0YdX+CTXYap4VT/ZVj4Z1k2xGkB8/uHlfEWfW08MLtQAlpbQgKMtQ60/ce6/HNYOShM/RDmQaMGtpTy/yh9JSR/HVJ37xqzKXL1IYA1uuGpHqCa5nwwDQbWLrhyKjTF3IyleiZELbu20NAFeMgzHyFQe5vvBq0VdoLYNPERtXh+PxCI38XFNK1Mvq6bXeXXeY3fv/9N8fforsEMikLyRRnBG09ir964UGj29MFCY9MzBluOFlqiQS9LB+dlvLd/YyygvskCdLM4EM5EY7IdIBvasclTwsEuc9yaSb3XTjmdIb4l3mOkrDcMdyT6Xh9T4MaEQIarFxPnbCIs4d0k6x+PchS9qJE8+RDffFGDLuHgCQDxV4tT/fCB4uni6/vzGOSdaptNhlfUenu6ejiwiPcCyFnziY4FSTswSgz38XANEMvjv9CRRTBuOpig8iXedPUd0REvg4jVe9caGSyK7V3dT0OA6qpauXD6RX2KIIBahia4cFn5evF6qFLEBzKQMpqeT9Yop1x192ME4+zVgawEzpgxsieH9g/c2BjLn/YO76Y5Ll8uwDyl+D3XBnO2Oqt+LFTTHQVpyzleUkzC/6Jvp3Fl+i1sZSA53jNlPHccHnZJ9N7VaAmbYUDvIst1ufHwoIUNM1gCB6Jnp5b07/ukM205M2Sd7ezRIbpdu4ygcdcdGZsUytvRtYO7e8CXh4n+/0SeBIpEjCUVSgfbjYgOn2KZa2RFFQB2biqgNMeV1fx81GKhRP82GAE=&quot;}],&quot;container&quot;:null,&quot;stop_reason&quot;:null,&quot;stop_sequence&quot;:null,&quot;stop_details&quot;:null,&quot;usage&quot;:{&quot;input_tokens&quot;:2,&quot;cache_creation_input_tokens&quot;:8641,&quot;cache_read_input_tokens&quot;:7034,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:8641},&quot;output_tokens&quot;:8,&quot;service_tier&quot;:&quot;standard&quot;,&quot;inference_geo&quot;:&quot;not_available&quot;},&quot;input_transformations&quot;:[],&quot;diagnostics&quot;:null,&quot;context_management&quot;:null},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;uuid&quot;:&quot;06d55eca-5803-4592-9856-75d1bd36b76c&quot;,&quot;timestamp&quot;:&quot;2026-09-23T13:30:21.162Z&quot;,&quot;request_id&quot;:&quot;req_011CfLTCfbFExAjGEymETnKg&quot;}
+{&quot;type&quot;:&quot;assistant&quot;,&quot;message&quot;:{&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;id&quot;:&quot;msg_011CfLTCgDTiYKqYdyuvv8rv&quot;,&quot;type&quot;:&quot;message&quot;,&quot;role&quot;:&quot;assistant&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;tool_use&quot;,&quot;id&quot;:&quot;toolu_01Nrh1PUWmkgDswBwPupqmax&quot;,&quot;name&quot;:&quot;Skill&quot;,&quot;input&quot;:{&quot;skill&quot;:&quot;sluice:sluice&quot;},&quot;caller&quot;:{&quot;type&quot;:&quot;direct&quot;}}],&quot;container&quot;:null,&quot;stop_reason&quot;:null,&quot;stop_sequence&quot;:null,&quot;stop_details&quot;:null,&quot;usage&quot;:{&quot;input_tokens&quot;:2,&quot;cache_creation_input_tokens&quot;:8641,&quot;cache_read_input_tokens&quot;:7034,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:8641},&quot;output_tokens&quot;:8,&quot;service_tier&quot;:&quot;standard&quot;,&quot;inference_geo&quot;:&quot;not_available&quot;},&quot;input_transformations&quot;:[],&quot;diagnostics&quot;:null,&quot;context_management&quot;:null},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;uuid&quot;:&quot;dde154ca-2f90-4eab-9808-3a6206c354b6&quot;,&quot;timestamp&quot;:&quot;2026-09-23T13:30:21.166Z&quot;,&quot;request_id&quot;:&quot;req_011CfLTCfbFExAjGEymETnKg&quot;}
+{&quot;type&quot;:&quot;user&quot;,&quot;message&quot;:{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;tool_result&quot;,&quot;tool_use_id&quot;:&quot;toolu_01Nrh1PUWmkgDswBwPupqmax&quot;,&quot;content&quot;:&quot;Launching skill: sluice:sluice&quot;}]},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;uuid&quot;:&quot;60e541c8-5924-42b5-928b-c92ba046f23c&quot;,&quot;timestamp&quot;:&quot;2026-09-23T13:30:21.173Z&quot;,&quot;tool_use_result&quot;:{&quot;success&quot;:true,&quot;commandName&quot;:&quot;sluice:sluice&quot;}}
+{&quot;type&quot;:&quot;user&quot;,&quot;message&quot;:{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;Base directory for this skill: /Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice\n\n# Sluice\n\nA sluice sorts material by size into channels and meters what flows through.\nSame here: pick the channel the change needs, pay for nothing else.\n\n## Route first\n\nPick a channel from the change&apos;s shape, state it in one line, then proceed. The\nannouncement is how your partner redirects you without being asked.\n\n| Channel | Signal | Rules | Say |\n|---------|--------|-------|-----|\n| `bypass` | No code change: a question, an explanation, a read | none | nothing, just answer |\n| `fast` | Existing interfaces, one subsystem (a new flag on an existing command still counts as existing) | test-first, verify | \&quot;Fast channel, existing interfaces. Test first, then implement.\&quot; |\n| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | \&quot;Main channel, new interface. Agreeing the shape first.\&quot; |\n| `deep` | Several subsystems, or a plan was asked for | + written design and plan | \&quot;Deep channel, several subsystems. Design before code.\&quot; |\n\nTwo subsystems is `main`; the third is what makes it `deep`.\n\n`bypass`, `fast`, and `main` proceed without stopping for approval; only\n`deep` stops: once for design sign-off before code, once for the plan and\npre-flight together before Task 1. A stop ends your turn. Asking a question\nwith a tool is not one, however many options it carried: the answer comes\nback to you and the run never left your hands.\n\nName the channel and the signal that actually routed you there. The strings above\nare examples, not fixed copy, and a channel with a two-part signal should say\nwhich part applied. One thing is fixed: the words `&lt;channel&gt; channel` open the\nmessage or follow a label such as `Sluice:`, because the meter finds the run by\nthem and an announcement worded otherwise reports as `not announced`. Run\n`bash &lt;skill-dir&gt;/scripts/status.sh route &lt;channel&gt;` in the same message: prose\nbetween tool calls can reach the transcript only as a paraphrase, and a tool\ninput is kept as written. `bypass` says nothing and routes nothing, because a\nquestion that gets announced stops being a question.\n\nA session that changes the tree without ever announcing is stopped once and\nasked to route, because nothing else catches it: the run state that everything\nelse reads is written by the channels, so a session that skipped the router\nleaves nothing behind to notice it skipped. The stop names no channel for you.\nRoute what you have already done and say which one it was.\n\n**`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**\nThe code misbehaving triggers the first: a bug report, a red test, behaviour you\ncannot account for. An integration event, merging, pushing, or opening a PR,\ntriggers the second. Handing the work back triggers the third, whether or not it\never reaches an integration event. A question that turns on how something looks\nrather than on what it means triggers the fourth: say it where a sentence would\nsettle it, show it where the candidates have to sit side by side for an eye to\ncompare them. `references/show-or-say.md`\n\nThe first, second and fourth fire in every channel, `bypass` included, and\n`bypass` is where the fourth comes up most. `meter` does not, because `bypass`\nannounces nothing to measure from.\n\n## The rules\n\nOne line each. Read the reference only on friction: the moment you notice\nyourself wanting to skip the rule, or arguing that this one is the exception.\n\n- **Agree intent** before building. One question at a time. Propose approaches\n  with a recommendation, not a survey. `main` agrees in a message, `deep` writes\n  it down. `references/intent.md`\n- **Test first.** The test comes before the code; run it while it should\n  still be failing, then write the least code that turns it green. Skip that\n  watching step and a green result is only an unchecked guess. A test no\n  plausible change could turn red is not one you owe. `references/test-first.md`\n- **Root cause** before fix. A fix that only hides the symptom has not fixed\n  anything. Three failed fixes point at the design, not your guesswork.\n  `references/root-cause.md`\n- **Verify** before claiming. Run the command in this turn and read its\n  output; the claim comes after that, never before. How sure you feel is not\n  something anyone else can check. `references/verify.md`\n- **Review** before merge. Dispatch a reviewer with fresh context and put the\n  diff on disk for it to read, so those bytes fill their context instead of\n  yours. A session that dispatches only when asked has not refused you one, so\n  ask rather than announce that you cannot. Genuinely without one? Say so in\n  the announcement and again at the merge, and nowhere in between.\n  `references/review.md`\n- **Finish** deliberately. Green suite first, then let your partner pick\n  merge, PR, or leave it. Never pick for them. `references/finish.md`\n- **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the\n  ledger out of the session transcript: elapsed, tools, tokens, and what each\n  dispatched agent cost. A summary you assemble from memory is the one that\n  flatters you. `references/meter.md`\n\n## Changing channel\n\nEscalate out loud. A `fast` task that turns out to need a new interface becomes\n`main`, and you say so with another `status.sh route` call in that message.\nFinishing quietly in the wrong channel is the failure this prevents; the same\ngoes for dropping to a shallower one. Explicit instruction wins: \&quot;just do it\&quot;\ncollapses to `fast`.\n\n## Deep channel\n\nDesign to `docs/specs/YYYY-MM-DD-&lt;topic&gt;.md`, plan to\n`docs/plans/YYYY-MM-DD-&lt;topic&gt;.md`, unless the repo has a convention or\nyour partner states a preference. Get the design signed off before code.\n\nTake the design stop through the harness&apos;s plan mode where there is one. Its\ngate is enforced rather than requested and it holds edits shut while it is open,\nso nothing gets built against a design nobody signed. It carries the first stop\nonly; pre-flight still wants answers, and an approval is not one. Where there is\nno plan mode, nothing is holding the draft: write the design to its file before\nyou end the turn on it, because a design that lives only in the message you just\nsent is gone at the next compaction.\n\nThe run&apos;s state goes in `.sluice/run.json`, written a command at a time by\n`scripts/status.sh`. That is what makes the breakdown readable from outside the\nsession running it: a statusline segment while it runs, `status.sh show` after a\ncompaction, and neither costing your partner a turn to ask. `references/status.md`\n\n**Read `references/deep-channel.md` before you write the plan.** It carries the\nplan format, the pre-flight questions, the run record, the dispatch rules and\nthe review tiers, and none of those are derivable from what is on this page.\nTake the plan file&apos;s first character as the trigger, not this sentence&apos;s\nposition: design sign-off can be days and a context window away from here, by\nwhich point this paragraph is a thousand messages back and reads as something\nalready handled. A plan written without that file comes out as prose with a\nsequencing note, which reads fine to its author and cannot be dispatched,\nreviewed or resumed.\n\nThe skeleton it fills in, so that a plan written without it is at least still a\nplan:\n\n```\n# Plan: &lt;topic&gt;\n## Ground Rules\n- &lt;exact value&gt;\n### Task N: &lt;name&gt;\n**Contract:** Needs: &lt;sig&gt; | Offers: &lt;sig&gt;\n**Touches:** &lt;path&gt; (new) | &lt;path&gt; (edit) | &lt;path&gt; (test)\n**Flips:** &lt;what changes, from what, or omit&gt;\n**Review:** &lt;reason, or omit&gt;\n**Effort:** &lt;low, and why the work is mechanical, or omit&gt;\n- [ ] &lt;action&gt; -&gt; &lt;proof&gt;\n```\n\nRead that as a graph rather than a list. `Needs` and `Offers` are dependency\nedges and `Touches` says what cannot overlap, so which tasks may run at once is\nderivable rather than guessed. Fan out wherever that graph allows; serial is the\nfallback for where it doesn&apos;t, not the default.\n\nThe second stop is the plan&apos;s, whoever executes it. Dispatched agents each see\nonly their own task, so nobody reads it whole; executing it yourself is the\nweaker case rather than the exempt one, because then nobody reads it but its\nauthor.\n\nOrder the plan so the tasks that change nothing come first, and mark the one\ntask that turns the new behaviour on with `Flips`. Then a late re-baseline,\nre-blessed snapshots, regenerated fixtures, attributes to that one point\ninstead of to the branch at large.\n\nPre-flight rides in that same stop: which flagged tasks get a reviewer, which\nmechanical ones the plan marked for low effort, and whether the work runs\nin a worktree. Ask them as choices with the counts in them, never as a\nparagraph, then end the turn. Task 1 opens on their next\ninstruction, and an answer that already carries one is that instruction. A\nsession that dispatches only when asked has not ruled dispatch out, it has made\nthis question the place to ask; genuine unavailability is the tool not being\nthere at all, which `references/deep-channel.md` handles separately. Review that\nturns out to be missing is only actionable while the plan can still change.\n\nAll three answers go into `run.json` and the run record before Task 1&apos;s first\nedit, the answer in the first and the reason in the second, and both files\nopen inside the worktree once it is cut, not in the main tree before it\nexists. Those rows are what\ndischarge pre-flight, not the approval: one reply arrives for several\nobligations, so a \&quot;yes\&quot; with no rows behind it signed off the plan and nothing\nelse.\n\nFour from that file that catch people out: concurrent implementers need a\nworktree each and the flip runs alone, review is tiered rather than automatic,\na `deep` run that cannot dispatch has to replace the review tier with\nsomething, not quietly ship without one, and the run ends: `status.sh final`\nwhen the plan&apos;s own review clears, `status.sh close` once the work is no longer\nyours to act on, after a local merge, when the branch is left as it stands, or\nwhen an open PR lands, not when it opens. A run left open reads as live to the\nstatusline and blocks the next one. The SessionStart hook prints a live run at\nevery session start, compaction and resume included, so a run you did not\nstart is one you were shown, not one you have to remember. A Stop hook refuses,\nonce per turn, to end a turn while a `deep` run in this tree is past pre-flight\nwith tasks still to go, nothing `blocked` or paused, and no task `active` or in\n`review`:\n`references/deep-channel.md` says why a run never ends a turn between\npre-flight and the handback and names the four early stops that look like a\nplace to end and are not, and `status.sh pause --reason`
+[…19126 more chars — full text in aggregate-result.json…]
+ens&quot;:25279,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:195},&quot;output_tokens&quot;:6,&quot;service_tier&quot;:&quot;standard&quot;,&quot;inference_geo&quot;:&quot;not_available&quot;},&quot;input_transformations&quot;:[],&quot;diagnostics&quot;:null,&quot;context_management&quot;:null},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;uuid&quot;:&quot;db20cff5-8cac-4379-b6f9-341ce5a145f9&quot;,&quot;timestamp&quot;:&quot;2026-09-23T13:30:58.396Z&quot;,&quot;request_id&quot;:&quot;req_011CfLTFAGy8cdNCyxjrSsXZ&quot;}
+{&quot;type&quot;:&quot;rate_limit_event&quot;,&quot;rate_limit_info&quot;:{&quot;status&quot;:&quot;allowed&quot;,&quot;resetsAt&quot;:1790172000,&quot;rateLimitType&quot;:&quot;five_hour&quot;,&quot;overageStatus&quot;:&quot;allowed&quot;,&quot;overageResetsAt&quot;:1790812800,&quot;isUsingOverage&quot;:false,&quot;unifiedWindows&quot;:{&quot;five_hour&quot;:{&quot;utilization&quot;:0.11,&quot;resetsAt&quot;:1790172000},&quot;seven_day&quot;:{&quot;utilization&quot;:0.11,&quot;resetsAt&quot;:1790722800}}},&quot;uuid&quot;:&quot;62fd9bd0-0ce4-4c1e-8631-8a8bf564d4e1&quot;,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;}
+{&quot;duration_api_ms&quot;:39113,&quot;stop_reason&quot;:&quot;end_turn&quot;,&quot;session_id&quot;:&quot;7080795a-69c1-4395-a3ce-8ec1fbbf5eda&quot;,&quot;total_cost_usd&quot;:0.2467976,&quot;usage&quot;:{&quot;input_tokens&quot;:22,&quot;cache_creation_input_tokens&quot;:18440,&quot;cache_read_input_tokens&quot;:226248,&quot;output_tokens&quot;:2697,&quot;output_tokens_details&quot;:{&quot;thinking_tokens&quot;:172},&quot;server_tool_use&quot;:{&quot;web_search_requests&quot;:0,&quot;web_fetch_requests&quot;:0},&quot;service_tier&quot;:&quot;standard&quot;,&quot;cache_creation&quot;:{&quot;ephemeral_1h_input_tokens&quot;:18440,&quot;ephemeral_5m_input_tokens&quot;:0},&quot;inference_geo&quot;:&quot;not_available&quot;,&quot;iterations&quot;:[{&quot;input_tokens&quot;:2,&quot;output_tokens&quot;:478,&quot;cache_read_input_tokens&quot;:25279,&quot;cache_creation_input_tokens&quot;:195,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:195},&quot;type&quot;:&quot;message&quot;,&quot;model&quot;:null}],&quot;speed&quot;:&quot;standard&quot;},&quot;modelUsage&quot;:{&quot;claude-opus-5-5&quot;:{&quot;inputTokens&quot;:22,&quot;outputTokens&quot;:2697,&quot;cacheReadInputTokens&quot;:226248,&quot;cacheCreationInputTokens&quot;:18440,&quot;webSearchRequests&quot;:0,&quot;costUSD&quot;:0.2467976,&quot;contextWindow&quot;:1000000,&quot;maxOutputTokens&quot;:128000,&quot;thinkingTokens&quot;:172,&quot;canonicalModel&quot;:&quot;claude-opus-5-5&quot;,&quot;provider&quot;:&quot;firstParty&quot;,&quot;costBasis&quot;:&quot;list&quot;}},&quot;permission_denials&quot;:[],&quot;terminal_reason&quot;:&quot;completed&quot;,&quot;fast_mode_state&quot;:&quot;off&quot;,&quot;fast_mode_disabled_reason&quot;:&quot;sdk_opt_in_required&quot;,&quot;subagent_stats&quot;:{&quot;spawned&quot;:0,&quot;requested&quot;:{&quot;background&quot;:0,&quot;foreground&quot;:0,&quot;unset&quot;:0},&quot;started_in_background&quot;:0,&quot;max_depth&quot;:0,&quot;spawned_by_subagents&quot;:0,&quot;completed&quot;:0,&quot;failed&quot;:0,&quot;killed&quot;:{&quot;parent&quot;:0,&quot;user&quot;:0,&quot;system&quot;:0},&quot;refused&quot;:{&quot;depth_limit&quot;:0,&quot;concurrency_limit&quot;:0,&quot;budget&quot;:0},&quot;by_type&quot;:{}},&quot;is_error&quot;:false,&quot;num_turns&quot;:17,&quot;subtype&quot;:&quot;success&quot;,&quot;api_error_status&quot;:null,&quot;result&quot;:&quot;`deploy --quiet` now works. It hides the `-&gt; build` / `-&gt; upload` / `-&gt; activate` lines and still prints the final summary line. Adding `--dry-run` works the same way: only `dry run: 3 steps skipped` is printed. Nothing else about the command changed.\n\n**Changes**\n- `src/cli/deploy.js:5`: reads `--quiet` from the args and skips the per-step log line when it&apos;s set. The steps still run.\n- `tests/deploy.test.js`: two new tests, one for `--quiet` alone and one for `--quiet` with `--dry-run`.\n\n**Tests**\n- I wrote the tests first and ran them before changing the code. Both failed, printing the step lines they should have hidden.\n- After the change, `node --test \&quot;tests/*.test.js\&quot;` (the command `npm test` runs) passed all 4 tests, the 2 existing ones included.\n- `npm test` itself printed no results and exited with 255, with and without my changes, so the problem is in running npm here, not in the tests.\n\n**Not done**\n- git won&apos;t run in this sandbox (it can&apos;t write its temp cache), so nothing is committed. The changes are in the working tree on `master`.\n- The run-stats script couldn&apos;t find this session&apos;s transcript, so I have no metrics for this run.\n\nDo you want me to commit, open a PR, or leave it as it is? Any git step needs git to work, so either the sandbox has to allow it or you run it yourself.&quot;,&quot;ttft_ms&quot;:3201,&quot;type&quot;:&quot;result&quot;,&quot;duration_ms&quot;:40452,&quot;uuid&quot;:&quot;f44af30c-c714-4b8d-bfe3-6403a61c6c7d&quot;,&quot;ttft_stream_ms&quot;:1836,&quot;time_to_request_ms&quot;:39,&quot;first_content_frame_ms&quot;:1837,&quot;queued_turn_count&quot;:0,&quot;result_index&quot;:0}</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">suite-was-run</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Bash called 5x (expected 2..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">test-edited-before-source</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">Edit@7 precedes Edit@10</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Add a <code>--quiet</code> flag to the deploy command. It suppresses the per-step progress lines and leaves the final summary line alone. Everything else about the command stays as it is.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">announces-fast-channel</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>&quot;trace&quot;</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;command\&quot;:\&quot;(?:(?:[^\&quot;\\\\]|\\\\.)*?(?:[\\s/]|\\\\[nt]))?status\\.sh(?:\\\\\&quot;|&apos;)?(?:\\s|\\\\[nt])+route(?:\\s|\\\\[nt])+fast(?:\\s|\\\\[nt]|[;&amp;|]|\&quot;)|\&quot;text\&quot;:\&quot;(?:[^.!?\\n\&quot;]{0,100}[:=]\\s*)?[\\s*_#&gt;\\\\]*fast channel&quot;</code></div><div class="kv"><span>flags</span><code>&quot;i&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">quiet-flag-implemented</span><span class="badge">regex</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;src/cli/deploy.js&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;--quiet&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">stayed-in-fast</span><span class="badge">llm</span></div>
+<div class="md"><p>The agent was asked to add a <code>--quiet</code> flag to an existing deploy command.</p>
+<p>PASS if the agent named the fast channel and stayed there: it did not write a design document, did not write a plan file, and did not stop to ask which approach to take before starting.
+FAIL if it announced the main or deep channel, escalated to either of them, wrote a file under docs/specs or docs/plans, or ended its turn waiting for sign-off before implementing.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">suite-was-run</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Bash&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;(npm test|node --test)&quot;</code></div><div class="kv"><span>min</span><code>2</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">test-edited-before-source</span><span class="badge">tool_order</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>before</span><code>{&quot;tool&quot;:&quot;Edit&quot;,&quot;input_match&quot;:&quot;tests/deploy\\.test\\.js&quot;}</code></div><div class="kv"><span>after</span><code>{&quot;tool&quot;:&quot;Edit&quot;,&quot;input_match&quot;:&quot;src/cli/deploy\\.js&quot;}</code></div></div>
+</div>
+</details>
+</article>
+<footer>Generated by <code>claude plugin eval</code> · schema v1 · scores are not comparable across different suites</footer>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var bar=document.querySelector('.toolbar');
+  if(!bar)return;
+  bar.addEventListener('click',function(e){
+    var b=e.target&&e.target.closest('button');
+    if(!b)return;
+    var open=b.dataset.act==='expand';
+    document.querySelectorAll('details.section, details.grader').forEach(function(d){d.open=open});
+  });
+});
+// Collapsed details vanish from print/PDF; these pages are share artifacts.
+window.addEventListener('beforeprint',function(){
+  document.querySelectorAll('details').forEach(function(d){
+    if(!d.open){d.dataset.printOpened='1';d.open=true}
+  });
+});
+window.addEventListener('afterprint',function(){
+  document.querySelectorAll('details[data-print-opened]').forEach(function(d){
+    d.open=false;delete d.dataset.printOpened;
+  });
+});
+</script>
+</body>
+</html>

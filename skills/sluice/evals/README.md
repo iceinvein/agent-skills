@@ -168,6 +168,28 @@ gives the clean read.
   also did not get the finish-choice sentence the other three did, and the
   message ends on the finish options.
 
+**Pass 3, after the grader fixes and the widened route marker.** The seven
+cases whose graders changed since their last run, once each (USD 4.90 in all,
+`results/2026-09-23T13-30-16-*`, one directory per case):
+
+| Case | Pass 3 | Reading |
+|---|---|---|
+| `announcement-reaches-the-ledger` | 1.00 | |
+| `fast-flag-on-existing-command` | 1.00 | |
+| `explicit-instruction-collapses-to-fast` | 1.00 | |
+| `main-new-interface` | 1.00 | |
+| `deep-plan-across-subsystems` | 1.00 | |
+| `deep-run-waits-for-a-running-agent` | 1.00 | Handback judge passes on the last message |
+| `deep-run-decides-a-non-blocking-choice` | 0.82 | Handback judge passes; `record-names-the-prefix` fails (below) |
+
+`deep-run-decides-a-non-blocking-choice` misses on the run record in two of
+its four runs so far. In pass 3 the controller copied the open choice into
+Task 1's brief ("The prefix is `->` or `>>`. Either is acceptable ..."), let
+the implementer pick, and never wrote which one it chose. That is a gap in the
+skill rather than the grader: nothing in `references/deep-channel.md` tells the
+controller to settle a choice the plan leaves open before dispatch and log it
+in the run record.
+
 **Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
 2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
 cutting worktrees by hand after the harness refused isolation, and most of the
