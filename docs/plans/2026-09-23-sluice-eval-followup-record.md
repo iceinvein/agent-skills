@@ -42,3 +42,9 @@
   reading (Still open section, not the npm line alone), decides' missing
   finish-choice sentence, the fans-out duration as a weak baseline, and three
   wording nits.
+- Final review: nothing blocking. Fixed: the blocks case's expected_outcome
+  named a "public-API test" that does not exist; it now names `API.md`, which
+  is what `contract-not-rewritten` checks. Left as nits: Task 3's Contract
+  could state that the default sink keeps the published stdout behaviour; the
+  plan's Task 3 Offers says `quiet: false` where three fixtures use their own
+  key; one long commit subject; one long comment line in stop-guard.sh.
