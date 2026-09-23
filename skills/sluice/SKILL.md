@@ -32,9 +32,11 @@ Name the channel and the signal that actually routed you there. The strings abov
 are examples, not fixed copy, and a channel with a two-part signal should say
 which part applied. One thing is fixed: the words `<channel> channel` open the
 message or follow a label such as `Sluice:`, because the meter finds the run by
-them and an announcement worded otherwise reports as `not announced`. `bypass`
-says nothing at all, because a question that gets announced stops being a
-question.
+them and an announcement worded otherwise reports as `not announced`. Run
+`bash <skill-dir>/scripts/status.sh route <channel>` in the same message: prose
+between tool calls can reach the transcript only as a paraphrase, and a tool
+input is kept as written. `bypass` says nothing and routes nothing, because a
+question that gets announced stops being a question.
 
 A session that changes the tree without ever announcing is stopped once and
 asked to route, because nothing else catches it: the run state that everything
@@ -89,9 +91,10 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
 ## Changing channel
 
 Escalate out loud. A `fast` task that turns out to need a new interface becomes
-`main`, and you say so. Finishing quietly in the wrong channel is the failure
-this prevents; the same goes for dropping to a shallower one. Explicit
-instruction wins: "just do it" collapses to `fast`.
+`main`, and you say so with another `status.sh route` call in that message.
+Finishing quietly in the wrong channel is the failure this prevents; the same
+goes for dropping to a shallower one. Explicit instruction wins: "just do it"
+collapses to `fast`.
 
 ## Deep channel
 
@@ -134,7 +137,7 @@ plan:
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
-**Model:** <cheaper model, and why the work is mechanical, or omit>
+**Effort:** <low, and why the work is mechanical, or omit>
 - [ ] <action> -> <proof>
 ```
 
@@ -154,7 +157,7 @@ re-blessed snapshots, regenerated fixtures, attributes to that one point
 instead of to the branch at large.
 
 Pre-flight rides in that same stop: which flagged tasks get a reviewer, which
-mechanical ones the plan marked for a cheaper model, and whether the work runs
+mechanical ones the plan marked for low effort, and whether the work runs
 in a worktree. Ask them as choices with the counts in them, never as a
 paragraph, then end the turn. Task 1 opens on their next
 instruction, and an answer that already carries one is that instruction. A
@@ -184,8 +187,8 @@ start is one you were shown, not one you have to remember. A Stop hook refuses,
 once per turn, to end a turn while a `deep` run in this tree is past pre-flight
 with tasks still to go and nothing `blocked` or paused:
 `references/deep-channel.md` says why a run never ends a turn between
-pre-flight and the handback, and `status.sh pause --reason` is how one stands
-still on purpose.
+pre-flight and the handback and names the four early stops that pass for
+one, and `status.sh pause --reason` is how one stands still on purpose.
 
 ## Conflicts
 

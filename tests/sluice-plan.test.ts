@@ -200,9 +200,11 @@ describe("steps a stranger could not carry out", () => {
 	});
 });
 
-describe("the model mark against the tier table", () => {
-	// The flip is where being wrong is expensive, so the saving is not on offer.
-	test("Model on the task carrying Flips is rejected", () => {
+// Effort replaced Model as the downshift mark. A plan written before the switch
+// would otherwise validate clean and import a mark nothing dispatches on, so the
+// old field is an error that names its replacement.
+describe("the retired model mark", () => {
+	test("Model on the task carrying Flips is rejected, naming Effort", () => {
 		const r = validate(
 			broken(
 				"**Flips:** the CLI renders widgets, from printing nothing\n",
@@ -210,11 +212,11 @@ describe("the model mark against the tier table", () => {
 			),
 		);
 		expect(r.code).toBe(2);
-		expect(r.out).toMatch(/model/i);
-		expect(r.out).toMatch(/flips|tier 3/i);
+		expect(r.out).toMatch(/task 2/);
+		expect(r.out).toContain("Effort");
 	});
 
-	test("Model on a task the plan flagged for review is rejected", () => {
+	test("Model on a task the plan flagged for review is rejected, naming Effort", () => {
 		const r = validate(
 			broken(
 				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
@@ -222,17 +224,21 @@ describe("the model mark against the tier table", () => {
 			),
 		);
 		expect(r.code).toBe(2);
-		expect(r.out).toMatch(/model/i);
+		expect(r.out).toMatch(/task 1/);
+		expect(r.out).toContain("Effort");
 	});
 
-	test("Model on an ordinary task is fine", () => {
+	test("Model on an ordinary task is rejected, naming Effort", () => {
 		const r = validate(
 			broken(
 				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
 				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Model:** cheaper, the contract is exact and the tests exist\n",
 			),
 		);
-		expect(r.code).toBe(0);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error/i);
+		expect(r.out).toMatch(/task 1/);
+		expect(r.out).toContain("**Effort:**");
 	});
 });
 
@@ -308,7 +314,7 @@ describe("argument handling", () => {
 
 // The gap the run state left open: nothing populated it. A task row per hand-typed
 // command is the same compliance-by-memory problem the validator exists to remove,
-// and the ids, names, model marks and the flip are all already in the plan.
+// and the ids, names, effort marks and the flip are all already in the plan.
 describe("import", () => {
 	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
 
@@ -349,17 +355,21 @@ describe("import", () => {
 		expect(tasks(dir)[0]).not.toHaveProperty("flips");
 	});
 
-	test("carries a Model mark across as the cheaper model", () => {
+	// --force exists to seed a plan that still has errors; a retired Model mark
+	// is one of them, and it seeds the row without carrying a model across.
+	test("imports a Model-marked plan under --force without recording a model", () => {
 		const dir = repoWithRun();
-		imp(
+		const r = imp(
 			dir,
 			broken(
 				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
 				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Model:** cheaper, the contract is exact\n",
 			),
+			"--force",
 		);
-		expect(tasks(dir)[0]).toMatchObject({ id: 1, model: "cheap" });
-		expect(tasks(dir)[1]).not.toHaveProperty("model");
+		expect(r.code).toBe(0);
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, name: "render helper" });
+		expect(tasks(dir)[0]).not.toHaveProperty("model");
 	});
 
 	test("carries an Effort mark across as low effort", () => {
@@ -639,27 +649,27 @@ describe("import round two", () => {
 		return JSON.parse(readFileSync(join(dir, ".sluice", "run.json"), "utf8")).tasks;
 	}
 
-	const WITH_MODEL = broken(
+	const WITH_EFFORT = broken(
 		"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
-		"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Model:** cheaper, the contract is exact\n",
+		"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Effort:** low, the contract is exact\n",
 	);
 
-	// The plan marks that a task is mechanical; pre-flight ratifies which model it
-	// actually runs on. Re-import replacing that answer with a placeholder rewinds
-	// the one decision the partner was asked to price.
-	test("does not overwrite a model already recorded against a task", () => {
+	// The plan marks that a task is mechanical; pre-flight ratifies which effort
+	// it actually runs at. Import replacing that answer with the placeholder
+	// rewinds the one decision the partner was asked to price, and that holds
+	// for a row written before the first import as much as for a re-import.
+	test("does not overwrite an effort recorded before the first import", () => {
 		const dir = repoWithRun();
-		imp(dir, WITH_MODEL);
-		Bun.spawnSync({ cmd: ["bash", STATUS, "task", "1", "--model", "claude-haiku-4-5", "--dir", dir] });
+		Bun.spawnSync({ cmd: ["bash", STATUS, "task", "1", "--name", "render helper", "--effort", "medium", "--dir", dir] });
 
-		imp(dir, WITH_MODEL);
-		expect(tasks(dir)[0]).toMatchObject({ id: 1, model: "claude-haiku-4-5" });
+		imp(dir, WITH_EFFORT);
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, effort: "medium" });
 	});
 
-	test("still marks a task the plan flagged and the run has not answered for", () => {
+	test("still marks a task the plan flagged for effort and the run has not answered for", () => {
 		const dir = repoWithRun();
-		imp(dir, WITH_MODEL);
-		expect(tasks(dir)[0]).toHaveProperty("model");
+		imp(dir, WITH_EFFORT);
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, effort: "low" });
 	});
 
 	test("does not overwrite an effort already recorded against a task", () => {

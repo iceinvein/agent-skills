@@ -9,10 +9,10 @@
 #
 #   status.sh init --topic <t> --channel <c> [--plan <p>] [--record <p>] [--force]
 #   status.sh task <id> [--name <n>] [--status <s>] [--base <sha>]
-#                       [--commit <sha>] [--tier 0-3] [--model <m>]
-#                       [--effort low|medium|high] [--flips | --no-flips] [--reviewed]
+#                       [--commit <sha>] [--tier 0-3] [--effort low|medium|high]
+#                       [--flips | --no-flips] [--reviewed]
 #                       [--needs <syms>] [--offers <syms>] [--touches <paths>]
-#   status.sh preflight [--review <t>] [--model <t>] [--effort <t>] [--workspace <t>]
+#   status.sh preflight [--review <t>] [--effort <t>] [--workspace <t>]
 #   status.sh show [--json]
 #   status.sh ready
 #   status.sh final
@@ -491,7 +491,7 @@ case "$SUB" in
 			*[!0-9]* | 0 ) err "task id must be a positive integer, got: $ID"; exit 4 ;;
 		esac
 
-		NAME="" STATUS="" BASE="" COMMIT="" TIER="" MODEL="" EFFORT="" FLIPS=false UNFLIP=false REVIEWED=false
+		NAME="" STATUS="" BASE="" COMMIT="" TIER="" EFFORT="" FLIPS=false UNFLIP=false REVIEWED=false
 		NEEDS="" OFFERS="" TOUCHES="" GRAPH=0
 		while [ $# -gt 0 ]; do
 			case "$1" in
@@ -500,7 +500,6 @@ case "$SUB" in
 				--base) need_value --base $# "${2-}"; BASE="$2"; shift 2 ;;
 				--commit) need_value --commit $# "${2-}"; COMMIT="$2"; shift 2 ;;
 				--tier) need_value --tier $# "${2-}"; TIER="$2"; shift 2 ;;
-				--model) need_value --model $# "${2-}"; MODEL="$2"; shift 2 ;;
 				--effort) need_value --effort $# "${2-}"; EFFORT="$2"; shift 2 ;;
 				--flips) FLIPS=true; shift ;;
 				--no-flips) UNFLIP=true; shift ;;
@@ -568,8 +567,7 @@ case "$SUB" in
 
 		patch="$(jq -n \
 			--arg name "$NAME" --arg status "$STATUS" --arg base "$BASE" \
-			--arg commit "$COMMIT" --arg tier "$TIER" --arg model "$MODEL" \
-			--arg effort "$EFFORT" \
+			--arg commit "$COMMIT" --arg tier "$TIER" --arg effort "$EFFORT" \
 			--argjson flips "$FLIPS" --argjson unflip "$UNFLIP" --argjson reviewed "$REVIEWED" \
 			--arg needs "$NEEDS" --arg offers "$OFFERS" --arg touches "$TOUCHES" \
 			--argjson graph "$GRAPH" '
@@ -583,7 +581,6 @@ case "$SUB" in
 			+ (if $base   == "" then {} else {base: $base} end)
 			+ (if $commit == "" then {} else {commit: $commit} end)
 			+ (if $tier   == "" then {} else {tier: ($tier | tonumber)} end)
-			+ (if $model  == "" then {} else {model: $model} end)
 			+ (if $effort == "" then {} else {effort: $effort} end)
 			+ (if $flips then {flips: true} else {} end)
 			+ (if $unflip then {flips: null} else {} end)
@@ -608,28 +605,26 @@ case "$SUB" in
 		;;
 
 	preflight)
-		REVIEW="" MODEL="" EFFORT="" WORKSPACE=""
+		REVIEW="" EFFORT="" WORKSPACE=""
 		while [ $# -gt 0 ]; do
 			case "$1" in
 				--review) need_value --review $# "${2-}"; REVIEW="$2"; shift 2 ;;
-				--model) need_value --model $# "${2-}"; MODEL="$2"; shift 2 ;;
 				--effort) need_value --effort $# "${2-}"; EFFORT="$2"; shift 2 ;;
 				--workspace) need_value --workspace $# "${2-}"; WORKSPACE="$2"; shift 2 ;;
 				*) err "unknown flag: $1"; exit 4 ;;
 			esac
 		done
-		if [ -z "$REVIEW$MODEL$EFFORT$WORKSPACE" ]; then
-			err "preflight needs at least one of --review, --model, --effort, --workspace"
+		if [ -z "$REVIEW$EFFORT$WORKSPACE" ]; then
+			err "preflight needs at least one of --review, --effort, --workspace"
 			exit 4
 		fi
 		require_run
 		take_lock
 		require_readable
 
-		jq --arg review "$REVIEW" --arg model "$MODEL" --arg effort "$EFFORT" --arg workspace "$WORKSPACE" '
+		jq --arg review "$REVIEW" --arg effort "$EFFORT" --arg workspace "$WORKSPACE" '
 			.preflight = ((.preflight // {})
 				+ (if $review    == "" then {} else {review: $review} end)
-				+ (if $model     == "" then {} else {model: $model} end)
 				+ (if $effort    == "" then {} else {effort: $effort} end)
 				+ (if $workspace == "" then {} else {workspace: $workspace} end))
 		' "$STATE" | write_state
@@ -685,7 +680,7 @@ case "$SUB" in
 				  end;
 			def row($c): "  " + ([($c[0] | cell(3)), ($c[1] | cell(8)), ($c[2] | cell(29)),
 			                      ($c[3] | cell(9)), ($c[4] | cell(9)), ($c[5] | cell(4)),
-			                      ($c[6] | cell(6)), $c[7]] | join(" "));
+			                      $c[6]] | join(" "));
 			([.tasks[]? | select(.status == "done")] | length) as $done
 			| ["sluice \(.channel | clean) · \(.topic | clean) · \($done)/\(.tasks | length) done"]
 			+ (if $elsewhere == "" then [] else ["tree          \($elsewhere | clean)"] end)
@@ -721,11 +716,11 @@ case "$SUB" in
 				else [(.preflight | to_entries[] | "\(.key | clean)=\(.value | clean)")] | join("; ")
 				end)]
 			+ [""]
-			+ [row(["id", "status", "task", "base", "commit", "tier", "effort", "model"])]
+			+ [row(["id", "status", "task", "base", "commit", "tier", "effort"])]
 			+ [ .tasks[]?
 				| (if .flips then "  FLIPS" else "" end) as $flips
 				| row([.id, .status, (.name | dash), (.base | dash),
-				       (.commit | dash), (.tier | dash), (.effort | dash), (.model | dash)]) + $flips
+				       (.commit | dash), (.tier | dash), (.effort | dash)]) + $flips
 			  ]
 			| .[]
 		' "$STATE"

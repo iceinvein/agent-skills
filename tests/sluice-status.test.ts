@@ -183,16 +183,26 @@ describe("task", () => {
 		expect(state(dir).tasks.map((t) => t.id)).toEqual([1, 2, 3]);
 	});
 
-	test("carries base, tier, model and flips", () => {
+	test("carries base, tier, effort and flips", () => {
 		const dir = seeded(1);
-		run(dir, "task", "1", "--base", "deadbee", "--tier", "3", "--model", "cheap", "--flips");
+		run(dir, "task", "1", "--base", "deadbee", "--tier", "3", "--effort", "low", "--flips");
 
 		expect(state(dir).tasks[0]).toMatchObject({
 			base: "deadbee",
 			tier: 3,
-			model: "cheap",
+			effort: "low",
 			flips: true,
 		});
+	});
+
+	// Effort replaced the model mark. Accepting the old flag would record a
+	// downshift nothing dispatches on.
+	test("refuses the retired --model flag and records nothing", () => {
+		const dir = seeded(1);
+		const r = run(dir, "task", "1", "--model", "cheap");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--model");
+		expect(state(dir).tasks[0]).not.toHaveProperty("model");
 	});
 
 	test("rejects a status outside the vocabulary", () => {
@@ -238,8 +248,8 @@ describe("preflight", () => {
 			"preflight",
 			"--review",
 			"tier 3 only",
-			"--model",
-			"6 of 9 cheap",
+			"--effort",
+			"6 of 9 low",
 			"--workspace",
 			"one worktree per implementer",
 		);
@@ -247,7 +257,7 @@ describe("preflight", () => {
 
 		expect(state(dir).preflight).toEqual({
 			review: "tier 3 only",
-			model: "6 of 9 cheap",
+			effort: "6 of 9 low",
 			workspace: "one worktree per implementer",
 		});
 	});
@@ -258,11 +268,19 @@ describe("preflight", () => {
 		expect(state(dir).preflight).toEqual({ effort: "2 of 6 low" });
 	});
 
+	test("refuses the retired --model flag and records nothing", () => {
+		const dir = seeded(1);
+		const r = run(dir, "preflight", "--model", "6 of 9 cheap");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--model");
+		expect(state(dir)).not.toHaveProperty("preflight");
+	});
+
 	test("shows in the table, so an undischarged pre-flight is visible", () => {
 		const dir = seeded(1);
 		expect(run(dir, "show").out).toMatch(/pre-flight.*not recorded/i);
 
-		run(dir, "preflight", "--review", "a", "--model", "b", "--workspace", "c");
+		run(dir, "preflight", "--review", "a", "--effort", "b", "--workspace", "c");
 		expect(run(dir, "show").out).not.toMatch(/not recorded/i);
 	});
 });
@@ -562,10 +580,10 @@ describe("a flag that lost its value", () => {
 	// the field holds a flag name and the flag itself was never applied.
 	test("does not swallow the following flag as its value", () => {
 		const dir = seeded(1);
-		const r = run(dir, "task", "1", "--model", "--flips");
+		const r = run(dir, "task", "1", "--effort", "--flips");
 		expect(r.code).toBe(4);
 		expect(r.err).toContain("--flips");
-		expect(state(dir).tasks[0]).not.toHaveProperty("model");
+		expect(state(dir).tasks[0]).not.toHaveProperty("effort");
 		expect(state(dir).tasks[0]).not.toHaveProperty("flips");
 	});
 });
@@ -1806,9 +1824,9 @@ describe("a review level chosen at pre-flight reads as coverage, not debt", () =
 		expect(out).not.toMatch(/coverage/);
 	});
 
-	test("a pre-flight that priced only the model has not priced review", () => {
+	test("a pre-flight that priced only the effort has not priced review", () => {
 		const dir = skipped();
-		run(dir, "preflight", "--model", "6 of 9 cheap");
+		run(dir, "preflight", "--effort", "6 of 9 low");
 		expect(run(dir, "show").out).toMatch(/unreviewed\s+2 done/);
 	});
 

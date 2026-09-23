@@ -12,11 +12,11 @@ per worktree set, holding only what changes as the run moves.
 ```
 bash <skill-dir>/scripts/status.sh init --topic <t> --channel deep \
      --plan docs/plans/<date>-<topic>.md --record docs/plans/<date>-<topic>-record.md
-bash <skill-dir>/scripts/status.sh task 3 --name "adapter seam" --tier 1 --model cheap
+bash <skill-dir>/scripts/status.sh task 3 --name "adapter seam" --tier 1 --effort low
 bash <skill-dir>/scripts/status.sh task 3 --status active --base 75014c9
 bash <skill-dir>/scripts/status.sh task 3 --status done --commit 2c7f261
 bash <skill-dir>/scripts/status.sh task 3 --reviewed
-bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --model "6 of 9 cheap" \
+bash <skill-dir>/scripts/status.sh preflight --review "tier 3 only" --effort "6 of 9 low" \
      --workspace "one worktree per implementer"
 bash <skill-dir>/scripts/status.sh show
 bash <skill-dir>/scripts/status.sh ready
@@ -26,7 +26,13 @@ bash <skill-dir>/scripts/status.sh pause --reason "waiting on the API key"
 bash <skill-dir>/scripts/status.sh resume
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
+bash <skill-dir>/scripts/status.sh route deep
 ```
+
+`route` is the odd one out: it reads and writes no state, and prints
+`sluice: <channel> channel` so the channel lands in the transcript as a tool
+input, which is kept as written where the announcement's prose may not be.
+`references/meter.md` says why that matters.
 
 `--dir <path>` reads another tree, which is what the statusline uses. A tree
 with a run of its own is read as itself; one with none resolves to the main
@@ -138,7 +144,7 @@ keeps `line` cheap enough to render on.
 Open it with `init` when you open the run record, at the same point and for the
 same reason, and in the same tree: after pre-flight, inside the worktree when
 one was bought. Then seed the rows with `plan.sh import <plan>` rather than a
-command per task. The ids, names, the flip, the `Model` marks and the tiers are
+command per task. The ids, names, the flip, the `Effort` marks and the tiers are
 all fixed the moment the plan is written and are already in the file, so typing
 them again is transcription with a chance of error in it.
 
@@ -150,7 +156,7 @@ the tier table takes the highest row a task matches.
 
 Re-importing is safe and is the right move after the plan changes. It refreshes
 names, the contract graph and the flip, moving the flip when the plan moved it,
-and it raises a tier without ever lowering one. A status, a review mark or a model
+and it raises a tier without ever lowering one. A status, a review mark or an effort
 ratified at pre-flight is left alone, so resuming after a compaction cannot rewind
 the run. The one consequence worth knowing: adding a missing `(test)` to a plan
 will not drop a task from tier 2 back to tier 1, because the tier table takes the
@@ -177,7 +183,7 @@ have gone that way. Those are different claims.
 `show` prints the whole run: channel, topic, how many tasks are done, the plan
 and record paths, how long it has sat idle once that passes a day, the tasks
 that shipped without a dispatch, the final review, the pre-flight answers, and a row per task with its
-base, commit, tier and model. Run it after compaction instead of reconstructing the
+base, commit, tier and effort. Run it after compaction instead of reconstructing the
 run from what you remember, and run it in the message that hands the work back,
 where "four of nine, task five blocked" is a fact your partner can act on.
 

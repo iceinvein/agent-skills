@@ -60,7 +60,7 @@ describe("sluice deep channel", () => {
 
 	test("the skeleton names every field dispatch derives from", () => {
 		const skeleton = fencedBlocks(deep).find((b) => b.startsWith("# Plan:")) ?? "";
-		for (const field of ["Ground Rules", "Contract", "Needs", "Offers", "Touches", "Flips", "Review", "Model"]) {
+		for (const field of ["Ground Rules", "Contract", "Needs", "Offers", "Touches", "Flips", "Review", "Effort"]) {
 			expect(skeleton).toContain(field);
 		}
 	});
@@ -172,31 +172,47 @@ describe("sluice per-task dispatch", () => {
 });
 
 // "Stronger model" only means something against a baseline someone decided. With
-// every dispatch inheriting the session's model, a tier that escalates to a stronger
-// one escalates to the same one, and reads as a safeguard that is not there.
-describe("sluice model routing", () => {
-	test("no tier escalates to an unspecified stronger model", () => {
+// every dispatch inheriting the session's model and effort, a tier that escalates
+// to a stronger one escalates to the same one, and reads as a safeguard that is
+// not there. On this model effort is the cost lever, so the downshift is by effort.
+describe("sluice effort routing", () => {
+	test("no tier escalates to an unspecified stronger model or higher effort", () => {
 		expect(DEEP).not.toMatch(/stronger[ -]model/i);
+		expect(DEEP).not.toMatch(/higher[ -]effort/i);
 	});
 
-	test("the skeleton carries the per-task model marker", () => {
+	test("the skeleton carries the per-task Effort marker and not the Model one", () => {
 		const skeleton = fencedBlocks(DEEP).find((b) => b.startsWith("# Plan:")) ?? "";
-		expect(skeleton).toContain("**Model:**");
+		expect(skeleton).toContain("**Effort:**");
+		expect(skeleton).not.toContain("**Model:**");
 	});
 
 	// Triviality is fixed once the Contract and Touches are written, so the judgement
 	// belongs to the plan. Left to the moment of dispatch, it is spent before the one
 	// stop where the partner could have priced it.
-	test("an unmarked task runs on the session's model", () => {
+	test("an unmarked task runs on the session's effort", () => {
 		const bullet = section(DEEP, "Dispatch rules")
 			.split("\n- ")
-			.find((b) => /`Model`/.test(b));
+			.find((b) => /`Effort`/.test(b));
 		expect(bullet).toBeDefined();
 		expect(bullet).toMatch(/session/i);
 	});
 
-	test("review never runs below the model that built the task", () => {
-		expect(section(DEEP, "Review policy")).toMatch(/never runs below|no lower than/i);
+	// The Agent tool takes a model and no effort, so an effort only reaches a
+	// subagent through an agent definition. Naming it is what makes the mark do
+	// anything at dispatch.
+	test("an Effort: low task is dispatched on the low-effort implementer", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /sluice-implementer-low/.test(b));
+		expect(bullet).toBeDefined();
+		expect(bullet).toContain("subagent_type: sluice-implementer-low");
+		expect(bullet).toContain("Effort: low");
+	});
+
+	test("review never runs below the effort that built the task", () => {
+		const policy = section(DEEP, "Review policy").replace(/\n/g, " ");
+		expect(policy).toMatch(/never runs below the effort/i);
 	});
 
 	test("the tasks tier 3 catches cannot be downshifted", () => {
@@ -209,16 +225,16 @@ describe("sluice model routing", () => {
 
 	test("pre-flight ratifies the plan's marks with the count in the question", () => {
 		const paras = section(DEEP, "Pre-flight").split("\n\n");
-		const at = paras.findIndex((p) => p.startsWith("**Model"));
+		const at = paras.findIndex((p) => p.startsWith("**Effort"));
 		expect(at).toBeGreaterThan(-1);
 		expect(paras[at]).toMatch(/count/i);
 	});
 
-	test("the router names the model question at the same stop", () => {
+	test("the router names the effort question at the same stop", () => {
 		const paras = section(SKILL, "Deep channel").split("\n\n");
 		const at = paras.findIndex((p) => p.startsWith("Pre-flight"));
 		expect(at).toBeGreaterThan(-1);
-		expect(paras[at]).toMatch(/model/i);
+		expect(paras[at]).toMatch(/effort/i);
 	});
 });
 
@@ -227,7 +243,7 @@ describe("sluice model routing", () => {
 // available in a harness that has an enforced one.
 // A repo can carry review tiering of its own, and the two schemes do not agree:
 // a repo tier that promises a bigger model for the risky tasks contradicts the
-// table here, which buys a dispatch and never a model. Loading both without a
+// table here, which buys a dispatch and never a model or an effort. Loading both without a
 // stated precedence leaves a run holding two schemes and no rule for choosing,
 // so the reconciliation has to be written down on this side. It belongs here
 // rather than in the repo's own file, which cannot be expected to know sluice
@@ -247,14 +263,14 @@ describe("sluice precedence over a repo's own review tiering", () => {
 		expect(policy).toMatch(/does not cover|no equivalent|nothing here|not covered/i);
 	});
 
-	// The existing model rule is the thing most likely to be contradicted, so the
+	// The existing effort rule is the thing most likely to be contradicted, so the
 	// note has to resolve it rather than leave the reader to notice the clash.
-	test("it resolves the model claim rather than restating the tiers", () => {
+	test("it resolves the effort claim rather than restating the tiers", () => {
 		const para = policy
 			.split(/\n\n/)
 			.find((b) => /\brepo\b/i.test(b) && /governs|takes precedence/i.test(b));
 		expect(para).toBeDefined();
-		expect(para).toMatch(/model/i);
+		expect(para).toMatch(/effort/i);
 	});
 });
 
@@ -538,6 +554,18 @@ describe("sluice announcement", () => {
 	test("the router fixes the words the meter keys on", () => {
 		expect(section(SKILL, "Route first")).toMatch(/<channel> channel/);
 	});
+
+	// Prose between tool calls can land in a thinking block and leave no literal
+	// words in the transcript; a tool input is stored as written.
+	test("the router has the route call run in the same message as the announcement", () => {
+		const route = section(SKILL, "Route first").replace(/\n/g, " ");
+		expect(route).toContain("status.sh route <channel>");
+		expect(route).toMatch(/same message/i);
+	});
+
+	test("escalating is another route call", () => {
+		expect(section(SKILL, "Changing channel")).toContain("status.sh route");
+	});
 });
 
 // A run opened in the main tree before the worktree exists blocks every later
@@ -592,5 +620,39 @@ describe("sluice never ends a turn mid-run", () => {
 
 	test("the router names the guard", () => {
 		expect(section(SKILL, "Deep channel")).toMatch(/Stop hook|stop guard/i);
+	});
+
+	test("the router's Stop hook paragraph points at the early stops", () => {
+		const para = section(SKILL, "Deep channel")
+			.split("\n\n")
+			.find((p) => /Stop hook/.test(p));
+		expect(para).toBeDefined();
+		expect(para).toMatch(/early stops/i);
+	});
+
+	// Each early stop has to be named to be caught: a summary alone reads as a
+	// report, not as a turn that ended with work left.
+	test("the never-ends-a-turn rule names the four early stops", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /never ends a turn/i.test(b));
+		expect(bullet).toBeDefined();
+		const flat = (bullet as string).replace(/\s+/g, " ");
+		expect(flat).toMatch(/announces the next step/i);
+		expect(flat).toMatch(/offer to carry on/i);
+		expect(flat).toMatch(/decisions none of which blocks/i);
+		expect(flat).toMatch(/milestone/i);
+	});
+
+	test("the never-ends-a-turn rule names the stops that are wanted", () => {
+		const bullet = section(DEEP, "Dispatch rules")
+			.split("\n- ")
+			.find((b) => /never ends a turn/i.test(b));
+		expect(bullet).toBeDefined();
+		const flat = (bullet as string).replace(/\s+/g, " ");
+		expect(flat).toMatch(/two stops/);
+		expect(flat).toMatch(/`blocked`/);
+		expect(flat).toMatch(/pause/);
+		expect(flat).toMatch(/handback/);
 	});
 });

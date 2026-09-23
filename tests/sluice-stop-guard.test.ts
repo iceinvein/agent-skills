@@ -32,7 +32,7 @@ function midRun(n: number, done: number): string {
 	status(dir, "init", "--topic", "widget", "--channel", "deep");
 	for (let i = 1; i <= n; i++) status(dir, "task", String(i), "--name", `T${i}`, "--tier", "1");
 	for (let i = 1; i <= done; i++) status(dir, "task", String(i), "--status", "done");
-	status(dir, "preflight", "--review", "tier 3", "--model", "all session", "--workspace", "shared tree");
+	status(dir, "preflight", "--review", "tier 3", "--effort", "all session", "--workspace", "shared tree");
 	return dir;
 }
 
@@ -164,7 +164,7 @@ describe("stop-guard.sh reads only the session's own tree", () => {
 		status(dir, "init", "--topic", "widget", "--channel", "deep");
 		for (let i = 1; i <= 3; i++) status(dir, "task", String(i), "--name", `T${i}`, "--tier", "1");
 		status(dir, "task", "1", "--status", "done");
-		status(dir, "preflight", "--review", "x", "--model", "y", "--workspace", "z");
+		status(dir, "preflight", "--review", "x", "--effort", "y", "--workspace", "z");
 	}
 
 	test("a linked worktree with no run of its own is let stop, whatever the main tree holds", () => {

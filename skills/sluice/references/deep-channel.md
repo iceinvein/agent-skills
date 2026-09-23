@@ -20,10 +20,13 @@
   corrupted concurrent run.
 - A **Review** field may name why the task needs the stronger tier (auth,
   data, money, concurrency); the table below decides otherwise.
-- A **Model** field may put the task on a cheaper model, and says why the work
-  is mechanical: the Contract is exact, the tests it has to satisfy already
-  exist, and nothing in it turns on judgment. Omit it and the task runs on this
-  session's model, so the marked tasks are the exceptions rather than the rule.
+- An **Effort** field, written `**Effort:** low, <why>`, may put the task on
+  low effort, and says why the work is mechanical: the Contract is exact, the
+  tests it has to satisfy already exist, and nothing in it turns on judgment.
+  Omit it and the task runs at this session's effort, so the marked tasks are
+  the exceptions rather than the rule. Effort is the lever rather than the
+  model because `low` comes close to `medium` on coding for much less, and a
+  `**Model:**` line from an older plan is an error, not a downshift.
   Anything the table below sends to tier 3 is disqualified, `Flips` with it:
   those are the tasks where being wrong is expensive, and the saving is not
   worth pricing against that. Mark it here rather than deciding at dispatch,
@@ -49,12 +52,12 @@
 **Run `scripts/plan.sh validate <plan>` on the finished plan, before pre-flight.**
 Most of what this section asks for needs no judgement to check: a `Needs` no
 task `Offers`, a "TBD", a step deferring to a neighbour, a missing `Contract`,
-a plan with no flip or two of them, a `Model` mark on a task the tier table
-sends to tier 3. Those come back as errors with the task number on them. The
-warnings are the judgement calls left to you: a step with no proof, a `Needs`
-satisfied only by a later task, two tasks whose `Touches` overlap. Reading the
-plan yourself catches these on a good day, and the point of a check is the
-other kind of day.
+a plan with no flip or two of them, an `Effort` mark on a task the tier table
+sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
+task number on them. The warnings are the judgement calls left to you: a step
+with no proof, a `Needs` satisfied only by a later task, two tasks whose
+`Touches` overlap. Reading the plan yourself catches these on a good day, and
+the point of a check is the other kind of day.
 
 ```
 # Plan: <topic>
@@ -65,7 +68,7 @@ other kind of day.
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
-**Model:** <cheaper model, and why the work is mechanical, or omit>
+**Effort:** <low, and why the work is mechanical, or omit>
 - [ ] <action> -> <proof>
 ```
 
@@ -86,7 +89,7 @@ rather than in the session. That lands in two files, and which one a thing goes
 in follows from who has to read it.
 
 `.sluice/run.json` holds the state that moves: each task with its status, base
-and commit, its tier, its `Model` mark and its `Flips` line, and the answers
+and commit, its tier, its `Effort` mark and its `Flips` line, and the answers
 pre-flight settled. `scripts/status.sh` writes and reads it, and
 `references/status.md` carries the commands and the statusline segment that
 makes a run visible without anyone asking. Open it with `init` when you open
@@ -97,9 +100,9 @@ that session cannot tell an abandoned run from yours. One already stranded
 there moves with `status.sh move --to <worktree>`. Seed the rows with
 `scripts/plan.sh import <plan>` rather than typing a command per task, then
 flip each task as it moves. It carries the ids, the names,
-the flip, the model marks and the tiers, the last of these floored off `Touches`
+the flip, the effort marks and the tiers, the last of these floored off `Touches`
 and the contract graph rather than guessed. Import is safe to re-run: a status, a
-review mark or a ratified model already recorded is left alone and a tier is only
+review mark or a ratified effort already recorded is left alone and a tier is only
 ever raised, so resuming after a compaction cannot rewind the run.
 
 The record is the other file, and it holds what a status cannot: the reason
@@ -196,12 +199,12 @@ decision that was already made. `references/status.md` has the two readings.
 "Four of nine need a reviewer" is a decision your partner can price; "I will
 review where appropriate" is not.
 
-**Model.** The plan already marked which tasks are mechanical, so this is a
+**Effort.** The plan already marked which tasks are mechanical, so this is a
 ratification rather than a fresh judgment, and it carries the count: six of
-nine on the cheaper model and three on this session's, take it, put everything
-on the session model, or name the exceptions. The count is what your partner
-prices. "I will use the cheaper model where it fits" prices nothing, and it
-also arrives after the tokens are spent.
+nine at low effort and three at this session's, take it, put everything at the
+session's effort, or name the exceptions. The count is what your partner
+prices. "I will use low effort where it fits" prices nothing, and it also
+arrives after the tokens are spent.
 
 **Workspace, commits and concurrency.** One worktree for the plan, one per
 concurrent implementer, or straight onto the current branch; and with it who
@@ -310,11 +313,18 @@ reads the run state rather than the plan: it sees what has actually landed.
   handed back that way stands still until your partner notices, which
   overnight is the next morning. So an announcement rides in the same message
   as the dispatch it announces, a wave's completion is followed in the same
-  message by `status.sh ready` and the next dispatch, and "T4 goes next" is
-  never the last thing a message says. The turns that do end are the two
-  stops, a task marked `blocked` because it genuinely needs your partner, and
-  the handback. Everything else that has to wait on them goes through one of
-  those two doors: a finding still open after three review rounds marks its
+  message by `status.sh ready` and the next dispatch, and a status note goes
+  in the same message as the next tool call. Four early stops read as a
+  natural place to end and are not one: a summary of what landed that
+  announces the next step without taking it, so "T4 goes next" is the last
+  thing said and T4 never starts; an offer to carry on unless your partner
+  would prefer otherwise; a list of decisions none of which blocks the rest,
+  when the work they do not block could go on while they are answered; and
+  deciding this is a good place to report because the turn has been long or a
+  milestone landed. The turns that do end are the two stops, a task marked
+  `blocked` because it genuinely needs your partner, a pause recorded with its
+  reason, and the handback. Everything else that has to wait on them goes
+  through one of those two doors: a finding still open after three review rounds marks its
   task `blocked`, and re-dispatching it flips the row back to `active` when
   your partner has answered; a mid-run request for a dispatch, or a
   show-or-say offer, is a pause, `status.sh pause --reason "<why>"`, so the reason is on disk and
@@ -366,11 +376,17 @@ reads the run state rather than the plan: it sees what has actually landed.
   authoring a message for a diff you did not write means reading that diff,
   which is the context dispatch exists to keep out of this session. Pre-flight
   can overturn it for a given run.
-- **The plan and pre-flight decide the model, not the moment of dispatch.** A
-  task with no `Model` line goes out on this session's, and a downshift that
-  was neither marked nor ratified is a saving your partner never agreed to.
-  Reviewers are the other half of that rule: a review never runs below the
-  model that built the task, so a downshifted task's reviewer comes back up.
+- **The plan and pre-flight decide the effort, not the moment of dispatch.** A
+  task with no `Effort` line goes out on this session's model and effort, and a
+  downshift that was neither marked nor ratified is a saving your partner never
+  agreed to. A task ratified at `Effort: low` goes out with
+  `subagent_type: sluice-implementer-low`, the agent sluice installs with
+  `effort: low` and `model: inherit`: the Agent tool takes a model and no
+  effort, so an agent definition is the one place a dispatch's effort can be
+  set. Reviewers are the
+  other half of that rule: a review never runs below the effort that built the
+  task, so the review of an `Effort: low` task goes out on this session's
+  effort and never on the low agent.
 
 A per-task commit is not an integration event. `references/finish.md` owns
 push, PR and merge, none of which happen here, and a standing instruction to
@@ -456,19 +472,20 @@ and it fails by printing success rather than by erroring.
 | 3 | Auth, data, money, concurrency, or the plan flags it | One reviewer dispatch; the task may not be downshifted |
 | 3 | Carries the `Flips` line | One reviewer dispatch; the task may not be downshifted |
 
-No tier buys a bigger model, because a plan that downshifted nothing has every
-agent on the same one, and a tier promising something stronger would be
-promising what is already in use. What a tier buys is a dispatch. The one model
-rule that holds across all of them is that a review never runs below the model
-that built the task, so tiers 1 and 2 over a downshifted task come back up to
-this session's.
+No tier buys a bigger model or more effort, because a plan that downshifted
+nothing has every agent on the session's model and effort, and a tier promising
+something stronger would be promising what is already in use. What a tier buys
+is a dispatch. The one effort rule that holds across all of them is that a
+review never runs below the effort that built the task, so tiers 1 and 2 over
+an `Effort: low` task go out at this session's effort rather than on
+`sluice-implementer-low`.
 
 **Where the repo carries review tiering of its own, this table governs.** It is
-the more specific of the two: wired into `Flips`, the `Model` marks and the
+the more specific of the two: wired into `Flips`, the `Effort` marks and the
 count pre-flight prices, so a repo's tiers cannot be honoured without unpicking
-those. The usual clash is a repo tier that buys a bigger model for its risky
-tasks, and it loses to the model rule above for the reason given there. What
-the repo keeps is everything this table does not cover, which is most of what
+those. The usual clash is a repo tier that buys a bigger model or more effort
+for its risky tasks, and it loses to the effort rule above for the reason given
+there. What the repo keeps is everything this table does not cover, which is most of what
 such rules are for: its gate on deterministic checks before a task reports
 done, the shape of its skip ledger, what it does after a fix round that touched
 no logic. Take the dispatch decision from here and the rest from there, and say
@@ -566,8 +583,8 @@ and this one is owed by the plan as a whole.
 
 It covers cross-task integration and everything the record accumulated, not
 lines a per-task review already cleared. It is a dispatch, on this session's
-model and never a downshifted one, and it gets the whole-plan diff and the
-deferred findings as a list.
+model and effort and never a downshifted one, and it gets the whole-plan diff
+and the deferred findings as a list.
 
 Size the brief to what it is actually carrying, and say which of two things it
 is. After nine per-task reviews cleared, it is an integration check. When

@@ -16,12 +16,25 @@ than a number nobody checked. `--base <ref>` overrides the diff base when the
 merge-base with `main` or `master` is not where this branch actually began.
 
 The run starts at your channel announcement, or at the point this skill was
-invoked by name when that came first, not at the session. Three unrelated tasks
+invoked by name when that came first, not at the session. The announcement is
+found two ways: by the words `<channel> channel` opening a message, and by the
+`status.sh route <channel>` call that rides with it. The call is the one the
+ledger can always anchor on, because prose written between tool calls can land
+in a thinking block as a paraphrase and leave the literal words nowhere in the
+transcript, while a tool input is kept as written. Three unrelated tasks
 in one session therefore report as three runs, and a previous ledger closes the
 run before it. `bypass` announces nothing, so there is nothing there to meter,
 and the rule does not fire; if you run the script anyway in a session that
 loaded the skill, it will happily print a ledger headed `not announced`, which
 is a measurement of nothing you were asked to account for.
+
+The announcement is found two ways: by the words `<channel> channel` opening a
+message, and by the `status.sh route <channel>` call that rides with it. The
+call is the one the ledger can always anchor on, because prose written between
+tool calls can land in a thinking block as a paraphrase and leave the literal
+words nowhere in the transcript, while a tool input is kept as written. An
+escalation is another route call, and each one joins the trail the ledger's
+channel line prints.
 
 What the ledger is for: the cost of a channel is otherwise invisible, and a
 channel nobody can price is a channel nobody can choose between. Six agents

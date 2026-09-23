@@ -14,10 +14,10 @@
 # validate prints one line per finding. An error means the plan cannot be
 # dispatched as written; a warning is a judgement call left to its author.
 # import seeds the run state's task rows from the plan, so the ids, names, the
-# flip, the model and effort marks and the tiers come from the file rather than
-# from a dozen hand-typed commands. It is safe to re-run: a status, a review
-# mark or a ratified model or effort already recorded is left alone, and a tier
-# is only ever raised.
+# flip, the effort marks and the tiers come from the file rather than from a
+# dozen hand-typed commands. It is safe to re-run: a status, a review mark or a
+# ratified effort already recorded is left alone, and a tier is only ever
+# raised.
 #
 # Exit: 0 no errors, 2 errors found, 4 bad arguments, 5 jq missing (import only).
 
@@ -42,7 +42,7 @@ usage() {
 # Rows:
 #   summary <task count> <flip task or 0>
 #   error|warn  <message>
-#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <effort 1|0>  <flips 1|0>  <needs>  <offers>  <touches>
+#   task  <id>  <name>  <tier 0-3>  <effort 1|0>  <flips 1|0>  <needs>  <offers>  <touches>
 #
 # The last three are space-separated and are what answers "which tasks may go
 # now": a task is ready when every Needs it names is offered by something already
@@ -287,10 +287,10 @@ END {
 				finding("error", "task " id " has no steps")
 			else if (id in noproof)
 				finding("warn", "task " id ": " noproof[id] " of " nsteps[id] " steps have no proof after ->, so nothing says they worked")
-			if ((id in has_model) && (id in has_flips))
-				finding("error", "task " id " carries Flips and a Model mark; the flip is tier 3 and may not be downshifted")
-			if ((id in has_model) && (id in has_review))
-				finding("error", "task " id " is flagged for Review and carries a Model mark; a tier 3 task may not be downshifted")
+			# Nothing dispatches on a Model mark any more, so a plan written before
+			# the switch would otherwise validate clean and downshift nothing.
+			if (id in has_model)
+				finding("error", "task " id " carries a Model mark, which is retired; mark a mechanical task **Effort:** low, <why> instead")
 			if ((id in has_effort) && (id in has_flips))
 				finding("error", "task " id " carries Flips and an Effort mark; the flip is tier 3 and may not be downshifted")
 			if ((id in has_effort) && (id in has_review))
@@ -372,7 +372,7 @@ END {
 	for (i = 1; i <= ntasks; i++) {
 		id = order[i]
 		tier = tier_of[id]
-		print "task" SEP id SEP name[id] SEP tier SEP ((id in has_model) ? 1 : 0) SEP ((id in has_effort) ? 1 : 0) \
+		print "task" SEP id SEP name[id] SEP tier SEP ((id in has_effort) ? 1 : 0) \
 			SEP ((id in has_flips) ? 1 : 0) \
 			SEP trim(needs[id]) SEP trim(offers[id]) SEP trim(paths[id])
 	}
@@ -478,13 +478,10 @@ case "$SUB" in
 
 		[ "$NTASKS" != "0" ] || { err "$PLAN has no tasks to import"; exit 2; }
 
-		# The plan marks that a task is mechanical; pre-flight ratifies which model
-		# it actually runs on, and that answer lives in run.json. Re-import must
-		# not replace it with the placeholder, so the ids already carrying a model
-		# are read first and skipped.
-		HAS_MODEL=" $(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
-			jq -r '[.tasks[]? | select(.model != null) | .id] | join(" ")' 2>/dev/null) "
-		# Same for effort: the mark says "mechanical", pre-flight decides the level.
+		# The plan marks that a task is mechanical; pre-flight ratifies which effort
+		# it actually runs at, and that answer lives in run.json. Re-import must
+		# not replace it with the placeholder, so the ids already carrying an
+		# effort are read first and skipped.
 		HAS_EFFORT=" $(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.effort != null) | .id] | join(" ")' 2>/dev/null) "
 
@@ -495,7 +492,7 @@ case "$SUB" in
 		RECORDED_TIERS="$(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.tier != null) | "\(.id):\(.tier)"] | join(" ")' 2>/dev/null)"
 
-		printf '%s\n' "$TASKROWS" | while IFS="$SEP" read -r _ id name tier model effort flips needs offers touches; do
+		printf '%s\n' "$TASKROWS" | while IFS="$SEP" read -r _ id name tier effort flips needs offers touches; do
 			[ -n "${id:-}" ] || continue
 			set -- task "$id" --name "$name" --dir "$DIR"
 			# The flip is a plan fact rather than a run decision, so import is
@@ -511,10 +508,6 @@ case "$SUB" in
 					set -- "$@" --tier "$tier"
 				fi
 			fi
-			case "$HAS_MODEL" in
-				*" $id "*) ;;
-				*) [ "$model" = "1" ] && set -- "$@" --model cheap ;;
-			esac
 			case "$HAS_EFFORT" in
 				*" $id "*) ;;
 				*) [ "$effort" = "1" ] && set -- "$@" --effort low ;;
