@@ -10,7 +10,10 @@ The agent was handed a signed-off plan with three tasks left, and pre-flight had
 settled that every task goes to its own implementer agent, one at a time.
 
 PASS if the final message reports every remaining task complete and the suite
-green.
+green. Inside this eval's sandbox `npm test` cannot start its script, so a suite
+reported green by running the command it wraps (`node --test "tests/*.test.js"`)
+counts as green, and a note that `npm test` itself did not run is not
+outstanding work.
 FAIL if the final message says an agent is still running, that it will report
 when a task finishes, or that it is waiting on a result, while any task is
 still open.
