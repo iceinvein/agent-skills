@@ -208,6 +208,20 @@ describe("task", () => {
 		expect(run(dir, "task", "1", "--tier", "4").code).toBe(4);
 	});
 
+	test("stores an effort level", () => {
+		const dir = seeded(1);
+		expect(run(dir, "task", "1", "--effort", "low").code).toBe(0);
+		expect(state(dir).tasks[0]).toMatchObject({ id: 1, effort: "low" });
+	});
+
+	test("rejects an effort level outside low, medium and high", () => {
+		const dir = seeded(1);
+		const r = run(dir, "task", "1", "--effort", "extreme");
+		expect(r.code).toBe(4);
+		expect(r.err).toMatch(/extreme/);
+		expect(state(dir).tasks[0]).not.toHaveProperty("effort");
+	});
+
 	test("needs a live run", () => {
 		const dir = repo();
 		const r = run(dir, "task", "1", "--name", "schema");
@@ -236,6 +250,12 @@ describe("preflight", () => {
 			model: "6 of 9 cheap",
 			workspace: "one worktree per implementer",
 		});
+	});
+
+	test("records the effort answer", () => {
+		const dir = seeded(1);
+		expect(run(dir, "preflight", "--effort", "2 of 6 low").code).toBe(0);
+		expect(state(dir).preflight).toEqual({ effort: "2 of 6 low" });
 	});
 
 	test("shows in the table, so an undischarged pre-flight is visible", () => {
@@ -300,6 +320,17 @@ describe("show", () => {
 		// against the header rather than counted out by eye.
 		const at = (l: string) => l.indexOf("status") >= 0 ? l.indexOf("status") : l.indexOf("todo");
 		expect(at(lines[header] as string)).toBe(at(lines[header + 1] as string));
+	});
+
+	test("has an effort column carrying each task's level", () => {
+		const dir = seeded(2);
+		run(dir, "task", "1", "--effort", "low");
+		const lines = run(dir, "show").out.split("\n");
+		const header = lines.find((l) => /\bid\s+status\b/.test(l)) as string;
+		expect(header).toMatch(/\beffort\b/);
+
+		const row = lines.find((l) => l.includes("T1")) as string;
+		expect(row.indexOf("low")).toBe(header.indexOf("effort"));
 	});
 
 	test("--json emits the state verbatim for another reader", () => {

@@ -236,6 +236,42 @@ describe("the model mark against the tier table", () => {
 	});
 });
 
+describe("the effort mark against the tier table", () => {
+	test("Effort on the task carrying Flips is rejected", () => {
+		const r = validate(
+			broken(
+				"**Flips:** the CLI renders widgets, from printing nothing\n",
+				"**Flips:** the CLI renders widgets, from printing nothing\n**Effort:** low, the contract is exact\n",
+			),
+		);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/effort/i);
+		expect(r.out).toMatch(/flips|tier 3/i);
+	});
+
+	test("Effort on a task the plan flagged for review is rejected", () => {
+		const r = validate(
+			broken(
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Review:** auth\n**Effort:** low, mechanical\n",
+			),
+		);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/effort/i);
+	});
+
+	test("Effort on an ordinary task is fine", () => {
+		const r = validate(
+			broken(
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Effort:** low, the contract is exact and the tests exist\n",
+			),
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).not.toMatch(/effort/i);
+	});
+});
+
 describe("concurrency the Touches lines rule out", () => {
 	test("two tasks sharing a path warn, since it decides what can overlap", () => {
 		const r = validate(broken("**Touches:** src/cli.ts (edit)", "**Touches:** src/widget.ts (edit)"));
@@ -324,6 +360,19 @@ describe("import", () => {
 		);
 		expect(tasks(dir)[0]).toMatchObject({ id: 1, model: "cheap" });
 		expect(tasks(dir)[1]).not.toHaveProperty("model");
+	});
+
+	test("carries an Effort mark across as low effort", () => {
+		const dir = repoWithRun();
+		imp(
+			dir,
+			broken(
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
+				"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Effort:** low, the contract is exact\n",
+			),
+		);
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, effort: "low" });
+		expect(tasks(dir)[1]).not.toHaveProperty("effort");
 	});
 
 	// Seeding a run from a plan that still has to change points every task row at
@@ -611,6 +660,19 @@ describe("import round two", () => {
 		const dir = repoWithRun();
 		imp(dir, WITH_MODEL);
 		expect(tasks(dir)[0]).toHaveProperty("model");
+	});
+
+	test("does not overwrite an effort already recorded against a task", () => {
+		const dir = repoWithRun();
+		const withEffort = broken(
+			"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n",
+			"**Touches:** src/widget.ts (new) | tests/widget.test.ts (test)\n**Effort:** low, the contract is exact\n",
+		);
+		imp(dir, withEffort);
+		Bun.spawnSync({ cmd: ["bash", STATUS, "task", "1", "--effort", "high", "--dir", dir] });
+
+		imp(dir, withEffort);
+		expect(tasks(dir)[0]).toMatchObject({ id: 1, effort: "high" });
 	});
 
 	// The header promised a tier. Flips and Review are the two the plan settles;

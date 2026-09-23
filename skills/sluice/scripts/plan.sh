@@ -14,9 +14,10 @@
 # validate prints one line per finding. An error means the plan cannot be
 # dispatched as written; a warning is a judgement call left to its author.
 # import seeds the run state's task rows from the plan, so the ids, names, the
-# flip, the model marks and the tiers come from the file rather than from a dozen
-# hand-typed commands. It is safe to re-run: a status, a review mark or a
-# ratified model already recorded is left alone, and a tier is only ever raised.
+# flip, the model and effort marks and the tiers come from the file rather than
+# from a dozen hand-typed commands. It is safe to re-run: a status, a review
+# mark or a ratified model or effort already recorded is left alone, and a tier
+# is only ever raised.
 #
 # Exit: 0 no errors, 2 errors found, 4 bad arguments, 5 jq missing (import only).
 
@@ -41,7 +42,7 @@ usage() {
 # Rows:
 #   summary <task count> <flip task or 0>
 #   error|warn  <message>
-#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <flips 1|0>  <needs>  <offers>  <touches>
+#   task  <id>  <name>  <tier 0-3>  <model 1|0>  <effort 1|0>  <flips 1|0>  <needs>  <offers>  <touches>
 #
 # The last three are space-separated and are what answers "which tasks may go
 # now": a task is ready when every Needs it names is offered by something already
@@ -251,6 +252,7 @@ in_rules && /^- / { nrules++ }
 /^\*\*Flips:\*\*/ { has_flips[cur] = 1; nflips++; flips_list = flips_list (flips_list == "" ? "" : ", ") cur; next }
 /^\*\*Review:\*\*/ { has_review[cur] = 1; next }
 /^\*\*Model:\*\*/  { has_model[cur] = 1; next }
+/^\*\*Effort:\*\*/ { has_effort[cur] = 1; next }
 
 /^- \[[ xX]\]/ {
 	nsteps[cur]++
@@ -289,6 +291,10 @@ END {
 				finding("error", "task " id " carries Flips and a Model mark; the flip is tier 3 and may not be downshifted")
 			if ((id in has_model) && (id in has_review))
 				finding("error", "task " id " is flagged for Review and carries a Model mark; a tier 3 task may not be downshifted")
+			if ((id in has_effort) && (id in has_flips))
+				finding("error", "task " id " carries Flips and an Effort mark; the flip is tier 3 and may not be downshifted")
+			if ((id in has_effort) && (id in has_review))
+				finding("error", "task " id " is flagged for Review and carries an Effort mark; a tier 3 task may not be downshifted")
 		}
 
 		if (nflips == 0)
@@ -366,7 +372,8 @@ END {
 	for (i = 1; i <= ntasks; i++) {
 		id = order[i]
 		tier = tier_of[id]
-		print "task" SEP id SEP name[id] SEP tier SEP ((id in has_model) ? 1 : 0) SEP ((id in has_flips) ? 1 : 0) \
+		print "task" SEP id SEP name[id] SEP tier SEP ((id in has_model) ? 1 : 0) SEP ((id in has_effort) ? 1 : 0) \
+			SEP ((id in has_flips) ? 1 : 0) \
 			SEP trim(needs[id]) SEP trim(offers[id]) SEP trim(paths[id])
 	}
 }
@@ -477,6 +484,9 @@ case "$SUB" in
 		# are read first and skipped.
 		HAS_MODEL=" $(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.model != null) | .id] | join(" ")' 2>/dev/null) "
+		# Same for effort: the mark says "mechanical", pre-flight decides the level.
+		HAS_EFFORT=" $(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
+			jq -r '[.tasks[]? | select(.effort != null) | .id] | join(" ")' 2>/dev/null) "
 
 		# The tier table takes the highest row a task matches, so a tier raised by
 		# hand is a decision and re-import may only ever raise. Lowering it back
@@ -485,7 +495,7 @@ case "$SUB" in
 		RECORDED_TIERS="$(bash "$STATUS" show --json --dir "$DIR" 2>/dev/null |
 			jq -r '[.tasks[]? | select(.tier != null) | "\(.id):\(.tier)"] | join(" ")' 2>/dev/null)"
 
-		printf '%s\n' "$TASKROWS" | while IFS="$SEP" read -r _ id name tier model flips needs offers touches; do
+		printf '%s\n' "$TASKROWS" | while IFS="$SEP" read -r _ id name tier model effort flips needs offers touches; do
 			[ -n "${id:-}" ] || continue
 			set -- task "$id" --name "$name" --dir "$DIR"
 			# The flip is a plan fact rather than a run decision, so import is
@@ -504,6 +514,10 @@ case "$SUB" in
 			case "$HAS_MODEL" in
 				*" $id "*) ;;
 				*) [ "$model" = "1" ] && set -- "$@" --model cheap ;;
+			esac
+			case "$HAS_EFFORT" in
+				*" $id "*) ;;
+				*) [ "$effort" = "1" ] && set -- "$@" --effort low ;;
 			esac
 			# Passed unconditionally, empty included: the graph is a plan fact like
 			# the flip, so an edge the plan dropped has to be cleared rather than
