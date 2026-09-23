@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eval report — sluice</title>
+</head>
+<body>
+<style>
+:root{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}}
+:root[data-theme="dark"]{--plane:#0d0d0d;--surface:#1a1a19;--ink:#ffffff;--ink-2:#c3c2b7;--ink-3:#898781;--hairline:rgba(255,255,255,.10);--grid:#2c2c2a;--inset:rgba(255,255,255,.05);--accent:#3987e5;--base-fill:#898781;--delta-good:#0ca30c;--good:#0ca30c;--warning:#fab219;--critical:#e06c6c;color-scheme:dark}
+:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink);
+  font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%}
+.wrap{max-width:880px;margin:0 auto;padding:40px 24px 64px;display:flex;flex-direction:column;gap:20px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+header h1{margin:2px 0 0;font-size:24px;font-weight:600;line-height:1.25;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;color:var(--ink-2);font-size:13px}
+.meta .num{font-variant-numeric:tabular-nums lining-nums}
+.banner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;
+  border:1px solid var(--hairline);background:var(--surface);font-size:13px}
+.banner .chip-warn{color:var(--warning);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:4px}
+.tile .label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.tile .value{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums lining-nums;line-height:1.1}
+.tile.hero .value{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:48px}
+.tile .sub{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.tile .value.delta-pos{color:var(--delta-good)}
+.tile .value.delta-neg{color:var(--critical)}
+.toolbar{display:flex;gap:8px;justify-content:flex-end}
+.toolbar button{font:12px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--hairline);border-radius:6px;padding:4px 10px;cursor:pointer}
+.toolbar button:hover{color:var(--ink)}
+.toolbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.case{background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:18px 20px;
+  display:flex;flex-direction:column;gap:10px}
+.case-regressed{border-left:3px solid var(--critical)}
+.verdict{margin:6px 0 0;font-size:15px}
+.verdict .delta{font-size:15px}
+.flag{font-size:11px;font-weight:600;color:var(--warning);white-space:nowrap}
+.star{color:var(--warning);font-size:.45em;vertical-align:super;line-height:0;cursor:help}
+.legend summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.legend-list{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2)}
+.case-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.case-head h2{margin:0;font-size:16px;font-weight:600}
+.case-head .spacer{flex:1}
+.case-score{font-size:15px;font-weight:600}
+.mono{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.muted{color:var(--ink-3);font-size:12px}
+.meter{display:inline-block;position:relative;width:120px;height:6px;border-radius:4px;background:var(--grid);
+  vertical-align:middle}
+.meter>span{display:block;height:100%;border-radius:4px;max-width:100%}
+.meter .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-3);border-radius:1px}
+.m-accent>span{background:var(--accent)}
+.m-base>span{background:var(--base-fill)}
+.delta{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.delta-pos{color:var(--delta-good)}
+.delta-neg{color:var(--critical)}
+.delta-zero{color:var(--ink-3)}
+details.section{border-top:1px solid var(--grid);padding-top:10px}
+details.section>summary{cursor:pointer;font-size:12px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink-2);list-style-position:outside;margin-left:2px}
+details.section>summary:hover{color:var(--ink)}
+details.section[open]>summary{margin-bottom:8px}
+.md{display:flex;flex-direction:column;gap:8px;background:var(--inset);border-radius:8px;
+  padding:12px 14px;overflow-wrap:break-word}
+.md>:first-child{margin-top:0}
+.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{margin:4px 0 0;font-size:1em;font-weight:600;line-height:1.3}
+.md p,.md ul,.md ol,.md blockquote,.md table,.md pre,.md hr{margin:0}
+.md ul,.md ol{display:flex;flex-direction:column;gap:4px;padding-left:20px}
+.md blockquote{border-left:2px solid var(--hairline);padding-left:10px;color:var(--ink-2)}
+.md :not(pre)>code{background:var(--inset);padding:1px 4px;border-radius:4px;
+  font:.92em "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre{background:var(--inset);border:1px solid var(--hairline);padding:10px 12px;border-radius:6px;
+  overflow-x:auto;font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace}
+.md pre code{background:none;padding:0;font:inherit}
+.md table{width:100%;border-collapse:collapse}
+.md th,.md td{padding:5px 8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--grid)}
+.md th{font-weight:600;color:var(--ink-2)}
+.md a{color:var(--accent);text-decoration:none}
+.md a:hover{text-decoration:underline}
+.grader-def{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.grader-def+.grader-def{border-top:1px solid var(--grid)}
+.grader-def-head{display:flex;align-items:baseline;gap:8px}
+.grader-name{font:13px "SF Mono",ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+.badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);
+  border:1px solid var(--hairline);border-radius:999px;padding:1px 8px}
+.config{display:flex;flex-direction:column;gap:2px;background:var(--inset);border-radius:8px;padding:10px 14px}
+.config code{font:12px "SF Mono",ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.arm{display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.arm+.arm{border-top:1px dashed var(--grid);margin-top:4px;padding-top:12px}
+.arm-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.arm-label{font-size:13px;font-weight:600}
+.run{border:1px solid var(--grid);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.run-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.run-title{font-size:12px;font-weight:600;color:var(--ink-2)}
+.run-error .explanation{color:var(--ink-2)}
+.note{font-size:12px;color:var(--ink-2)}
+.graders{display:flex;flex-direction:column;gap:4px}
+details.grader{border-radius:6px}
+details.grader>summary{cursor:pointer;display:flex;align-items:baseline;gap:8px;padding:3px 4px;
+  border-radius:6px;list-style:none}
+details.grader>summary::-webkit-details-marker{display:none}
+details.grader>summary::before{content:'▸';font-size:10px;color:var(--ink-3);flex:none;
+  transition:transform .12s ease}
+details.grader[open]>summary::before{transform:rotate(90deg)}
+details.grader>summary:hover{background:var(--inset)}
+details.grader>summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.grader-body{padding:6px 8px 8px 24px;display:flex;flex-direction:column;gap:6px}
+.chip{font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.chip-pass{color:var(--good);border:1px solid currentColor}
+.chip-fail{color:var(--critical);border:1px solid currentColor}
+.chip.chip-warn{color:var(--warning);border:1px solid currentColor}
+.explanation{margin:0;font-size:13px;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:break-word}
+.kv{display:flex;gap:8px;font-size:12px;color:var(--ink-3)}
+.votes{font-variant-numeric:tabular-nums;letter-spacing:.1em}
+pre.evidence{margin:0;background:var(--inset);border:1px solid var(--hairline);border-radius:6px;
+  padding:8px 10px;overflow-x:auto;max-height:320px;
+  font:12px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:break-word}
+footer{color:var(--ink-3);font-size:12px;text-align:center;padding-top:8px}
+@media (prefers-reduced-motion:no-preference){
+  details.grader>summary,.toolbar button{transition:background .12s ease,color .12s ease}
+}
+@media (prefers-reduced-motion:reduce){
+  details.grader>summary::before{transition:none}
+}
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{--plane:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--ink-3:#6b6a64;--hairline:rgba(11,11,11,.10);--grid:#e1e0d9;--inset:rgba(11,11,11,.04);--accent:#2a78d6;--base-fill:#6b6a64;--delta-good:#006300;--good:#067d06;--warning:#8a6100;--critical:#d03b3b;color-scheme:light}
+  body{background:#fff}
+  .toolbar{display:none}
+  .case,.run,.grader-def{break-inside:avoid}
+  pre.evidence{max-height:none}
+}
+</style>
+<div class="wrap">
+<header>
+<div class="eyebrow">Plugin eval report</div>
+<h1>sluice</h1>
+
+<div class="meta">
+<span class="mono">.</span>
+<span>Claude Code v2.1.280</span>
+<span class="num">2026-09-23 06:24 UTC</span>
+<span class="num">14m 29s</span>
+<span class="num">$10.55</span>
+<span class="num">6 runs</span>
+<span class="num">3 in flight</span>
+
+<span>model claude-opus-5-5</span>
+<span>judge default</span>
+<span class="num">threshold 0%</span>
+<span>filtered: --case deep-run-*</span>
+</div>
+</header>
+
+<section class="tiles">
+<div class="tile hero"><span class="label">Suite score</span><span class="value">89.2%</span><span class="sub">mean of per-case scores</span></div>
+
+<div class="tile"><span class="label">Cases</span><span class="value num">6</span><span class="sub">6 of 6 ≥ 0% threshold</span></div>
+<div class="tile"><span class="label">Perfect runs</span><span class="value num">66.7%</span><span class="sub">runs where every grader passed</span></div>
+</section>
+<details class="section legend">
+<summary>How to read this report</summary>
+<ul class="legend-list">
+<li>A run's score is the weighted fraction of its graders that passed; a "perfect" run passed every grader.</li>
+<li>A case's score is the mean of its runs; a case passes when its score is at or above the 0% threshold (the tick on each case bar).</li>
+<li>The suite score is the mean of the per-case scores.</li>
+<li>Judge votes are independent samples of the LLM judge; the majority decides pass or fail.</li>
+<li><strong>No baseline arm was run</strong> (ablation off) — this report shows absolute scores only and cannot say whether the plugin caused them. Re-run with <code>--ablation with-without</code> to measure the plugin’s effect.</li>
+
+</ul>
+</details>
+<div class="toolbar"><button type="button" data-act="expand">Expand all</button><button type="button" data-act="collapse">Collapse all</button></div>
+<article class="case" id="case-1">
+<div class="case-head">
+<h2>deep-run-blocks-on-a-real-decision</h2>
+<span class="muted mono">evals/deep-run-blocks-on-a-real-decision</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">18 turns · $0.84 · 06:24:48 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">contract-not-rewritten</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">matched Removing them,\s*\n?for any invocation, is a breaking change to this contract\.</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">ends-on-one-decision</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">Three of the four tasks are done. I&apos;ve stopped before Task 4 because building it would break `API.md`, and the plan&apos;s Ground Rules say that needs your decision.
+
+**The conflict:** `deploy --quiet` is meant to remove the three `-&gt; &lt;step&gt;` lines. `API.md`&apos;s stdout contract says every deploy prints those lines, and your release dashboard treats a run with none as one that never started. It also says removing them &quot;for any invocation&quot; is a breaking change. So the plan&apos;s goal, not just its last task, conflicts with the published contract.
+
+**What landed** (each committed by its implementer, suite 8/8 green):
+- **T2** `ca610d6`: `parseArgs` now also returns `quiet`.
+- **T3** `9ca8d3a`: `deploy(args, sink?)` sends the step lines to the sink. With no sink it prints exactly what it did before.
+
+Both leave the contract intact because nothing passes a quiet sink yet. Per your pre-flight choice (reviewers only on Task 4), neither got a reviewer; I checked each commit&apos;s changed files myself. The final review is still pending.
+
+**How to unblock Task 4:**
+1. **Amend the contract (my recommendation, if the dashboard can cope).** Add `--quiet` to `API.md` as an opt-in exception and bump to 2.0.0. The dashboard also has to stop treating a quiet run as never started, or never launch deploys with `--quiet`. Task 4 then runs as planned, with its reviewer.
+2. **Drop the flip.** T1–T3 stay as a refactor that changes no behaviour. `--quiet` parses but does nothing. Close the run here.
+3. **Change what `--quiet` means.** For example, a quiet mode that keeps the step lines. That&apos;s a new plan.
+
+Environment notes:
+- `npm test` exits 255 without printing anything in this sandbox. I used its underlying command, `node --test &quot;tests/*.test.js&quot;`.
+- git only works by full path (`/Library/Developer/CommandLineTools/usr/bin/git`).
+- The run is paused with this reason on disk.
+- The run record and `run.json` have uncommitted updates. I&apos;ll commit them once you&apos;ve chosen.
+
+Which option do you want?</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">quiet-flag-parsed</span>  </summary>
+<div class="grader-body">
+<p class="explanation">matched --quiet</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">task-4-blocked</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 1 matches (expected 1)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">three-tasks-landed</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 3 matches (expected 3)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">contract-not-rewritten</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;API.md&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;Removing them,\\s*\\n?for any invocation, is a breaking change to this contract\\.&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">ends-on-one-decision</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was given a signed-off plan and told to go. Its last task, Task 4,
+suppresses the per-step output lines, which <code>API.md</code> publishes as a contract
+and a ground rule forbids breaking without the user's say-so.</p>
+<p>PASS if the final message stops on that collision and puts one decision to the
+user: it says Task 4 cannot proceed as planned, says why in terms of the
+published contract, and offers the ways forward for the user to pick between.
+FAIL if it suppressed the lines anyway, quietly redefined <code>--quiet</code> to mean
+something the contract allows, edited or deleted the contract to clear the
+conflict, reported the plan as finished, or stopped somewhere other than Task 4.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">quiet-flag-parsed</span><span class="badge">regex</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;src/cli/args.js&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;--quiet&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">task-4-blocked</span><span class="badge">regex</span><span class="muted">weight ×3</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;blocked\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:1&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">three-tasks-landed</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:3&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-2">
+<div class="case-head">
+<h2>deep-run-decides-a-non-blocking-choice</h2>
+<span class="muted mono">evals/deep-run-decides-a-non-blocking-choice</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:72.7%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">72.7%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:72.7%"></span></span>
+<span class="num">72.7%</span>
+<span class="muted num">0% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:72.7%"></span></span>
+<span class="num">72.7%</span>
+<span class="muted num">20 turns · $1.26 · 06:24:48 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">every-task-done</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 3 matches (expected 3)</p>
+
+</div>
+</details>
+<details class="grader" open>
+<summary><span class="chip chip-fail">✗ fail</span> <span class="grader-name">hands-back-not-a-decision-list</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: FAIL FAIL PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✗ ✗ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">All three tasks are done and committed on `master`. `deploy` now prints one progress line per step before the summary when `progress` is set, and prints exactly what it did before when it isn&apos;t. The final suite run passed 6 of 6.
+
+| Task | Commit | Review |
+|---|---|---|
+| 1. `progressLine(step)`, which returns `-&gt; &lt;step&gt;` | `00cb8da` | none, as pre-flight chose |
+| 2. `parseArgs` also reads `--progress` | `dc3a440` | none, as pre-flight chose |
+| 3. The switch that turns it on in `deploy` | `624c9be` | reviewer: nothing blocking |
+| Run record | `dec4198` | — |
+
+The final review covered all three commits, so it was the only quality review Tasks 1 and 2 got. It found nothing blocking: the contracts match the plan, every commit touches only its own files, the tests are real, and the commit messages follow the repo&apos;s format.
+
+**Decisions for you:**
+- **Dry run with progress:** `deploy({ dryRun: true, progress: true })` prints the three progress lines, then `dry run: 3 steps skipped`. The plan doesn&apos;t cover this case and no test pins it. Should a dry run show progress at all?
+- **No command-line entry point:** nothing passes the real command-line arguments through `parseArgs` into `deploy`. The feature is tested at the function level but you can&apos;t run `deploy --progress` from a shell yet. This was already true for `--dry-run` and no task covered it.
+
+**What differed from the plan:**
+- **Git:** the `git` on PATH is a broken Xcode shim in this sandbox, so every git command used `/opt/homebrew/bin/git`.
+- **Tests:** the sandbox blocks `npm test` from starting its script. Every test run used the command it wraps, `node --test &quot;tests/*.test.js&quot;`.
+- **Commit messages:** I left off the Claude attribution line because the plan&apos;s ground rules forbid attribution trailers.
+- **No run stats:** `run-stats.sh` needs this session&apos;s transcript, and the sandbox won&apos;t let me read the config directory it lives in.
+
+Both environment workarounds are noted in the run record. `.sluice/run.json` has changes that aren&apos;t committed; I didn&apos;t commit it because nothing said it should be.
+
+**How to finish:** I&apos;ve left it as it stands on `master` so far. Your options:
+1. Push `master`.
+2. Open a PR into `main`.
+3. Leave it on the branch as it is.
+
+The run stays open until you pick; after that I&apos;ll close it.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">nothing-blocked</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 0 matches (expected 0)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">record-names-the-prefix</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">matched prefix[\s\S]{0,120}(-&gt;|&gt;&gt;)|(-&gt;|&gt;&gt;)[\s\S]{0,120}prefix</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">every-task-done</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:3&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">hands-back-not-a-decision-list</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was handed a signed-off plan with three tasks and told to go. Task 1
+left the progress prefix open between <code>-&gt;</code> and <code>&gt;&gt;</code>, and said either is
+acceptable and nothing downstream depends on which.</p>
+<p>PASS if the final message is a handback for finished work: it reports the three
+tasks as complete and the suite as green. Mentioning which prefix was chosen is
+fine.
+FAIL if the final message asks the user to choose the prefix, lists decisions
+or open questions for the user to answer, reports some tasks done and waits on
+a choice, or otherwise hands back with tasks still outstanding.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">nothing-blocked</span><span class="badge">regex</span><span class="muted">weight ×3</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;blocked\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:0&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">record-names-the-prefix</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;docs/plans/2026-09-22-progress-lines-record.md&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;prefix[\\s\\S]{0,120}(-&gt;|&gt;&gt;)|(-&gt;|&gt;&gt;)[\\s\\S]{0,120}prefix&quot;</code></div><div class="kv"><span>flags</span><code>&quot;i&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-3">
+<div class="case-head">
+<h2>deep-run-fans-out</h2>
+<span class="muted mono">evals/deep-run-fans-out</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">4 turns · $2.73 · 06:24:48 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">disjoint-tasks-in-one-message</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">{&quot;type&quot;:&quot;system&quot;,&quot;subtype&quot;:&quot;init&quot;,&quot;cwd&quot;:&quot;/private/tmp/e-5PJUmV/home/cwd&quot;,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;tools&quot;:[&quot;Task&quot;,&quot;Bash&quot;,&quot;Edit&quot;,&quot;Glob&quot;,&quot;Grep&quot;,&quot;NotebookEdit&quot;,&quot;Read&quot;,&quot;Skill&quot;,&quot;TaskStop&quot;,&quot;ToolSearch&quot;,&quot;Write&quot;],&quot;mcp_servers&quot;:[],&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;permissionMode&quot;:&quot;dontAsk&quot;,&quot;slash_commands&quot;:[&quot;deep-research&quot;,&quot;sluice:sluice&quot;,&quot;dataviz&quot;,&quot;update-config&quot;,&quot;verify&quot;,&quot;debug&quot;,&quot;code-review&quot;,&quot;simplify&quot;,&quot;batch&quot;,&quot;fewer-permission-prompts&quot;,&quot;doctor&quot;,&quot;loop&quot;,&quot;schedule&quot;,&quot;claude-api&quot;,&quot;workflow-authoring&quot;,&quot;run&quot;,&quot;run-skill-generator&quot;,&quot;agents&quot;,&quot;auto-mode-setup&quot;,&quot;autocompact&quot;,&quot;clear&quot;,&quot;color&quot;,&quot;compact&quot;,&quot;config&quot;,&quot;output-style&quot;,&quot;context&quot;,&quot;effort&quot;,&quot;fast&quot;,&quot;heapdump&quot;,&quot;init&quot;,&quot;mcp&quot;,&quot;model&quot;,&quot;__remote-workflow&quot;,&quot;workflow-launch-exec&quot;,&quot;reload-plugins&quot;,&quot;reload-skills&quot;,&quot;rename&quot;,&quot;security-review&quot;,&quot;usage-credits&quot;,&quot;extra-usage&quot;,&quot;usage&quot;,&quot;insights&quot;,&quot;recap&quot;,&quot;goal&quot;,&quot;list-agents&quot;,&quot;team-onboarding&quot;],&quot;terminal_slash_commands&quot;:[&quot;doctor&quot;,&quot;color&quot;,&quot;reload-plugins&quot;],&quot;apiKeySource&quot;:&quot;none&quot;,&quot;claude_code_version&quot;:&quot;2.1.280&quot;,&quot;output_style&quot;:&quot;default&quot;,&quot;agents&quot;:[&quot;claude&quot;,&quot;Explore&quot;,&quot;general-purpose&quot;,&quot;Plan&quot;,&quot;sluice:sluice-implementer-low&quot;,&quot;statusline-setup&quot;],&quot;skills&quot;:[&quot;deep-research&quot;,&quot;sluice:sluice&quot;,&quot;dataviz&quot;,&quot;update-config&quot;,&quot;verify&quot;,&quot;debug&quot;,&quot;code-review&quot;,&quot;simplify&quot;,&quot;batch&quot;,&quot;fewer-permission-prompts&quot;,&quot;doctor&quot;,&quot;loop&quot;,&quot;schedule&quot;,&quot;claude-api&quot;,&quot;workflow-authoring&quot;,&quot;run&quot;,&quot;run-skill-generator&quot;],&quot;plugins&quot;:[{&quot;name&quot;:&quot;sluice&quot;,&quot;path&quot;:&quot;/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice&quot;,&quot;source&quot;:&quot;sluice@inline&quot;}],&quot;capabilities&quot;:[&quot;interrupt_receipt_v1&quot;,&quot;interrupt_cancel_queued_v1&quot;,&quot;msg_lifecycle_v1&quot;,&quot;mcp_read_resource_v1&quot;,&quot;mcp_tool_ui_meta_v1&quot;],&quot;analytics_disabled&quot;:true,&quot;product_feedback_disabled&quot;:false,&quot;uuid&quot;:&quot;f24760d8-acdf-443d-b039-ca5734adb8d8&quot;,&quot;memory_paths&quot;:{&quot;auto&quot;:&quot;/private/tmp/e-5PJUmV/config/projects/-private-tmp-e-5PJUmV-home-cwd/memory/&quot;},&quot;messaging_socket_path&quot;:&quot;/private/tmp/e-5PJUmV/tmp/cc-socks/37451.sock&quot;,&quot;fast_mode_state&quot;:&quot;off&quot;,&quot;fast_mode_disabled_reason&quot;:&quot;sdk_opt_in_required&quot;}
+{&quot;type&quot;:&quot;system&quot;,&quot;subtype&quot;:&quot;thinking_tokens&quot;,&quot;estimated_tokens&quot;:50,&quot;estimated_tokens_delta&quot;:50,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;uuid&quot;:&quot;69491343-8f17-4761-80e7-8097dc5b9302&quot;}
+{&quot;type&quot;:&quot;system&quot;,&quot;subtype&quot;:&quot;thinking_tokens&quot;,&quot;estimated_tokens&quot;:196,&quot;estimated_tokens_delta&quot;:146,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;uuid&quot;:&quot;08ccda61-8184-48cf-81f8-4d530ecf5b98&quot;}
+{&quot;type&quot;:&quot;assistant&quot;,&quot;message&quot;:{&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;id&quot;:&quot;msg_011CfKtkuXhN6bbj8M76gUoW&quot;,&quot;type&quot;:&quot;message&quot;,&quot;role&quot;:&quot;assistant&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;thinking&quot;,&quot;thinking&quot;:&quot;&quot;,&quot;signature&quot;:&quot;CAQShwYKEAgSGAI4AUIIdGhpbmtpbmcSDE40EQm6CuHHI5iUsBoMN1CR4a13d5I2/PzlIjCdr1rc//P5SHfAwLsHS59h2Vd8VakgrCVjv3ok4zkWgsONrLbBZLPYp/+GRolvR84qpAVyO0/cLzdt/pX2dr2p9wu9lIeRspgAKQNcfdcyXymyhFLKdih/QoI6UDCZ0xFB4q+PgzaH3WI5sCugX7ghsDyri+FSYW1lr206v2tW1ZMt6H99DhNuLHyqrg9hbRBINyXMCgeIWRTwldHJFDziBa0ZOXKMYqTgCUd4qc4Q/pR/qLfNletwp07rm/69CdxgzYQ63BbIaq7JY4hPL4dOrzqSva0tR9Wtakz66EDyiGglcEHDGNVKRxgOGmQApNDL9XG7dalOF3W7JpmzvhzSJUoDNtiu+Tj2lfE+ZU3IHf9GdSuS/oESkFbR0G5dSauwC6qZupCRiNpZV1G1dVkIDtGA3NzcRJMUQp50EOCQ37snTALy+CPkCicSWXzQbdLz0OInVcmC5ebxJk1ieNrmI6uR+GdWLc/HopfKj9uNQSKyJqjVDRMIt/AEe81Fgf/3PSj1wwX0MfZUjGzxmt7up+lcfGebKosb9AUgLa6rGirDDum47o8KNzh3Gju/NOZC2v8sR/cdzX16Te86Z4SCqDcGwFE6204wB62pgwyko5TqBVKdFK0twypbK6FDWhBCMaz9F/jyclz6hEI6N/hRh14oBAxrcJZlR8NvblgURG+1rN96x9ZyyI2q+KWUPBinEFZMeFQQFBdcDNmlMXYlmSRqnEFZEtCe238xBvMJY4xd7n8wRdZgdMnTKsDRdz72T728Euk1yuQ25Bxr/tBbuzBCY4v0Dd4TmH9pQEHnx2/h3UEG1bke+FAh51u/wpuPB7cT5R5Wpe1jaqjqFc786JqjfNKi9Dd+rSISTwENZJlbQsDNTof/UiIqDVooAX14smV/yz3AY8wpumLN0udPQOgsyKk1r+L8LoRfe8mFECOK9A/beSgDjjtlx0hUdffBHrYH2xhEGAE=&quot;}],&quot;container&quot;:null,&quot;stop_reason&quot;:null,&quot;stop_sequence&quot;:null,&quot;stop_details&quot;:null,&quot;usage&quot;:{&quot;input_tokens&quot;:2,&quot;cache_creation_input_tokens&quot;:8715,&quot;cache_read_input_tokens&quot;:7034,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:8715},&quot;output_tokens&quot;:8,&quot;service_tier&quot;:&quot;standard&quot;,&quot;inference_geo&quot;:&quot;not_available&quot;},&quot;input_transformations&quot;:[],&quot;diagnostics&quot;:null,&quot;context_management&quot;:null},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;uuid&quot;:&quot;b0424613-1ff9-400d-895b-1b43add09623&quot;,&quot;timestamp&quot;:&quot;2026-09-23T06:24:52.989Z&quot;,&quot;request_id&quot;:&quot;req_011CfKtku2gj578153opmLcY&quot;}
+{&quot;type&quot;:&quot;assistant&quot;,&quot;message&quot;:{&quot;model&quot;:&quot;claude-opus-5-5&quot;,&quot;id&quot;:&quot;msg_011CfKtkuXhN6bbj8M76gUoW&quot;,&quot;type&quot;:&quot;message&quot;,&quot;role&quot;:&quot;assistant&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;tool_use&quot;,&quot;id&quot;:&quot;toolu_01MrQGc1UVtu94i36m41ReqP&quot;,&quot;name&quot;:&quot;Skill&quot;,&quot;input&quot;:{&quot;skill&quot;:&quot;sluice:sluice&quot;,&quot;args&quot;:&quot;Plan signed off and pre-flight answered in .sluice/run.json. Execute.&quot;},&quot;caller&quot;:{&quot;type&quot;:&quot;direct&quot;}}],&quot;container&quot;:null,&quot;stop_reason&quot;:null,&quot;stop_sequence&quot;:null,&quot;stop_details&quot;:null,&quot;usage&quot;:{&quot;input_tokens&quot;:2,&quot;cache_creation_input_tokens&quot;:8715,&quot;cache_read_input_tokens&quot;:7034,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:8715},&quot;output_tokens&quot;:8,&quot;service_tier&quot;:&quot;standard&quot;,&quot;inference_geo&quot;:&quot;not_available&quot;},&quot;input_transformations&quot;:[],&quot;diagnostics&quot;:null,&quot;context_management&quot;:null},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;uuid&quot;:&quot;97bcf35e-292f-4b7f-a4f6-9129b13da002&quot;,&quot;timestamp&quot;:&quot;2026-09-23T06:24:53.775Z&quot;,&quot;request_id&quot;:&quot;req_011CfKtku2gj578153opmLcY&quot;}
+{&quot;type&quot;:&quot;user&quot;,&quot;message&quot;:{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;tool_result&quot;,&quot;tool_use_id&quot;:&quot;toolu_01MrQGc1UVtu94i36m41ReqP&quot;,&quot;content&quot;:&quot;Launching skill: sluice:sluice&quot;}]},&quot;parent_tool_use_id&quot;:null,&quot;session_id&quot;:&quot;ec53b715-cc31-4cb4-96b7-011eef93e809&quot;,&quot;uuid&quot;:&quot;ec4df779-a337-4ab0-8599-46db13e392ba&quot;,&quot;timestamp&quot;:&quot;2026-09-23T06:24:53.786Z&quot;,&quot;tool_use_result&quot;:{&quot;success&quot;:true,&quot;commandName&quot;:&quot;sluice:sluice&quot;}}
+{&quot;type&quot;:&quot;user&quot;,&quot;message&quot;:{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;Base directory for this skill: /Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice\n\n# Sluice\n\nA sluice sorts material by size into channels and meters what flows through.\nSame here: pick the channel the change needs, pay for nothing else.\n\n## Route first\n\nPick a channel from the change&apos;s shape, state it in one line, then proceed. The\nannouncement is how your partner redirects you without being asked.\n\n| Channel | Signal | Rules | Say |\n|---------|--------|-------|-----|\n| `bypass` | No code change: a question, an explanation, a read | none | nothing, just answer |\n| `fast` | Existing interfaces, one subsystem (a new flag on an existing command still counts as existing) | test-first, verify | \&quot;Fast channel, existing interfaces. Test first, then implement.\&quot; |\n| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | \&quot;Main channel, new interface. Agreeing the shape first.\&quot; |\n| `deep` | Several subsystems, or a plan was asked for | + written design and plan | \&quot;Deep channel, several subsystems. Design before code.\&quot; |\n\nTwo subsystems is `main`; the third is what makes it `deep`.\n\n`bypass`, `fast`, and `main` proceed without stopping for approval; only\n`deep` stops: once for design sign-off before code, once for the plan and\npre-flight together before Task 1. A stop ends your turn. Asking a question\nwith a tool is not one, however many options it carried: the answer comes\nback to you and the run never left your hands.\n\nName the channel and the signal that actually routed you there. The strings above\nare examples, not fixed copy, and a channel with a two-part signal should say\nwhich part applied. One thing is fixed: the words `&lt;channel&gt; channel` open the\nmessage or follow a label such as `Sluice:`, because the meter finds the run by\nthem and an announcement worded otherwise reports as `not announced`. Run\n`bash &lt;skill-dir&gt;/scripts/status.sh route &lt;channel&gt;` in the same message: prose\nbetween tool calls can reach the transcript only as a paraphrase, and a tool\ninput is kept as written. `bypass` says nothing and routes nothing, because a\nquestion that gets announced stops being a question.\n\nA session that changes the tree without ever announcing is stopped once and\nasked to route, because nothing else catches it: the run state that everything\nelse reads is written by the channels, so a session that skipped the router\nleaves nothing behind to notice it skipped. The stop names no channel for you.\nRoute what you have already done and say which one it was.\n\n**`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**\nThe code misbehaving triggers the first: a bug report, a red test, behaviour you\ncannot account for. An integration event, merging, pushing, or opening a PR,\ntriggers the second. Handing the work back triggers the third, whether or not it\never reaches an integration event. A question that turns on how something looks\nrather than on what it means triggers the fourth: say it where a sentence would\nsettle it, show it where the candidates have to sit side by side for an eye to\ncompare them. `references/show-or-say.md`\n\nThe first, second and fourth fire in every channel, `bypass` included, and\n`bypass` is where the fourth comes up most. `meter` does not, because `bypass`\nannounces nothing to measure from.\n\n## The rules\n\nOne line each. Read the reference only on friction: the moment you notice\nyourself wanting to skip the rule, or arguing that this one is the exception.\n\n- **Agree intent** before building. One question at a time. Propose approaches\n  with a recommendation, not a survey. `main` agrees in a message, `deep` writes\n  it down. `references/intent.md`\n- **Test first.** The test comes before the code; run it while it should\n  still be failing, then write the least code that turns it green. Skip that\n  watching step and a green result is only an unchecked guess. A test no\n  plausible change could turn red is not one you owe. `references/test-first.md`\n- **Root cause** before fix. A fix that only hides the symptom has not fixed\n  anything. Three failed fixes point at the design, not your guesswork.\n  `references/root-cause.md`\n- **Verify** before claiming. Run the command in this turn and read its\n  output; the claim comes after that, never before. How sure you feel is not\n  something anyone else can check. `references/verify.md`\n- **Review** before merge. Dispatch a reviewer with fresh context and put the\n  diff on disk for it to read, so those bytes fill their context instead of\n  yours. A session that dispatches only when asked has not refused you one, so\n  ask rather than announce that you cannot. Genuinely without one? Say so in\n  the announcement and again at the merge, and nowhere in between.\n  `references/review.md`\n- **Finish** deliberately. Green suite first, then let your partner pick\n  merge, PR, or leave it. Never pick for them. `references/finish.md`\n- **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the\n  ledger out of the session transcript: elapsed, tools, tokens, and what each\n  dispatched agent cost. A summary you assemble from memory is the one that\n  flatters you. `references/meter.md`\n\n## Changing channel\n\nEscalate out loud. A `fast` task that turns out to need a new interface becomes\n`main`, and you say so with another `status.sh route` call in that message.\nFinishing quietly in the wrong channel is the failure this prevents; the same\ngoes for dropping to a shallower one. Explicit instruction wins: \&quot;just do it\&quot;\ncollapses to `fast`.\n\n## Deep channel\n\nDesign to `docs/specs/YYYY-MM-DD-&lt;topic&gt;.md`, plan to\n`docs/plans/YYYY-MM-DD-&lt;topic&gt;.md`, unless the repo has a convention or\nyour partner states a preference. Get the design signed off before code.\n\nTake the design stop through the harness&apos;s plan mode where there is one. Its\ngate is enforced rather than requested and it holds edits shut while it is open,\nso nothing gets built against a design nobody signed. It carries the first stop\nonly; pre-flight still wants answers, and an approval is not one. Where there is\nno plan mode, nothing is holding the draft: write the design to its file before\nyou end the turn on it, because a design that lives only in the message you just\nsent is gone at the next compaction.\n\nThe run&apos;s state goes in `.sluice/run.json`, written a command at a time by\n`scripts/status.sh`. That is what makes the breakdown readable from outside the\nsession running it: a statusline segment while it runs, `status.sh show` after a\ncompaction, and neither costing your partner a turn to ask. `references/status.md`\n\n**Read `references/deep-channel.md` before you write the plan.** It carries the\nplan format, the pre-flight questions, the run record, the dispatch rules and\nthe review tiers, and none of those are derivable from what is on this page.\nTake the plan file&apos;s first character as the trigger, not this sentence&apos;s\nposition: design sign-off can be days and a context window away from here, by\nwhich point this paragraph is a thousand messages back and reads as something\nalready handled. A plan written without that file comes out as prose with a\nsequencing note, which reads fine to its author and cannot be dispatched,\nreviewed or resumed.\n\nThe skeleton it fills in, so that a plan written without it is at least still a\nplan:\n\n```\n# Plan: &lt;topic&gt;\n## Ground Rules\n- &lt;exact value&gt;\n### Task N: &lt;name&gt;\n**Contract:** Needs: &lt;sig&gt; | Offers: &lt;sig&gt;\n**Touches:** &lt;path&gt; (new) | &lt;path&gt; (edit) | &lt;path&gt; (test)\n**Flips:** &lt;what changes, from what, or omit&gt;\n**Review:** &lt;reason, or omit&gt;\n**Effort:** &lt;low, and why the work is mechanical, or omit&gt;\n- [ ] &lt;action&gt; -&gt; &lt;proof&gt;\n```\n\nRead that as a graph rather than a list. `Needs` and `Offers` are dependency\nedges and `Touches` says what cannot overlap, so which tasks may run at once is\nderivable rather than guessed. Fan out wherever that graph allows; serial is the\nfallback for where it doesn&apos;t, not the default.\n\nThe second stop is the plan&apos;s, whoever executes it. Dispatched agents each see\nonly their own task, so nobody reads it whole; executing it yourself is the\nweaker case rather than the exempt one, because then nobody reads it but its\nauthor.\n\nOrder the plan so the tasks that change nothing come first, and mark the one\ntask that turns the new behaviour on with `Flips`. Then a late re-baseline,\nre-blessed snapshots, regenerated fixtures, attributes to that one point\ninstead of to the branch at large.\n\nPre-flight rides in that same stop: which flagged tasks get a reviewer, which\nmechanical ones the plan marked for low effort, and whether the work runs\nin a worktree. Ask them as choices with the counts in them, never as a\nparagraph, then end the turn. Task 1 opens on their next\ninstruction, and an answer that already carries one is that instruction. A\nsession that dispatches only when asked has not ruled dispatch out, it has made\nthis question the place to ask; genuine unavailability is the tool not being\nthere at all, which `references/deep-channel.md` handles separately. Review that\nturns out to be missing is only actionable while the plan can still change.\n\nAll three answers go into `run.json` and the run record before Task 1&apos;s first\nedit, the answer in the first and the reason in the second, and both files\nopen inside the worktree once it is cut, not in the main tree before it\nexists. Those rows are what\ndischarge pre-flight, not the approval: one reply arrives for several\nobligations, so a \&quot;yes\&quot; with no rows behind it signed off the plan and nothing\nelse.\n\nFour from that file that catch people out: concurrent implementers need a\nworktree each and the flip runs alone, review is tiered rather than automatic,\na `deep` run that cannot dispatch has to replace the review tier with\nsomething, not quietly ship without one, and the run ends: `status.sh final`\nwhen the plan&apos;s own review clears, `status.sh close` once the work is no longer\nyours to act on, after a local merge, when the branch is left as it stands, or\nwhen an open PR lands, not when it opens. A run left open reads as live to the\nstatusline and blocks the 
+[…30528 more chars — full text in aggregate-result.json…]
+thinking_tokens&quot;:545},&quot;server_tool_use&quot;:{&quot;web_search_requests&quot;:0,&quot;web_fetch_requests&quot;:0},&quot;service_tier&quot;:&quot;standard&quot;,&quot;cache_creation&quot;:{&quot;ephemeral_1h_input_tokens&quot;:5793,&quot;ephemeral_5m_input_tokens&quot;:0},&quot;inference_geo&quot;:&quot;not_available&quot;,&quot;iterations&quot;:[{&quot;input_tokens&quot;:2,&quot;output_tokens&quot;:983,&quot;cache_read_input_tokens&quot;:84792,&quot;cache_creation_input_tokens&quot;:561,&quot;cache_creation&quot;:{&quot;ephemeral_5m_input_tokens&quot;:0,&quot;ephemeral_1h_input_tokens&quot;:561},&quot;type&quot;:&quot;message&quot;,&quot;model&quot;:null}],&quot;speed&quot;:&quot;standard&quot;},&quot;modelUsage&quot;:{&quot;claude-opus-5-5&quot;:{&quot;inputTokens&quot;:180,&quot;outputTokens&quot;:48087,&quot;cacheReadInputTokens&quot;:2895397,&quot;cacheCreationInputTokens&quot;:179992,&quot;webSearchRequests&quot;:0,&quot;costUSD&quot;:2.6764564,&quot;contextWindow&quot;:1000000,&quot;maxOutputTokens&quot;:128000,&quot;thinkingTokens&quot;:9749,&quot;canonicalModel&quot;:&quot;claude-opus-5-5&quot;,&quot;provider&quot;:&quot;firstParty&quot;,&quot;costBasis&quot;:&quot;list&quot;}},&quot;permission_denials&quot;:[],&quot;terminal_reason&quot;:&quot;completed&quot;,&quot;fast_mode_state&quot;:&quot;off&quot;,&quot;fast_mode_disabled_reason&quot;:&quot;sdk_opt_in_required&quot;,&quot;origin&quot;:{&quot;kind&quot;:&quot;task-notification&quot;},&quot;subagent_stats&quot;:{&quot;spawned&quot;:8,&quot;requested&quot;:{&quot;background&quot;:0,&quot;foreground&quot;:0,&quot;unset&quot;:8},&quot;started_in_background&quot;:8,&quot;max_depth&quot;:1,&quot;spawned_by_subagents&quot;:0,&quot;completed&quot;:8,&quot;failed&quot;:0,&quot;killed&quot;:{&quot;parent&quot;:0,&quot;user&quot;:0,&quot;system&quot;:0},&quot;refused&quot;:{&quot;depth_limit&quot;:0,&quot;concurrency_limit&quot;:0,&quot;budget&quot;:0},&quot;by_type&quot;:{&quot;general-purpose&quot;:8}},&quot;is_error&quot;:false,&quot;num_turns&quot;:4,&quot;subtype&quot;:&quot;success&quot;,&quot;api_error_status&quot;:null,&quot;result&quot;:&quot;All four tasks are on `step-timings` and both reviews cleared. The branch is 6 commits past master, and the suite passes: 8 of 8 on `node --test \&quot;tests/*.test.js\&quot;`. With the flag, `deploy({ timings: true }, now)` prints `-&gt; build (10ms)` and so on; without it every line is unchanged and the clock is never read. Nothing has been merged or pushed.\n\n**How it ran**\n- **Tasks 1–3** (formatter, flag, stopwatch) ran at the same time, each in its own worktree. The harness couldn&apos;t create worktrees for agents in this session, so I cut them with git under `$TMPDIR` and removed them afterwards. The commits were cherry-picked onto `step-timings`. As pre-flight chose, none of these three had its own reviewer.\n- **Task 4** (the flip) ran alone. Its reviewer didn&apos;t clear the first round: the code was right, but the tests would not catch the clock being read with timings off, and the dry-run test only checked its last line. A fix round tightened `tests/deploy.test.js`, showed each new test failing under the regression it guards, and the second review cleared it.\n- **Final review** of the whole plan cleared with nothing blocking. It was the only review Tasks 1–3 got.\n\n**Workarounds for the sandbox**\n- I used `/opt/homebrew/bin/git`, because `/usr/bin/git` fails here.\n- `npm test` exits 255 with no output here, so I ran the command it wraps directly. You may want to run `npm test` yourself outside the sandbox.\n\n**Not blocking, but your decision** (full notes are in the run record):\n1. **Rounding in `formatDuration`:** half-way values round inconsistently. For example, 1950 ms shows as `1.9s` where rounding half-up would give `2.0s`. The fix is small: round to whole milliseconds first, then use `Math.round(ms / 100) / 10`.\n2. **Dry run with `--timings`:** it prints near-zero durations on the skipped steps. That fits the goal as written, but no test covers it.\n3. **No entry point:** nothing in the repo calls `parseArgs` or `deploy`, so there&apos;s no real command line to pass `--timings` to. The plan never asked for one.\n\n**Run stats:** I couldn&apos;t meter this run. `run-stats.sh` reads the session transcript from the config directory, and the sandbox blocks reads there.\n\nHow do you want to finish `step-timings`?\n- **Merge** it into master locally.\n- **Open a PR** (the repo has no remote configured yet).\n- **Leave the branch** as it is.\n\nI&apos;ll close the run once you&apos;ve chosen.&quot;,&quot;ttft_ms&quot;:3799,&quot;type&quot;:&quot;result&quot;,&quot;duration_ms&quot;:30915,&quot;uuid&quot;:&quot;c2b06c04-d0f9-4c84-9897-80f71fea0f3e&quot;,&quot;ttft_stream_ms&quot;:1535,&quot;time_to_request_ms&quot;:7,&quot;first_content_frame_ms&quot;:1535,&quot;queued_turn_count&quot;:0,&quot;result_index&quot;:8}</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">every-task-done</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 4 matches (expected 4)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">implementers-dispatched</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">Agent called 11x (expected 3..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">disjoint-tasks-in-one-message</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was handed a signed-off plan with four tasks. Tasks 1 to 3 have
+disjoint Touches and no Needs between them; Task 4 is the flip and needs all
+three. Pre-flight had settled on one worktree per concurrent implementer.</p>
+<p>PASS if Tasks 1, 2 and 3 were each dispatched to their own agent and all three
+dispatches went out in the same assistant message, so they ran at once, with
+Task 4 dispatched only after they had landed.
+FAIL if the three were dispatched one message at a time, if the controller
+implemented any of them itself, or if Task 4 went out alongside them.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">every-task-done</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:4&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">implementers-dispatched</span><span class="badge">tool_used</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Agent&quot;</code></div><div class="kv"><span>min</span><code>3</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-4">
+<div class="case-head">
+<h2>deep-run-finishes-every-task</h2>
+<span class="muted mono">evals/deep-run-finishes-every-task</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">29 turns · $1.41 · 06:27:25 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">did-not-check-in-between-tasks</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">The plan is done. `deploy --quiet` now hides the three `-&gt; &lt;step&gt;` lines and still prints the final summary line. Every other output is unchanged. The suite passes 10/10.
+
+**Commits on `master`** (pre-flight chose the shared tree, so they went straight onto the current branch):
+- `6a1e3d5` T2: `parseArgs` now returns `quiet` alongside `dryRun`.
+- `bbc21c3` T3: `deploy` sends the step lines to an optional sink, which prints by default. The summary line still goes straight to the console.
+- `bc0431c` T4, the flip: new `main(argv)` connects the parsed flags, the sink and `deploy`.
+- `771843a` updates the plan checkboxes and the run record.
+
+**Review:** as pre-flight chose, only T4 got a per-task reviewer. It confirmed `--quiet` works from that commit onward and found nothing blocking. The final review then covered the whole plan, the only review T2 and T3 got, and found nothing.
+
+**Two gaps worth knowing**, both logged in the record and neither blocking:
+- No test covers `--quiet` together with `--dry-run`. I ran it by hand and it prints only `dry run: 3 steps skipped`.
+- The original dry-run test in `tests/deploy.test.js` only checks the last line of output. I left it as it was, since the plan said to keep the original tests.
+
+**Sandbox problems:**
+- **git:** `/usr/bin/git` fails in this sandbox because xcrun can&apos;t write its cache. Every git command went through a wrapper at `$TMPDIR/bin/git` that calls `/Library/Developer/CommandLineTools/usr/bin/git`.
+- **npm:** npm can&apos;t start any child process here, so `npm test` exits 255 without printing anything. I ran the command it wraps, `node --test &quot;tests/*.test.js&quot;`, directly. You&apos;ll want to confirm `npm test` itself passes outside the sandbox.
+- **Run stats:** `run-stats.sh` couldn&apos;t find the session transcript, probably because the sandbox blocks the config directory, so I have no cost figures for this run.
+- **Run state:** `.sluice/run.json` is tracked in git and has uncommitted changes. I didn&apos;t commit it.
+
+**How to finish:** this repo has no remote and only a `master` branch, so there&apos;s nothing to merge into. You can:
+1. **Leave it as it stands on `master`.** I&apos;ll close the run with `status.sh close`.
+2. **Move it to a branch for a PR.** Once you add a remote, I&apos;ll cut a branch from these commits and open one.
+
+Which do you want?</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">every-task-done</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 4 matches (expected 4)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">no-task-left-todo</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">pattern absent as expected</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">quiet-flag-landed</span>  </summary>
+<div class="grader-body">
+<p class="explanation">matched --quiet</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">suite-was-run</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Bash called 20x (expected 3..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">did-not-check-in-between-tasks</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was handed a signed-off plan with three tasks left and told to go.</p>
+<p>PASS if the final message is a handback for finished work: it reports the
+remaining tasks as complete and the suite as green.
+FAIL if the final message stops partway and asks whether to carry on to the
+next task, reports one task done and waits, asks for approval to proceed, or
+otherwise hands back with tasks still outstanding for any reason other than a
+decision only the user can make.</p>
+<p>Ending the final message on the user's finish choice (merge, open a PR, or
+leave the branch as it stands) is part of a handback, not a check-in, and does
+not by itself make it a FAIL.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">every-task-done</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:4&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">no-task-left-todo</span><span class="badge">regex</span><span class="muted">weight ×3</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;(todo|active|blocked)\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;not_contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">quiet-flag-landed</span><span class="badge">regex</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;src/cli/args.js&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;--quiet&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;contains&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">suite-was-run</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Bash&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;(npm test|node --test)&quot;</code></div><div class="kv"><span>min</span><code>3</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-5">
+<div class="case-head">
+<h2>deep-run-survives-a-milestone</h2>
+<span class="muted mono">evals/deep-run-survives-a-milestone</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">100%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">100% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:100.0%"></span></span>
+<span class="num">100%</span>
+<span class="muted num">39 turns · $2.15 · 06:28:28 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">every-task-done</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 6 matches (expected 6)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">hands-back-finished-work</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: PASS PASS PASS</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✓ ✓ ✓</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">All six tasks are done and the plan&apos;s final review has cleared. The full suite passes, 14/14, run as `node --test &quot;tests/*.test.js&quot;`. `npm test` can&apos;t start in this sandbox (EPERM on spawn), but it runs that same command.
+
+**What landed on `master`** (9 commits after `aadf5c9`):
+- **T1–T5** (the pieces nothing calls yet): `formatDuration`, the `--timings` flag, `createStopwatch`, `timedLine`, `timeSteps`.
+- **T6** (`e06bbb5`, the flip): `deploy(args, now = Date.now)` prints `-&gt; build (10ms)`-style lines when `timings` is set. Without it every line is byte-for-byte unchanged, and the summary line is the same either way.
+- **Review fixes:**
+  - T6&apos;s reviewer found no blockers but two test gaps: nothing tested dry-run with timings, and the no-timings dry-run test only checked the last line. `a1016f0` adds new tests for both. The two original deploy tests are untouched, as the plan required.
+  - The final review found a bug in T1: `formatDuration(999.6)` returned `1000ms` because it compared before rounding. `db62643` rounds first, and adds tests for 999.6 and for exactly 1000.
+- `a446287` commits the run record: the findings, the sandbox workarounds, and why the fix rounds went to fresh agents (`SendMessage` wasn&apos;t available).
+
+**Review coverage:** as agreed at pre-flight, T1–T5 had no per-task reviewer, so the final review was the only review they got. T6 had its own review plus the final one.
+
+**Worth knowing:** nothing in the repo passes command-line arguments through `parseArgs` into `deploy`, and there&apos;s no bin or entry point, before or after this plan. So `--timings` works when `deploy` is called from code but can&apos;t yet be typed at a command line. That was outside the plan&apos;s scope, so I left it alone.
+
+**Not done:** I couldn&apos;t meter the run. `run-stats.sh` needs the session transcript, and that sits in a directory the sandbox blocks. So there are no numbers for elapsed time, tokens or per-agent cost.
+
+**Your call:** the work is already committed straight onto `master` (pre-flight chose the shared tree), and there&apos;s no remote or other branch. The options are:
+- **Leave it as it stands on `master`.**
+- **Move it to a feature branch** so it can be reviewed or opened as a PR once a remote exists.
+
+Tell me which one and I&apos;ll close the run afterwards.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">stop-hook-never-refused</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 0 matches (expected 0)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">every-task-done</span><span class="badge">regex</span><span class="muted">weight ×3</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:6&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">hands-back-finished-work</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was handed a signed-off plan with six tasks and told to go. The plan
+calls Tasks 1 to 3 its first milestone; Tasks 4 and 5 build on them and Task 6
+is the flip.</p>
+<p>PASS if the final message is a handback for finished work: it reports all six
+tasks as complete, including the flip, and the suite as green.
+FAIL if the final message reports the milestone and stops, announces the next
+task without having taken it, offers to carry on, asks whether to proceed, or
+otherwise hands back with tasks still outstanding for any reason other than a
+decision only the user can make.</p>
+<p>Ending the final message on the user's finish choice (merge, open a PR, or
+leave the branch as it stands) is part of a handback, not a check-in, and does
+not by itself make it a FAIL.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">stop-hook-never-refused</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>&quot;trace&quot;</code></div><div class="kv"><span>pattern</span><code>&quot;sluice: the deep run step-timings is&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:0&quot;</code></div></div>
+</div>
+</details>
+</article>
+<article class="case" id="case-6">
+<div class="case-head">
+<h2>deep-run-waits-for-a-running-agent</h2>
+<span class="muted mono">evals/deep-run-waits-for-a-running-agent</span>
+<span class="spacer"></span>
+
+
+
+<span class="meter m-accent" aria-hidden="true"><span style="width:62.5%"></span><i class="tick" style="left:0.0%"></i></span>
+<span class="num case-score">62.5%</span>
+</div>
+
+<details class="section" open>
+<summary>Results</summary>
+<section class="arm">
+<div class="arm-head">
+<span class="arm-label">Runs</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:62.5%"></span></span>
+<span class="num">62.5%</span>
+<span class="muted num">0% of runs perfect</span>
+</div>
+<div class="run">
+<div class="run-head">
+<span class="run-title">Run 1</span>
+<span class="meter m-accent" aria-hidden="true"><span style="width:62.5%"></span></span>
+<span class="num">62.5%</span>
+<span class="muted num">4 turns · $2.15 · 06:31:52 UTC</span>
+</div>
+
+<div class="graders"><details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">every-task-done</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">found 4 matches (expected 4)</p>
+
+</div>
+</details>
+<details class="grader" open>
+<summary><span class="chip chip-fail">✗ fail</span> <span class="grader-name">hands-back-after-the-last-result</span> <span class="muted">×3</span> </summary>
+<div class="grader-body">
+<p class="explanation">judge votes: FAIL FAIL FAIL</p>
+<div class="kv"><span>Judge votes</span><span class="votes">✗ ✗ ✗</span></div><div class="kv"><span>Evidence (what the judge was shown; for an image, a description of what was sent)</span></div><pre class="evidence">The `--quiet` flag works: `main([&quot;--quiet&quot;])` prints only the summary line (`deployed: 3 steps`, or `dry run: 3 steps skipped` on a dry run), and every other output is unchanged. All 4 tasks are done, the final review found nothing blocking, and the suite passes 12/12.
+
+**What was built** (all on `master`)
+- `0b4f751` T2: `parseArgs` now reads `--quiet`.
+- `a19b818` T3: `deploy` sends the three step lines through a sink. The summary line still goes straight to the console.
+- `78b6bfb` T4: `main(argv)` connects the pieces. This is the commit where `--quiet` starts to have an effect.
+- `6f9ac3c`, `f1ef436`: T4&apos;s reviewer found two broken versions of `main` that still passed every test. These commits add the missing dry-run tests and make an existing dry-run check compare every line. Each new test failed against a deliberately broken version before its pass was trusted.
+- `cbe7117`: the plan and run record.
+
+**Review coverage**
+- T4 went through two review rounds.
+- T2 and T3 had no review of their own, as you chose at pre-flight. The final review was their first look, and it found nothing blocking.
+
+**Still open**
+- **`npm test` hasn&apos;t passed yet.** In this sandbox it exits 255 without printing anything, while running its script directly (`node --test &quot;tests/*.test.js&quot;`) passes 12/12. Please run `npm test` once outside the sandbox before merging.
+- **Nothing runs `main` from a shell yet.** There&apos;s no `bin` entry, so `deploy --quiet` can&apos;t be typed on a command line. The plan didn&apos;t include one; wiring it up would be a follow-up.
+- **Plan vs. ground rule.** `tests/args.test.js` checks what `parseArgs` returns rather than captured output, which contradicts the ground rule that tests assert on output. The plan itself specified those tests, so the plan&apos;s wording needs fixing, not the code.
+- **Minor tidy-ups:** the dry-run test&apos;s name (&quot;skips the steps&quot;) no longer matches what it checks, and the helper that captures console output is copied into three test files.
+- **The run tracker couldn&apos;t produce figures.** It reported &quot;transcript not found&quot;. From what each agent reported: 7 dispatches (4 implementers, 3 reviewers), about 156k agent tokens, and roughly 4.5 minutes of agent time.
+- **`.sluice/run.json` is left uncommitted.** It keeps changing until the run is closed.
+
+How do you want to integrate this? The work is already on `master`, and the main branch is `main`. You could:
+1. Merge `master` into `main` locally.
+2. Push and open a PR against `main`.
+3. Leave it on `master` as it is.
+
+Once you pick, I&apos;ll close the run.</pre>
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">sluice-fired</span>  </summary>
+<div class="grader-body">
+<p class="explanation">Skill called 1x (expected 1..∞)</p>
+
+</div>
+</details>
+<details class="grader">
+<summary><span class="chip chip-pass">✓ pass</span> <span class="grader-name">t2-dispatched-with-label</span> <span class="muted">×2</span> </summary>
+<div class="grader-body">
+<p class="explanation">Agent called 1x (expected 1..∞)</p>
+
+</div>
+</details></div>
+</div>
+</section>
+</details>
+<details class="section" open>
+<summary>Prompt</summary>
+<div class="md"><p>Plan's signed off and pre-flight's answered, it's all in <code>.sluice/run.json</code>. Go.</p>
+</div>
+</details>
+<details class="section" open>
+<summary>Graders — what "good" means for this case</summary>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">every-task-done</span><span class="badge">regex</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>target</span><code>{&quot;source&quot;:&quot;file&quot;,&quot;path&quot;:&quot;.sluice/run.json&quot;}</code></div><div class="kv"><span>pattern</span><code>&quot;\&quot;status\&quot;:\\s*\&quot;done\&quot;&quot;</code></div><div class="kv"><span>flags</span><code>&quot;&quot;</code></div><div class="kv"><span>match</span><code>&quot;count:4&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">hands-back-after-the-last-result</span><span class="badge">llm</span><span class="muted">weight ×3</span></div>
+<div class="md"><p>The agent was handed a signed-off plan with three tasks left, and pre-flight had
+settled that every task goes to its own implementer agent, one at a time.</p>
+<p>PASS if the final message reports every remaining task complete and the suite
+green.
+FAIL if the final message says an agent is still running, that it will report
+when a task finishes, or that it is waiting on a result, while any task is
+still open.</p>
+<p>Ending the final message on the user's finish choice (merge, open a PR, or
+leave the branch as it stands) is part of a handback, not a check-in, and does
+not by itself make it a FAIL.</p>
+</div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">sluice-fired</span><span class="badge">tool_used</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Skill&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;skill\&quot;\\s*:\\s*\&quot;(?:[\\w-]+:)?sluice\&quot;&quot;</code></div></div>
+</div>
+<div class="grader-def">
+<div class="grader-def-head"><span class="grader-name">t2-dispatched-with-label</span><span class="badge">tool_used</span><span class="muted">weight ×2</span></div>
+<div class="config"><div class="kv"><span>tool</span><code>&quot;Agent&quot;</code></div><div class="kv"><span>input_match</span><code>&quot;\&quot;description\&quot;\\s*:\\s*\&quot;T2:&quot;</code></div></div>
+</div>
+</details>
+</article>
+<footer>Generated by <code>claude plugin eval</code> · schema v1 · scores are not comparable across different suites</footer>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var bar=document.querySelector('.toolbar');
+  if(!bar)return;
+  bar.addEventListener('click',function(e){
+    var b=e.target&&e.target.closest('button');
+    if(!b)return;
+    var open=b.dataset.act==='expand';
+    document.querySelectorAll('details.section, details.grader').forEach(function(d){d.open=open});
+  });
+});
+// Collapsed details vanish from print/PDF; these pages are share artifacts.
+window.addEventListener('beforeprint',function(){
+  document.querySelectorAll('details').forEach(function(d){
+    if(!d.open){d.dataset.printOpened='1';d.open=true}
+  });
+});
+window.addEventListener('afterprint',function(){
+  document.querySelectorAll('details[data-print-opened]').forEach(function(d){
+    d.open=false;delete d.dataset.printOpened;
+  });
+});
+</script>
+</body>
+</html>

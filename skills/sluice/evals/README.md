@@ -90,71 +90,74 @@ only from the case's own directory.
 ### Opus 5.5, 2026-09-23
 
 CLI 2.1.280, `--model claude-opus-5-5`, one run per case, no no-plugin arm, so
-every score below is a single sample rather than a mean. Three passes: the
-whole suite (USD 8.65), then the failing deep cases (USD 6.44) and
-`explicit-instruction-collapses-to-fast` (USD 0.30) again with `--keep-temp`.
-Results are under `results/2026-09-23T04-43-43-222Z`, `...T04-54-55-819Z` and
-`...T04-54-57-642Z`.
+every score below is a single sample rather than a mean.
 
-| Case | Pass 1 | Rerun | Reading |
-|---|---|---|---|
-| `bypass-question-stays-silent` | 1.00 | | |
-| `fast-flag-on-existing-command` | 1.00 | | |
-| `main-new-interface` | 1.00 | | |
-| `deep-plan-across-subsystems` | 1.00 | | |
-| `explicit-instruction-collapses-to-fast` | 0.75 | 1.00 | Pass 1 ended on a merge/PR question and the judge failed it 3/3; the rerun ended without one and passed |
-| `superpowers-conflict-stands-down` | 1.00 | | |
-| `announcement-reaches-the-ledger` | 1.00 | | Routed fast, then re-routed to main with a second route call |
-| `fast-reads-the-unmentioned-convention` | 1.00 | | |
-| `deep-run-finishes-every-task` | 0.73 | 0.73 | Every task built, suite green, nothing committed; judge failure likely git, finish question not ruled out (below) |
-| `deep-run-blocks-on-a-real-decision` | 0.75 | 0.50 | Stopped before Task 2; the fixture has a second contract break the case does not account for (below) |
-| `deep-run-survives-a-milestone` | 0.67 | 0.67 | All six tasks built past the milestone, nothing committed; same reading as finishes-every-task |
-| `deep-run-decides-a-non-blocking-choice` | 0.82 | 1.00 | Pass 1 did not write the choice into the record; the rerun did |
-| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | Pass 1 never dispatched; the rerun dispatched, waited and committed, and its judge was shown a trace with every dispatch and result elided (below) |
-| `deep-run-fans-out` | 0.13 | 0.13 | Paused before Task 1 because no worktree could be cut without git |
+- **Pass 1:** the whole suite (USD 8.65, `results/2026-09-23T04-43-43-222Z`).
+- **Rerun:** the deep cases (USD 6.44, `...T04-54-55-819Z`) and
+  `explicit-instruction-collapses-to-fast` (USD 0.30, `...T04-54-57-642Z`)
+  again with `--keep-temp`, same suite.
+- **Pass 2:** the deep cases after the fixture and grader fixes below, with
+  Homebrew git installed (USD 10.55, `...T06-24-47-981Z`).
 
-**Git does not run inside the eval sandbox on this machine.** `/usr/bin/git` is
-Apple's xcrun shim, and inside the sandbox it can neither read
-`/Library/Developer/CommandLineTools` nor write its cache under
-`/var/folders`, so every call fails; the Xcode copy under `/Applications` was
-reachable in one run by exporting its path. Nothing documented lets a case or a
-flag reach it. The deep execution cases commit per task and cut worktrees, so on
-this machine `deep-run-fans-out` stops, correctly, before it starts, and every
-other deep execution case either builds without committing or has to find its
-own git. Those scores measure the sandbox as much as sluice and should not be
-read as a 5.5 baseline for execution.
+| Case | Pass 1 | Rerun | Pass 2 | Reading |
+|---|---|---|---|---|
+| `bypass-question-stays-silent` | 1.00 | | | |
+| `fast-flag-on-existing-command` | 1.00 | | | |
+| `main-new-interface` | 1.00 | | | |
+| `deep-plan-across-subsystems` | 1.00 | | | |
+| `explicit-instruction-collapses-to-fast` | 0.75 | 1.00 | | Pass 1 ended on a merge/PR question and the judge failed it 3/3; the rerun ended without one and passed |
+| `superpowers-conflict-stands-down` | 1.00 | | | |
+| `announcement-reaches-the-ledger` | 1.00 | | | Routed fast, then re-routed to main with a second route call |
+| `fast-reads-the-unmentioned-convention` | 1.00 | | | |
+| `deep-run-finishes-every-task` | 0.73 | 0.73 | 1.00 | Pass 2 committed every task |
+| `deep-run-blocks-on-a-real-decision` | 0.75 | 0.50 | 1.00 | Pass 2 landed Tasks 2 and 3 and blocked Task 4 on the contract |
+| `deep-run-survives-a-milestone` | 0.67 | 0.67 | 1.00 | Pass 2 carried all six tasks past the milestone and committed them |
+| `deep-run-decides-a-non-blocking-choice` | 0.82 | 1.00 | 0.73 | Pass 2 decided the prefix and finished, then listed two findings outside the plan as "Decisions for you"; the judge split 2 to 1 (below) |
+| `deep-run-waits-for-a-running-agent` | 0.13 | 0.63 | 0.63 | Pass 2 waited on every agent and handed back after the last; the judge failed a handback that said `npm test` had not passed in the sandbox (below) |
+| `deep-run-fans-out` | 0.13 | 0.13 | 1.00 | Pass 2 ran Tasks 1 to 3 at once in worktrees, then the flip |
 
-**Three suite defects the traces show, none fixed yet.**
+Pass 1 and the rerun measure the sandbox as much as sluice, for the git reason
+below. Pass 2 is the first 5.5 read of the deep execution cases.
 
-- `deep-run-blocks-on-a-real-decision` has a second break its graders do not
-  know about. Its `API.md` publishes `deploy` from `src/cli/index.js` as
-  importable downstream, and Task 3's Contract makes `sink` a required second
-  parameter, so Task 3 breaks the published signature too. Both 5.5 runs named
-  that break; pass 1 also caught that Task 2's plan text contradicts the
-  existing dry-run test. Stopping before Task 3 therefore has a real basis, and
-  only leaving Task 2 unbuilt is a clean miss; pass 1 also made resuming
-  conditional on git. The case needs `sink` to default to a printing sink, or
-  `deploy` out of `API.md`, before its score can say anything about 5.5. The
-  2026-09-20 pass scored it 1.00, which may only mean that model did not notice
-  the Task 3 break.
-- The handback judges in `deep-run-finishes-every-task`,
-  `deep-run-survives-a-milestone` and `deep-run-waits-for-a-running-agent` FAIL
-  a final message that "asks whether to proceed". All three runs ended on the
-  merge, PR or leave-it choice that `references/finish.md` requires, and the
-  waits run failed its judge with every commit in place. The judges give no
-  reason beyond their votes, so a judge reading the required finish question
-  as a check-in is not ruled out. The grader prompts should say that question
-  is part of a handback.
-- The `deep-run-waits-for-a-running-agent` judge (`focus: trace`) received
-  100 KB of a 448 KB trace with the middle elided, and what it was shown holds
-  no dispatch and no agent result, so it could not check the order it is asked
-  about. This is the head-and-tail window failure described for
-  `shape-agreed-before-building` below; the order wants a `tool_order` or regex
-  grader instead.
+**Git inside the eval sandbox.** `/usr/bin/git` is Apple's xcrun shim, and the
+sandbox denies it both `/Library/Developer/CommandLineTools` and its cache
+under `/var/folders`, so a bare `git` fails. Homebrew's git runs there by full
+path, but the child's Bash tool resolves a bare `git` to the shim even with
+`/opt/homebrew/bin` first on PATH (under zsh and bash alike; `/usr/bin/env git`
+finds Homebrew's). In pass 2 every run found `/opt/homebrew/bin/git` itself
+after the shim failed, and committed. That is the agent working around the
+harness, so a deep score on this machine still depends on it; a Linux runner,
+where `git` is an ordinary binary, gives the clean read.
 
-**No time-budget baseline.** `deep-run-fans-out` never reached a dispatch, so
-the A/B the design proposed (the brief with and without a sentence saying time
-matters) has no baseline yet.
+**Fixed between the rerun and pass 2.**
+
+- `deep-run-blocks-on-a-real-decision` carried a second contract break: Task
+  3's Contract made `sink` a required parameter of the published `deploy`.
+  `sink` now defaults to a printing sink, so Task 4 is the only collision, and
+  every deep fixture's Task 2 now says the existing dry-run test gains
+  `quiet: false` rather than claiming it still passes.
+- The three handback judges now say that ending on the finish choice
+  (`references/finish.md`) is part of a handback, and the waits judge reads the
+  last message rather than an elided trace; the order it used to judge is held
+  by `every-task-done`.
+- The Stop hook lets a turn end while a task is `active` or `review`, so a run
+  waiting on its agents is no longer refused. No pass-2 trace carries the
+  hook's refusal text.
+
+**Open.**
+
+- `deep-run-waits-for-a-running-agent`: `npm test` exits 255 inside the sandbox
+  while `node --test` passes, and the run said so honestly. The judge's PASS
+  asks for "the suite green", which that message cannot claim. Either the
+  fixture's `test` script or the grader's wording has to account for it.
+- `deep-run-decides-a-non-blocking-choice`: the grader fails any list of
+  decisions in the final message, and pass 2's list held findings outside the
+  plan, not the choice the case is about. Whether a handback may raise those is
+  a grader policy question.
+
+**Time-budget baseline.** `deep-run-fans-out` pass 2 took 487s at USD 2.73 with
+three implementers out at once. That is the baseline for the A/B the design
+proposed (the dispatch brief with and without a sentence saying time matters).
 
 ### Opus 5, 2026-09-20
 
