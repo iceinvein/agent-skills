@@ -376,6 +376,7 @@ export const claudeAdapter: Adapter = {
       const promptPath = manifest.files?.prompt;
       for (const [relPath, content] of files) {
         if (relPath === promptPath) continue; // prompt handled above
+        if (config.supporting && Object.hasOwn(config.supporting, relPath)) continue; // supporting handled above
         const targetRel = join(config.bundleRoot, relPath);
         const targetPath = join(cwd, targetRel);
         mkdirSync(dirname(targetPath), { recursive: true });

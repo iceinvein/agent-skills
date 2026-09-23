@@ -165,3 +165,49 @@ test("remove runs postremove before deleting bundle files", async () => {
   expect(existsSync(join(root, "bin/run"))).toBe(false);
   expect(existsSync(join(root, "install.sh"))).toBe(false);
 });
+
+const agentManifest: SkillManifest = {
+  name: "agented",
+  version: "0.1.0",
+  description: "bundled with an agent",
+  author: "iceinvein",
+  type: "prompt",
+  tools: ["claude"],
+  files: { prompt: "SKILL.md", supporting: ["agents/a.md"] },
+  bundle: { include: ["scripts"] },
+  install: {
+    claude: {
+      prompt: ".claude/skills/agented/SKILL.md",
+      bundleRoot: ".claude/skills/agented",
+      supporting: { "agents/a.md": ".claude/agents/a.md" },
+    },
+  },
+};
+
+test("install writes a supporting file at its target and not again under bundleRoot", async () => {
+  const files = new Map<string, string>([
+    ["SKILL.md", "# Agented"],
+    ["agents/a.md", "---\nname: a\n---\nbody\n"],
+    ["scripts/run.sh", "#!/usr/bin/env bash\n"],
+  ]);
+
+  const installed = await claudeAdapter.install(TMP, agentManifest, files);
+
+  expect(readFileSync(join(TMP, ".claude/agents/a.md"), "utf-8")).toBe("---\nname: a\n---\nbody\n");
+  expect(existsSync(join(TMP, ".claude/skills/agented/agents/a.md"))).toBe(false);
+  expect(installed).not.toContain(".claude/skills/agented/agents/a.md");
+  expect(existsSync(join(TMP, ".claude/skills/agented/scripts/run.sh"))).toBe(true);
+});
+
+test("remove deletes a supporting file installed outside bundleRoot", async () => {
+  const files = new Map<string, string>([
+    ["SKILL.md", "# Agented"],
+    ["agents/a.md", "---\nname: a\n---\nbody\n"],
+    ["scripts/run.sh", "#!/usr/bin/env bash\n"],
+  ]);
+
+  const installed = await claudeAdapter.install(TMP, agentManifest, files);
+  await claudeAdapter.remove(TMP, agentManifest, installed);
+
+  expect(existsSync(join(TMP, ".claude/agents/a.md"))).toBe(false);
+});

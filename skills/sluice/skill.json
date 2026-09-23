@@ -8,7 +8,10 @@
     "claude"
   ],
   "files": {
-    "prompt": "SKILL.md"
+    "prompt": "SKILL.md",
+    "supporting": [
+      "agents/sluice-implementer-low.md"
+    ]
   },
   "bundle": {
     "include": [
@@ -19,6 +22,9 @@
   "install": {
     "claude": {
       "prompt": ".claude/skills/sluice/SKILL.md",
+      "supporting": {
+        "agents/sluice-implementer-low.md": ".claude/agents/sluice-implementer-low.md"
+      },
       "bundleRoot": ".claude/skills/sluice",
       "postinstall": "scripts/postinstall.sh"
     }
