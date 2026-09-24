@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "skills"
+    "skills",
+    "!skills/*/evals/results"
   ],
   "scripts": {
     "build": "bun build src/cli/index.ts --outdir dist/cli --target bun",
