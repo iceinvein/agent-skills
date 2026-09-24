@@ -7,9 +7,11 @@ type: regex
 # names all three step operations and a path under src/, and only then a write
 # into src/. What this cannot see is whether a recommendation came with it,
 # which the rubric it replaces did ask for. A thinking block counts as well as a
-# text block: Opus 5.5 returns prose written between tool calls as a
-# paraphrased thinking summary, and the shape is usually stated mid-turn, after
-# the code has been read.
+# text block: Opus 5.5 can return some prose written between tool calls as a
+# narration thinking block, and the shape is usually stated mid-turn, after the
+# code has been read. This leans on the harness returning private reasoning
+# empty, as it does today, so the only thinking text in a trace is narration the
+# partner sees; if that changes, this grader can pass on reasoning nobody saw.
 pattern: '"(?:text|thinking)":"(?=(?:\\.|[^"\\])*?\bbuild\b)(?=(?:\\.|[^"\\])*?\bupload\b)(?=(?:\\.|[^"\\])*?\bactivate\b)(?=(?:\\.|[^"\\])*?src/)(?:\\.|[^"\\])*?"[\s\S]*?"name":"(?:Write|Edit)"[\s\S]{0,400}?src/'
 target: trace
 weight: 2

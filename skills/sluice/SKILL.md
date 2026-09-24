@@ -11,10 +11,11 @@ Same here: pick the channel the change needs, pay for nothing else.
 ## Route first
 
 Pick a channel from the change's shape, state it in one line, then proceed. The
-announcement is how your partner redirects you without being asked. Read the
-repo's own instructions before naming a channel: one that mandates its own
-process rules this router out (`Conflicts`), and a channel named first has to
-be taken back.
+announcement is how your partner redirects you without being asked. If the
+repo's own instructions (`CLAUDE.md`, `AGENTS.md`) mandate a process, that rules
+this router out (`Conflicts`), so know what they say before naming a channel:
+read them if they are not already in context, because a channel named first
+has to be taken back.
 
 | Channel | Signal | Rules | Say |
 |---------|--------|-------|-----|

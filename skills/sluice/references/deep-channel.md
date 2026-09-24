@@ -150,6 +150,18 @@ while it is still a draft. Take the design stop through it.
 What that changes: the design gets drafted in the plan file the harness names,
 and `ExitPlanMode` is the sign-off rather than a paragraph asking for one.
 
+One thing comes before the design, in either harness. When the design turns on
+a fork only your partner can settle, one whose answer changes the design's
+shape (where state lives, what shares it, which process owns it) rather than a
+value the design can leave as config, ask it as one question with your
+recommendation before the design is written, and write the design on the
+answer. Ask it with the question tool where there is one, which returns the
+answer without ending the turn; without one, the question is a stop of its
+own, and the design is written, to its file, on the next turn. A design drafted
+across both branches of a fork doubles the reading and still has to be
+rewritten. Anything you can settle from the repo is not that fork: settle it,
+and write the design first.
+
 What it does not replace is pre-flight. That stop wants three answers, and an
 approval is not an answer to any of them, so it stays where it is, after plan
 mode has exited and the plan is written. One enforced gate does not collapse two
@@ -170,14 +182,6 @@ next compaction, which is what the durable files are for. Write it, end the turn
 on it, and let the next instruction start the plan. Nothing else about this
 section changes, because the obligation was never the mode's, only the
 enforcement was.
-
-One thing comes before the design, in either harness. When the design turns on
-a fork only your partner can settle, a fact about their deployment or a
-constraint the repo does not show, ask it as one question with your
-recommendation before the design is written, and write the design on the
-answer. A design drafted across both branches of a fork doubles the reading and
-still has to be rewritten. Anything you can settle from the repo is not that
-fork: settle it, and write the design first.
 
 ## Pre-flight
 
