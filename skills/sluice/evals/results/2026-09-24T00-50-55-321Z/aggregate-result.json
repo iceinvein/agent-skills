@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.281",
+  "startedAt": "2026-09-24T00:50:55.321Z",
+  "durationSeconds": 61,
+  "costUsd": 0.30811059999999996,
+  "partial": false,
+  "suite": {
+    "root": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice",
+    "ablation": "none",
+    "modelOverride": "claude-opus-5-5",
+    "judgeModel": "claude-opus-5-5",
+    "caseFilter": "main-new-interface",
+    "threshold": 0,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "sluice",
+        "path": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/sluice-opus-5-5/skills/sluice"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "main-new-interface",
+      "dir": "evals/main-new-interface",
+      "source": "mixed",
+      "promptMarkdown": "Deploy only knows how to push to our own boxes. I want it to go through a pluggable target, so the same three steps can run against S3 later without the command knowing which one it got. Build the target seam and move the current behaviour behind it.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 2400,
+      "maxTurns": 80,
+      "graders": [
+        {
+          "name": "announces-main-channel",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "trace",
+            "pattern": "\"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:[\\s/]|\\\\[nt]))?status\\.sh(?:\\\\\"|')?(?:\\s|\\\\[nt])+route(?:\\s|\\\\[nt])+main(?:\\s|\\\\[nt]|[;&|]|\")|\"text\":\"(?:[^.!?\\n\"]{0,100}[:=]\\s*)?[\\s*_#>\\\\]*main channel",
+            "flags": "i",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "behaviour-preserved",
+          "type": "llm",
+          "weight": 1,
+          "graderMarkdown": "This is the deploy test file after the change.\n\nPASS if the two original behaviours are still asserted: a `--dry-run` run ends with the line `dry run: 3 steps skipped`, and a full run emits `-> build`, `-> upload`, `-> activate` and then `deployed: 3 steps`.\nFAIL if either assertion was deleted, skipped, or loosened so that it no longer pins the exact output lines.",
+          "config": {
+            "criteria": "This is the deploy test file after the change.\n\nPASS if the two original behaviours are still asserted: a `--dry-run` run ends with the line `dry run: 3 steps skipped`, and a full run emits `-> build`, `-> upload`, `-> activate` and then `deployed: 3 steps`.\nFAIL if either assertion was deleted, skipped, or loosened so that it no longer pins the exact output lines.",
+            "focus": {
+              "source": "file",
+              "path": "tests/deploy.test.js"
+            }
+          }
+        },
+        {
+          "name": "shape-agreed-before-building",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "trace",
+            "pattern": "\"(?:text|thinking)\":\"(?=(?:\\\\.|[^\"\\\\])*?\\bbuild\\b)(?=(?:\\\\.|[^\"\\\\])*?\\bupload\\b)(?=(?:\\\\.|[^\"\\\\])*?\\bactivate\\b)(?=(?:\\\\.|[^\"\\\\])*?src/)(?:\\\\.|[^\"\\\\])*?\"[\\s\\S]*?\"name\":\"(?:Write|Edit)\"[\\s\\S]{0,400}?src/",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "sluice-fired",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill",
+            "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?sluice\""
+          }
+        },
+        {
+          "name": "suite-was-run",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Bash",
+            "input_match": "(npm test|node --test)",
+            "min": 2
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 18,
+            "costUsd": 0.30811059999999996,
+            "judgeCostUsd": 0.009984,
+            "durationSeconds": 61,
+            "startedAt": "2026-09-24T00:50:55.362Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-PaEfbq/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "announces-main-channel",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"command\":\"(?:(?:[^\"\\\\]|\\\\.)*?(?:[\\s/]|\\\\[nt]))?status\\.sh(?:\\\\\"|')?(?:\\s|\\\\[nt])+route(?:\\s|\\\\[nt])+main(?:\\s|\\\\[nt]|[;&|]|\")|\"text\":\"(?:[^.!?\\n\"]{0,100}[:=]\\s*)?[\\s*_#>\\\\]*main channel",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "behaviour-preserved",
+                "passed": true,
+                "weight": 1,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\nimport { deploy } from \"../src/cli/deploy.js\";\n\nfunction capture() {\n  const lines = [];\n  return { lines, log: (line) => lines.push(line) };\n}\n\ntest(\"dry run skips the steps and says so\", () => {\n  const { lines, log } = capture();\n  deploy([\"--dry-run\"], log);\n  assert.equal(lines.at(-1), \"dry run: 3 steps skipped\");\n});\n\ntest(\"a full deploy reports every step\", () => {\n  const { lines, log } = capture();\n  deploy([], log);\n  assert.deepEqual(lines, [\"-> build\", \"-> upload\", \"-> activate\", \"deployed: 3 steps\"]);\n});\n\nfunction recordingTarget() {\n  const calls = [];\n  return {\n    calls,\n    build: () => calls.push(\"build\"),\n    upload: () => calls.push(\"upload\"),\n    activate: () => calls.push(\"activate\"),\n  };\n}\n\ntest(\"a full deploy runs each step against the given target, in order\", () => {\n  const target = recordingTarget();\n  deploy([], () => {}, target);\n  assert.deepEqual(target.calls, [\"build\", \"upload\", \"activate\"]);\n});\n\ntest(\"dry run touches nothing on the target\", () => {\n  const target = recordingTarget();\n  deploy([\"--dry-run\"], () => {}, target);\n  assert.deepEqual(target.calls, []);\n});\n\ntest(\"a target missing a step is rejected\", () => {\n  const { build, activate } = recordingTarget();\n  assert.throws(() => deploy([], () => {}, { build, activate }), /target cannot upload/);\n});\n"
+              },
+              {
+                "name": "shape-agreed-before-building",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched \"(?:text|thinking)\":\"(?=(?:\\\\.|[^\"\\\\])*?\\bbuild\\b)(?=(?:\\\\.|[^\"\\\\])*?\\bupload\\b)(?=(?:\\\\.|[^\"\\\\])*?\\bactivate\\b)(?=(?:\\\\.|[^\"\\\\])*?src/)(?:\\\\.|[^\"\\\\])*?\"[\\s\\S]*?\"name\":\"(?:Write|Edit)\"[\\s\\S]{0,400}?src/",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "sluice-fired",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "suite-was-run",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Bash called 4x (expected 2..∞)",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}

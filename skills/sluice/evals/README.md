@@ -1,6 +1,6 @@
 # sluice evals
 
-Fourteen cases for `claude plugin eval`. Eight pin the routing decision: which
+Fifteen cases for `claude plugin eval`. Nine pin the routing decision: which
 channel the run names, and whether the behaviour that channel owes actually
 happened. Six pin what a deep run does after pre-flight, where the question is
 no longer which channel but whether the run keeps going.
@@ -11,6 +11,7 @@ no longer which channel but whether the run keeps going.
 | `fast-flag-on-existing-command` | A new flag on an existing command | Fast channel; test edited and run before the source |
 | `main-new-interface` | Adds a port the repo does not have | Main channel; shape stated with a recommendation before building |
 | `deep-plan-across-subsystems` | A plan asked for, three subsystems | Deep channel; design written to `docs/specs/`; stops before code |
+| `deep-plan-asks-the-fork` | The same plan with nothing saying where the counters can live | One question with a recommendation before any design; no spec yet |
 | `explicit-instruction-collapses-to-fast` | Main-shaped work plus "just do it" | Collapses to fast; no design, no proposal |
 | `superpowers-conflict-stands-down` | Repo mandates the superpowers sequence | Stands down once, names no channel |
 | `announcement-reaches-the-ledger` | A flag that a repo rule turns into a new export | `status.sh route fast`, then `status.sh route main` once the rule is read |
@@ -29,7 +30,7 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Thirteen cases scaffold a small Node repo and then change it, so they need the
+Fourteen cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
 inherit it, and pin the judge, because `--model` does not reach it and the
 `llm` graders otherwise run on Haiku. From the repo root:
@@ -247,6 +248,22 @@ What each says:
   Claude Code loads the project `CLAUDE.md` up front, so this may be sharper in
   the eval child than in real use.
 - `deep-run-fans-out` is the sandbox, as in the rerun.
+
+**After the three fixes.** SKILL.md now has the router read the repo's own
+instructions before naming a channel; `deep-channel.md` has a fork only the
+partner can settle asked first, as one question with a recommendation; the main
+shape grader reads narration thinking blocks as well as text; and the
+deep-plan fixture's README states where the processes run and what they share,
+so that case has no such fork. A new case, `deep-plan-asks-the-fork`, keeps the
+old README and pins the question. Once each, Opus 5.5 judge (USD 0.98 in all,
+`results/2026-09-24T*`):
+
+| Case | Score | Reading |
+|---|---|---|
+| `superpowers-conflict-stands-down` | 1.00 | Read `CLAUDE.md` before writing anything and stood down without naming a channel |
+| `main-new-interface` | 1.00 | |
+| `deep-plan-across-subsystems` | 1.00 | Wrote the design with the deployment given |
+| `deep-plan-asks-the-fork` | 1.00 | Asked where the counters live, recommended Redis, wrote no design |
 
 **Time-budget baseline, weak.** `deep-run-fans-out` pass 2 took 487s at USD
 2.73. The concurrent phase (Tasks 1 to 3) took about 30s; about 70s went to
