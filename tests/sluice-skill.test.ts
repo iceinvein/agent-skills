@@ -327,6 +327,28 @@ describe("sluice design stop and plan mode", () => {
 	test("it covers the harness that has no plan mode", () => {
 		expect(planMode()).toMatch(/unavailable|no plan mode|without it/i);
 	});
+
+	// An eval run asked where the shared counters should live before writing any
+	// design, which is right when the design turns on it and nowhere is it said so.
+	test("a fork only the partner can settle is asked before the design, once, with a recommendation", () => {
+		const s = planMode().replace(/\n/g, " ");
+		const sentence = s.split(/(?<=\.)\s+/).find((x) => /\bfork\b/.test(x));
+		expect(sentence).toBeDefined();
+		expect(sentence).toMatch(/one question/);
+		expect(sentence).toMatch(/recommendation/);
+		expect(sentence).toMatch(/before (the design is written|writing the design)/);
+	});
+});
+
+// A repo that mandates its own process rules this router out, and the only
+// place that mandate is found is the repo's own instructions. An eval run
+// announced a channel first and had to take it back.
+describe("sluice reads the repo before routing", () => {
+	test("the router reads the repo's own instructions before naming a channel", () => {
+		const route = section(SKILL, "Route first").replace(/\n/g, " ");
+		expect(route).toMatch(/repo's own instructions/);
+		expect(route).toMatch(/before (you )?nam(e|ing) a channel/);
+	});
 });
 
 // A dispatched agent shows in the harness's task panel under whatever label the

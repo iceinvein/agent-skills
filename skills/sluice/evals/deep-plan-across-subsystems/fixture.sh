@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Smallest repo that makes the rate limiter a real three-subsystem change: a
 # CLI, a webhook handler and a worker, each calling the same upstream client,
-# and nothing between them and the API.
+# and nothing between them and the API. The README says where the processes run
+# and what they share, because without it where the counters live is a fork
+# only the partner can settle, and the right move is then a question rather
+# than the written design this case pins.
 set -euo pipefail
 
 mkdir -p src/cli src/webhook src/worker src/upstream tests
@@ -98,6 +101,11 @@ cat > README.md <<'MD'
 Three callers, one upstream API: `src/cli/push.js`, `src/webhook/handler.js`
 and `src/worker/backfill.js` all go through `src/upstream/client.js`.
 `npm test` runs the suite.
+
+## Deployment
+
+All three run as separate processes on one host. A Redis instance is shared by
+them at `REDIS_URL`; nothing else is.
 MD
 
 git init --quiet

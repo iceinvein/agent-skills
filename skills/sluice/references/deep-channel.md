@@ -171,6 +171,14 @@ on it, and let the next instruction start the plan. Nothing else about this
 section changes, because the obligation was never the mode's, only the
 enforcement was.
 
+One thing comes before the design, in either harness. When the design turns on
+a fork only your partner can settle, a fact about their deployment or a
+constraint the repo does not show, ask it as one question with your
+recommendation before the design is written, and write the design on the
+answer. A design drafted across both branches of a fork doubles the reading and
+still has to be rewritten. Anything you can settle from the repo is not that
+fork: settle it, and write the design first.
+
 ## Pre-flight
 
 Design signed off, plan written, nothing built yet. Before Task 1, stop once
