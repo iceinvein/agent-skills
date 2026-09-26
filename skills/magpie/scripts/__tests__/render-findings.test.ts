@@ -205,15 +205,11 @@ const SAMPLE_BRIEF: PrBrief = {
   purpose:
     'Adds bounded retries to the upload path so transient S3 failures stop surfacing to users.',
   changes: ['Wraps the S3 put in a bounded retry', 'Adds a jittered backoff helper'],
-  subsystems: [
-    { name: 'upload', role: 'owns the client-facing put path' },
-    { name: 'storage-client', role: 'wraps the S3 SDK' },
-  ],
   watchItems: ['The PR body claims idempotency but no request key is sent'],
   unclear: ['Whether the retry budget interacts with the outer request timeout'],
 }
 
-test('brief header renders purpose, changes, and subsystem chips', () => {
+test('brief header renders purpose and changes', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
@@ -223,9 +219,6 @@ test('brief header renders purpose, changes, and subsystem chips', () => {
   expect(html).toContain('class="pr-brief"')
   expect(html).toContain('Adds bounded retries to the upload path')
   expect(html).toContain('Wraps the S3 put in a bounded retry')
-  expect(html).toContain('class="brief-chip"')
-  expect(html).toContain('>upload<')
-  expect(html).toContain('>storage-client<')
 })
 
 test('brief header omits watchItems and unclear, which are prompt-only', () => {
@@ -242,17 +235,6 @@ test('brief header omits watchItems and unclear, which are prompt-only', () => {
 test('no brief means no brief header at all', () => {
   const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
   expect(html).not.toContain('class="pr-brief"')
-})
-
-test('an empty subsystem list renders no chip row', () => {
-  const html = renderFindingsHtml({
-    findings: SAMPLE_FINDINGS,
-    postStatus: {},
-    highlighter: hl,
-    brief: { ...SAMPLE_BRIEF, subsystems: [] },
-  })
-  expect(html).toContain('class="pr-brief"')
-  expect(html).not.toContain('brief-subsystems')
 })
 
 test('brief header renders on the empty-findings page too', () => {
@@ -291,15 +273,12 @@ test('brief content is HTML-escaped', () => {
   expect(html).toContain('&lt;script&gt;')
 })
 
-test('subsystem role and issue title escape quotes in their title="" attribute context', () => {
+test('issue title escapes quotes in its title="" attribute context', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
     highlighter: hl,
-    brief: {
-      ...SAMPLE_BRIEF,
-      subsystems: [{ name: 'upload', role: 'owns the put path" onmouseover="alert(1)' }],
-    },
+    brief: SAMPLE_BRIEF,
     issues: [
       {
         number: 42,
@@ -308,11 +287,9 @@ test('subsystem role and issue title escape quotes in their title="" attribute c
       },
     ],
   })
-  // Raw quote-breakout must never appear unescaped in either attribute.
-  expect(html).not.toContain('path" onmouseover="alert(1)')
+  // Raw quote-breakout must never appear unescaped in the attribute.
   expect(html).not.toContain('intermittently" onmouseover="alert(2)')
   // Escaped form must appear instead.
-  expect(html).toContain('path&quot; onmouseover=&quot;alert(1)')
   expect(html).toContain('intermittently&quot; onmouseover=&quot;alert(2)')
   // purpose escaping (already covered above) must remain intact alongside this.
   expect(html).toContain('Adds bounded retries to the upload path')

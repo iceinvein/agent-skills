@@ -155,7 +155,7 @@ test('progress-pane block replaces diff-pane on the progress page', () => {
     specialistCounts: { security: 0 },
   })
   expect(html).toContain('data-role="progress-pane"')
-  expect(html).toContain('Indexing repo symbols')
+  expect(html).toContain('Reading the PR to brief the reviewers')
 })
 
 test('progress names the shard count while specialists run', () => {

@@ -92,7 +92,6 @@ test('refreshFindings carries the brief header through, so archives keep it on r
     JSON.stringify({
       purpose: 'Adds bounded retries to the upload path.',
       changes: ['Wraps the S3 put in a bounded retry'],
-      subsystems: [{ name: 'upload', role: 'owns the put path' }],
       watchItems: [],
       unclear: [],
     }),

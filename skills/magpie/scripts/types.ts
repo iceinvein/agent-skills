@@ -333,16 +333,10 @@ export function isSuggestion(f: ReviewFinding): boolean {
   return f.risk.action === 'consider' || f.risk.action === 'optional'
 }
 
-export type BriefSubsystem = {
-  name: string
-  role: string
-}
-
 /** Scout-produced PR summary. Written to `$RUN_DIR/brief.json` by the context stage. */
 export type PrBrief = {
   purpose: string
   changes: string[]
-  subsystems: BriefSubsystem[]
   watchItems: string[]
   unclear: string[]
 }
@@ -365,19 +359,9 @@ export function parseBrief(raw: unknown): PrBrief | null {
   const r = raw as Record<string, unknown>
   const purpose = typeof r.purpose === 'string' ? r.purpose.trim() : ''
   if (purpose.length === 0) return null
-  const subsystems: BriefSubsystem[] = Array.isArray(r.subsystems)
-    ? (r.subsystems as unknown[]).flatMap((entry) => {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
-        const e = entry as Record<string, unknown>
-        const name = typeof e.name === 'string' ? e.name.trim() : ''
-        if (name.length === 0) return []
-        return [{ name, role: typeof e.role === 'string' ? e.role.trim() : '' }]
-      })
-    : []
   return {
     purpose,
     changes: briefStrings(r.changes),
-    subsystems,
     watchItems: briefStrings(r.watchItems),
     unclear: briefStrings(r.unclear),
   }

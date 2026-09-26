@@ -7,7 +7,7 @@ description: Use when the user asks to review a GitHub pull request (a PR number
 
 ## Prerequisites
 
-The skill pre-flights `bun`, `gh`, `git` (required) and `codex` (optional). A missing required binary aborts the run with a single install hint line. Code intelligence is not pre-flighted: stage 3 probes for it, over either the `code-intel` CLI or the code-intelligence MCP server, and the run continues without it. Without `codex` the run continues and peer review falls back to a Claude second-opinion subagent (setup prints a one-line notice and logs `{stage: preflight, status: done, missingOptional: ["codex"]}`).
+The skill pre-flights `bun`, `gh`, `git` (required) and `codex` (optional). A missing required binary aborts the run with a single install hint line. Without `codex` the run continues and peer review falls back to a Claude second-opinion subagent (setup prints a one-line notice and logs `{stage: preflight, status: done, missingOptional: ["codex"]}`).
 
 ## Stage walkthrough
 
@@ -83,19 +83,11 @@ magpie render "$RUN_DIR" progress
 
 ### 3. Context
 
-Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage has two steps and never aborts the run.
+Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage never aborts the run.
 
-**Probe.** Code intelligence reaches the same on-device daemon through two interfaces. Prefer the `code-intel` CLI: it takes `--repo` on every call, so it holds no session binding to leak past cleanup and the specialists can query in parallel without clobbering each other's workspace. `$RUN_DIR/worktree` is a linked git worktree either way, so an already-indexed base repo seeds its index instead of re-indexing.
+Read `references/scout.md` and dispatch one subagent (Agent tool, `general-purpose`) carrying the `magpie-scout` block with `<<RUN_DIR>>` and `<<PR_NUMBER>>` substituted. It writes `$RUN_DIR/brief.json`.
 
-- **CLI**, when `command -v code-intel` succeeds. Run `code-intel index status --repo "$RUN_DIR/worktree" --json` and read `.status`: `ok` sets `CODE_INTELLIGENCE=cli`. `indexing_started` or `indexing_in_progress` means the seed took, so poll the same command every 5s for at most 60s and set `CODE_INTELLIGENCE=cli` either way. Exit 3 is a stopped daemon: run `code-intel start`, re-probe once. **Never run `code-intel index approve`.**
-- **MCP**, when the CLI is absent but `mcp__code-intelligence__*` tools are in your tool list. Call `bind_workspace` with `$RUN_DIR/worktree` and apply the same rules, polling `get_index_stats` instead, to set `CODE_INTELLIGENCE=mcp`. **Never call `approve_indexing`.**
-- `consent_required` on either interface means the base repo has never completed an index, and starting one is a full GPU pass the user did not ask for. That, no interface at all, or any other error that survives one retry, sets `CODE_INTELLIGENCE=unavailable`; print one line: "Code intelligence is unavailable (<reason>); specialists will review from the diff alone."
-
-Never block the pipeline on a still-running index. The scout and specialist contracts both handle a tool that is not ready yet.
-
-**Scout.** Read `references/scout.md` and dispatch one subagent (Agent tool, `general-purpose`) carrying the `magpie-scout` block with `<<RUN_DIR>>`, `<<PR_NUMBER>>`, and `<<CODE_INTELLIGENCE>>` substituted. It writes `$RUN_DIR/brief.json`.
-
-Append `{stage: context, status: done, codeIntelligence: true|false, interface: "cli"|"mcp"|"none"}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped, codeIntelligence: true|false, interface: ...}` instead and continue: the brief is optional everywhere it is read. Both entries carry the probe's result, which is known whatever the scout did, and `interface` is what stage 10 reads to decide whether there is a session to rebind.
+Append `{stage: context, status: done}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read.
 
 ### 4. Specialists
 
@@ -148,8 +140,7 @@ gate is expected to have none. `magpie dedupe` re-checks this against the manife
 names every missing pair on stdout, as a backstop rather than a substitute.
 
 If every specialist fails (no findings files written), log
-`{stage: specialists, status: error}`, rebind code intelligence to `$REPO` if
-`CODE_INTELLIGENCE=mcp` (stage 10), and stop. Otherwise mark `{stage: specialists, status: done}`.
+`{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
 
 ### 5. Dedupe
 
@@ -241,8 +232,6 @@ magpie render "$RUN_DIR" findings
 magpie cleanup "$RUN_DIR" --repo "$REPO"
 ```
 
-If the context stage set `CODE_INTELLIGENCE=mcp`, rebind the session now: call `bind_workspace` with `$REPO`. MCP binding is per session with no per-call override, so ending a run without this leaves the session pointed at a worktree `cleanup` just deleted. A `cli` run has nothing to rebind, because `--repo` names the workspace on every call. Either way the daemon prunes the seeded index once the worktree is gone.
-
 The run directory is renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed. The CLI prints two lines on success: `archived to <path>` and `view later: magpie open <archived-id>`. Surface that second line verbatim so the user has a one-command path back to the report.
 
 The archived `findings.html` is self-contained and auto-switches to read-only "archived" mode when opened, so:
@@ -262,7 +251,7 @@ magpie status "$RUN_DIR"
 
 The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
-- `context` re-runs by redoing the probe, then dispatching the scout only if `$RUN_DIR/brief.json` is missing. The seeded index survives a crash, so the rebind is near-instant.
+- `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
@@ -275,4 +264,4 @@ The original server is gone. Restart it with `magpie serve "$RUN_DIR"` (step 2) 
 
 ## Aborting
 
-If the user types `abort` mid-run, rebind code intelligence to `$REPO` if `CODE_INTELLIGENCE=mcp` (stage 10), then run `magpie cleanup` and exit.
+If the user types `abort` mid-run, run `magpie cleanup` and exit.

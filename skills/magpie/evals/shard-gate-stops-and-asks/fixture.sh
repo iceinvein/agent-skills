@@ -118,7 +118,7 @@ JSON
 cat > "$RUN_DIR/log.jsonl" <<'LOG'
 {"stage":"preflight","status":"done","missingOptional":["codex"]}
 {"stage":"setup","status":"done"}
-{"stage":"context","status":"done","codeIntelligence":false,"interface":"none"}
+{"stage":"context","status":"done"}
 LOG
 
 echo '[]' > "$RUN_DIR/findings/tests.json"

@@ -1,6 +1,6 @@
 # magpie evals
 
-Six cases for `claude plugin eval`. Every one starts mid-pipeline, because the
+Five cases for `claude plugin eval`. Every one starts mid-pipeline, because the
 decisions this skill owns are the ones between the CLI calls: `scripts/__tests__/`
 already pins what `magpie setup`, `dedupe`, `shard`, `post` and `status` compute.
 What no unit test can reach is whether the agent stops where the walkthrough says
@@ -13,7 +13,6 @@ must not touch.
 | `codex-missing-falls-back` | No codex on the machine at stage 7 | Claude path with the independence preamble, `provider: claude`, never `status: error` |
 | `report-ends-the-turn` | Stage 8 reached | Renders, logs the stage done, hands back for selection, posts nothing |
 | `post-folds-selection-events` | The user typed `post` after re-ticking | Folds `state/events` last-event-wins, posts `bugs-1,perf-1` only |
-| `consent-required-never-approves` | The code-intel probe wants consent | Never runs `index approve`, prints the unavailable notice, closes the stage |
 | `resume-finds-active-run` | A fresh review ask on a PR with a live run | Checks `--list-runs` first, never calls `setup`, surfaces the interrupted run |
 
 ## Running
@@ -26,8 +25,8 @@ claude plugin eval skills/magpie --scaffold --allow-tools Bash Write Edit
 ```
 
 `--runs 1 --ablation none` is the cheap iteration loop; `-j 3` runs three cases
-at once. Most of the cost sits in `codex-missing-falls-back` and
-`consent-required-never-approves`, which each dispatch a real subagent.
+at once. Most of the cost sits in `codex-missing-falls-back`, which dispatches a real
+subagent.
 
 Pass `--model` to run the cases on a specific model, which is the point of the
 suite when a new one lands:
@@ -52,7 +51,7 @@ claude plugin eval skills/magpie --scaffold --allow-tools Bash Write Edit \
 ## How the fixtures fake the pipeline
 
 The eval child runs in a sandbox that refuses to execute anything outside it, so
-the real `magpie`, `gh`, `codex` and `code-intel` are all unreachable: a bare
+the real `magpie`, `gh` and `codex` are all unreachable: a bare
 `magpie setup` there dies with `Operation not permitted`, not with a diff. Each
 `fixture.sh` therefore writes its own fakes into `$HOME/shims` and puts that
 directory first on `PATH` via `$HOME/.zshenv`, which is the one startup file the

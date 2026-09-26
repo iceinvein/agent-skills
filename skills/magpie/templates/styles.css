@@ -1681,7 +1681,6 @@ code.inline-code {
   color: var(--ink-muted);
 }
 
-.brief-subsystems,
 .brief-issues {
   display: flex;
   flex-wrap: wrap;
@@ -1689,7 +1688,6 @@ code.inline-code {
   margin-top: 10px;
 }
 
-.brief-chip,
 .brief-issue {
   padding: 2px 8px;
   border: 1px solid var(--line);

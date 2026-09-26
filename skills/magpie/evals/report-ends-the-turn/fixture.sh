@@ -117,7 +117,7 @@ JSON
 cat > "$RUN_DIR/log.jsonl" <<'LOG'
 {"stage":"preflight","status":"done","missingOptional":["codex"]}
 {"stage":"setup","status":"done"}
-{"stage":"context","status":"done","codeIntelligence":false,"interface":"none"}
+{"stage":"context","status":"done"}
 {"stage":"specialists","status":"done"}
 {"stage":"dedupe","status":"done"}
 {"stage":"critic","status":"done"}

@@ -26,7 +26,7 @@ const STAGE_HINT: Record<StageId, string> = {
 
 const STAGE_NOW_DOING: Record<StageId, string> = {
   setup: 'Fetching the PR and diff',
-  context: 'Indexing repo symbols',
+  context: 'Reading the PR to brief the reviewers',
   specialists: 'Five reviewers reading the diff in parallel',
   dedupe: 'Merging overlapping findings',
   critic: 'Keeping only the high-signal ones',

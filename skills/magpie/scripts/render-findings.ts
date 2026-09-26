@@ -123,12 +123,6 @@ function briefBlock(brief: PrBrief | undefined, issues: BriefIssue[]): string {
     brief.changes.length > 0
       ? `<ul class="brief-changes">${brief.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
       : ''
-  const subsystems =
-    brief.subsystems.length > 0
-      ? `<div class="brief-subsystems">${brief.subsystems
-          .map((s) => `<span class="brief-chip" title="${esc(s.role)}">${esc(s.name)}</span>`)
-          .join('')}</div>`
-      : ''
   const issueLinks =
     issues.length > 0
       ? `<div class="brief-issues">${issues
@@ -143,7 +137,6 @@ function briefBlock(brief: PrBrief | undefined, issues: BriefIssue[]): string {
     <div class="brief-body">
       <p class="brief-purpose">${esc(brief.purpose)}</p>
       ${changes}
-      ${subsystems}
       ${issueLinks}
     </div>
   </details>`
