@@ -92,3 +92,60 @@ test('detectMissingTests: ignores comment-only and import-only additions', () =>
   ].join('\n')
   expect(detectMissingTests(diff)).toHaveLength(0)
 })
+
+const fileDiff = (path: string, added: string[], removed: string[] = []): string =>
+  [
+    `diff --git a/${path} b/${path}`,
+    'index 1..2 100644',
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    `@@ -1,${removed.length + 1} +1,${added.length + 1} @@`,
+    ' use std::fmt;',
+    ...removed.map((l) => `-${l}`),
+    ...added.map((l) => `+${l}`),
+    '',
+  ].join('\n')
+
+const rustSource = Array.from(
+  { length: 12 },
+  (_, i) => `pub fn clean_${i}(s: &str) -> String { s.to_owned() }`,
+)
+
+test('detectMissingTests: an added Rust #[test] counts as a test in the diff', () => {
+  const diff = fileDiff('src/clean.rs', [
+    ...rustSource,
+    '#[test]',
+    'fn cleans_blank() { assert_eq!(clean_0(""), "") }',
+  ])
+  expect(detectMissingTests(diff)).toHaveLength(0)
+})
+
+test('detectMissingTests: an added #[cfg(test)] module counts as a test in the diff', () => {
+  const diff =
+    fileDiff('src/a.rs', rustSource) + fileDiff('src/b.rs', ['#[cfg(test)]', 'mod tests {}'])
+  expect(detectMissingTests(diff)).toHaveLength(0)
+})
+
+test('detectMissingTests: a path-qualified test attribute like #[tokio::test] counts', () => {
+  const diff = fileDiff('src/worker.rs', [
+    ...rustSource,
+    '    #[tokio::test]',
+    '    async fn drains() {}',
+  ])
+  expect(detectMissingTests(diff)).toHaveLength(0)
+})
+
+test('detectMissingTests: an in-source vitest block counts as a test in the diff', () => {
+  const diff = sourceDiff('src/a.ts', 12) + fileDiff('src/b.ts', ['if (import.meta.vitest) {', '}'])
+  expect(detectMissingTests(diff)).toHaveLength(0)
+})
+
+test('detectMissingTests: a removed #[test] line does not count as an added test', () => {
+  const diff = fileDiff('src/clean.rs', rustSource, ['#[test]'])
+  expect(detectMissingTests(diff)).toHaveLength(1)
+})
+
+test('detectMissingTests: a test attribute mentioned inside a string does not count', () => {
+  const diff = fileDiff('src/clean.rs', [...rustSource, 'let label = "#[test] is an attribute";'])
+  expect(detectMissingTests(diff)).toHaveLength(1)
+})

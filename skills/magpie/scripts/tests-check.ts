@@ -31,8 +31,28 @@ const NON_CODE_EXTENSIONS = new Set([
   '.html',
 ])
 
+// Some languages keep tests beside the code rather than in a test file: Rust's
+// `#[test]` and `#[cfg(test)]` modules, and vitest's in-source blocks. Matched
+// against the whole added line so a mention inside a string does not count.
+const INLINE_TEST_LINE_PATTERNS: RegExp[] = [
+  /^\s*#\[(?:[\w:]+::)?test\]\s*$/, // #[test], #[tokio::test]
+  /^\s*#\[cfg\(test\)\]\s*$/, // #[cfg(test)]
+  /^\s*if\s*\(\s*import\.meta\.vitest\s*\)/, // if (import.meta.vitest) {
+]
+
 export function isTestFile(path: string): boolean {
   return TEST_FILE_PATTERNS.some((p) => p.test(path))
+}
+
+function addsInlineTest(chunk: string): boolean {
+  return chunk
+    .split('\n')
+    .some(
+      (line) =>
+        line.startsWith('+') &&
+        !line.startsWith('+++') &&
+        INLINE_TEST_LINE_PATTERNS.some((p) => p.test(line.slice(1))),
+    )
 }
 
 function fileExt(path: string): string {
@@ -84,8 +104,9 @@ export function detectMissingTests(
   const minAdded = options.minAddedLines ?? 10
   const byFile = splitDiffByFile(diff)
   const filePaths = [...byFile.keys()]
-  const hasAnyTestFile = filePaths.some((p) => isTestFile(p))
-  if (hasAnyTestFile) return []
+  const hasAnyTest =
+    filePaths.some((p) => isTestFile(p)) || [...byFile.values()].some((c) => addsInlineTest(c))
+  if (hasAnyTest) return []
 
   const findings: ReviewFinding[] = []
   let id = 1
