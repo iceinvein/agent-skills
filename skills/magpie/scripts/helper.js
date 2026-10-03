@@ -400,6 +400,7 @@
     )) {
       if (el.tagName.toLowerCase() === 'input') continue
       if (el.getAttribute('data-posted') === 'true') continue
+      if (el.hasAttribute('data-dismissed')) continue
       ids.add(el.getAttribute('data-finding-id'))
     }
     for (const id of ids) setCheckedAndNotify(id, true)

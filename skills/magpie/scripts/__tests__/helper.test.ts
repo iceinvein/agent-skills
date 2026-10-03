@@ -200,6 +200,13 @@ test('select and post recommended skip dismissed findings', async () => {
   }
 })
 
+test('select by severity skips dismissed findings', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(functionBlock(src, 'function handleSelectSev(')).toContain(
+    "el.hasAttribute('data-dismissed')",
+  )
+})
+
 test('select and post recommended only take findings inside a recommended slot', async () => {
   const src = await readFile(HELPER, 'utf8')
   for (const sig of ['function handleSelectRecommended(', 'function handlePostRecommended(']) {
