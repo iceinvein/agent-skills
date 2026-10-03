@@ -1,6 +1,8 @@
 import { readdir, readFile, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { readDismissed } from './labels.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
+import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import { type PrFileEntry, parseBrief, parseFinding } from './types.ts'
 
 export type RefreshResult = {
@@ -116,6 +118,8 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
       brief: brief ?? undefined,
       issues,
       diffSource,
+      dismissed: await readDismissed(runDir),
+      topN: DEFAULT_TOP_N,
     },
     join(screenDir, 'findings.html'),
   )

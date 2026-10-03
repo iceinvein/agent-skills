@@ -2,6 +2,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { PostStatusMap } from './render-findings.ts'
 import { renderFindingsToDisk } from './render-findings.ts'
+import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import type { RenderProgressInput, StageId, StageStatus } from './render-progress.ts'
 import { renderProgressToDisk } from './render-progress.ts'
 import { type PrBrief, parseBrief, parseFinding } from './types.ts'
@@ -280,6 +281,9 @@ export async function runPreview(opts: PreviewOptions): Promise<PreviewResult> {
         files: fixture.files,
         diff: fixture.diff,
         brief: fixture.brief,
+        // The fixture is a snapshot with no reviewer events behind it.
+        dismissed: new Map(),
+        topN: DEFAULT_TOP_N,
       },
       findingsPath,
     )

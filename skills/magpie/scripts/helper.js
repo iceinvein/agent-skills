@@ -324,6 +324,18 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Top-N fold
+  // ---------------------------------------------------------------------------
+
+  function handleToggleMore(btn) {
+    const fold = btn.parentElement?.querySelector('.more-findings')
+    if (!(fold instanceof HTMLElement)) return
+    fold.hidden = !fold.hidden
+    btn.setAttribute('aria-expanded', fold.hidden ? 'false' : 'true')
+    btn.textContent = fold.hidden ? `Show ${btn.dataset.count} more` : 'Show fewer'
+  }
+
+  // ---------------------------------------------------------------------------
   // Severity filter (hide-sev-*)
   // ---------------------------------------------------------------------------
 
@@ -396,7 +408,9 @@
 
   function handleSelectRecommended() {
     const ids = new Set()
-    for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
+    for (const el of document.querySelectorAll(
+      '[data-recommended="true"] [data-finding-id][data-suggestion="false"]',
+    )) {
       if (el.tagName.toLowerCase() === 'input') continue
       if (el.getAttribute('data-posted') === 'true') continue
       if (el.hasAttribute('data-dismissed')) continue
@@ -560,7 +574,9 @@
   async function handlePostRecommended() {
     const ids = []
     const seen = new Set()
-    for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
+    for (const el of document.querySelectorAll(
+      '[data-recommended="true"] [data-finding-id][data-suggestion="false"]',
+    )) {
       if (el.tagName.toLowerCase() === 'input') continue
       if (el.getAttribute('data-posted') === 'true') continue
       if (el.hasAttribute('data-dismissed')) continue
@@ -639,6 +655,9 @@
           break
         case 'toggle-suggestions':
           handleToggleSuggestions(action)
+          break
+        case 'toggle-more':
+          handleToggleMore(action)
           break
         case 'filter-sev':
           handleFilterSev(action)

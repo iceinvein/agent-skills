@@ -16,7 +16,9 @@ Subcommands:
                              Apply critic verdicts, write findings.kept.json
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards
-  render <run-dir> <page>    Render progress.html or findings.html
+  render <run-dir> <page> [--top N]
+                             Render progress.html or findings.html (findings recommends
+                             the top N, default 10, and folds the rest)
   labels <run-dir>           Write labels.json (posted, dismissed, ignored per finding)
   cleanup <run-dir>          Remove worktree, stop server, write labels, archive run
   status <run-dir>           Print highest completed stage
@@ -210,11 +212,22 @@ const HANDLERS: Record<string, Handler> = {
     const runDir = args[0]
     const page = args[1]
     if (!runDir || (page !== 'progress' && page !== 'findings')) {
-      process.stderr.write('render: missing <run-dir> <progress|findings>\n')
+      process.stderr.write('render: missing <run-dir> <progress|findings> [--top <n>]\n')
       return 2
     }
+    const flag = args.indexOf('--top')
+    const raw = flag !== -1 ? args[flag + 1] : undefined
+    let topN: number | undefined
+    if (flag !== -1) {
+      const n = Number(raw)
+      if (!Number.isInteger(n) || n <= 0) {
+        process.stderr.write(`render: invalid --top ${raw} (want a positive integer)\n`)
+        return 1
+      }
+      topN = n
+    }
     const { runRender } = await import('../scripts/render-cmd.ts')
-    return runRender(runDir, page)
+    return runRender(runDir, page, topN !== undefined ? { topN } : {})
   },
   labels: async (args) => {
     const runDir = args[0]

@@ -1110,6 +1110,30 @@ pre.shiki .line {
   padding: 12px 16px;
 }
 
+/* The slot only carries data-recommended for the helper; the card inside keeps
+   its own spacing as if the wrapper were absent. */
+.recommended-slot {
+  display: contents;
+}
+
+.show-more-toggle {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  background: transparent;
+  border: 1px dashed var(--line);
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.show-more-toggle:hover,
+.show-more-toggle[aria-expanded="true"] {
+  color: var(--ink);
+}
+
 /* === Action bar === */
 
 .action-bar {

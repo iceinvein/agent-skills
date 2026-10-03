@@ -128,3 +128,15 @@ test('refreshFindings carries linked issues from pr.json through the brief heade
   const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
   expect(fresh).toContain('https://example.test/issues/42')
 })
+
+test('refreshFindings keeps a dismissal recorded in state/events', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([sampleFinding]))
+  await mkdir(join(runDir, 'state'), { recursive: true })
+  await writeFile(
+    join(runDir, 'state', 'events'),
+    `${JSON.stringify({ type: 'dismiss', findingId: 'a', reason: 'not-worth-it', timestamp: 1 })}\n`,
+  )
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toMatch(/data-finding-id="a"[^>]*data-dismissed="not-worth-it"/)
+})

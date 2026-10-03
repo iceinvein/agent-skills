@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { readDismissed } from './labels.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
+import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import { renderProgressToDisk } from './render-progress.ts'
 import { parseBrief, parseFinding } from './types.ts'
 
@@ -80,7 +81,11 @@ function summarizeStages(log: Array<Record<string, unknown>>): {
   return { stages, specialistCounts }
 }
 
-export async function runRender(runDir: string, page: 'progress' | 'findings'): Promise<number> {
+export async function runRender(
+  runDir: string,
+  page: 'progress' | 'findings',
+  opts: { topN?: number } = {},
+): Promise<number> {
   const screenDir = join(runDir, 'screen')
   if (page === 'progress') {
     const prJson = await readJson<Record<string, unknown>>(join(runDir, 'pr.json'), {
@@ -158,6 +163,7 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
       issues,
       diffSource,
       dismissed,
+      topN: opts.topN ?? DEFAULT_TOP_N,
     },
     outPath,
   )

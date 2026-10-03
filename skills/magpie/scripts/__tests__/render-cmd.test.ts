@@ -286,3 +286,51 @@ test('progress re-dispatch of one shard replaces rather than doubles its count',
   const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
   expect(html).toContain('bugs <span class="count">2</span>')
 })
+
+const CLI = new URL('../../bin/magpie.ts', import.meta.url).pathname
+
+async function writeActionableFindings(n: number): Promise<void> {
+  const findings = Array.from({ length: n }, (_, i) => ({
+    id: `f${i}`,
+    file: 'src/x.ts',
+    line: i + 1,
+    severity: 'high',
+    risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+    title: `t${i}`,
+    description: 'd',
+    domain: 'bugs',
+  }))
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify(findings))
+}
+
+test('render findings --top 3 recommends exactly three findings', async () => {
+  await writeActionableFindings(5)
+  const proc = Bun.spawn(['bun', CLI, 'render', runDir, 'findings', '--top', '3'], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  })
+  expect(await proc.exited).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect((html.match(/class="recommended-slot" data-recommended="true"/g) ?? []).length).toBe(3)
+  expect(html).toContain('Post Recommended (3)')
+})
+
+test('render findings without --top recommends up to ten findings', async () => {
+  await writeActionableFindings(12)
+  expect(await runRender(runDir, 'findings')).toBe(0)
+  const html = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect((html.match(/class="recommended-slot" data-recommended="true"/g) ?? []).length).toBe(10)
+})
+
+for (const bad of ['0', '-2', '2.5', 'ten']) {
+  test(`render findings --top ${bad} exits 1 without writing a page`, async () => {
+    await writeActionableFindings(2)
+    const proc = Bun.spawn(['bun', CLI, 'render', runDir, 'findings', '--top', bad], {
+      stderr: 'pipe',
+      stdout: 'pipe',
+    })
+    expect(await proc.exited).toBe(1)
+    expect(await new Response(proc.stderr).text()).toContain('--top')
+    expect(await readdir(join(runDir, 'screen'))).toEqual([])
+  })
+}

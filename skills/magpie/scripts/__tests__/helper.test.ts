@@ -200,6 +200,23 @@ test('select and post recommended skip dismissed findings', async () => {
   }
 })
 
+test('select and post recommended only take findings inside a recommended slot', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  for (const sig of ['function handleSelectRecommended(', 'function handlePostRecommended(']) {
+    expect(functionBlock(src, sig)).toContain(
+      `'[data-recommended="true"] [data-finding-id][data-suggestion="false"]'`,
+    )
+  }
+})
+
+test('the toggle-more button reveals the folded findings', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(src).toMatch(/case 'toggle-more':\s*handleToggleMore\(action\)/)
+  const block = functionBlock(src, 'function handleToggleMore(')
+  expect(block).toContain('.more-findings')
+  expect(block).toContain('fold.hidden = !fold.hidden')
+})
+
 test('each page post path sends its via to the server', async () => {
   const src = await readFile(HELPER, 'utf8')
   expect(functionBlock(src, 'async function handlePostSelected(')).toContain(

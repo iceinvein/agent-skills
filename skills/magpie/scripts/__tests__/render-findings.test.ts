@@ -328,3 +328,29 @@ test('findings header stays quiet when there is no diff source at all', () => {
   })
   expect(html).not.toContain('local clone')
 })
+
+test('only the issues view folds and recommends; the file view lists every finding unranked', () => {
+  const twelve = Array.from({ length: 12 }, (_, i) =>
+    f({
+      id: `n${i}`,
+      title: `t${i}`,
+      line: i + 1,
+      risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+    }),
+  )
+  const html = renderFindingsHtml({
+    findings: twelve,
+    postStatus: {},
+    files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }],
+    dismissed: new Map(),
+    topN: 10,
+    highlighter: hl,
+  })
+  expect((html.match(/class="recommended-slot" data-recommended="true"/g) ?? []).length).toBe(10)
+  expect((html.match(/class="more-findings"/g) ?? []).length).toBe(1)
+  const filePane = html.slice(
+    html.indexOf('data-file-pane="src/a.ts"'),
+    html.indexOf('issues-view'),
+  )
+  expect((filePane.match(/class="[^"]*issue-card[^"]*" data-finding-id=/g) ?? []).length).toBe(12)
+})

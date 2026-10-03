@@ -6,7 +6,7 @@ import { getHighlighter } from './highlight.ts'
 import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
-import { renderIssuesList } from './render-issues-list.ts'
+import { DEFAULT_TOP_N, renderIssuesList } from './render-issues-list.ts'
 import type { PostStatusMap, PrBrief, PrFileEntry, ReviewFinding } from './types.ts'
 
 export type { PostStatusEntry, PostStatusMap } from './types.ts'
@@ -60,10 +60,12 @@ export type RenderFindingsInput = {
   /** Shiki highlighter, prepared by the caller. */
   highlighter: Highlighter
   /**
-   * Finding id to dismiss reason, folded from state/events. Absent for callers
-   * that render a run with no reviewer state (preview, archive refresh).
+   * Finding id to dismiss reason, folded from state/events. Required by
+   * renderFindingsToDisk; optional here only for direct renders in tests.
    */
   dismissed?: Map<string, string>
+  /** How many findings the issues view recommends before folding. Same split as dismissed. */
+  topN?: number
   /** Where diff.patch came from. Absent means gh, which needs no note. */
   diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
 }
@@ -191,7 +193,7 @@ function filePane(opts: {
             <span class="unplaced-banner-label">${unplaced.length} finding${unplaced.length === 1 ? '' : 's'} not anchored to the diff</span>
             <span class="unplaced-banner-hint">${hunks.length === 0 ? 'this file is not in the PR diff snapshot' : 'line falls outside the visible hunks'}</span>
           </div>
-          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, highlighter: opts.highlighter })}
+          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, topN: null, highlighter: opts.highlighter })}
         </div>`
       : ''
   return `<section class="file-pane" data-file-pane="${esc(opts.file.path)}" hidden>
@@ -228,7 +230,7 @@ function overviewPane(opts: {
     </section>`
   }
   return `<section class="overview-pane" data-file-pane="">
-    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, highlighter: opts.highlighter })}
+    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, topN: null, highlighter: opts.highlighter })}
   </section>`
 }
 
@@ -239,6 +241,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
   const splitDiffs = splitDiffByFile(diff)
   const selectedIds = new Set<string>()
   const dismissed = input.dismissed ?? new Map<string, string>()
+  const topN = input.topN ?? DEFAULT_TOP_N
   const briefHtml = briefBlock(input.brief, input.issues ?? [])
 
   if (input.findings.length === 0) {
@@ -290,9 +293,10 @@ ${briefHtml}
     postStatus: input.postStatus,
     selectedIds,
     dismissed,
+    topN,
     highlighter: input.highlighter,
   })
-  const actionBar = renderActionBar({ findings: input.findings })
+  const actionBar = renderActionBar({ findings: input.findings, dismissed, topN })
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -324,7 +328,10 @@ ${actionBar}
 }
 
 export async function renderFindingsToDisk(
-  input: Omit<RenderFindingsInput, 'highlighter'>,
+  input: Omit<RenderFindingsInput, 'highlighter' | 'dismissed' | 'topN'> & {
+    dismissed: Map<string, string>
+    topN: number
+  },
   outPath: string,
 ): Promise<void> {
   const stylesPath = new URL('../templates/styles.css', import.meta.url).pathname

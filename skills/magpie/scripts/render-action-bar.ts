@@ -1,3 +1,4 @@
+import { rankActionable } from './render-issues-list.ts'
 import { isSuggestion, type ReviewFinding, SEVERITIES, type Severity } from './types.ts'
 
 const SEVERITY_LABEL: Record<Severity, string> = {
@@ -22,13 +23,17 @@ function esc(s: string): string {
 
 export type RenderActionBarInput = {
   findings: ReviewFinding[]
+  /** Finding id to dismiss reason, folded from state/events. */
+  dismissed: Map<string, string>
+  topN: number
 }
 
 export function renderActionBar(input: RenderActionBarInput): string {
-  const recommended = input.findings.filter((f) => !isSuggestion(f))
-  const excluded = input.findings.length - recommended.length
+  const actionable = input.findings.filter((f) => !isSuggestion(f))
+  const { recommended } = rankActionable(input.findings, input.dismissed, input.topN)
+  const excluded = input.findings.length - actionable.length
   const counts = new Map<Severity, number>()
-  for (const f of recommended) counts.set(f.severity, (counts.get(f.severity) ?? 0) + 1)
+  for (const f of actionable) counts.set(f.severity, (counts.get(f.severity) ?? 0) + 1)
   const pills = SEVERITIES.filter((s) => (counts.get(s) ?? 0) > 0)
     .map(
       (s) =>
