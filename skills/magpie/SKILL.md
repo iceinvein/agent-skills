@@ -148,7 +148,7 @@ If every specialist fails (no findings files written), log
 magpie dedupe "$RUN_DIR" [--threshold <0-10>]
 ```
 
-`magpie dedupe` also checks evidence against the worktree, dropping an anchored finding whose file is missing (`hallucinated-file`), whose line is out of range (`invented-line`), that has no `evidence` snippet (`missing-evidence`), or whose snippet is not near its line (`evidence-not-found`); a snippet found exactly once elsewhere in the file re-anchors it. Both go to `$RUN_DIR/evidence-dropped.json` as `{dropped, reanchored}`. The check is skipped when the worktree is gone (archived run replay).
+`magpie dedupe` also checks evidence against the worktree, dropping an anchored finding whose file is missing (`hallucinated-file`), whose line is out of range (`invented-line`), that has no `evidence` snippet (`missing-evidence`), or whose snippet is not near its line (`evidence-not-found`); a snippet found exactly once elsewhere in the file re-anchors it. Both go to `$RUN_DIR/evidence-dropped.json` as `{dropped, reanchored}`, written only when non-empty, so no file is normal. The check is skipped when the worktree is gone (archived run replay).
 
 It always writes `$RUN_DIR/merge-candidates.json`: ids from different domains anchored close together in one file, for the critic to merge or keep apart.
 
@@ -158,21 +158,21 @@ Re-render progress.
 
 ### 6. Critic
 
-The critic runs as subagents that read the worktree. Its prompt is in `references/critic.md`, and the CLI fills it; substitute nothing by hand. Append `{stage: critic, status: running}` to `$RUN_DIR/log.jsonl`, re-render progress, then:
+The critic runs as worktree-reading subagents. The CLI fills its prompt from `references/critic.md`; substitute nothing by hand. Append `{stage: critic, status: running}` to `$RUN_DIR/log.jsonl`, re-render progress, then:
 
 ```
 magpie critic-prompt "$RUN_DIR"
 ```
 
-It prints `<prompt path>\t<output path>` per batch of up to 30 candidates. Dispatch one subagent (Agent tool, `general-purpose`) per line, all in one message, each one's entire task the verbatim contents of its prompt file. Each writes its verdicts to its output path and returns `critic: <kept> kept, <dropped> dropped, <merged> merged`. No lines means no candidates: go straight to `critic-apply`.
+It prints `<prompt path>\t<output path>` per batch of about 30 candidates (a merge group always stays in one batch). Dispatch one subagent (Agent tool, `general-purpose`) per line, all in one message, each one's entire task the verbatim contents of its prompt file. Each writes its verdicts to its output path and returns `critic: <kept> kept, <dropped> dropped, <merged> merged`. No lines means no candidates: go straight to `critic-apply`.
 
-Then confirm every output path exists and re-dispatch any batch whose file is missing (prompts are deterministic, so a resume re-dispatches only those). Apply the verdicts:
+Confirm every output path exists; re-dispatch any batch whose file is missing. On a resume, dispatch only the batches whose output file is missing (prompts are deterministic). Apply the verdicts:
 
 ```
 magpie critic-apply "$RUN_DIR"
 ```
 
-It validates the verdicts, writes `findings.kept.json` and `critic-dropped.json`, and logs the critic `done` entry itself; do not append another. On a non-zero exit, stderr names the offending ids: delete the output file of each batch holding them, re-dispatch only those batches, and re-run `critic-apply`. Re-render progress.
+It validates the verdicts, writes `findings.kept.json` and `critic-dropped.json`, and logs the critic `done` entry itself; do not append another. On a non-zero exit, stderr names offending ids or a file: delete the output file of each batch whose ids or file it names, re-dispatch only those, and re-run `critic-apply`. If a batch fails twice after re-dispatch, stop and show the user stderr verbatim rather than looping. Re-render progress.
 
 ### 7. Peer review
 
@@ -218,7 +218,7 @@ End the turn.
 
 ### 9. Post
 
-Most users tick the checkboxes in the served report and click **Post Selected** (or **Post Recommended**, which takes only the top N recommended findings above the fold; **Select recommended** ticks the same set); the server posts that batch as one GitHub review with inline threads. **Dismiss** on a finding records a reason (`wrong`, `not-worth-it`, `duplicate`, `style`) and drops it from the recommended set. The agent posts only when the user types `post` (optionally `post 1,3,7` for indices), which takes the CLI path below: separate inline comments plus a top-level summary comment. Either path records posted ids in `post-status.json`, so the two cannot double-post the same finding.
+Most users tick the checkboxes in the served report and click **Post Selected** (or **Post Recommended**, which takes only the top N above the fold; **Select recommended** ticks the same set); the server posts that batch as one GitHub review with inline threads. **Dismiss** on a finding records a reason (`wrong`, `not-worth-it`, `duplicate`, `style`) and drops it from the recommended set. The agent posts only when the user types `post` (optionally `post 1,3,7` for indices), which takes the CLI path below: separate inline comments plus a top-level summary comment. Either path records posted ids in `post-status.json`, so the two cannot double-post the same finding.
 
 When the user types `post`, read `$RUN_DIR/state/events` and fold them in order, keeping the LAST event per finding id; ids whose last event is `select` are selected (a later `dismiss` therefore unselects). (Not union-minus: the UI emits one event per toggle, so select, deselect, select again resolves to selected.) Merge any explicit indices the user named (1-based, against `findings.final.json` in file order). If nothing is selected, say so and ask rather than posting an empty batch. Then post via the CLI:
 

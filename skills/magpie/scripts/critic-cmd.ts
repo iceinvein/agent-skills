@@ -130,7 +130,15 @@ async function readVerdicts(runDir: string): Promise<CriticVerdict[] | null> {
   const verdicts: CriticVerdict[] = []
   for (const name of files) {
     const path = join(runDir, name)
-    verdicts.push(...parseCriticVerdicts(JSON.parse(await readFile(path, 'utf8')), path))
+    let raw: unknown
+    try {
+      raw = JSON.parse(await readFile(path, 'utf8'))
+    } catch (err) {
+      // A subagent that wraps its array in a fence or prose fails here; the path
+      // tells the agent which batch to re-dispatch.
+      throw new Error(`${path}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    verdicts.push(...parseCriticVerdicts(raw, path))
   }
   return verdicts
 }

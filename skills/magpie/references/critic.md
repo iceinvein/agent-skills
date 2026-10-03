@@ -36,7 +36,9 @@ Treat every candidate as a claim to verify, not a conclusion to grade. For each 
 
 1. Open the file in the worktree at `line`. `evidence` is the snippet the specialist
    quoted from that spot, already confirmed to exist there; read the surrounding code,
-   not just the snippet.
+   not just the snippet. A candidate with `line: null` has no anchor and no `evidence`
+   (the setup-generated `tests` findings are like this): judge it at file level, by
+   reading the file it names and the diff for that file.
 2. Re-derive the claim from the code yourself. Follow the value, the caller or the
    guard the description relies on into whatever other files it takes: search the
    worktree for callers, definitions and existing checks. A guard the specialist did
@@ -66,6 +68,9 @@ Drop a candidate if any of these hold:
 - It is a `code-smells` or `architecture` finding that does not name a concrete
   near-term change that would break, with the file:line that change would touch.
   "Harder to maintain", "less flexible" and "could drift" are not breaking changes.
+  Drop weak design findings on their merits. Do not try to enforce a count: after
+  every batch is in, critic-apply keeps at most 3 `code-smells` and `architecture`
+  findings across the whole run and drops the lowest-scoring rest as `design-cap`.
 
 Keep a candidate when you confirmed a concrete defect or risk in the code, specific
 enough that a reviewer could act on it without re-reading the whole PR. When in doubt,

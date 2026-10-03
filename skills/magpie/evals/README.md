@@ -88,8 +88,11 @@ with severity derived from `risk.impact`, `threshold-dropped.json`,
 `critic-dropped.json`, and the `findings.kept.json` that `magpie critic-apply`
 produces from them. The log carries the critic `done` entry with the counts
 critic-apply writes. Running the real `magpie dedupe` and `critic-apply` over
-that run directory reproduces the fixture's files, which is the check to repeat
-after changing either. The report and post cases start from
+that run directory gives the same `merge-candidates.json`,
+`threshold-dropped.json` and `critic-dropped.json`, and the same kept ids and
+log counts. `findings.deduped.json` and `findings.kept.json` differ only in
+`onChangedLine`, which the fixture leaves out, and in order; no grader reads
+either. Repeat that check after changing either command. The report and post cases start from
 `findings.final.json` and only need the same log entry and the evidence field.
 
 `fixture.sh` is duplicated across the cases rather than shared, because

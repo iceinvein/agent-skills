@@ -206,3 +206,17 @@ test('critic-apply with candidates but no critic file exits 1 naming the missing
   expect(exit).toBe(1)
   expect(stderr).toContain('critic.json')
 })
+
+test('critic-apply with a critic file that is not JSON exits 1 naming that file', async () => {
+  await writeDeduped([finding('a', 'bugs')])
+  await writeFile(join(runDir, 'critic-1.json'), JSON.stringify([]))
+  await writeFile(
+    join(runDir, 'critic-2.json'),
+    '```json\n[{"id": "a", "verdict": "drop", "reason": "r", "checked": []}]\n```\n',
+  )
+
+  const exit = await runCriticApply(runDir)
+
+  expect(exit).toBe(1)
+  expect(stderr).toContain(join(runDir, 'critic-2.json'))
+})
