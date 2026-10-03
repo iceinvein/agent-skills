@@ -207,6 +207,7 @@ const SAMPLE_BRIEF: PrBrief = {
   changes: ['Wraps the S3 put in a bounded retry', 'Adds a jittered backoff helper'],
   watchItems: ['The PR body claims idempotency but no request key is sent'],
   unclear: ['Whether the retry budget interacts with the outer request timeout'],
+  reviewRules: [],
 }
 
 test('brief header renders purpose and changes', () => {

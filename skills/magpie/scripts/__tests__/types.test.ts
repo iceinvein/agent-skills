@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { FocusId, PrFileEntry, ReviewFinding } from '../types.ts'
 import {
   coerceRisk,
-  coerceSeverity,
+  deriveSeverity,
   FOCUS_IDS,
   isSuggestion,
   looksLikeProse,
@@ -38,18 +38,76 @@ test('parseFinding accepts a minimal finding', () => {
   expect(parsed.domain).toBe('bugs')
 })
 
-test('parseFinding coerces an unknown severity to medium', () => {
+const RISK_HIGH = {
+  impact: 'high',
+  likelihood: 'possible',
+  confidence: 'medium',
+  action: 'should-fix',
+} as const
+
+describe('deriveSeverity', () => {
+  test('critical impact maps to blocker', () => {
+    expect(deriveSeverity({ ...RISK_HIGH, impact: 'critical' })).toBe('blocker')
+  })
+  test('high impact maps to high', () => {
+    expect(deriveSeverity({ ...RISK_HIGH, impact: 'high' })).toBe('high')
+  })
+  test('medium impact maps to medium', () => {
+    expect(deriveSeverity({ ...RISK_HIGH, impact: 'medium' })).toBe('medium')
+  })
+  test('low impact maps to low', () => {
+    expect(deriveSeverity({ ...RISK_HIGH, impact: 'low' })).toBe('low')
+  })
+})
+
+test('parseFinding derives severity from risk impact, ignoring the input severity', () => {
   const parsed = parseFinding({
     id: 'f1',
     file: 'src/x.ts',
     line: 10,
-    severity: 'panic',
-    risk: { impact: 'high', likelihood: 'possible', confidence: 'medium', action: 'should-fix' },
+    severity: 'low',
+    risk: RISK_HIGH,
     title: 't',
     description: 'd',
     domain: 'bugs',
   })
-  expect(parsed.severity).toBe('medium')
+  expect(parsed.severity).toBe('high')
+})
+
+test('parseFinding derives severity when the input has no severity', () => {
+  const parsed = parseFinding({
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    risk: { ...RISK_HIGH, impact: 'critical' },
+    title: 't',
+    description: 'd',
+    domain: 'bugs',
+  })
+  expect(parsed.severity).toBe('blocker')
+})
+
+describe('parseFinding evidence', () => {
+  const base = {
+    id: 'f1',
+    file: 'src/x.ts',
+    line: 10,
+    risk: RISK_HIGH,
+    title: 't',
+    description: 'd',
+    domain: 'bugs',
+  }
+  test('keeps a non-empty evidence string', () => {
+    expect(parseFinding({ ...base, evidence: 'const x = req.body.id' }).evidence).toBe(
+      'const x = req.body.id',
+    )
+  })
+  test('omits an empty evidence string', () => {
+    expect(parseFinding({ ...base, evidence: '' })).not.toHaveProperty('evidence')
+  })
+  test('omits non-string evidence', () => {
+    expect(parseFinding({ ...base, evidence: 42 })).not.toHaveProperty('evidence')
+  })
 })
 
 test('parseFinding coerces sentence-form action to canonical enum', () => {
@@ -83,30 +141,6 @@ test('parseFinding coerces wrong-axis likelihood values', () => {
     domain: 'bugs',
   })
   expect(parsed.risk.likelihood).toBe('likely')
-})
-
-describe('coerceSeverity', () => {
-  test('passes through canonical values', () => {
-    for (const v of ['blocker', 'high', 'medium', 'low'] as const) {
-      expect(coerceSeverity(v)).toBe(v)
-    }
-  })
-  test('maps synonyms', () => {
-    expect(coerceSeverity('critical')).toBe('blocker')
-    expect(coerceSeverity('major')).toBe('high')
-    expect(coerceSeverity('moderate')).toBe('medium')
-    expect(coerceSeverity('minor')).toBe('low')
-  })
-  test('handles casing and whitespace', () => {
-    expect(coerceSeverity('  HIGH ')).toBe('high')
-  })
-  test('falls back to medium for garbage', () => {
-    expect(coerceSeverity('panic')).toBe('medium')
-    expect(coerceSeverity('')).toBe('medium')
-    expect(coerceSeverity(null)).toBe('medium')
-    expect(coerceSeverity(undefined)).toBe('medium')
-    expect(coerceSeverity(42)).toBe('medium')
-  })
 })
 
 describe('coerceRisk', () => {
@@ -345,6 +379,7 @@ test('parseBrief ignores a subsystems key left in an archived brief', () => {
     changes: ['Wraps the S3 put in a bounded retry'],
     watchItems: [],
     unclear: [],
+    reviewRules: [],
   })
 })
 
@@ -369,4 +404,16 @@ test('parseBrief drops junk entries instead of throwing', () => {
   expect(brief?.changes).toEqual(['kept', 'also kept'])
   expect(brief?.watchItems).toEqual([])
   expect(brief?.unclear).toEqual([])
+})
+
+test('parseBrief keeps review rules with a non-empty rule and source', () => {
+  const brief = parseBrief({
+    purpose: 'Does a thing.',
+    reviewRules: [{ rule: 'x', source: 'CLAUDE.md' }, { rule: '', source: 'a' }, 'bad'],
+  })
+  expect(brief?.reviewRules).toEqual([{ rule: 'x', source: 'CLAUDE.md' }])
+})
+
+test('parseBrief yields no review rules when the key is absent', () => {
+  expect(parseBrief({ purpose: 'Does a thing.' })?.reviewRules).toEqual([])
 })

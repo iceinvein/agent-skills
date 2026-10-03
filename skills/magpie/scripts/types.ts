@@ -59,26 +59,8 @@ export type ReviewFinding = {
    * from the diff; `null` when not anchorable or the diff is unavailable.
    */
   onChangedLine?: boolean | null
-}
-
-const SEVERITY_SYNONYMS: Record<string, Severity> = {
-  blocker: 'blocker',
-  high: 'high',
-  medium: 'medium',
-  low: 'low',
-  critical: 'blocker',
-  severe: 'blocker',
-  catastrophic: 'blocker',
-  fatal: 'blocker',
-  major: 'high',
-  significant: 'high',
-  moderate: 'medium',
-  mid: 'medium',
-  minor: 'low',
-  trivial: 'low',
-  negligible: 'low',
-  info: 'low',
-  informational: 'low',
+  /** Verbatim code the reviewer quoted as grounds for the finding. */
+  evidence?: string
 }
 
 const IMPACT_SYNONYMS: Record<string, Impact> = {
@@ -173,13 +155,6 @@ const ACTION_SYNONYMS: Record<string, Action> = {
   maybe: 'optional',
 }
 
-const SEVERITY_KEYWORDS: ReadonlyArray<readonly [RegExp, Severity]> = [
-  [/\b(block(?:er|ing)?|critical|severe|catastrophic|fatal)\b/, 'blocker'],
-  [/\b(high|major|significant)\b/, 'high'],
-  [/\b(medium|moderate|mid)\b/, 'medium'],
-  [/\b(low|minor|trivial|negligible|info(?:rmational)?)\b/, 'low'],
-]
-
 const IMPACT_KEYWORDS: ReadonlyArray<readonly [RegExp, Impact]> = [
   [/\b(critical|blocker|severe|catastrophic|fatal)\b/, 'critical'],
   [/\b(high|major|significant)\b/, 'high'],
@@ -235,8 +210,19 @@ function coerceField<T extends string>(
   return fallback
 }
 
-export function coerceSeverity(value: unknown): Severity {
-  return coerceField(value, SEVERITY_SYNONYMS, SEVERITY_KEYWORDS, 'medium')
+const SEVERITY_BY_IMPACT: Record<Impact, Severity> = {
+  critical: 'blocker',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+}
+
+/**
+ * Severity is a projection of impact so the two can never disagree; a model's
+ * own severity label is ignored.
+ */
+export function deriveSeverity(risk: Risk): Severity {
+  return SEVERITY_BY_IMPACT[risk.impact]
 }
 
 export function coerceRisk(raw: unknown): Risk {
@@ -302,12 +288,13 @@ export function parseFinding(raw: unknown): ReviewFinding {
     }
   }
 
+  const risk = coerceRisk(r.risk)
   return {
     id: r.id,
     file: r.file,
     line: (r.line as number | null) ?? null,
-    severity: coerceSeverity(r.severity),
-    risk: coerceRisk(r.risk),
+    severity: deriveSeverity(risk),
+    risk,
     title: r.title,
     description: r.description,
     suggestion,
@@ -317,6 +304,7 @@ export function parseFinding(raw: unknown): ReviewFinding {
     ...(typeof r.onChangedLine === 'boolean' || r.onChangedLine === null
       ? { onChangedLine: r.onChangedLine as boolean | null }
       : {}),
+    ...(typeof r.evidence === 'string' && r.evidence.length > 0 ? { evidence: r.evidence } : {}),
   }
 }
 
@@ -333,12 +321,15 @@ export function isSuggestion(f: ReviewFinding): boolean {
   return f.risk.action === 'consider' || f.risk.action === 'optional'
 }
 
+export type ReviewRule = { rule: string; source: string }
+
 /** Scout-produced PR summary. Written to `$RUN_DIR/brief.json` by the context stage. */
 export type PrBrief = {
   purpose: string
   changes: string[]
   watchItems: string[]
   unclear: string[]
+  reviewRules: ReviewRule[]
 }
 
 function briefStrings(raw: unknown): string[] {
@@ -347,6 +338,20 @@ function briefStrings(raw: unknown): string[] {
     .filter((v): v is string => typeof v === 'string')
     .map((v) => v.trim())
     .filter((v) => v.length > 0)
+}
+
+function briefRules(raw: unknown): ReviewRule[] {
+  if (!Array.isArray(raw)) return []
+  const rules: ReviewRule[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const e = entry as Record<string, unknown>
+    if (typeof e.rule !== 'string' || typeof e.source !== 'string') continue
+    const rule = e.rule.trim()
+    const source = e.source.trim()
+    if (rule.length > 0 && source.length > 0) rules.push({ rule, source })
+  }
+  return rules
 }
 
 /**
@@ -364,5 +369,6 @@ export function parseBrief(raw: unknown): PrBrief | null {
     changes: briefStrings(r.changes),
     watchItems: briefStrings(r.watchItems),
     unclear: briefStrings(r.unclear),
+    reviewRules: briefRules(r.reviewRules),
   }
 }
