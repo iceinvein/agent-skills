@@ -68,6 +68,39 @@ test('a failed post status does not count as posted', () => {
   expect(labels).toEqual([{ id: 'a', label: 'ignored' }])
 })
 
+test('a posted id whose only post log entries are dry-run is labelled ignored', () => {
+  const labels = foldLabels({
+    findingIds: ['a'],
+    postStatus: { a: 'posted' },
+    events: [],
+    log: [{ stage: 'post', status: 'dry-run', id: 'a', via: 'selected' }],
+  })
+  expect(labels).toEqual([{ id: 'a', label: 'ignored' }])
+})
+
+test('a posted id with no post log entries for it is labelled posted', () => {
+  const labels = foldLabels({
+    findingIds: ['a'],
+    postStatus: { a: 'posted' },
+    events: [],
+    log: [{ stage: 'post', status: 'start', count: 1 }],
+  })
+  expect(labels).toEqual([{ id: 'a', label: 'posted' }])
+})
+
+test('a posted id with a dry-run then an ok post log entry is labelled posted', () => {
+  const labels = foldLabels({
+    findingIds: ['a'],
+    postStatus: { a: 'posted' },
+    events: [],
+    log: [
+      { stage: 'post', status: 'dry-run', id: 'a', via: 'selected' },
+      { stage: 'post', status: 'ok', id: 'a', via: 'one' },
+    ],
+  })
+  expect(labels).toEqual([{ id: 'a', label: 'posted', via: 'one' }])
+})
+
 test('a posted id from a run that logged no via is labelled without via', () => {
   const labels = foldLabels({
     findingIds: ['a'],

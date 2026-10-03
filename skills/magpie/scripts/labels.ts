@@ -50,6 +50,14 @@ function latestVia(log: Array<Record<string, unknown>>, id: string): PostVia | u
   return via
 }
 
+// post-status.json says posted for a dry run too. Runs that posted through the
+// review path log nothing per id, so only an id whose every logged post was a
+// dry run is known not to have reached the PR.
+function onlyDryRun(log: Array<Record<string, unknown>>, id: string): boolean {
+  const entries = log.filter((entry) => entry.stage === 'post' && entry.id === id)
+  return entries.length > 0 && entries.every((entry) => entry.status === 'dry-run')
+}
+
 export function foldLabels(input: {
   findingIds: string[]
   postStatus: PostStatusMap
@@ -58,7 +66,7 @@ export function foldLabels(input: {
 }): FindingLabel[] {
   const dismissed = foldDismissals(input.events)
   return input.findingIds.map((id): FindingLabel => {
-    if (input.postStatus[id] === 'posted') {
+    if (input.postStatus[id] === 'posted' && !onlyDryRun(input.log, id)) {
       const via = latestVia(input.log, id)
       return via ? { id, label: 'posted', via } : { id, label: 'posted' }
     }
