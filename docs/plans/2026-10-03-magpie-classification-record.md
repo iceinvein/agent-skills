@@ -124,4 +124,15 @@ Task status lives in `.sluice/run.json`, not here.
     correctness finding; attacker-controlled input is not an unlikely precondition.
   - Replays still feed the critic the corpus's old deduped candidates, including the stale
     `tests-*` findings.
+- Rerun at d37f184 ($1.72 + $0.87), scored against the hand labels:
+  - Actionable precision 11/14 = 0.79 (original 0.64, previous rubric 0.67).
+  - Post recall in actionable 11/18 = 0.61 (original 0.78, previous 0.33).
+  - All 18 posts visible (original 15/18); no posted finding dropped (original 3).
+  - Wrong findings reaching the reader: 0 actionable, 2 as suggestions.
+  - The 7 posts still downgraded are taste calls with stated reasons: ms-scale cost, a design edge
+    with no named break, "raw text still kept", a dev-only repair judged harmless.
+  - F1 is about equal to the original (0.69 vs 0.70); the trade moved from recall to precision
+    and visibility.
+  - Further tuning on 63 findings from 2 PRs risks overfitting, so the recommendation is to merge
+    and collect clean labels from real runs (Dismiss + `via`).
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.
