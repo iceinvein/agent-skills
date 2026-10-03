@@ -88,4 +88,7 @@ Task status lives in `.sluice/run.json`, not here.
 - Stage eval suite (partner ran it outside the session, against the branch at 25a1240): all 5
   cases score 1.00, 1 run each, $1.64, 218s. Report:
   `skills/magpie/evals/results/2026-10-03T03-14-27-047Z/report.html` (gitignored).
+- Partner chose no design cap by default after the pr-70 comparison. critic-apply takes
+  `designCap: number | null` (null means no cap), the CLI default is null, and the critic prompt
+  no longer mentions a count. The spec carries a dated revision note.
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.

@@ -154,6 +154,44 @@ test('critic-apply writes kept findings and dropped verdicts', async () => {
   })
 })
 
+function designKeeps(ids: string[]) {
+  return ids.map((id) => ({
+    id,
+    verdict: 'keep',
+    reason: 'names the change it breaks',
+    risk: { impact: 'medium', likelihood: 'possible', confidence: 'high', action: 'should-fix' },
+    checked: ['src/a.ts:10'],
+  }))
+}
+
+test('critic-apply with no --design-cap keeps every design finding the critic kept', async () => {
+  const ids = ['a1', 'a2', 's1', 's2', 's3']
+  await writeDeduped(
+    ids.map((id) => finding(id, id.startsWith('a') ? 'architecture' : 'code-smells')),
+  )
+  await writeFile(join(runDir, 'critic.json'), JSON.stringify(designKeeps(ids)))
+
+  const exit = await runCriticApply(runDir)
+
+  expect(exit).toBe(0)
+  const kept = JSON.parse(await readFile(join(runDir, 'findings.kept.json'), 'utf8'))
+  expect(kept.map((f: ReviewFinding) => f.id)).toEqual(ids)
+})
+
+test('critic-apply with --design-cap 3 drops design keeps beyond three', async () => {
+  const ids = ['a1', 'a2', 's1', 's2', 's3']
+  await writeDeduped(
+    ids.map((id) => finding(id, id.startsWith('a') ? 'architecture' : 'code-smells')),
+  )
+  await writeFile(join(runDir, 'critic.json'), JSON.stringify(designKeeps(ids)))
+
+  const exit = await runCriticApply(runDir, { designCap: 3 })
+
+  expect(exit).toBe(0)
+  const kept = JSON.parse(await readFile(join(runDir, 'findings.kept.json'), 'utf8'))
+  expect(kept.map((f: ReviewFinding) => f.id)).toEqual(['a1', 'a2', 's1'])
+})
+
 test('critic-apply reads every numbered critic file', async () => {
   await writeDeduped([finding('a', 'bugs'), finding('b', 'bugs')])
   await writeFile(

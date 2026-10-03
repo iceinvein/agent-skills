@@ -5,7 +5,6 @@ import {
   buildCriticPrompts,
   type CriticVerdict,
   DEFAULT_BATCH_SIZE,
-  DEFAULT_DESIGN_CAP,
   parseCriticVerdicts,
 } from './critic.ts'
 import { parseBrief, parseFinding, type ReviewFinding, type ReviewRule } from './types.ts'
@@ -144,6 +143,7 @@ async function readVerdicts(runDir: string): Promise<CriticVerdict[] | null> {
 }
 
 export type RunCriticApplyOptions = {
+  /** Omitted means no cap. */
   designCap?: number
 }
 
@@ -160,7 +160,7 @@ export async function runCriticApply(
     const result = applyCriticVerdicts({
       candidates,
       verdicts: verdicts ?? [],
-      designCap: options.designCap ?? DEFAULT_DESIGN_CAP,
+      designCap: options.designCap ?? null,
     })
     await writeFile(join(runDir, 'findings.kept.json'), `${JSON.stringify(result.kept, null, 2)}\n`)
     await writeFile(

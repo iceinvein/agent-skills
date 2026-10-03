@@ -19,6 +19,11 @@ Goal: findings you'd post, labels that mean something, and a way to measure both
 Decisions already agreed: Post Recommended posts the top N only. Design cap is 3 per run, with
 `--design-cap` to override. The eval builds both replay tiers.
 
+Revised after measurement (2026-10-03): critic-apply applies no design cap by default.
+`--design-cap <n>` is opt-in. On pr-70, cap 3 dropped 2 of the 9 posted findings by rule alone
+(recall 0.56). With no cap, recall was 0.78 and precision 0.88, against the original critic's 0.50.
+The specialists' 3-findings-per-shard limit stays.
+
 ## 1. Labels and score come from risk, everywhere
 
 - `parseFinding` (`scripts/types.ts`) derives `severity` from `risk.impact`: critical→blocker,

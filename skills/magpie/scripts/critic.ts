@@ -12,7 +12,6 @@ import {
 } from './types.ts'
 
 export const DEFAULT_BATCH_SIZE = 30
-export const DEFAULT_DESIGN_CAP = 3
 
 const DESIGN_DOMAINS = new Set(['code-smells', 'architecture'])
 
@@ -82,7 +81,8 @@ export function parseCriticVerdicts(raw: unknown, source: string): CriticVerdict
 export function applyCriticVerdicts(input: {
   candidates: ReviewFinding[]
   verdicts: CriticVerdict[]
-  designCap: number
+  /** null applies no cap: the critic's verdicts on design findings stand. */
+  designCap: number | null
 }): {
   kept: ReviewFinding[]
   dropped: Array<{ id: string; reason: string }>
@@ -160,9 +160,12 @@ export function applyCriticVerdicts(input: {
 
   const design = [...keptById.values()].filter((f) => DESIGN_DOMAINS.has(f.domain ?? ''))
   // Array.prototype.sort is stable, so equal scores keep input order.
-  const overCap = [...design]
-    .sort((a, b) => (b.score as number) - (a.score as number))
-    .slice(Math.max(designCap, 0))
+  const overCap =
+    designCap === null
+      ? []
+      : [...design]
+          .sort((a, b) => (b.score as number) - (a.score as number))
+          .slice(Math.max(designCap, 0))
   const cappedIds = new Set(overCap.map((f) => f.id))
   for (const f of design) {
     if (!cappedIds.has(f.id)) continue

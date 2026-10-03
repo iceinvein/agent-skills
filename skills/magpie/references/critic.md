@@ -68,9 +68,9 @@ Drop a candidate if any of these hold:
 - It is a `code-smells` or `architecture` finding that does not name a concrete
   near-term change that would break, with the file:line that change would touch.
   "Harder to maintain", "less flexible" and "could drift" are not breaking changes.
-  Drop weak design findings on their merits. Do not try to enforce a count: after
-  every batch is in, critic-apply keeps at most 3 `code-smells` and `architecture`
-  findings across the whole run and drops the lowest-scoring rest as `design-cap`.
+  Judge each design finding on its merits. No count is imposed on what you keep,
+  so a design finding that names a real breaking change stays, however many others
+  there are.
 - It is a duplication finding that does not clear this bar: 3 or more copies, or 2
   copies that already disagree, with the file:line of each copy named in the
   description and confirmed by you. Two copies that still agree are not a finding.

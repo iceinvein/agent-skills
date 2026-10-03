@@ -13,7 +13,8 @@ Subcommands:
   critic-prompt <run-dir> [--batch-size N]
                              Write one critic prompt per batch, print prompt and output paths
   critic-apply <run-dir> [--design-cap N]
-                             Apply critic verdicts, write findings.kept.json
+                             Apply critic verdicts, write findings.kept.json (no cap on
+                             code-smells + architecture keeps unless --design-cap is given)
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards
   render <run-dir> <page> [--top N]
