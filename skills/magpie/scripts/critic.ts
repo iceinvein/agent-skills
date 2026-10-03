@@ -141,10 +141,12 @@ export function applyCriticVerdicts(input: {
       dropped.push({ id: candidate.id, reason: v.reason })
     }
   }
+  const absorbedBy = new Map<string, string[]>()
   for (const candidate of candidates) {
     const v = byId.get(candidate.id) as CriticVerdict
     if (v.verdict !== 'merge') continue
     const targetId = v.mergeInto as string
+    absorbedBy.set(targetId, [...(absorbedBy.get(targetId) ?? []), candidate.id])
     const target = keptById.get(targetId) as ReviewFinding
     keptById.set(targetId, {
       ...target,
@@ -163,7 +165,11 @@ export function applyCriticVerdicts(input: {
     .slice(Math.max(designCap, 0))
   const cappedIds = new Set(overCap.map((f) => f.id))
   for (const f of design) {
-    if (cappedIds.has(f.id)) dropped.push({ id: f.id, reason: 'design-cap' })
+    if (!cappedIds.has(f.id)) continue
+    dropped.push({ id: f.id, reason: 'design-cap' })
+    for (const sourceId of absorbedBy.get(f.id) ?? []) {
+      dropped.push({ id: sourceId, reason: `design-cap (merged into ${f.id})` })
+    }
   }
   const kept = [...keptById.values()].filter((f) => !cappedIds.has(f.id))
   return { kept, dropped, merged, capped: cappedIds.size }

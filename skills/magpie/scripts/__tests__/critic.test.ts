@@ -113,6 +113,24 @@ test('design-domain keeps beyond the cap drop lowest-scoring first with reason d
   expect(result.capped).toBe(2)
 })
 
+test('a capped design finding lists the findings merged into it as dropped too', () => {
+  const result = applyCriticVerdicts({
+    candidates: [finding('a', 'code-smells'), finding('b', 'bugs'), finding('c', 'architecture')],
+    verdicts: [
+      keep('a', MEDIUM_RISK),
+      { id: 'b', verdict: 'merge', reason: 'same smell', mergeInto: 'a', checked: [] },
+      { id: 'c', verdict: 'merge', reason: 'same smell', mergeInto: 'a', checked: [] },
+    ],
+    designCap: 0,
+  })
+  expect(result.kept).toEqual([])
+  expect(result.dropped).toEqual([
+    { id: 'a', reason: 'design-cap' },
+    { id: 'b', reason: 'design-cap (merged into a)' },
+    { id: 'c', reason: 'design-cap (merged into a)' },
+  ])
+})
+
 test('bugs findings are never capped', () => {
   const ids = ['a', 'b', 'c', 'd', 'e']
   const result = applyCriticVerdicts({
