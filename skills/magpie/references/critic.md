@@ -71,6 +71,9 @@ Drop a candidate if any of these hold:
   Drop weak design findings on their merits. Do not try to enforce a count: after
   every batch is in, critic-apply keeps at most 3 `code-smells` and `architecture`
   findings across the whole run and drops the lowest-scoring rest as `design-cap`.
+- It is a duplication finding that does not clear this bar: 3 or more copies, or 2
+  copies that already disagree, with the file:line of each copy named in the
+  description and confirmed by you. Two copies that still agree are not a finding.
 
 Keep a candidate when you confirmed a concrete defect or risk in the code, specific
 enough that a reviewer could act on it without re-reading the whole PR. When in doubt,
