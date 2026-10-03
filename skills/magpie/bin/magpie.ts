@@ -10,6 +10,10 @@ Subcommands:
   setup <run-dir> --pr <n>   Pre-flight, fetch PR, create worktree
   serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
+  critic-prompt <run-dir> [--batch-size N]
+                             Write one critic prompt per batch, print prompt and output paths
+  critic-apply <run-dir> [--design-cap N]
+                             Apply critic verdicts, write findings.kept.json
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards
   render <run-dir> <page>    Render progress.html or findings.html
@@ -117,6 +121,48 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runDedupe } = await import('../scripts/dedupe-cmd.ts')
     return runDedupe(runDir, threshold !== undefined ? { threshold } : {})
+  },
+  'critic-prompt': async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('critic-prompt: missing <run-dir> [--batch-size <n>]\n')
+      return 2
+    }
+    const flag = args.indexOf('--batch-size')
+    const raw = flag !== -1 ? args[flag + 1] : undefined
+    let batchSize: number | undefined
+    if (flag !== -1) {
+      const n = Number(raw)
+      if (!Number.isInteger(n) || n <= 0) {
+        process.stderr.write(
+          `critic-prompt: invalid --batch-size ${raw} (want a positive integer)\n`,
+        )
+        return 2
+      }
+      batchSize = n
+    }
+    const { runCriticPrompt } = await import('../scripts/critic-cmd.ts')
+    return runCriticPrompt(runDir, batchSize !== undefined ? { batchSize } : {})
+  },
+  'critic-apply': async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('critic-apply: missing <run-dir> [--design-cap <n>]\n')
+      return 2
+    }
+    const flag = args.indexOf('--design-cap')
+    const raw = flag !== -1 ? args[flag + 1] : undefined
+    let designCap: number | undefined
+    if (flag !== -1) {
+      const n = Number(raw)
+      if (!Number.isInteger(n) || n < 0) {
+        process.stderr.write(`critic-apply: invalid --design-cap ${raw} (want an integer >= 0)\n`)
+        return 2
+      }
+      designCap = n
+    }
+    const { runCriticApply } = await import('../scripts/critic-cmd.ts')
+    return runCriticApply(runDir, designCap !== undefined ? { designCap } : {})
   },
   shard: async (args) => {
     const runDir = args[0]
