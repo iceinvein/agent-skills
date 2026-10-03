@@ -194,3 +194,79 @@ test('POST /api/post-review returns reviewId under dry-run', async () => {
   expect(body.comments).toHaveLength(2)
   delete process.env.MAGPIE_DRY_RUN_POST
 })
+
+async function postLogEntries(): Promise<Array<Record<string, unknown>>> {
+  const text = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  return text
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .filter((e) => e.stage === 'post' && typeof e.id === 'string' && e.id !== '__summary__')
+}
+
+const viaFinding = {
+  id: 'sec-1',
+  file: 'a.ts',
+  line: 1,
+  severity: 'blocker',
+  risk: { impact: 'critical', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+  title: 't',
+  description: 'd',
+  domain: 'security',
+}
+
+async function seedPostable(findingsFile: string): Promise<void> {
+  await writeFile(join(runDir, 'screen', 'a.html'), '<h1>X</h1>')
+  await writeFile(
+    join(runDir, 'pr.json'),
+    JSON.stringify({ number: 7, headRefOid: 'abcdef00', url: 'https://github.com/o/r/pull/7' }),
+  )
+  await writeFile(join(runDir, findingsFile), JSON.stringify([viaFinding]))
+}
+
+test('POST /post carries the body via onto the post log entries', async () => {
+  await seedPostable('findings.final.json')
+  server = await startServer({ runDir, idleMs: 60_000 })
+  await fetch(`${server.url}/post`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ findingIds: ['sec-1'], dryRun: true, via: 'recommended' }),
+  })
+  const entries = await postLogEntries()
+  expect(entries.map((e) => ({ id: e.id, status: e.status, via: e.via }))).toEqual([
+    { id: 'sec-1', status: 'dry-run', via: 'recommended' },
+  ])
+})
+
+test('POST /api/post-review carries the body via onto the post log entries', async () => {
+  process.env.MAGPIE_DRY_RUN_POST = '1'
+  try {
+    await seedPostable('findings.json')
+    server = await startServer({ runDir, idleMs: 60_000 })
+    await fetch(`${server.url}/api/post-review`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ findingIds: ['sec-1'], via: 'recommended' }),
+    })
+    const entries = await postLogEntries()
+    expect(entries.map((e) => ({ id: e.id, status: e.status, via: e.via }))).toEqual([
+      { id: 'sec-1', status: 'dry-run', via: 'recommended' },
+    ])
+  } finally {
+    delete process.env.MAGPIE_DRY_RUN_POST
+  }
+})
+
+test('POST /post with an unrecognised via still posts and logs no via', async () => {
+  await seedPostable('findings.final.json')
+  server = await startServer({ runDir, idleMs: 60_000 })
+  const res = await fetch(`${server.url}/post`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ findingIds: ['sec-1'], dryRun: true, via: 'bogus' }),
+  })
+  expect(res.ok).toBe(true)
+  const entries = await postLogEntries()
+  expect(entries).toHaveLength(1)
+  expect('via' in (entries[0] ?? {})).toBe(false)
+})

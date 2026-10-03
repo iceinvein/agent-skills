@@ -53,6 +53,9 @@
 
   let statusTimer = null
   let pendingPostIds = []
+  // Which page path opened the confirm bar; sent with the post so labels can
+  // record where the decision came from.
+  let pendingPostVia
 
   function showStatus(message, tone, sticky) {
     const el = document.querySelector('[data-role="post-status"]')
@@ -78,8 +81,9 @@
     return m ? `PR #${m[1]}` : 'the PR'
   }
 
-  function openConfirm(ids) {
+  function openConfirm(ids, via) {
     pendingPostIds = ids
+    pendingPostVia = via
     const bar = document.querySelector('[data-role="confirm-bar"]')
     const text = document.querySelector('[data-role="confirm-text"]')
     const submit = document.querySelector('[data-action="post"]')
@@ -136,7 +140,9 @@
     // Accept ids explicitly (preferred) but fall back to the global queue
     // for any legacy caller.
     const ids = Array.isArray(idsArg) && idsArg.length > 0 ? idsArg.slice() : pendingPostIds.slice()
+    const via = pendingPostVia
     pendingPostIds = []
+    pendingPostVia = undefined
     if (ids.length === 0) return
     showStatus(`Posting ${ids.length}...`, 'info', /*sticky*/ true)
     let response
@@ -144,7 +150,7 @@
       const r = await fetch('/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ findingIds: ids }),
+        body: JSON.stringify({ findingIds: ids, via }),
       })
       response = await r.json()
       if (!r.ok && !response.results) {
@@ -393,10 +399,52 @@
     for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
       if (el.tagName.toLowerCase() === 'input') continue
       if (el.getAttribute('data-posted') === 'true') continue
+      if (el.hasAttribute('data-dismissed')) continue
       ids.add(el.getAttribute('data-finding-id'))
     }
     for (const id of ids) setCheckedAndNotify(id, true)
     recountSelected()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dismiss with a reason
+  // ---------------------------------------------------------------------------
+
+  // The inline .annot and the .issue-card copies of one finding; findAnnotation
+  // would also return the buttons inside them, which carry the id too.
+  function findCards(id) {
+    return findAnnotation(id).filter((el) => el.matches('.annot, .issue-card'))
+  }
+
+  function handleDismissMenu(btn) {
+    if (!isLive) return
+    const menu = btn.parentElement?.querySelector('[data-role="dismiss-menu"]')
+    if (menu instanceof HTMLElement) menu.hidden = !menu.hidden
+  }
+
+  function handleDismiss(btn) {
+    if (!isLive) return
+    const id = btn.getAttribute('data-finding-id')
+    const reason = btn.getAttribute('data-reason')
+    if (!id || !reason) return
+    setCheckedAndNotify(id, false)
+    for (const card of findCards(id)) {
+      card.setAttribute('data-dismissed', reason)
+      const label = card.querySelector('[data-role="dismissed-reason"]')
+      if (label) label.textContent = `Dismissed: ${reason}`
+      const menu = card.querySelector('[data-role="dismiss-menu"]')
+      if (menu instanceof HTMLElement) menu.hidden = true
+    }
+    post({ type: 'dismiss', findingId: id, reason, timestamp: Date.now() })
+    recountSelected()
+  }
+
+  function handleUndismiss(btn) {
+    if (!isLive) return
+    const id = btn.getAttribute('data-finding-id')
+    if (!id) return
+    for (const card of findCards(id)) card.removeAttribute('data-dismissed')
+    post({ type: 'undismiss', findingId: id, timestamp: Date.now() })
   }
 
   // ---------------------------------------------------------------------------
@@ -424,7 +472,7 @@
   // Pylon-style bulk post via /api/post-review
   // ---------------------------------------------------------------------------
 
-  async function postToReview(findingIds) {
+  async function postToReview(findingIds, via) {
     if (!isLive) {
       showStatus(
         'Cannot post from an archived view. Run `magpie serve <run-dir>` first.',
@@ -438,7 +486,7 @@
       const r = await fetch('/api/post-review', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ findingIds }),
+        body: JSON.stringify({ findingIds, via }),
       })
       const data = await r.json()
       if (!r.ok) {
@@ -505,7 +553,7 @@
       showStatus('Nothing selected yet.', 'info')
       return
     }
-    const result = await postToReview(ids)
+    const result = await postToReview(ids, 'selected')
     applyReviewResult(result)
   }
 
@@ -515,6 +563,7 @@
     for (const el of document.querySelectorAll('[data-finding-id][data-suggestion="false"]')) {
       if (el.tagName.toLowerCase() === 'input') continue
       if (el.getAttribute('data-posted') === 'true') continue
+      if (el.hasAttribute('data-dismissed')) continue
       const id = el.getAttribute('data-finding-id')
       if (id && !seen.has(id)) {
         seen.add(id)
@@ -525,7 +574,7 @@
       showStatus('Nothing to post.', 'info')
       return
     }
-    const result = await postToReview(ids)
+    const result = await postToReview(ids, 'recommended')
     applyReviewResult(result)
   }
 
@@ -606,11 +655,20 @@
         case 'post-recommended':
           void handlePostRecommended()
           break
+        case 'dismiss-menu':
+          handleDismissMenu(action)
+          break
+        case 'dismiss':
+          handleDismiss(action)
+          break
+        case 'undismiss':
+          handleUndismiss(action)
+          break
         case 'post-one': {
           // Legacy per-finding send icon (hover button).
           const id = action.getAttribute('data-finding-id')
           if (id && isLive) {
-            openConfirm([id])
+            openConfirm([id], 'one')
           } else if (!isLive) {
             showStatus(
               `Cannot post from an archived view. Run \`magpie serve ${runId()}\` to make this live.`,

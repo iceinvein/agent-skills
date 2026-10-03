@@ -574,4 +574,51 @@ describe('postFindingsAsReview', () => {
     expect(r.comments.find((c) => c.id === 'missing')).toBeDefined()
     await rm(dir, { recursive: true, force: true })
   })
+
+  test('logs a post entry per id with the given via once the review lands', async () => {
+    const dir = await scaffoldRunDir([inlineFinding('1', 10), inlineFinding('2', 20)])
+    const fakeGh = join(dir, 'fake-gh.sh')
+    await writeFile(fakeGh, '#!/usr/bin/env bash\ncat >/dev/null\necho \'{"id": 99}\'\nexit 0\n')
+    await Bun.spawn(['chmod', '+x', fakeGh]).exited
+
+    await postFindingsAsReview({
+      runDir: dir,
+      findingIds: ['1', '2'],
+      prNumber: 42,
+      headSha: 'abc123',
+      ghBin: fakeGh,
+      via: 'selected',
+    })
+    const ok = (await logEntries(dir)).filter((e) => e.stage === 'post' && e.status === 'ok')
+    expect(ok.map((e) => ({ id: e.id, via: e.via }))).toEqual([
+      { id: '1', via: 'selected' },
+      { id: '2', via: 'selected' },
+    ])
+    await rm(dir, { recursive: true, force: true })
+  })
+})
+
+async function logEntries(dir: string): Promise<Array<Record<string, unknown>>> {
+  const text = await readFile(join(dir, 'log.jsonl'), 'utf8')
+  return text
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+}
+
+test('runPost writes the given via onto each successful post log entry', async () => {
+  await seedRunDir()
+  const fakeGh = join(runDir, 'fake-gh.sh')
+  await writeFile(fakeGh, '#!/usr/bin/env bash\necho ok\nexit 0\n')
+  await Bun.spawn(['chmod', '+x', fakeGh]).exited
+
+  await runPost({
+    runDir,
+    findingIds: ['sec-1'],
+    ghBin: fakeGh,
+    includeSummary: 'never',
+    via: 'cli',
+  })
+  const ok = (await logEntries(runDir)).filter((e) => e.status === 'ok')
+  expect(ok.map((e) => ({ id: e.id, via: e.via }))).toEqual([{ id: 'sec-1', via: 'cli' }])
 })

@@ -38,6 +38,7 @@ describe('renderUnifiedDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
       file: 'x.ts',
     })
@@ -51,6 +52,7 @@ describe('renderUnifiedDiff', () => {
       findings: [finding],
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
       file: 'x.ts',
     })
@@ -66,6 +68,7 @@ describe('renderUnifiedDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
       file: 'x.ts',
     })
@@ -78,6 +81,7 @@ describe('renderUnifiedDiff', () => {
       findings: [finding],
       postStatus: { 'f-1': 'posted' },
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
       file: 'x.ts',
     })
@@ -98,6 +102,7 @@ test('emits shiki-highlighted line content in unified mode', () => {
     findings: [],
     postStatus: {},
     selectedIds: new Set(),
+    dismissed: new Map(),
     highlighter: hl,
     file: 'x.ts',
   })
@@ -122,6 +127,7 @@ test('keeps multi-line tokens consistent across diff rows', () => {
     findings: [],
     postStatus: {},
     selectedIds: new Set(),
+    dismissed: new Map(),
     highlighter: hl,
     file: 'x.ts',
   })
@@ -136,6 +142,7 @@ describe('renderSplitDiff', () => {
       findings: [],
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
       file: 'x.ts',
     })
@@ -157,10 +164,37 @@ test('emits shiki-highlighted line content in split mode', () => {
     findings: [],
     postStatus: {},
     selectedIds: new Set(),
+    dismissed: new Map(),
     highlighter: hl,
     file: 'x.ts',
   })
   expect(html).toContain('class="diff-row split"')
   expect(html).toContain('<span style=')
   expect(html).toContain('class="gutter"')
+})
+
+test('unified diff marks a dismissed finding with its reason', () => {
+  const html = renderUnifiedDiff({
+    hunks: parseUnifiedDiffToHunks(DIFF),
+    findings: [finding],
+    postStatus: {},
+    selectedIds: new Set(),
+    dismissed: new Map([['f-1', 'style']]),
+    highlighter: hl,
+    file: 'x.ts',
+  })
+  expect(html).toContain('data-dismissed="style"')
+})
+
+test('split diff marks a dismissed finding with its reason', () => {
+  const html = renderSplitDiff({
+    hunks: parseUnifiedDiffToHunks(DIFF),
+    findings: [finding],
+    postStatus: {},
+    selectedIds: new Set(),
+    dismissed: new Map([['f-1', 'style']]),
+    highlighter: hl,
+    file: 'x.ts',
+  })
+  expect(html).toContain('data-dismissed="style"')
 })

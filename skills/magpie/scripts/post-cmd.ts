@@ -3,6 +3,7 @@ import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildNewSideLineIndex } from './diff-utils.ts'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
+import type { PostVia } from './labels.ts'
 import {
   type FocusId,
   type PrFileEntry,
@@ -26,6 +27,8 @@ export type PostInput = {
    * - 'never': skip the summary entirely.
    */
   includeSummary?: 'auto' | 'always' | 'never'
+  /** Which UI path asked for the post; recorded on each per-finding log entry. */
+  via?: PostVia
 }
 
 export type PostResult = {
@@ -454,6 +457,8 @@ export type PostReviewInput = {
   reviewBody?: string
   ghBin?: string
   dryRun?: boolean
+  /** Which UI path asked for the post; recorded on each per-finding log entry. */
+  via?: PostVia
 }
 
 export type PostReviewCommentResult = {
@@ -622,7 +627,15 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
       return m ? { ...base, message: m } : base
     })
 
+  const viaField = input.via ? { via: input.via } : {}
+  const logEach = async (entry: Record<string, unknown>) => {
+    for (const id of input.findingIds) {
+      await logEvent(input.runDir, { stage: 'post', id, ...entry, ...viaField })
+    }
+  }
+
   if (input.dryRun) {
+    await logEach({ status: 'dry-run' })
     return {
       reviewId: null,
       comments: buildCommentResults('posted'),
@@ -648,6 +661,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
     ])
   } catch (err) {
     const msg = (err as Error).message ?? `cannot spawn ${bin}`
+    await logEach({ status: 'failed', error: msg })
     return {
       reviewId: null,
       comments: buildCommentResults('failed', msg),
@@ -657,6 +671,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   }
 
   if (exit !== 0) {
+    await logEach({ status: 'failed', error: stderrText.trim() })
     return {
       reviewId: null,
       comments: buildCommentResults('failed', stderrText.trim()),
@@ -675,6 +690,7 @@ export async function postFindingsAsReview(input: PostReviewInput): Promise<Post
   }
   existing.__lastReviewId = reviewId
   await writePostStatus(input.runDir, existing)
+  await logEach({ status: 'ok' })
 
   return {
     reviewId,
@@ -798,6 +814,7 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
     }
   }
   const byId = new Map(findings.map((f) => [f.id, f]))
+  const viaField = input.via ? { via: input.via } : {}
 
   // Inflate selected ids, preserving order.
   const status = await readPostStatus(input.runDir)
@@ -902,7 +919,13 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
     if (input.dryRun) {
       results.push({ id, status: 'posted', command: inlineCmd })
       status[id] = 'posted'
-      await logEvent(input.runDir, { stage: 'post', status: 'dry-run', id, command: inlineCmd })
+      await logEvent(input.runDir, {
+        stage: 'post',
+        status: 'dry-run',
+        id,
+        command: inlineCmd,
+        ...viaField,
+      })
       continue
     }
 
@@ -910,7 +933,7 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
     if (r.exit === 0) {
       results.push({ id, status: 'posted' })
       status[id] = 'posted'
-      await logEvent(input.runDir, { stage: 'post', status: 'ok', id })
+      await logEvent(input.runDir, { stage: 'post', status: 'ok', id, ...viaField })
       continue
     }
 
@@ -934,6 +957,7 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
           status: 'fallback-ok',
           id,
           reason,
+          ...viaField,
         })
         continue
       }

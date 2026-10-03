@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { readDismissed } from './labels.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { renderProgressToDisk } from './render-progress.ts'
 import { parseBrief, parseFinding } from './types.ts'
@@ -143,9 +144,21 @@ export async function runRender(runDir: string, page: 'progress' | 'findings'): 
       join(runDir, 'diff-source.json'),
       null,
     )) ?? undefined
+  const dismissed = await readDismissed(runDir)
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
-    { findings, postStatus, runId: basename(runDir), pr, files, diff, brief, issues, diffSource },
+    {
+      findings,
+      postStatus,
+      runId: basename(runDir),
+      pr,
+      files,
+      diff,
+      brief,
+      issues,
+      diffSource,
+      dismissed,
+    },
     outPath,
   )
   return 0

@@ -17,7 +17,8 @@ Subcommands:
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards
   render <run-dir> <page>    Render progress.html or findings.html
-  cleanup <run-dir>          Remove worktree, stop server, archive run
+  labels <run-dir>           Write labels.json (posted, dismissed, ignored per finding)
+  cleanup <run-dir>          Remove worktree, stop server, write labels, archive run
   status <run-dir>           Print highest completed stage
   open [id]                  Open findings.html in your browser (defaults to latest run)
   post <run-dir> --ids a,b   Post the given finding ids via gh (rich body + optional summary)
@@ -215,6 +216,15 @@ const HANDLERS: Record<string, Handler> = {
     const { runRender } = await import('../scripts/render-cmd.ts')
     return runRender(runDir, page)
   },
+  labels: async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('labels: missing <run-dir>\n')
+      return 2
+    }
+    const { runLabels } = await import('../scripts/labels-cmd.ts')
+    return runLabels(runDir)
+  },
   cleanup: async (args) => {
     const runDir = args[0]
     const repoFlag = args.indexOf('--repo')
@@ -294,6 +304,7 @@ const HANDLERS: Record<string, Handler> = {
       runDir,
       findingIds,
       dryRun,
+      via: 'cli',
       ...(includeSummary ? { includeSummary } : {}),
     })
     process.stdout.write(`${JSON.stringify(outcome)}\n`)

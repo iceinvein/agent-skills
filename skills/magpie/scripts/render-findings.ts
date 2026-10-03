@@ -59,6 +59,11 @@ export type RenderFindingsInput = {
   issues?: BriefIssue[]
   /** Shiki highlighter, prepared by the caller. */
   highlighter: Highlighter
+  /**
+   * Finding id to dismiss reason, folded from state/events. Absent for callers
+   * that render a run with no reviewer state (preview, archive refresh).
+   */
+  dismissed?: Map<string, string>
   /** Where diff.patch came from. Absent means gh, which needs no note. */
   diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
 }
@@ -148,6 +153,7 @@ function filePane(opts: {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  dismissed: Map<string, string>
   highlighter: Highlighter
 }): string {
   const hunks = parseUnifiedDiffToHunks(opts.fileDiff)
@@ -156,6 +162,7 @@ function filePane(opts: {
     findings: opts.findings,
     postStatus: opts.postStatus,
     selectedIds: opts.selectedIds,
+    dismissed: opts.dismissed,
     highlighter: opts.highlighter,
     file: opts.file.path,
   })
@@ -164,6 +171,7 @@ function filePane(opts: {
     findings: opts.findings,
     postStatus: opts.postStatus,
     selectedIds: opts.selectedIds,
+    dismissed: opts.dismissed,
     highlighter: opts.highlighter,
     file: opts.file.path,
   })
@@ -183,7 +191,7 @@ function filePane(opts: {
             <span class="unplaced-banner-label">${unplaced.length} finding${unplaced.length === 1 ? '' : 's'} not anchored to the diff</span>
             <span class="unplaced-banner-hint">${hunks.length === 0 ? 'this file is not in the PR diff snapshot' : 'line falls outside the visible hunks'}</span>
           </div>
-          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds, highlighter: opts.highlighter })}
+          ${renderIssuesList({ findings: unplaced, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, highlighter: opts.highlighter })}
         </div>`
       : ''
   return `<section class="file-pane" data-file-pane="${esc(opts.file.path)}" hidden>
@@ -210,6 +218,7 @@ function overviewPane(opts: {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  dismissed: Map<string, string>
   highlighter: Highlighter
 }): string {
   const general = opts.findings.filter((f) => !f.file)
@@ -219,7 +228,7 @@ function overviewPane(opts: {
     </section>`
   }
   return `<section class="overview-pane" data-file-pane="">
-    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds, highlighter: opts.highlighter })}
+    ${renderIssuesList({ findings: general, postStatus: opts.postStatus, selectedIds: opts.selectedIds, dismissed: opts.dismissed, highlighter: opts.highlighter })}
   </section>`
 }
 
@@ -229,6 +238,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
   const diff = input.diff ?? ''
   const splitDiffs = splitDiffByFile(diff)
   const selectedIds = new Set<string>()
+  const dismissed = input.dismissed ?? new Map<string, string>()
   const briefHtml = briefBlock(input.brief, input.issues ?? [])
 
   if (input.findings.length === 0) {
@@ -261,6 +271,7 @@ ${briefHtml}
         findings: findingsInFile,
         postStatus: input.postStatus,
         selectedIds,
+        dismissed,
         highlighter: input.highlighter,
       })
     })
@@ -270,6 +281,7 @@ ${briefHtml}
     findings: input.findings,
     postStatus: input.postStatus,
     selectedIds,
+    dismissed,
     highlighter: input.highlighter,
   })
   const tree = renderFileTree({ files, findings: input.findings })
@@ -277,6 +289,7 @@ ${briefHtml}
     findings: input.findings,
     postStatus: input.postStatus,
     selectedIds,
+    dismissed,
     highlighter: input.highlighter,
   })
   const actionBar = renderActionBar({ findings: input.findings })

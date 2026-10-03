@@ -1,5 +1,6 @@
 import { appendFile, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { parseVia } from './labels.ts'
 import { parseRepoFromUrl, postFindingsAsReview } from './post-cmd.ts'
 
 export type ServerHandle = {
@@ -74,6 +75,7 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
             findingIds?: unknown
             dryRun?: unknown
             includeSummary?: unknown
+            via?: unknown
           }
           if (!Array.isArray(body?.findingIds) || body.findingIds.length === 0) {
             return Response.json(
@@ -94,12 +96,15 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
             body.includeSummary === 'auto'
               ? body.includeSummary
               : undefined
+          // An unknown via only loses the label source; the post itself goes ahead.
+          const via = parseVia(body.via)
           const { runPost } = await import('./post-cmd.ts')
           const outcome = await runPost({
             runDir,
             findingIds: ids,
             dryRun: body.dryRun === true,
             ...(includeSummary ? { includeSummary } : {}),
+            ...(via ? { via } : {}),
           })
           return Response.json(outcome, { status: outcome.ok ? 200 : 500 })
         } catch (err) {
@@ -111,7 +116,7 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
       }
       if (req.method === 'POST' && url.pathname === '/api/post-review') {
         try {
-          const body = (await req.json()) as { findingIds?: unknown }
+          const body = (await req.json()) as { findingIds?: unknown; via?: unknown }
           if (!Array.isArray(body?.findingIds)) {
             return new Response(JSON.stringify({ error: 'findingIds must be an array' }), {
               status: 400,
@@ -141,6 +146,7 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
               { status: 500, headers: { 'content-type': 'application/json' } },
             )
           }
+          const via = parseVia(body.via)
           const result = await postFindingsAsReview({
             runDir,
             findingIds: ids,
@@ -148,6 +154,7 @@ export async function startServer(input: StartServerInput): Promise<ServerHandle
             headSha: prJson.headRefOid,
             repo,
             dryRun: process.env.MAGPIE_DRY_RUN_POST === '1',
+            ...(via ? { via } : {}),
           })
           const status =
             result.reviewId == null && process.env.MAGPIE_DRY_RUN_POST !== '1' ? 502 : 200

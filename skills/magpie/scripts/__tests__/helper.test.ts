@@ -160,3 +160,59 @@ test('helper.js applies review result to data-posted on matching annotations', a
   expect(src).toContain('applyReviewResult')
   expect(src).toContain("setAttribute('data-posted'")
 })
+
+function functionBlock(src: string, signature: string): string {
+  const start = src.indexOf(signature)
+  expect(start).toBeGreaterThan(-1)
+  return src.slice(start, src.indexOf('\n  }\n', start))
+}
+
+test('the dismiss handler posts a dismiss event with the reason and deselects the card', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  const block = functionBlock(src, 'function handleDismiss(')
+  expect(block).toMatch(/post\(\{\s*type: 'dismiss',\s*findingId: id,\s*reason,/)
+  expect(block).toContain('setCheckedAndNotify(id, false)')
+  expect(block).toContain("setAttribute('data-dismissed', reason)")
+})
+
+test('the undismiss handler posts an undismiss event and clears the dismissed state', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  const block = functionBlock(src, 'function handleUndismiss(')
+  expect(block).toMatch(/post\(\{\s*type: 'undismiss',\s*findingId: id,/)
+  expect(block).toContain("removeAttribute('data-dismissed')")
+})
+
+test('dismiss controls do nothing on an archived page', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  for (const sig of [
+    'function handleDismissMenu(',
+    'function handleDismiss(',
+    'function handleUndismiss(',
+  ]) {
+    expect(functionBlock(src, sig)).toContain('if (!isLive) return')
+  }
+})
+
+test('select and post recommended skip dismissed findings', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  for (const sig of ['function handleSelectRecommended(', 'function handlePostRecommended(']) {
+    expect(functionBlock(src, sig)).toContain("el.hasAttribute('data-dismissed')")
+  }
+})
+
+test('each page post path sends its via to the server', async () => {
+  const src = await readFile(HELPER, 'utf8')
+  expect(functionBlock(src, 'async function handlePostSelected(')).toContain(
+    "postToReview(ids, 'selected')",
+  )
+  expect(functionBlock(src, 'async function handlePostRecommended(')).toContain(
+    "postToReview(ids, 'recommended')",
+  )
+  expect(src).toContain("openConfirm([id], 'one')")
+  expect(functionBlock(src, 'async function postToReview(')).toContain(
+    'JSON.stringify({ findingIds, via })',
+  )
+  expect(functionBlock(src, 'async function performPost(')).toContain(
+    'JSON.stringify({ findingIds: ids, via })',
+  )
+})

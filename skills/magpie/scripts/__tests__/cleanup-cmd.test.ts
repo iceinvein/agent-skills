@@ -111,6 +111,34 @@ test('killServer escalates to SIGKILL when SIGTERM is ignored', async () => {
   // shared runner has overrun the 5s default and failed a release.
 }, 30_000)
 
+test('cleanup leaves labels.json in the archived dir when findings.final.json exists', async () => {
+  const finding = {
+    id: 'sec-1',
+    file: 'a.ts',
+    line: 1,
+    severity: 'blocker',
+    risk: { impact: 'critical', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+    title: 't',
+    description: 'd',
+    domain: 'security',
+  }
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([finding]))
+  await writeFile(
+    join(runDir, 'state', 'events'),
+    `${JSON.stringify({ type: 'dismiss', findingId: 'sec-1', reason: 'wrong', timestamp: 1 })}\n`,
+  )
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  expect(exit).toBe(0)
+  const parent = dirname(runDir)
+  const archived = (await readdir(parent)).find((e) =>
+    e.startsWith(`${basename(runDir)}.archived-`),
+  )
+  if (!archived) throw new Error('expected an archived run dir')
+  const labels = JSON.parse(await readFile(join(parent, archived, 'labels.json'), 'utf8'))
+  expect(labels).toEqual([{ id: 'sec-1', label: 'dismissed', reason: 'wrong' }])
+  await rm(join(parent, archived), { recursive: true, force: true })
+})
+
 test('runCleanup logs kill outcome to log.jsonl', async () => {
   await writeFile(join(runDir, 'log.jsonl'), '')
   const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })

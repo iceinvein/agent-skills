@@ -944,6 +944,65 @@ pre.shiki .line {
   opacity: 0.7;
 }
 
+/* Both dismiss states are always in the markup so the page can flip between
+   them; the card's data-dismissed picks which one shows. */
+.dismiss {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.dismiss-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dismissed-state {
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+
+[data-dismissed] .dismiss-control {
+  display: none;
+}
+
+[data-dismissed] .dismissed-state {
+  display: flex;
+}
+
+.dismiss-menu:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dismiss button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  padding: 2px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dismiss button:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.dismissed-reason {
+  color: var(--ink-faint);
+}
+
+.annot[data-dismissed],
+.issue-card[data-dismissed] {
+  opacity: 0.5;
+}
+
 /* === Issues mode === */
 
 .issues-view {

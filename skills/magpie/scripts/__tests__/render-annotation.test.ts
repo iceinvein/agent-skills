@@ -183,4 +183,42 @@ describe('renderAnnotation', () => {
     // Shiki tokenizes identifiers separately, so check for the token text
     expect(html).toContain('console')
   })
+
+  test('marks a dismissed finding with its reason', () => {
+    const html = renderAnnotation(finding, {
+      checked: false,
+      posted: false,
+      asCard: true,
+      dismissed: 'wrong',
+      highlighter: hl,
+    })
+    expect(html).toContain('data-dismissed="wrong"')
+  })
+
+  test('renders a dismissed finding with an unchecked checkbox even when selected', () => {
+    const html = renderAnnotation(finding, {
+      checked: true,
+      posted: false,
+      asCard: true,
+      dismissed: 'wrong',
+      highlighter: hl,
+    })
+    const checkbox = html.match(/<input type="checkbox"[^>]*>/)?.[0]
+    expect(checkbox).toBeDefined()
+    expect(checkbox).not.toContain('checked')
+  })
+
+  test('offers the four dismiss reasons on a live finding', () => {
+    const html = renderAnnotation(finding, {
+      checked: false,
+      posted: false,
+      asCard: true,
+      highlighter: hl,
+    })
+    const reasons = [...html.matchAll(/data-action="dismiss" data-reason="([^"]+)"/g)].map(
+      (m) => m[1],
+    )
+    expect(reasons).toEqual(['wrong', 'not-worth-it', 'duplicate', 'style'])
+    expect(html).not.toContain('data-dismissed=')
+  })
 })

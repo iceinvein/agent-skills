@@ -27,6 +27,8 @@ export type RenderIssuesListInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  /** Finding id to dismiss reason, folded from state/events. */
+  dismissed: Map<string, string>
   highlighter: Highlighter
 }
 
@@ -37,7 +39,7 @@ function severityCounts(findings: ReviewFinding[]): Map<Severity, number> {
 }
 
 export function renderIssuesList(input: RenderIssuesListInput): string {
-  const { findings, postStatus, selectedIds, highlighter } = input
+  const { findings, postStatus, selectedIds, dismissed, highlighter } = input
   const actionable = findings.filter((f) => !isSuggestion(f))
   const suggestions = findings.filter((f) => isSuggestion(f))
   const counts = severityCounts(findings)
@@ -62,6 +64,7 @@ export function renderIssuesList(input: RenderIssuesListInput): string {
         checked: selectedIds.has(f.id),
         posted: status === 'posted',
         failed,
+        dismissed: dismissed.get(f.id),
         asCard: true,
         highlighter,
       })

@@ -48,6 +48,7 @@ describe('renderIssuesList', () => {
       findings,
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
     })
     expect((html.match(/class="issue-card/g) ?? []).length).toBe(3)
@@ -58,6 +59,7 @@ describe('renderIssuesList', () => {
       findings,
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
     })
     expect(html).toContain('Blocker (1)')
@@ -70,6 +72,7 @@ describe('renderIssuesList', () => {
       findings,
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
     })
     expect(html).toContain('2 should review')
@@ -80,6 +83,7 @@ describe('renderIssuesList', () => {
       findings,
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
     })
     expect(html).toContain('Show 1 suggestion')
@@ -90,10 +94,23 @@ describe('renderIssuesList', () => {
       findings,
       postStatus: {},
       selectedIds: new Set(),
+      dismissed: new Map(),
       highlighter: hl,
     })
     expect(html).toMatch(
       /data-finding-id="3"[^>]*data-suggestion="true"|data-suggestion="true"[^>]*data-finding-id="3"/,
     )
+  })
+
+  test('marks only the cards whose ids are dismissed', () => {
+    const html = renderIssuesList({
+      findings,
+      postStatus: {},
+      selectedIds: new Set(),
+      dismissed: new Map([['2', 'duplicate']]),
+      highlighter: hl,
+    })
+    const marked = [...html.matchAll(/data-finding-id="([^"]+)"[^>]*data-dismissed="([^"]+)"/g)]
+    expect(marked.map((m) => [m[1], m[2]])).toEqual([['2', 'duplicate']])
   })
 })

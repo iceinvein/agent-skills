@@ -1,6 +1,7 @@
 import type { Highlighter } from 'shiki'
 import { parseFindingDescription } from './finding-description.ts'
 import { highlightCodeBlock, languageFromPath } from './highlight.ts'
+import { DISMISS_REASONS, type DismissReason } from './labels.ts'
 import { isSuggestion, type ReviewFinding } from './types.ts'
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -37,7 +38,36 @@ export type RenderAnnotationOptions = {
   asCard: boolean
   /** When posting previously failed, surface the failure on the card. */
   failed?: { message: string }
+  /** Reason the reviewer dismissed this finding, folded from state/events. */
+  dismissed?: string
   highlighter: Highlighter
+}
+
+const DISMISS_LABEL: Record<DismissReason, string> = {
+  wrong: 'Wrong',
+  'not-worth-it': 'Not worth it',
+  duplicate: 'Duplicate',
+  style: 'Style',
+}
+
+// Both the dismiss menu and the dismissed state are always present; CSS keyed
+// on the card's data-dismissed shows one of them, so the page can flip state
+// without a re-render.
+function renderDismiss(id: string, dismissed: string | undefined): string {
+  const reasons = DISMISS_REASONS.map(
+    (r) =>
+      `<button type="button" data-action="dismiss" data-reason="${r}" data-finding-id="${esc(id)}">${DISMISS_LABEL[r]}</button>`,
+  ).join('')
+  return `<div class="dismiss" data-role="dismiss">
+      <div class="dismiss-control">
+        <button type="button" class="dismiss-btn" data-action="dismiss-menu" data-finding-id="${esc(id)}" aria-haspopup="true">Dismiss</button>
+        <div class="dismiss-menu" data-role="dismiss-menu" hidden>${reasons}</div>
+      </div>
+      <div class="dismissed-state">
+        <span class="dismissed-reason" data-role="dismissed-reason">Dismissed: ${esc(dismissed ?? '')}</span>
+        <button type="button" class="undismiss-btn" data-action="undismiss" data-finding-id="${esc(id)}">Undo</button>
+      </div>
+    </div>`
 }
 
 function renderInline(body: string): string {
@@ -86,10 +116,13 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
   const domainLabel = DOMAIN_LABELS[domain] ?? domain
   const sevLabel = SEVERITY_LABEL[f.severity] ?? f.severity.toUpperCase()
   const containerClass = opts.asCard ? `issue-card sev-${f.severity}` : `annot sev-${f.severity}`
-  const cbAttrs = opts.posted ? 'checked disabled' : opts.checked ? 'checked' : ''
+  // A posted finding is past dismissing, so its dismissed state is not shown.
+  const dismissed = opts.posted ? undefined : opts.dismissed
+  const cbAttrs = opts.posted ? 'checked disabled' : opts.checked && !dismissed ? 'checked' : ''
   const suggestion = isSuggestion(f) ? 'true' : 'false'
   const postedAttr = opts.posted ? ' data-posted="true"' : ''
   const failedAttr = opts.failed ? ' data-failed="true"' : ''
+  const dismissedAttr = dismissed ? ` data-dismissed="${esc(dismissed)}"` : ''
   let statusChip: string
   if (opts.posted) {
     statusChip = '<span class="status-chip posted">POSTED</span>'
@@ -98,7 +131,7 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
   } else {
     statusChip = '<span class="status-chip new">NEW</span>'
   }
-  return `<div class="${containerClass}" data-finding-id="${esc(f.id)}" data-severity="${f.severity}" data-domain="${esc(domain)}" data-suggestion="${suggestion}"${postedAttr}${failedAttr}>
+  return `<div class="${containerClass}" data-finding-id="${esc(f.id)}" data-severity="${f.severity}" data-domain="${esc(domain)}" data-suggestion="${suggestion}"${postedAttr}${failedAttr}${dismissedAttr}>
   <div class="annot-row">
     <input type="checkbox" data-finding-id="${esc(f.id)}" ${cbAttrs} aria-label="select ${esc(f.id)}" />
     <div class="annot-body">
@@ -111,6 +144,7 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
       ${renderSections(f.description)}
       ${renderSuggestion(f, opts.highlighter)}
       ${renderRisk(f)}
+      ${opts.posted ? '' : renderDismiss(f.id, dismissed)}
     </div>
     <button type="button" class="send-btn" data-action="post-one" data-finding-id="${esc(f.id)}" title="Post this finding" aria-label="post">▸</button>
   </div>

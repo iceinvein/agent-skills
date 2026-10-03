@@ -1,5 +1,6 @@
 import { appendFile, readFile, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { writeLabels } from './labels-cmd.ts'
 import { removeWorktree } from './worktree.ts'
 
 export type RunCleanupInput = {
@@ -84,6 +85,11 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
     join(input.runDir, 'log.jsonl'),
     `${JSON.stringify({ stage: 'cleanup', status: 'kill-server', outcome: kill.outcome, pid: kill.pid, ts: Date.now() })}\n`,
   ).catch(() => {})
+
+  // After the kill so no late /events append is missed by the labels.
+  if (await Bun.file(join(input.runDir, 'findings.final.json')).exists()) {
+    await writeLabels(input.runDir)
+  }
 
   const target = `${input.runDir}.archived-${Date.now()}`
   await rename(input.runDir, target)

@@ -22,6 +22,8 @@ export type RenderDiffInput = {
   findings: ReviewFinding[]
   postStatus: PostStatusMap
   selectedIds: Set<string>
+  /** Finding id to dismiss reason, folded from state/events. */
+  dismissed: Map<string, string>
   highlighter: Highlighter
   /** File path used to detect language for highlighting. */
   file: string
@@ -57,7 +59,7 @@ function findingsByLine(findings: ReviewFinding[]): Map<number, ReviewFinding[]>
 }
 
 export function renderUnifiedDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds, highlighter, file } = input
+  const { hunks, findings, postStatus, selectedIds, dismissed, highlighter, file } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
   const lang = languageFromPath(file)
@@ -105,6 +107,7 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
+                dismissed: dismissed.get(f.id),
                 asCard: false,
               }),
             )
@@ -117,7 +120,7 @@ export function renderUnifiedDiff(input: RenderDiffInput): string {
 }
 
 export function renderSplitDiff(input: RenderDiffInput): string {
-  const { hunks, findings, postStatus, selectedIds, highlighter, file } = input
+  const { hunks, findings, postStatus, selectedIds, dismissed, highlighter, file } = input
   if (hunks.length === 0) return `<div class="diff-empty">No changes</div>`
   const byLine = findingsByLine(findings)
   const lang = languageFromPath(file)
@@ -160,6 +163,7 @@ export function renderSplitDiff(input: RenderDiffInput): string {
                 checked: selectedIds.has(f.id),
                 posted: isPosted(postStatus[f.id]),
                 failed: failedFrom(postStatus[f.id]),
+                dismissed: dismissed.get(f.id),
                 asCard: false,
               }),
             )
