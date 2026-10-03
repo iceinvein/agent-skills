@@ -14,5 +14,5 @@
     "lib": ["ESNext"],
     "jsx": "preserve"
   },
-  "include": ["bin/**/*.ts", "scripts/**/*.ts"]
+  "include": ["bin/**/*.ts", "scripts/**/*.ts", "evals/quality/**/*.ts"]
 }
