@@ -164,15 +164,15 @@ The critic runs as worktree-reading subagents. The CLI fills its prompt from `re
 magpie critic-prompt "$RUN_DIR"
 ```
 
-It prints `<prompt path>\t<output path>` per batch of about 30 candidates (a merge group always stays in one batch). Dispatch one subagent (Agent tool, `general-purpose`) per line, all in one message, each one's entire task the verbatim contents of its prompt file. Each writes its verdicts to its output path and returns `critic: <kept> kept, <dropped> dropped, <merged> merged`. No lines means no candidates: go straight to `critic-apply`.
+It prints `<prompt path>\t<output path>` per batch of about 30 candidates (a merge group always stays in one batch). Dispatch one subagent (Agent tool, `general-purpose`) per line, all in one message, each one's entire task the verbatim contents of its prompt file. Each writes its output path and returns one summary line. No lines printed means no candidates: go straight to `critic-apply`.
 
-Confirm every output path exists; re-dispatch any batch whose file is missing. On a resume, dispatch only the batches whose output file is missing (prompts are deterministic). Apply the verdicts:
+Confirm every output path exists; re-dispatch any batch whose file is missing. On a resume, dispatch only the batches whose output file is missing. Apply the verdicts:
 
 ```
 magpie critic-apply "$RUN_DIR"
 ```
 
-It validates the verdicts, writes `findings.kept.json` and `critic-dropped.json`, and logs the critic `done` entry itself; do not append another. On a non-zero exit, stderr names offending ids or a file: delete the output file of each batch whose ids or file it names, re-dispatch only those, and re-run `critic-apply`. If a batch fails twice after re-dispatch, stop and show the user stderr verbatim rather than looping. Re-render progress.
+It writes `findings.kept.json` and `critic-dropped.json` and logs the critic `done` entry itself; do not append another. On a non-zero exit, stderr names offending ids or a file: delete the output file of each batch whose ids or file it names, re-dispatch only those, and re-run `critic-apply`. If a batch fails twice after re-dispatch, stop and show the user stderr verbatim rather than looping. Re-render progress.
 
 ### 7. Peer review
 
@@ -200,7 +200,7 @@ If codex returns non-zero on a batch, do not abort: record `{stage: peer-review,
 
 **Claude path (fallback).** When `codex` is unavailable or failed, get the second opinion from a Claude subagent instead, one per batch. Set `<<PEER_PROVIDER>>` to `claude`, then prepend the `magpie-peer-review-claude-preamble` block from `references/peer-review.md` to each batch's substituted prompt (the preamble forces genuine independence, since the reviewer shares a model family with the primary reviewers). Dispatch one subagent (Agent tool, `general-purpose`) per batch whose entire task is that combined prompt, and instruct it to return only the fenced `review-peer-review` JSON block. Write each output to `$RUN_DIR/peer-<k>.out`, extract each `review-peer-review` block, merge into `$RUN_DIR/peer.json` after the last batch as above, and append `{stage: peer-review, status: done, provider: claude}` (`provider: mixed` if codex handled some batches).
 
-**Apply the verdicts (both paths).** Parse the merged verdicts and apply the `update` / `add` entries (an empty array means no change). A peer `fields.severity` (or `finding.severity` on an `add`) is ignored: severity is derived from `risk.impact`, so a severity change only takes effect through `risk`. Mint each `add`'s `id` as above before merging, since the peer contract does not carry ids. Then write `findings.final.json`. Re-render progress.
+**Apply the verdicts (both paths).** Parse the merged verdicts and apply the `update` / `add` entries (an empty array means no change). A peer `fields.severity` (or `finding.severity` on an `add`) is ignored: severity is derived from `risk.impact`. Mint each `add`'s `id` as above before merging, since the peer contract does not carry ids. Then write `findings.final.json`. Re-render progress.
 
 ### 8. Report
 
@@ -208,7 +208,7 @@ If codex returns non-zero on a batch, do not abort: record `{stage: peer-review,
 magpie render "$RUN_DIR" findings
 ```
 
-The report shows the top 10 recommended (`must-fix`/`should-fix`, highest score first) and folds the rest; `--top <n>` changes the count.
+The report shows the top 10 recommended (`must-fix`/`should-fix`, highest score first) and folds the rest. `--top <n>` is not saved (the stage 9 re-render and `magpie serve`'s auto-refresh show 10 again), so use it only when nothing will re-render.
 
 Append `{stage: report, status: done}` to `$RUN_DIR/log.jsonl` and re-render progress (the render CLI does not log this itself, and `magpie status` needs the `done` entry to resume past `report`).
 
