@@ -22,6 +22,10 @@ Diff: <<RUN_DIR>>/diff.patch
 2. `diff.patch` for what the change actually does. This is the evidence.
 3. The worktree for surrounding context on any file the diff changes but does not
    explain.
+4. The repository's written conventions, for the review rules. At the worktree root:
+   `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING*`, `.github/copilot-instructions.md`, and
+   every file under `.cursor/rules/`. Then `CLAUDE.md` and `AGENTS.md` in each
+   directory the diff touches. Skip any that do not exist.
 
 ## How to reason
 
@@ -34,11 +38,17 @@ Diff: <<RUN_DIR>>/diff.patch
    watch item.
 4. Be honest about what you could not determine. An empty `unclear` on a large PR is
    not credible.
+5. From the convention files, keep only the rules a reviewer could check this diff
+   against: error handling, testing, naming that carries meaning, banned APIs,
+   layering, logging, security practice. Drop build steps, setup instructions, tone,
+   and anything about how to write commit messages or run tools. Restate each kept
+   rule in one line and record the path of the file it came from, relative to the
+   worktree root. A rule that bears on no file this diff touches is not worth keeping.
 
 ## Output contract
 
 Write `<<RUN_DIR>>/brief.json` before returning. The file MUST be a JSON object with
-exactly these four keys:
+exactly these five keys:
 
 {
   "purpose":    string,   // 1-3 sentences: what this PR is for, in your words. Required
@@ -48,7 +58,12 @@ exactly these four keys:
   "watchItems": string[], // Where the diff and the stated intent diverge, or where the
                           //   intent implies a risk the diff does not address. Often
                           //   empty. See the boundary below.
-  "unclear":    string[]  // What you could not determine from the bundle.
+  "unclear":    string[], // What you could not determine from the bundle.
+  "reviewRules": Array<{ "rule": string, "source": string }>
+                          // Repository conventions that bear on this diff, one line
+                          //   each, with the path of the file each came from, e.g.
+                          //   { "rule": "Never swallow errors in a catch", "source": "CLAUDE.md" }.
+                          //   [] when no convention file exists or none bears on the diff.
 }
 
 A watch item is not a finding. You do not assign severity, you do not assign risk,
@@ -61,5 +76,5 @@ commit messages or issue titles into the brief: the report reads those from `pr.
 directly, and repeating them wastes the specialists' attention.
 
 Return as your final tool result a single line:
-`brief: <N> changes, <K> watch items`. Do not include other prose.
+`brief: <N> changes, <K> watch items, <R> review rules`. Do not include other prose.
 ```

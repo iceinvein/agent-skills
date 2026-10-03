@@ -142,7 +142,8 @@ cat > "$RUN_DIR/log.jsonl" <<'LOG'
 {"stage":"context","status":"done"}
 {"stage":"specialists","status":"done"}
 {"stage":"dedupe","status":"done"}
-{"stage":"critic","status":"done"}
+{"stage":"critic","status":"running"}
+{"stage":"critic","status":"done","kept":5,"dropped":0,"merged":0,"capped":0}
 {"stage":"peer-review","status":"done","provider":"claude"}
 {"stage":"report","status":"done"}
 LOG
@@ -225,6 +226,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "security-1",
     "file": "src/settings/cache.ts",
     "line": 4,
+    "evidence": "store.set(tenantId, settings)",
     "severity": "high",
     "risk": { "impact": "high", "likelihood": "likely", "confidence": "high", "action": "must-fix" },
     "domain": "security",
@@ -235,6 +237,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "bugs-1",
     "file": "src/settings/loader.ts",
     "line": 12,
+    "evidence": "const fresh = await fetchSettings(tenantId)",
     "severity": "medium",
     "risk": { "impact": "medium", "likelihood": "possible", "confidence": "medium", "action": "should-fix" },
     "domain": "bugs",
@@ -245,6 +248,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "perf-1",
     "file": "src/settings/cache.ts",
     "line": 12,
+    "evidence": "store.clear()",
     "severity": "low",
     "risk": { "impact": "low", "likelihood": "possible", "confidence": "medium", "action": "consider" },
     "domain": "performance",
@@ -255,6 +259,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "arch-1",
     "file": "src/settings/loader.ts",
     "line": 10,
+    "evidence": "const hit = get(tenantId)",
     "severity": "medium",
     "risk": { "impact": "medium", "likelihood": "possible", "confidence": "medium", "action": "consider" },
     "domain": "architecture",
@@ -265,8 +270,9 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "smell-1",
     "file": "src/settings/cache.ts",
     "line": 8,
+    "evidence": "return store.get(tenantId)",
     "severity": "low",
-    "risk": { "impact": "low", "likelihood": "unlikely", "confidence": "medium", "action": "optional" },
+    "risk": { "impact": "low", "likelihood": "edge-case", "confidence": "medium", "action": "optional" },
     "domain": "code-smells",
     "title": "get() hands back the stored object, so a caller can mutate the cache",
     "description": "Observation: get() returns store.get(tenantId) directly (src/settings/cache.ts:8).\n\nWhy it matters: a caller that edits the returned settings edits every later reader's copy.\n\nSuggested direction: freeze the value on put, or return a copy."

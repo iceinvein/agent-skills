@@ -111,7 +111,8 @@ cat > "$RUN_DIR/log.jsonl" <<'LOG'
 {"stage":"context","status":"done"}
 {"stage":"specialists","status":"done"}
 {"stage":"dedupe","status":"done"}
-{"stage":"critic","status":"done"}
+{"stage":"critic","status":"running"}
+{"stage":"critic","status":"done","kept":3,"dropped":1,"merged":0,"capped":0}
 LOG
 
 # The PR under review, as setup would have left it: the filtered diff, and a
@@ -187,9 +188,10 @@ export async function load(tenantId: string) {
 TS
 
 # The findings the run already has: one file per specialist focus, the deduped
-# set derived from them, and the subset the critic kept. Generated together so
-# the chain holds: nothing is kept that was never deduped, and every finding
-# cites a line its hunk carries.
+# set derived from them, the critic's verdicts, and the subset critic-apply kept.
+# Generated together so the chain holds: nothing is kept that was never deduped,
+# every finding cites a line its hunk carries, and every evidence snippet is the
+# worktree line it points at.
 python3 - "$RUN_DIR" <<'FINDINGS'
 import json, pathlib, sys
 
@@ -202,9 +204,9 @@ FINDINGS = [
         'domain': 'security',
         'file': 'src/settings/cache.ts',
         'line': 4,
-        'severity': 'high',
+        'evidence': 'store.set(tenantId, settings)',
         'risk': {'impact': 'high', 'likelihood': 'likely', 'confidence': 'high', 'action': 'must-fix'},
-        'score': 8,
+        'score': 8.8,
         'title': 'Tenant settings cache is a process-global Map with no eviction',
         'description': """Observation: put() writes into a module-level Map keyed by tenant id (src/settings/cache.ts:4), with no size bound and no TTL.
 
@@ -218,9 +220,9 @@ Suggested direction: bound the map and give entries a TTL, or key the cache per 
         'domain': 'bugs',
         'file': 'src/settings/loader.ts',
         'line': 12,
-        'severity': 'medium',
+        'evidence': 'const fresh = await fetchSettings(tenantId)',
         'risk': {'impact': 'medium', 'likelihood': 'possible', 'confidence': 'medium', 'action': 'should-fix'},
-        'score': 6,
+        'score': 5.1,
         'title': 'Concurrent loads for the same tenant each hit the network',
         'description': """Observation: load() checks the cache, then awaits fetchSettings before writing back (src/settings/loader.ts:12).
 
@@ -234,9 +236,9 @@ Suggested direction: cache the in-flight promise rather than the resolved value.
         'domain': 'architecture',
         'file': 'src/settings/loader.ts',
         'line': 10,
-        'severity': 'medium',
+        'evidence': 'const hit = get(tenantId)',
         'risk': {'impact': 'medium', 'likelihood': 'possible', 'confidence': 'medium', 'action': 'consider'},
-        'score': 5,
+        'score': 4.7,
         'title': 'The loader owns the cache rather than being handed one',
         'description': """Observation: load() calls the cache module's free functions directly (src/settings/loader.ts:10).
 
@@ -250,9 +252,9 @@ Suggested direction: take the cache as a parameter.""",
         'domain': 'performance',
         'file': 'src/settings/cache.ts',
         'line': 12,
-        'severity': 'low',
+        'evidence': 'store.clear()',
         'risk': {'impact': 'low', 'likelihood': 'possible', 'confidence': 'medium', 'action': 'consider'},
-        'score': 3,
+        'score': 3.5,
         'title': 'clear() evicts every tenant, not the one whose settings changed',
         'description': """Observation: clear() calls store.clear() (src/settings/cache.ts:12) and is the only invalidation the module offers.
 
@@ -266,9 +268,9 @@ Suggested direction: add delete(tenantId) and leave clear() for shutdown.""",
         'domain': 'code-smells',
         'file': 'src/settings/cache.ts',
         'line': 8,
-        'severity': 'low',
-        'risk': {'impact': 'low', 'likelihood': 'unlikely', 'confidence': 'medium', 'action': 'optional'},
-        'score': 2,
+        'evidence': 'return store.get(tenantId)',
+        'risk': {'impact': 'low', 'likelihood': 'edge-case', 'confidence': 'medium', 'action': 'optional'},
+        'score': 2.3,
         'title': 'get() hands back the stored object, so a caller can mutate the cache',
         'description': """Observation: get() returns store.get(tenantId) directly (src/settings/cache.ts:8).
 
@@ -278,11 +280,21 @@ Suggested direction: freeze the value on put, or return a copy.""",
     },
 ]
 
-# The critic kept the three above its bar and dropped the two below it.
+# smell-1 scored under the default threshold of 3, so dedupe set it aside and
+# the critic never saw it. Of the four it did see, it kept three and dropped one.
+BELOW_THRESHOLD = {'smell-1'}
 KEPT = {'security-1', 'bugs-1', 'arch-1'}
+
+# Severity is derived from risk.impact; specialists do not write it.
+SEVERITY = {'critical': 'blocker', 'high': 'high', 'medium': 'medium', 'low': 'low'}
 
 def without(finding, *keys):
     return {k: v for k, v in finding.items() if k not in keys}
+
+def derived(finding):
+    return {**finding, 'severity': SEVERITY[finding['risk']['impact']]}
+
+deduped = [derived(without(f, 'focus')) for f in FINDINGS if f['id'] not in BELOW_THRESHOLD]
 
 findings_dir = run / 'findings'
 findings_dir.mkdir(parents=True, exist_ok=True)
@@ -291,11 +303,38 @@ for focus in ('security', 'bugs', 'performance', 'code-smells', 'architecture'):
     (findings_dir / f'{focus}.json').write_text(json.dumps(mine, indent=2) + '\n')
 (findings_dir / 'tests.json').write_text('[]\n')
 
-(run / 'findings.deduped.json').write_text(
-    json.dumps([without(f, 'focus') for f in FINDINGS], indent=2) + '\n'
+(run / 'findings.deduped.json').write_text(json.dumps(deduped, indent=2) + '\n')
+(run / 'threshold-dropped.json').write_text(
+    json.dumps(
+        [{'id': f['id'], 'score': f['score'], 'title': f['title']} for f in FINDINGS if f['id'] in BELOW_THRESHOLD],
+        indent=2,
+    ) + '\n'
+)
+# Same file within 8 lines, more than one domain: what dedupe groups for the critic.
+(run / 'merge-candidates.json').write_text(
+    json.dumps([['security-1', 'perf-1'], ['arch-1', 'bugs-1']], indent=2) + '\n'
+)
+
+CHECKED = {
+    'security-1': ['src/settings/cache.ts:1-9', 'src/settings/loader.ts:9-15'],
+    'bugs-1': ['src/settings/loader.ts:9-15'],
+    'arch-1': ['src/settings/loader.ts:1-15'],
+    'perf-1': ['src/settings/cache.ts:11-13'],
+}
+verdicts = []
+for f in deduped:
+    if f['id'] in KEPT:
+        verdicts.append({'id': f['id'], 'verdict': 'keep', 'reason': 'confirmed in the worktree',
+                         'risk': f['risk'], 'checked': CHECKED[f['id']]})
+    else:
+        verdicts.append({'id': f['id'], 'verdict': 'drop', 'reason': 'one flush per settings change is not a measurable cost',
+                         'checked': CHECKED[f['id']]})
+(run / 'critic.json').write_text(json.dumps(verdicts, indent=2) + '\n')
+(run / 'critic-dropped.json').write_text(
+    json.dumps([{'id': v['id'], 'reason': v['reason']} for v in verdicts if v['verdict'] == 'drop'], indent=2) + '\n'
 )
 (run / 'findings.kept.json').write_text(
-    json.dumps([without(f, 'focus', 'score') for f in FINDINGS if f['id'] in KEPT], indent=2) + '\n'
+    json.dumps([f for f in deduped if f['id'] in KEPT], indent=2) + '\n'
 )
 FINDINGS
 
@@ -303,8 +342,10 @@ echo "http://127.0.0.1:4599" > "$RUN_DIR/state/server-info"
 
 cat > "$RUN_DIR/brief.json" <<'JSON'
 {
-  "summary": "Adds a process-global cache in front of tenant settings loads.",
-  "riskAreas": ["tenant isolation", "cache invalidation"],
-  "conventions": []
+  "purpose": "Adds a process-global cache in front of tenant settings loads.",
+  "changes": ["cache module gains put and get", "loader reads through the cache"],
+  "watchItems": [],
+  "unclear": ["how a settings change is meant to invalidate the cache"],
+  "reviewRules": []
 }
 JSON

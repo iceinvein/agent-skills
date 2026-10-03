@@ -1,58 +1,155 @@
-# Critic rubric
+# Critic prompt
 
-The main agent runs this in-conversation against `findings.deduped.json` and writes the kept subset to `findings.kept.json`.
+Stage 6 of the walkthrough does not read this file by hand. `magpie critic-prompt
+"$RUN_DIR"` takes the fenced `magpie-critic` block below, fills its six placeholders
+from the run directory, and writes one prompt file per batch of candidates:
 
-## Substitute before use
+- `<<CANDIDATES>>`: the batch's candidates from `findings.deduped.json`, with `id`,
+  `file`, `line`, `onChangedLine`, `risk`, `domain`, `title`, `description` and
+  `evidence`.
+- `<<MERGE_CANDIDATES>>`: the groups from `merge-candidates.json` whose members are all
+  in this batch (a group always rides in one batch).
+- `<<REVIEW_RULES>>`: `brief.json`'s `reviewRules`, one `- <rule> (<source>)` line each,
+  or `(none)`.
+- `<<WORKTREE>>`, `<<DIFF_PATH>>`: the run's worktree and `diff.patch`.
+- `<<OUTPUT_PATH>>`: where this batch's verdicts go, `critic.json` or `critic-<k>.json`.
 
-The block below contains two placeholders. Replace both before running the rubric. (The `jq` one-liners here and in the peer-review substitutions assume `jq` is on PATH; it is not preflighted. If missing, read the JSON with any tool you have and produce the same shape.)
-
-- `<<DEDUPED_FINDINGS_COMPACT>>` — pretty-printed JSON array of the deduped candidates with only the fields the critic needs. Each candidate carries `onChangedLine` (set deterministically during dedupe: `true` = anchored inside a changed hunk, `false` = anchored on code the PR did not touch, `null` = not anchorable). Build with:
-  ```
-  jq '[.[] | {id, file, line, onChangedLine, severity, risk, domain, title, description}]' "$RUN_DIR/findings.deduped.json"
-  ```
-- `<<DIFF_EXCERPT>>` — the diff hunks for the files referenced by the candidates. For small PRs the full `diff.patch` is fine; for larger PRs, narrow to the files named in the candidate set.
+Each prompt file is the entire task of one `general-purpose` subagent. `magpie
+critic-apply "$RUN_DIR"` then reads every output file, rejects the set if any verdict
+is malformed, and writes `findings.kept.json` and `critic-dropped.json`. The output
+contract in the block is exactly what critic-apply accepts; change one only with the
+other. All six placeholders must stay in the block, or critic-prompt exits 1.
 
 ````magpie-critic
-You are a senior code reviewer auditing a list of candidate review findings produced by other agents on a pull request. Your only job is to keep the findings that a busy reviewer would genuinely thank you for surfacing, and drop the rest. You see each candidate's claim, anchor, and risk fields, plus the diff hunks around them. Use the hunks only to validate or refute the candidate in front of you: do not surface new findings or broaden the review (adding issues is the peer-review stage's job). Treat each candidate skeptically.
+You are a senior code reviewer auditing candidate review findings that other agents
+produced on a pull request. Your job is to keep the findings a busy reviewer would
+genuinely thank you for, drop the rest, and set an honest risk label on each one you
+keep. You do not surface new findings and you do not broaden the review: adding issues
+is a later stage's job.
 
-Drop a finding if any of the following hold:
-- The description sounds speculative, hedged, or "needs verification" without strong evidence in the title or anchor.
-- The finding is a stylistic preference, micro-optimization, or "nice to have" cleanup with no concrete user or maintenance impact.
-- Its `onChangedLine` is `false` and the description does not explain why the PR newly triggers a pre-existing concern (i.e. it is anchored on code this PR did not change).
-- The finding is a theoretical risk that requires unlikely preconditions, or defense-in-depth on code the supplied hunks show is already guarded.
-- The finding belongs to a category the repository's linter already enforces (naming, formatting, unused imports).
-- The finding is on a test file or a generated/vendored file unless it materially affects test correctness.
+Working directory: <<WORKTREE>>
+Diff: <<DIFF_PATH>>
 
-Keep a finding if it points to a concrete defect on a changed line, with enough specificity that a reviewer could decide to act on it without re-reading the entire PR.
+## How to check each candidate
 
-When in doubt, drop. The cost of a false positive is several minutes of reviewer attention; the cost of a false negative is the issue surfacing in human review or production.
+Treat every candidate as a claim to verify, not a conclusion to grade. For each one:
 
-For each candidate below, decide whether to keep it or drop it.
+1. Open the file in the worktree at `line`. `evidence` is the snippet the specialist
+   quoted from that spot, already confirmed to exist there; read the surrounding code,
+   not just the snippet.
+2. Re-derive the claim from the code yourself. Follow the value, the caller or the
+   guard the description relies on into whatever other files it takes: search the
+   worktree for callers, definitions and existing checks. A guard the specialist did
+   not see is a reason to drop.
+3. Use the diff to see what the PR changed. A candidate with `onChangedLine: false` is
+   anchored on code this PR did not touch; keep it only if the description shows how
+   this PR newly triggers the problem, and you confirmed that it does.
+4. Record every `file:line` you read to reach your verdict in `checked`, for example
+   `"src/cache.ts:40"` or `"src/cache.ts:40-58"`. A verdict with an empty `checked` is
+   a guess: a kept finding with nothing in `checked` has its confidence capped at
+   medium.
 
-## Output Contract
+## When to drop
 
-Output a JSON array inside a fenced code block tagged `review-critic`. Each entry must be:
-- `id`: the candidate id (string, copied verbatim)
-- `verdict`: "keep" or "drop"
-- `reason`: one short sentence (under 18 words) explaining why
+Drop a candidate if any of these hold:
+- The code does not do what the description says, or an existing guard already
+  prevents it.
+- It is speculative or hedged and reading the code did not settle it.
+- It is a stylistic preference, micro-optimization or "nice to have" cleanup with no
+  concrete user or maintenance impact.
+- It needs unlikely preconditions, or is defense-in-depth on code you confirmed is
+  already guarded.
+- It belongs to a category the repository's linter already enforces (formatting,
+  unused imports, naming rules).
+- It is on a test file or a generated or vendored file and does not affect test
+  correctness.
+- It is a `code-smells` or `architecture` finding that does not name a concrete
+  near-term change that would break, with the file:line that change would touch.
+  "Harder to maintain", "less flexible" and "could drift" are not breaking changes.
 
-Output every candidate exactly once. Do not invent ids. Do not output anything outside the fenced block.
+Keep a candidate when you confirmed a concrete defect or risk in the code, specific
+enough that a reviewer could act on it without re-reading the whole PR. When in doubt,
+drop: a false positive costs a reviewer several minutes; a false negative surfaces
+later in human review.
 
-```review-critic
+## Repository review rules
+
+These are the maintainers' written conventions for this repository, each with the
+file it came from. A candidate that flags a breach of one of these is stronger for
+it; a candidate that asks for something one of these rules forbids should be dropped.
+
+<<REVIEW_RULES>>
+
+## Merge candidates
+
+Each group below lists candidate ids anchored close together in one file by more than
+one specialist. For each group, decide whether they describe the same underlying
+defect. If they do, keep the strongest one (the clearest description and the most
+accurate anchor) and give each of the others the verdict `merge` with `mergeInto` set
+to the kept id. If they are different problems, judge each on its own and leave them
+separate. A `merge` target must itself be a `keep` in your output. Candidates outside
+any group may still be merged when they are plainly the same defect, under the same
+rule.
+
+```json
+<<MERGE_CANDIDATES>>
+```
+
+## Risk on keep
+
+Every `keep` carries a `risk` you set from what you read, not one copied from the
+candidate. The headline severity shown to the reviewer is derived from your
+`risk.impact`, so be accurate rather than generous:
+- `impact`: "critical" | "high" | "medium" | "low". How bad it is when it happens.
+- `likelihood`: "likely" | "possible" | "edge-case" | "unknown". How often a real
+  user or caller hits it.
+- `confidence`: "high" | "medium" | "low". How sure you are, given what you read.
+- `action`: "must-fix" | "should-fix" | "consider" | "optional". What the reviewer
+  should do about it.
+
+## Output contract
+
+Write a JSON array to <<OUTPUT_PATH>> with the Write tool, one entry per candidate
+below, every candidate exactly once. Copy each `id` verbatim and invent none. Each
+entry is:
+
+```
+{
+  "id": string,                          // the candidate id, verbatim
+  "verdict": "keep" | "drop" | "merge",
+  "reason": string,                      // one short sentence, under 18 words
+  "mergeInto": string,                   // ONLY with "merge": the id of the kept candidate it folds into
+  "risk": {                              // REQUIRED with "keep"; omit otherwise
+    "impact":     "critical" | "high" | "medium" | "low",
+    "likelihood": "likely" | "possible" | "edge-case" | "unknown",
+    "confidence": "high" | "medium" | "low",
+    "action":     "must-fix" | "should-fix" | "consider" | "optional"
+  },
+  "checked": string[]                    // REQUIRED on every verdict: each file:line you read
+}
+```
+
+Example (the ids are placeholders; use the candidates' own):
+
+```
 [
-  { "id": "<copy id from input>", "verdict": "keep", "reason": "concrete null-deref on changed line, anchored, low ambiguity" },
-  { "id": "<copy id from input>", "verdict": "drop", "reason": "stylistic preference, no behavioural impact" }
+  { "id": "example-a", "verdict": "keep", "reason": "load() never awaits the write, so a second call reads stale data",
+    "risk": { "impact": "high", "likelihood": "likely", "confidence": "high", "action": "must-fix" },
+    "checked": ["src/loader.ts:9-15", "src/cache.ts:3-5"] },
+  { "id": "example-b", "verdict": "merge", "mergeInto": "example-a", "reason": "same missing await, seen as a latency cost",
+    "checked": ["src/loader.ts:9-15"] },
+  { "id": "example-c", "verdict": "drop", "reason": "only two copies and they agree; no breaking change named",
+    "checked": ["src/a.ts:12", "src/b.ts:30"] }
 ]
 ```
 
-## Candidates
-```json
-<<DEDUPED_FINDINGS_COMPACT>>
-```
+Enum values are exact strings. Write the file even when you drop everything. After
+writing it, return as your final message a single line and nothing else:
+`critic: <kept> kept, <dropped> dropped, <merged> merged`
 
-## Diff Hunks For Those Candidates
-```diff
-<<DIFF_EXCERPT>>
+## Candidates
+
+```json
+<<CANDIDATES>>
 ```
 ````
-

@@ -148,7 +148,9 @@ If every specialist fails (no findings files written), log
 magpie dedupe "$RUN_DIR" [--threshold <0-10>]
 ```
 
-`magpie dedupe` also runs a deterministic evidence check against the worktree: findings whose `file` is missing or whose `line` is out of range are dropped, logged, and recorded to `$RUN_DIR/evidence-dropped.json`. The check is skipped when the worktree is gone (archived run replay).
+`magpie dedupe` also checks evidence against the worktree, dropping an anchored finding whose file is missing (`hallucinated-file`), whose line is out of range (`invented-line`), that has no `evidence` snippet (`missing-evidence`), or whose snippet is not near its line (`evidence-not-found`); a snippet found exactly once elsewhere in the file re-anchors it. Both go to `$RUN_DIR/evidence-dropped.json` as `{dropped, reanchored}`. The check is skipped when the worktree is gone (archived run replay).
+
+It always writes `$RUN_DIR/merge-candidates.json`: ids from different domains anchored close together in one file, for the critic to merge or keep apart.
 
 Each finding gets a derived 0-10 `score` from its risk fields; those below `--threshold` (default 3) are dropped before the critic LLM runs and recorded to `$RUN_DIR/threshold-dropped.json`. Pass `--threshold 0` to keep everything.
 
@@ -156,12 +158,21 @@ Re-render progress.
 
 ### 6. Critic
 
-Read `references/critic.md` and `$RUN_DIR/findings.deduped.json`. Substitute both placeholders in the critic rubric (the compact candidate list including each finding's `onChangedLine`, and the `<<DIFF_EXCERPT>>` hunks for the referenced files), then apply the rubric verbatim (one verdict per finding). Write the kept subset to `$RUN_DIR/findings.kept.json`. Append `{stage: critic, status: done}` and re-render progress.
+The critic runs as subagents that read the worktree. Its prompt is in `references/critic.md`, and the CLI fills it; substitute nothing by hand. Append `{stage: critic, status: running}` to `$RUN_DIR/log.jsonl`, re-render progress, then:
 
-When `findings.deduped.json` holds more than 40 findings, run the rubric in batches of
-30 rather than one prompt: a sharded run can produce more candidates than fit alongside
-their diff excerpts. Apply the same rubric verbatim per batch and concatenate the kept
-subsets into `findings.kept.json`.
+```
+magpie critic-prompt "$RUN_DIR"
+```
+
+It prints `<prompt path>\t<output path>` per batch of up to 30 candidates. Dispatch one subagent (Agent tool, `general-purpose`) per line, all in one message, each one's entire task the verbatim contents of its prompt file. Each writes its verdicts to its output path and returns `critic: <kept> kept, <dropped> dropped, <merged> merged`. No lines means no candidates: go straight to `critic-apply`.
+
+Then confirm every output path exists and re-dispatch any batch whose file is missing (prompts are deterministic, so a resume re-dispatches only those). Apply the verdicts:
+
+```
+magpie critic-apply "$RUN_DIR"
+```
+
+It validates the verdicts, writes `findings.kept.json` and `critic-dropped.json`, and logs the critic `done` entry itself; do not append another. On a non-zero exit, stderr names the offending ids: delete the output file of each batch holding them, re-dispatch only those batches, and re-run `critic-apply`. Re-render progress.
 
 ### 7. Peer review
 
@@ -169,7 +180,7 @@ Append `{stage: peer-review, status: running}` to `$RUN_DIR/log.jsonl` and re-re
 
 Build the peer-review prompt first: read `references/peer-review.md`, take the `magpie-peer-review` block from it, and substitute the placeholders listed in that file's `## Substitute before use` preamble.
 
-One batch carries up to 40 findings; above that, split them 30 at a time, as in stage 6.
+One batch carries up to 40 findings; above that, split them 30 at a time.
 Write each batch's prompt, its `<<KEPT_FINDINGS_COMPACT>>` narrowed to that batch, to
 `$RUN_DIR/peer-prompt-<k>.md`, `<k>` counting from 1. **When there is a single batch, drop `-<k>` throughout** (`peer-prompt.md`,
 `peer.out`), which is the common case. Keep the `add` id counter running across batches
@@ -189,13 +200,15 @@ If codex returns non-zero on a batch, do not abort: record `{stage: peer-review,
 
 **Claude path (fallback).** When `codex` is unavailable or failed, get the second opinion from a Claude subagent instead, one per batch. Set `<<PEER_PROVIDER>>` to `claude`, then prepend the `magpie-peer-review-claude-preamble` block from `references/peer-review.md` to each batch's substituted prompt (the preamble forces genuine independence, since the reviewer shares a model family with the primary reviewers). Dispatch one subagent (Agent tool, `general-purpose`) per batch whose entire task is that combined prompt, and instruct it to return only the fenced `review-peer-review` JSON block. Write each output to `$RUN_DIR/peer-<k>.out`, extract each `review-peer-review` block, merge into `$RUN_DIR/peer.json` after the last batch as above, and append `{stage: peer-review, status: done, provider: claude}` (`provider: mixed` if codex handled some batches).
 
-**Apply the verdicts (both paths).** Parse the merged verdicts and apply the `update` / `add` entries (an empty array means no change). Mint each `add`'s `id` as above before merging, since the peer contract does not carry ids. Then write `findings.final.json`. Re-render progress.
+**Apply the verdicts (both paths).** Parse the merged verdicts and apply the `update` / `add` entries (an empty array means no change). A peer `fields.severity` (or `finding.severity` on an `add`) is ignored: severity is derived from `risk.impact`, so a severity change only takes effect through `risk`. Mint each `add`'s `id` as above before merging, since the peer contract does not carry ids. Then write `findings.final.json`. Re-render progress.
 
 ### 8. Report
 
 ```
 magpie render "$RUN_DIR" findings
 ```
+
+The report shows the top 10 recommended (`must-fix`/`should-fix`, highest score first) and folds the rest; `--top <n>` changes the count.
 
 Append `{stage: report, status: done}` to `$RUN_DIR/log.jsonl` and re-render progress (the render CLI does not log this itself, and `magpie status` needs the `done` entry to resume past `report`).
 
@@ -205,9 +218,9 @@ End the turn.
 
 ### 9. Post
 
-Most users tick the checkboxes in the served report and click **Post Selected** (or **Post Recommended**, which takes every `must-fix`/`should-fix` finding and skips the `consider`/`optional` ones); the server posts that batch as one GitHub review with inline threads. The agent posts only when the user types `post` (optionally `post 1,3,7` for indices), which takes the CLI path below: separate inline comments plus a top-level summary comment. Either path records posted ids in `post-status.json`, so the two cannot double-post the same finding.
+Most users tick the checkboxes in the served report and click **Post Selected** (or **Post Recommended**, which takes only the top N recommended findings above the fold; **Select recommended** ticks the same set); the server posts that batch as one GitHub review with inline threads. **Dismiss** on a finding records a reason (`wrong`, `not-worth-it`, `duplicate`, `style`) and drops it from the recommended set. The agent posts only when the user types `post` (optionally `post 1,3,7` for indices), which takes the CLI path below: separate inline comments plus a top-level summary comment. Either path records posted ids in `post-status.json`, so the two cannot double-post the same finding.
 
-When the user types `post`, read `$RUN_DIR/state/events` and fold them in order, keeping the LAST event per finding id; ids whose last event is `select` are selected. (Not union-minus: the UI emits one event per toggle, so select, deselect, select again resolves to selected.) Merge any explicit indices the user named (1-based, against `findings.final.json` in file order). If nothing is selected, say so and ask rather than posting an empty batch. Then post via the CLI:
+When the user types `post`, read `$RUN_DIR/state/events` and fold them in order, keeping the LAST event per finding id; ids whose last event is `select` are selected (a later `dismiss` therefore unselects). (Not union-minus: the UI emits one event per toggle, so select, deselect, select again resolves to selected.) Merge any explicit indices the user named (1-based, against `findings.final.json` in file order). If nothing is selected, say so and ask rather than posting an empty batch. Then post via the CLI:
 
 ```
 magpie post "$RUN_DIR" --ids id1,id2,id3
@@ -232,7 +245,7 @@ magpie render "$RUN_DIR" findings
 magpie cleanup "$RUN_DIR" --repo "$REPO"
 ```
 
-The run directory is renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed. The CLI prints two lines on success: `archived to <path>` and `view later: magpie open <archived-id>`. Surface that second line verbatim so the user has a one-command path back to the report.
+Cleanup first writes `labels.json` (each final finding posted, dismissed or ignored, with the post route or dismiss reason; `magpie labels "$RUN_DIR"` writes it on demand). The run directory is then renamed to `<run-dir>.archived-<timestamp>` and the worktree is removed. The CLI prints two lines on success: `archived to <path>` and `view later: magpie open <archived-id>`. Surface that second line verbatim so the user has a one-command path back to the report.
 
 The archived `findings.html` is self-contained and auto-switches to read-only "archived" mode when opened, so:
 

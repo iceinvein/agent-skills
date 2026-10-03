@@ -120,7 +120,8 @@ cat > "$RUN_DIR/log.jsonl" <<'LOG'
 {"stage":"context","status":"done"}
 {"stage":"specialists","status":"done"}
 {"stage":"dedupe","status":"done"}
-{"stage":"critic","status":"done"}
+{"stage":"critic","status":"running"}
+{"stage":"critic","status":"done","kept":4,"dropped":0,"merged":0,"capped":0}
 {"stage":"peer-review","status":"done","provider":"claude"}
 LOG
 
@@ -202,6 +203,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "security-1",
     "file": "src/settings/cache.ts",
     "line": 4,
+    "evidence": "store.set(tenantId, settings)",
     "severity": "high",
     "risk": { "impact": "high", "likelihood": "likely", "confidence": "high", "action": "must-fix" },
     "domain": "security",
@@ -212,6 +214,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "bugs-1",
     "file": "src/settings/loader.ts",
     "line": 12,
+    "evidence": "const fresh = await fetchSettings(tenantId)",
     "severity": "medium",
     "risk": { "impact": "medium", "likelihood": "possible", "confidence": "medium", "action": "should-fix" },
     "domain": "bugs",
@@ -222,6 +225,7 @@ cat > "$RUN_DIR/findings.final.json" <<'JSON'
     "id": "perf-1",
     "file": "src/settings/cache.ts",
     "line": 12,
+    "evidence": "store.clear()",
     "severity": "low",
     "risk": { "impact": "low", "likelihood": "possible", "confidence": "medium", "action": "consider" },
     "domain": "performance",

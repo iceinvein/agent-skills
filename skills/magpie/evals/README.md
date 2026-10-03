@@ -80,6 +80,18 @@ file is what most of the graders read: "posted exactly these ids", "never ran
 invoked, and the call log answers them without depending on how the reply is
 worded.
 
+Cases that start past stage 6 hand the agent what the subagent critic would
+have left. `codex-missing-falls-back` writes the whole chain: specialist files
+with an `evidence` snippet per finding and no `severity`, `findings.deduped.json`
+with severity derived from `risk.impact`, `threshold-dropped.json`,
+`merge-candidates.json`, `critic.json` with one verdict per candidate,
+`critic-dropped.json`, and the `findings.kept.json` that `magpie critic-apply`
+produces from them. The log carries the critic `done` entry with the counts
+critic-apply writes. Running the real `magpie dedupe` and `critic-apply` over
+that run directory reproduces the fixture's files, which is the check to repeat
+after changing either. The report and post cases start from
+`findings.final.json` and only need the same log entry and the evidence field.
+
 `fixture.sh` is duplicated across the cases rather than shared, because
 `context.scaffold_script` reads only from the case's own directory.
 

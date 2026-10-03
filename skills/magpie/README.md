@@ -4,7 +4,7 @@ Interactive Claude Code skill that runs a multi-stage PR review pipeline inside 
 
 ## What it does
 
-Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), dedupes their findings, applies a critic rubric, peer-reviews via `codex exec` (falling back to a Claude second-opinion subagent when codex is unavailable), serves an interactive HTML report, and posts the findings the user selects via `gh`.
+Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), each quoting an evidence snippet for every anchored finding. Dedupe drops findings whose snippet is not in the file and groups nearby findings from different domains as merge candidates. Critic subagents then re-check each surviving finding against the worktree, keep, drop or merge it, and set its risk label, from which the severity is derived. Peer review runs via `codex exec` (falling back to a Claude second-opinion subagent when codex is unavailable). The interactive HTML report puts the top recommended findings first, lets the user dismiss findings with a reason, and posts the ones they select via `gh`; cleanup records what was posted, dismissed or ignored in `labels.json`.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 ## Layout
 
 - `SKILL.md` is the agent-facing prompt: the stage walkthrough and nothing else. Installed by the agent-skills CLI.
-- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract), `specialists.md` (stage 4, the five focus blocks plus the shared output contract), `critic.md` (stage 6), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
+- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract, including the repository review rules), `specialists.md` (stage 4, the five focus blocks plus the shared output contract), `critic.md` (stage 6, the critic subagent prompt `magpie critic-prompt` fills), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
 - `skill.json` is the agent-skills manifest.
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).
@@ -66,4 +66,4 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 
 ## Run directory layout
 
-Each invocation creates `~/.magpie/pr-<n>-<ts>/` with `pr.json`, `diff.patch`, `findings/`, `findings.deduped.json`, `findings.kept.json`, `findings.final.json`, `screen/`, `state/`, `log.jsonl`. On completion the directory is renamed to `<run-dir>.archived-<timestamp>` rather than deleted, so logs survive for postmortem.
+Each invocation creates `~/.magpie/pr-<n>-<ts>/` with `pr.json`, `diff.patch`, `findings/`, `findings.deduped.json`, `merge-candidates.json`, `critic-prompt.md` and `critic.json` (numbered per batch when there is more than one), `findings.kept.json`, `critic-dropped.json`, `findings.final.json`, `labels.json`, `screen/`, `state/`, `log.jsonl`. On completion the directory is renamed to `<run-dir>.archived-<timestamp>` rather than deleted, so logs survive for postmortem.

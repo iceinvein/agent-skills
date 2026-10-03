@@ -57,10 +57,15 @@ Watch items:
 Open questions the scout could not resolve:
 - <each entry of unclear>      (omit this heading when unclear is empty)
 
+Repository review rules:
+- <rule> (<source>)            (one line per entry of reviewRules; omit this heading when reviewRules is empty)
+
 This brief is the author's claim as understood by a reader who has not reviewed the
 code. It is not ground truth. Where the diff contradicts it, that is a finding in
 your domain, not a correction to the brief. A watch item is a pointer, not a verdict:
-escalate it into a finding with your own risk fields, or leave it alone.
+escalate it into a finding with your own risk fields, or leave it alone. A repository
+review rule is a convention the maintainers wrote down: a change that breaks one is a
+finding in your domain when the rule bears on it, citing the rule's source.
 ```
 
 Replace every `<RUN_DIR>` and `<PR_NUMBER>` with the real values before sending: the
@@ -84,7 +89,7 @@ top-level keys, no renamed keys):
   "id": string,                      // e.g. "<focus>-1", "<focus>-2"; unique per focus
   "file": string,                    // path relative to worktree
   "line": number | null,             // single integer; use null if not anchorable. NOT "lines", NOT a range string
-  "severity": "blocker" | "high" | "medium" | "low",
+  "evidence": string,                // REQUIRED when line is a number: 1-3 consecutive lines copied verbatim from the file at line (see below)
   "risk": {                          // OBJECT, not a flat string
     "impact":     "critical" | "high" | "medium" | "low",
     "likelihood": "likely" | "possible" | "edge-case" | "unknown",
@@ -104,14 +109,16 @@ top-level keys, no renamed keys):
 
 **Enum values are exact strings, not free-form prose.** Every value above between `"..."` and `|` markers is a literal token. Copy them verbatim. Specifically:
 
-- `severity`, `risk.impact`, `risk.confidence` use category names (e.g. `high`, `low`), not sentences.
+- `risk.impact`, `risk.confidence` use category names (e.g. `high`, `low`), not sentences.
 - `risk.likelihood` describes frequency, not impact. Valid values are exactly `likely`, `possible`, `edge-case`, `unknown`. NEVER use `high`/`medium`/`low` here (those are likelihood-as-impact and will be auto-corrected, but pick the right axis).
 - `risk.action` is the disposition tag, not the recommendation text. Valid values are exactly `must-fix`, `should-fix`, `consider`, `optional`. The recommendation prose belongs in `description` under `Suggested direction:`, never in `risk.action`.
-- Keep `severity` coherent with `risk`. `severity` is the headline label: use `blocker`/`high` only with `risk.impact` of `critical`/`high` and `risk.action` of `must-fix`/`should-fix`. A `low` severity paired with `must-fix`, or a `blocker` paired with `optional`, is contradictory. The 0-10 score that gates the drop threshold is derived from `risk`, not from `severity`, so an inflated `severity` on a weak `risk` is still dropped. Set `risk` accurately rather than leaning on `severity`.
+- Do not write a `severity`. The headline label is derived from `risk.impact`, and the 0-10 score that gates the drop threshold is derived from `risk` as a whole, so `risk` is the only place your judgement of how bad a finding is goes. Set it accurately.
+
+**`evidence` rules.** When `line` is a number, `evidence` MUST be 1 to 3 consecutive lines copied verbatim from the file at `line` (the new side, as the worktree holds it), starting at or within a few lines of `line`. `magpie dedupe` looks the snippet up in the worktree: a finding with no `evidence`, or whose snippet is not in the file, is dropped before anyone reads it. Copy from the file, not from memory or from the diff's `+` prefixes; whitespace differences are tolerated, other differences are not. Omit `evidence` only when `line` is `null`.
 
 Bad (will be silently coerced, do not rely on this):
 ```
-"risk": { "impact": "blocker", "likelihood": "high", "confidence": "very high", "action": "Fix this immediately before merging." }
+"risk": { "impact": "show-stopper", "likelihood": "high", "confidence": "very high", "action": "Fix this immediately before merging." }
 ```
 
 Good:
@@ -124,7 +131,7 @@ Good:
 - `Observation: <one idea, what the diff actually does and where>`
 - `Why it matters: <impact at realistic scale or on a real user path>`
 - `Suggested direction: <one concrete next step, optional if the fix isn't obvious>`
-- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium severity only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `severity` to compensate for what you couldn't verify (a blocker/high you cannot stand behind is not a blocker/high). Use the exact `Needs verification:` prefix, not inline phrasing. When reading the worktree could answer the question, look before you hedge. A question you resolved is not a `Needs verification:` paragraph, it is evidence: cite the file:line you found under `Observation:` and omit the paragraph entirely.
+- `Needs verification: <what you couldn't confirm from the bundle, optional, low/medium impact only>` This labelled paragraph is the only channel for uncertainty: never hedge inside another section, and never raise `risk.impact` to compensate for what you couldn't verify (a critical/high impact you cannot stand behind is not critical/high). Use the exact `Needs verification:` prefix, not inline phrasing. When reading the worktree could answer the question, look before you hedge. A question you resolved is not a `Needs verification:` paragraph, it is evidence: cite the file:line you found under `Observation:` and omit the paragraph entirely.
 
 One idea per paragraph. Do not collapse them into a single wall of text. Do not invent extra labels. If a section doesn't apply, omit it. The interactive report and the GitHub comment both parse these labels and render them as section headers, so missing labels degrade the output.
 
@@ -135,7 +142,7 @@ One idea per paragraph. Do not collapse them into a single wall of text. Do not 
 - If you cannot produce an exact, copy-pasteable replacement (you don't know the surrounding code, the fix spans multiple files, or the change is conceptual), OMIT the `suggestion` key entirely. A prose `Suggested direction:` in `description` is the right channel for that.
 - Wrapping the code in a `` ``` `` fence inside `body` is tolerated (the poster hoists the inner code out), but bare code is preferred.
 
-If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<blocker>/<high>/<medium>/<low>)`. Do not include other prose.
+If you have no findings, write []. Return as your final tool result a single line: `<focus>: <N> findings (<critical>/<high>/<medium>/<low> by risk.impact)`. Do not include other prose.
 
 ## Focus blocks
 
@@ -192,13 +199,13 @@ For each potential finding:
 4. Evaluate impact: what's the blast radius if exploited?
 5. Confirm the flow from the entry point to the sink before reporting, by following the value through the worktree. A taint path you asserted but did not trace is a guess.
 
-**Risk guide:**
-- blocker: Realistic path to remote code execution, auth bypass, data breach, or privilege escalation
+**Risk guide (`risk.impact`):**
+- critical: Realistic path to remote code execution, auth bypass, data breach, or privilege escalation
 - high: Exploitable vulnerability or secrets exposure that should be fixed before merge
 - medium: Defense-in-depth concern or validation gap with limited or uncertain exploitability
 - low: Minor hardening opportunity with low impact
 
-Report only credible concerns grounded in code shown. If a concern depends on context you can't see, surface it in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating severity to compensate. Do not invent vulnerabilities without evidence.
+Report only credible concerns grounded in code shown. If a concern depends on context you can't see, surface it in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating `risk.impact` to compensate. Do not invent vulnerabilities without evidence.
 
 Boundary with Architecture: report missing input validation here when it enables an attack (injection, path traversal, SSRF, auth bypass). Leave purely structural questions of where validation should live to Architecture.
 
@@ -257,13 +264,13 @@ For each potential bug:
 
 Question 4 is answerable: searching the worktree for the changed symbol's callers shows where the guard would have to live. Check before you file.
 
-**Risk guide:**
-- blocker: Data loss, data corruption, broken auth/session behavior, or consistently crashing a major workflow
+**Risk guide (`risk.impact`):**
+- critical: Data loss, data corruption, broken auth/session behavior, or consistently crashing a major workflow
 - high: Reachable incorrect behavior, race, resource leak, or crash in a meaningful workflow
 - medium: Edge-case bug or missing guard with limited blast radius
 - low: Very small correctness cleanup with low user impact
 
-Prioritize bugs that cause silent wrong behavior over those that crash (crashes are at least visible). When you can't determine reachability from the diff alone, say so in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating severity.
+Prioritize bugs that cause silent wrong behavior over those that crash (crashes are at least visible). When you can't determine reachability from the diff alone, say so in a `Needs verification:` paragraph (see the orchestrator's Output Contract) rather than inflating `risk.impact`.
 
 Boundary with Performance: report leaks, unbounded growth, and missing cleanup here only when the primary consequence is incorrect behavior, a crash, or resource exhaustion that breaks a workflow. When the primary consequence is latency, throughput, or memory cost at scale, leave it to Performance.
 
@@ -317,8 +324,8 @@ For each potential issue:
 4. Is the optimization worth the complexity cost?
 5. Establish the call frequency before claiming a path is hot, by finding the changed symbol's callers in the worktree. "Called from one cold init path" and "called per keystroke" are different findings.
 
-**Risk guide:**
-- blocker: Change can make a major workflow unusable or cause unbounded production resource exhaustion
+**Risk guide (`risk.impact`):**
+- critical: Change can make a major workflow unusable or cause unbounded production resource exhaustion
 - high: Realistic scale causes visible latency, memory growth, redundant network/database load, or render jank
 - medium: Likely worthwhile performance improvement on a warm path
 - low: Tiny cleanup only when it removes clear waste without added complexity
@@ -378,14 +385,18 @@ For each potential smell:
 3. Suggest the smallest refactor that fits the surrounding codebase patterns.
 4. Weigh the cost: do not ask for a new abstraction unless it reduces real duplication, coupling, or reasoning burden now.
 5. Before claiming the PR duplicates something or should reuse an existing helper, find it in the worktree. Name the file:line of the thing it should have reused, or do not make the claim.
+6. Duplication is a finding only at three or more copies, or at two copies that already disagree with each other. Name every copy by file:line in `Observation:`. Two copies that still agree are not a finding.
+7. `Why it matters:` must name the specific future change that would break: "adding a fourth status means editing all three switches at file:line, file:line, file:line", not "this will be hard to maintain". If you cannot name the change, do not file the finding.
 
-**Risk guide:**
-- blocker: Smell creates a high-risk maintenance trap likely to cause defects across modules soon
+**Risk guide (`risk.impact`):**
+- critical: Smell creates a high-risk maintenance trap likely to cause defects across modules soon
 - high: Meaningful maintainability issue that should be addressed before merge
 - medium: Local refactor that would materially improve clarity or reduce future drift
 - low: Minor cleanup only when the fix is trivial and directly tied to changed code
 
 Do not flag formatting, naming, or stylistic preference unless it is evidence of a deeper maintainability problem. Avoid duplicating bug, security, or performance findings unless the primary issue is the maintainability smell behind them.
+
+Report at most 3 findings for the scope your run header names, strongest first. If you have more candidates, keep the three whose breaking change is nearest and most concrete and drop the rest.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
@@ -418,13 +429,13 @@ You are a senior software architect reviewing this pull request for design quali
 - Breaking changes to existing contracts without migration path
 
 **Extensibility & change readiness**
-- Hardcoded values that should be configurable
-- Switch/if-else chains that will grow with each new variant (should be polymorphic or data-driven)
+- Hardcoded values that should be configurable, only when the PR already carries a second value for the same setting
+- Switch/if-else chains that will grow with each new variant, only when a second variant already exists in the PR
 - Missing abstraction layers that would isolate from future changes
 - Over-engineering: abstractions for things that don't vary
 
 **Data flow & state management**
-- Unclear ownership of state (who is the source of truth?)
+- Unclear ownership of state (who is the source of truth?). Name the concrete divergence it causes: which two copies can disagree, and on what path
 - Derived state stored separately instead of computed
 - Prop drilling through many layers instead of proper state management
 - Inconsistent data flow direction (sometimes push, sometimes pull)
@@ -437,9 +448,10 @@ For each potential issue:
 3. Would a new team member understand where to make changes?
 4. Is this over-engineered for the current requirements, or appropriately future-proofed?
 5. Confirm boundary and cycle claims on the touched modules by reading their imports in the worktree. A cycle you inferred from import statements in the diff may already be broken by an interface you cannot see.
+6. `Why it matters:` must name the specific near-term change this design makes hard, with the file:line it would have to touch. A finding that only says the design is impure or less flexible is not a finding.
 
-**Risk guide:**
-- blocker: Change introduces a serious boundary violation or contract break likely to cascade across subsystems
+**Risk guide (`risk.impact`):**
+- critical: Change introduces a serious boundary violation or contract break likely to cascade across subsystems
 - high: Design issue that will make near-term feature work, integration, or migration materially harder
 - medium: Local design adjustment that clarifies ownership, contracts, or state flow
 - low: Avoid for architecture findings unless the design cleanup is nearly free
@@ -449,6 +461,8 @@ Boundary with Code Smells: focus on module boundaries, public contracts, ownersh
 Boundary with Security: flag validation gaps as design/contract issues (where validation belongs, which boundary should enforce it). Leave exploitability assessment to Security.
 
 Focus on design decisions introduced or materially worsened by this PR that affect the long-term health of the codebase. Don't flag things that are "technically impure" but work well in practice.
+
+Report at most 3 findings for the scope your run header names, strongest first. If you have more candidates, keep the three whose breaking change is nearest and most concrete and drop the rest.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```

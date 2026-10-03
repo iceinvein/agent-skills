@@ -51,8 +51,7 @@ test('references/specialists.md carries the output contract next to the blocks',
   expect(contract).toContain('## Output Contract')
   expect(contract).toMatch(/findings\/<focus>\.json/)
   expect(contract).toMatch(/Write findings to/i)
-  // Severity, impact, likelihood, confidence, action enums must all be listed.
-  expect(contract).toMatch(/"blocker".*"high".*"medium".*"low"/)
+  // Impact, likelihood, confidence, action enums must all be listed.
   expect(contract).toMatch(/"critical".*"high".*"medium".*"low"/)
   expect(contract).toMatch(/"likely".*"possible".*"edge-case".*"unknown"/)
   expect(contract).toMatch(/"must-fix".*"should-fix".*"consider".*"optional"/)
@@ -63,12 +62,52 @@ test('references/specialists.md carries the output contract next to the blocks',
   expect(contract).toMatch(/NOT "recommendation"/)
 })
 
-test('references/critic.md holds the rubric and both placeholders', async () => {
+test('the output contract asks for evidence and leaves severity to the code', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const contract = text.slice(text.indexOf('## Output Contract'), text.indexOf('## Focus blocks'))
+  // dedupe drops an anchored finding with no evidence, so the schema must ask for it.
+  expect(contract).toMatch(/"evidence":/)
+  // Severity is derived from risk.impact; a schema field for it invites a second opinion
+  // that parseFinding throws away.
+  expect(contract).not.toMatch(/"severity":/)
+  expect(contract).not.toContain('"blocker"')
+})
+
+test('the specialist brief block renders the repository review rules', async () => {
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  const preamble = text.slice(0, text.indexOf('\n## Output Contract'))
+  expect(preamble).toContain('Repository review rules:')
+  expect(preamble).toContain('- <rule> (<source>)')
+})
+
+test('references/critic.md carries every placeholder critic-prompt fills', async () => {
   const text = await readFile(ref('critic.md'), 'utf8')
-  expect(text).toContain('```magpie-critic')
-  expect(text).toContain('<<DEDUPED_FINDINGS_COMPACT>>')
-  expect(text).toContain('<<DIFF_EXCERPT>>')
-  expect(text).toContain('review-critic')
+  const block = text.match(/^(`{3,4})magpie-critic\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  expect(block.length).toBeGreaterThan(0)
+  for (const ph of [
+    '<<CANDIDATES>>',
+    '<<MERGE_CANDIDATES>>',
+    '<<REVIEW_RULES>>',
+    '<<WORKTREE>>',
+    '<<DIFF_PATH>>',
+    '<<OUTPUT_PATH>>',
+  ]) {
+    expect(block).toContain(ph)
+  }
+})
+
+test('references/critic.md asks for the verdict shape critic-apply accepts', async () => {
+  const text = await readFile(ref('critic.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-critic\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  for (const field of ['"id"', '"verdict"', '"reason"', '"mergeInto"', '"risk"', '"checked"']) {
+    expect(block).toContain(field)
+  }
+  expect(block).toMatch(/"keep".*"drop".*"merge"/)
+  expect(block).toMatch(/"impact"[\s\S]*"likelihood"[\s\S]*"confidence"[\s\S]*"action"/)
+  // The subagent writes the file itself; the old in-conversation fenced reply is gone.
+  expect(block).toMatch(/Write tool/)
+  expect(block).toContain('critic: <kept> kept, <dropped> dropped, <merged> merged')
+  expect(block).not.toContain('review-critic')
 })
 
 test('references/peer-review.md holds the prompt and the Claude preamble', async () => {
@@ -81,13 +120,23 @@ test('references/peer-review.md holds the prompt and the Claude preamble', async
   }
 })
 
+test('the peer-review compact list and examples leave severity out', async () => {
+  const text = await readFile(ref('peer-review.md'), 'utf8')
+  const jq = text.match(/jq '\[\.\[\] \| \{([^}]*)\}\]' "\$RUN_DIR\/findings\.kept\.json"/)
+  expect(jq?.[1]).toBeDefined()
+  expect(jq?.[1]).toContain('risk')
+  expect(jq?.[1]).not.toContain('severity')
+  expect(text).not.toContain('"severity":')
+})
+
 test('references/scout.md holds the scout prompt and the brief contract', async () => {
   const text = await readFile(ref('scout.md'), 'utf8')
   expect(text).toContain('```magpie-scout')
   expect(text).toContain('brief.json')
-  for (const key of ['purpose', 'changes', 'watchItems', 'unclear']) {
+  for (const key of ['purpose', 'changes', 'watchItems', 'unclear', 'reviewRules']) {
     expect(text).toContain(key)
   }
+  expect(text).toContain('brief: <N> changes, <K> watch items, <R> review rules')
   expect(text).not.toContain('"subsystems"')
   for (const ph of ['<<RUN_DIR>>', '<<PR_NUMBER>>']) {
     expect(text).toContain(ph)
@@ -358,4 +407,45 @@ test('SKILL.md documents the shard manifest and the fan-out gate', async () => {
   expect(text).toContain('diff.patch')
   // The confirmation gate above four shards is the design's only interactive stop.
   expect(text).toMatch(/more than four shards/i)
+})
+
+const skillSection = async (heading: string) => {
+  const text = await readFile(SKILL, 'utf8')
+  const start = text.indexOf(heading)
+  expect(start).toBeGreaterThan(-1)
+  const next = text.indexOf('\n### ', start + heading.length)
+  return text.slice(start, next === -1 ? undefined : next)
+}
+
+test('stage 5 names merge candidates and the evidence drop reasons', async () => {
+  const section = await skillSection('### 5. Dedupe')
+  expect(section).toContain('merge-candidates.json')
+  for (const reason of ['missing-evidence', 'evidence-not-found']) {
+    expect(section).toContain(reason)
+  }
+})
+
+test('stage 6 runs the critic through critic-prompt and critic-apply subagents', async () => {
+  const section = await skillSection('### 6. Critic')
+  expect(section).toContain('magpie critic-prompt "$RUN_DIR"')
+  expect(section).toContain('magpie critic-apply "$RUN_DIR"')
+  expect(section).toContain('general-purpose')
+  // critic-apply logs its own done entry; a second one from the agent double-counts.
+  expect(section).not.toMatch(/\{stage: critic, status: done\}/)
+  // The in-conversation rubric and its batching paragraph are gone.
+  expect(section).not.toContain('<<DIFF_EXCERPT>>')
+  expect(section).not.toMatch(/more than 40/i)
+})
+
+test('stage 7 says a peer severity is ignored', async () => {
+  const section = await skillSection('### 7. Peer review')
+  expect(section).toMatch(/fields\.severity[^\n]*ignored/)
+})
+
+test('stages 8 to 10 name the top-N fold, Dismiss, and labels.json', async () => {
+  expect(await skillSection('### 8. Report')).toContain('--top')
+  const post = await skillSection('### 9. Post')
+  expect(post).toContain('Dismiss')
+  expect(post).toMatch(/Post Recommended[^\n]*top/)
+  expect(await skillSection('### 10. Cleanup')).toContain('labels.json')
 })
