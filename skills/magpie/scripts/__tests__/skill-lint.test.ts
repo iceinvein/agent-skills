@@ -110,6 +110,28 @@ test('references/critic.md asks for the verdict shape critic-apply accepts', asy
   expect(block).not.toContain('review-critic')
 })
 
+test('references/critic.md drops only refuted findings and downgrades low-value ones', async () => {
+  // Replays showed the critic deleting true findings it judged minor, which the
+  // reviewer then wanted. Value calls belong in the label, where the report's
+  // ranking and fold can act on them, not in a drop the reviewer never sees.
+  const text = await readFile(ref('critic.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-critic\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  const section = (heading: string) => {
+    const start = block.indexOf(heading)
+    expect(start).toBeGreaterThan(-1)
+    const next = block.indexOf('\n## ', start + heading.length)
+    return block.slice(start, next === -1 ? undefined : next)
+  }
+  const drop = section('## When to drop')
+  const downgrade = section('## When to keep and downgrade')
+  for (const valueCall of ['micro-optimization', 'stylistic preference', 'breaking change']) {
+    expect(drop).not.toContain(valueCall)
+    expect(downgrade).toContain(valueCall)
+  }
+  expect(downgrade).toMatch(/"consider"[\s\S]*"optional"|"optional"[\s\S]*"consider"/)
+  expect(block).not.toContain('When in doubt,\ndrop')
+})
+
 test('references/peer-review.md holds the prompt and the Claude preamble', async () => {
   const text = await readFile(ref('peer-review.md'), 'utf8')
   expect(text).toContain('```magpie-peer-review')

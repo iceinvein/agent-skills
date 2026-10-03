@@ -91,4 +91,11 @@ Task status lives in `.sluice/run.json`, not here.
 - Partner chose no design cap by default after the pr-70 comparison. critic-apply takes
   `designCap: number | null` (null means no cap), the CLI default is null, and the critic prompt
   no longer mentions a count. The spec carries a dated revision note.
+- pr-54 replay with no cap: kept 4 (was 13), precision 0.75 (was 0.77), recall 0.30, $0.69.
+  It dropped 7 posted findings, every one on a value call (micro-optimization, documented
+  trade-off, design preference) rather than a refutation. The partner chose a rubric split: drop
+  only what the code refutes, and keep-and-downgrade (consider/optional, lower impact) for true but
+  minor findings, so the report's ranking and suggestions fold handle them. "When in doubt, drop"
+  became "downgrade". pr-54 labels are weak positives: 10 of 13 posted, probably partly through
+  Post Recommended.
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.
