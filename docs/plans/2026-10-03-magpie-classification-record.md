@@ -98,4 +98,30 @@ Task status lives in `.sluice/run.json`, not here.
   minor findings, so the report's ranking and suggestions fold handle them. "When in doubt, drop"
   became "downgrade". pr-54 labels are weak positives: 10 of 13 posted, probably partly through
   Post Recommended.
+- Hand labels (partner labelled all 63 deduped candidates of pr-70 and pr-54 with notes: 18 post,
+  17 optional, 16 skip, 12 wrong). Saved outside the repo at the session scratchpad
+  `magpie-hand-labels.json` (holds client code text).
+  - Original critic: actionable precision 14/22 = 0.64, post recall in actionable 14/18 = 0.78.
+  - Refute-only rubric (4ce088f): actionable precision 6/9 = 0.67, post recall 6/18 = 0.33.
+  - Rubric drops and merges are good: all 10 setup `tests-*` findings dropped (all labelled
+    wrong), and 5 of 5 merges match the partner's "duplicate" skips.
+  - Rubric labels are miscalibrated: 9 posted findings were labelled consider/optional, including
+    security-s4-1, security-1 and bugs-5 (confirmed defects set to consider).
+  - 3 posted findings wrongly dropped:
+    - architecture-s5-3: a pre-existing instance of the edge was treated as a refutation.
+    - architecture-s5-4: the claim was judged against branch state instead of base.
+    - code-smells-s4-7: a test-scoping defect was dismissed as "test-file maintainability".
+  - The setup tests check is wrong on Rust: it counts test/spec filenames only and misses inline
+    `#[test]` modules, which produced 10 of the 12 wrong labels.
+- After the hand labels:
+  - ea0bbc2: the missing-tests check counts added inline tests (Rust `#[test]`,
+    `#[cfg(test)]`, `#[tokio::test]`, vitest in-source blocks). On the real diffs it now emits 0
+    findings for pr-54 (was 10) and 0 for pr-70.
+  - Critic prompt: confirmed defects get "should-fix" at least whatever their impact; downgrades
+    only for a listed reason; "when unsure, downgrade" removed.
+  - Critic drop list: a pre-existing instance is not a refutation; claims about what the PR adds are
+    checked against the base revision; a test defect that changes what the test checks is a
+    correctness finding; attacker-controlled input is not an unlikely precondition.
+  - Replays still feed the critic the corpus's old deduped candidates, including the stale
+    `tests-*` findings.
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.

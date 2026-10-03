@@ -64,8 +64,21 @@ Drop a candidate only when the code refutes it, and say how in `reason`:
 - It belongs to a category the repository's linter already enforces (formatting,
   unused imports, naming rules).
 - It is on a test file or a generated or vendored file and does not affect test
-  correctness.
+  correctness. A test defect that changes what the test checks (wrong scope, an
+  assertion that can no longer fail, cleanup that leaks into other tests) is a
+  correctness finding, not maintainability: judge it like any other defect.
 - It asks for something a repository review rule below forbids.
+
+None of these is a refutation, so none is a reason to drop:
+- The same mistake already exists elsewhere in the codebase. A pre-existing instance
+  does not make the new one fine; it may make the finding stronger.
+- The current branch already contains the thing the finding questions. When a claim
+  is about what this PR adds (a repair for data that only this branch creates, a
+  dependency edge, a behaviour change), check it against the base revision: read the
+  diff, and treat only lines with a `-` prefix or outside the hunks as what existed
+  before.
+- It is "only" a test, a comment or a doc, when it is wrong in a way a reader will act
+  on.
 
 ## When to keep and downgrade
 
@@ -84,12 +97,11 @@ about. Downgrade rather than drop when:
 - It is a duplication finding below the bar of 3 or more copies, or 2 copies that
   already disagree.
 - It needs unlikely preconditions, or is defense-in-depth on code you confirmed is
-  guarded elsewhere.
+  guarded elsewhere. Input an attacker or an ordinary page controls (a title, a
+  request body, a file name) is not an unlikely precondition.
 
-Keep a candidate at full weight when you confirmed a concrete defect or risk in the
-code, specific enough that a reviewer could act on it without re-reading the whole PR.
-When you are unsure whether a confirmed finding matters, downgrade it; drop only what
-the code refutes.
+Downgrade only for a reason on this list, and name it in `reason`. Everything else you
+keep is at full weight. Drop only what the code refutes.
 
 ## Repository review rules
 
@@ -125,6 +137,13 @@ candidate. The headline severity shown to the reviewer is derived from your
 - `confidence`: "high" | "medium" | "low". How sure you are, given what you read.
 - `action`: "must-fix" | "should-fix" | "consider" | "optional". What the reviewer
   should do about it.
+
+A confirmed defect in behaviour, security, data integrity or performance on a real
+path is "should-fix" at least, whatever its `impact`: a low-impact bug is still a bug
+the author should fix, and `impact` already ranks it below the severe ones. Use
+"must-fix" when it breaks a main workflow, loses or corrupts data, or opens a security
+hole. Reserve "consider" and "optional" for the downgrade reasons above. "True, but"
+followed by no reason from that list means "should-fix".
 
 ## Output contract
 

@@ -132,6 +132,26 @@ test('references/critic.md drops only refuted findings and downgrades low-value 
   expect(block).not.toContain('When in doubt,\ndrop')
 })
 
+test('references/critic.md keeps confirmed defects actionable and names what is not a refutation', async () => {
+  // Hand labels showed the critic setting confirmed security and correctness
+  // defects to "consider", and dropping findings on a pre-existing instance of
+  // the same mistake or on the branch's state instead of the base revision.
+  const text = await readFile(ref('critic.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-critic\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  const section = (heading: string) => {
+    const start = block.indexOf(heading)
+    expect(start).toBeGreaterThan(-1)
+    const next = block.indexOf('\n## ', start + heading.length)
+    return block.slice(start, next === -1 ? undefined : next)
+  }
+  expect(block).not.toMatch(/unsure[^.]*downgrade/i)
+  expect(section('## Risk on keep')).toMatch(/confirmed defect[\s\S]*"should-fix"/)
+  const drop = section('## When to drop')
+  expect(drop).toMatch(/base revision/)
+  expect(drop).toMatch(/already exists elsewhere/)
+  expect(drop).toMatch(/what the test checks/)
+})
+
 test('references/peer-review.md holds the prompt and the Claude preamble', async () => {
   const text = await readFile(ref('peer-review.md'), 'utf8')
   expect(text).toContain('```magpie-peer-review')
