@@ -15,6 +15,7 @@ import {
   readFindings,
   resolveCorpusRoot,
 } from './corpus.ts'
+import { claudeFailureMessage, worktreeRemoveCommand } from './replay-critic.ts'
 import {
   formatRatio,
   parseClaudeResult,
@@ -30,7 +31,7 @@ const DEFAULT_MAX_COST_USD = 10
 
 async function exec(
   cmd: string[],
-  options: { cwd?: string; stdinText?: string } = {},
+  options: { cwd?: string; stdinText?: string; claudeLabel?: string } = {},
 ): Promise<string> {
   const proc = Bun.spawn(cmd, {
     cwd: options.cwd,
@@ -43,7 +44,13 @@ async function exec(
     new Response(proc.stderr).text(),
     proc.exited,
   ])
-  if (exit !== 0) throw new Error(`${cmd.slice(0, 3).join(' ')} exit ${exit}: ${stderr.trim()}`)
+  if (exit !== 0) {
+    throw new Error(
+      options.claudeLabel === undefined
+        ? `${cmd.slice(0, 3).join(' ')} exit ${exit}: ${stderr.trim()}`
+        : claudeFailureMessage(options.claudeLabel, exit, stdout, stderr),
+    )
+  }
   return stdout
 }
 
@@ -85,8 +92,10 @@ async function main(argv: string[]): Promise<number> {
 
   const scratch = await mkdtemp(join(tmpdir(), 'magpie-replay-full-'))
   const worktree = join(scratch, 'worktree')
+  let worktreeCreated = false
   try {
     await exec(['git', '-C', flags.repo, 'worktree', 'add', '--detach', worktree, sha])
+    worktreeCreated = true
     await copyCorpusFiles(run, scratch, ['pr.json', 'diff.patch'])
     if (!(await Bun.file(join(scratch, 'diff.patch')).exists())) {
       throw new Error(`${run.dir} has no diff.patch to review`)
@@ -123,7 +132,7 @@ async function main(argv: string[]): Promise<number> {
         '--add-dir',
         SKILL_DIR,
       ],
-      { cwd: worktree, stdinText: resumePrompt(scratch, prNumber) },
+      { cwd: worktree, stdinText: resumePrompt(scratch, prNumber), claudeLabel: 'full replay' },
     )
     const { costUsd } = parseClaudeResult(stdout, 'full replay')
 
@@ -157,12 +166,13 @@ async function main(argv: string[]): Promise<number> {
     return 0
   } finally {
     // A failed removal must not mask the error that got us here, but it must be seen.
-    await exec(['git', '-C', flags.repo, 'worktree', 'remove', '--force', worktree]).catch(
-      (err) => {
+    const removeCommand = worktreeRemoveCommand(flags.repo, worktree, worktreeCreated)
+    if (removeCommand) {
+      await exec(removeCommand).catch((err) => {
         process.stderr.write(`replay-full: worktree removal failed: ${err.message}\n`)
         process.exitCode = 1
-      },
-    )
+      })
+    }
     await rm(scratch, { recursive: true, force: true })
   }
 }

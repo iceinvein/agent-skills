@@ -6,6 +6,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { Subprocess } from 'bun'
 import { originalSelection } from './baseline.ts'
 import {
   copyCorpusFiles,
@@ -24,9 +25,47 @@ import {
 
 const MAGPIE_BIN = new URL('../../bin/magpie.ts', import.meta.url).pathname
 
+/**
+ * A non-zero `claude -p` exit often says why only in its JSON result on
+ * stdout (budget, turns), so stderr alone hides the cause.
+ */
+export function claudeFailureMessage(
+  label: string,
+  exit: number,
+  stdout: string,
+  stderr: string,
+): string {
+  let detail = `stdout: ${stdout.trim()}`
+  try {
+    const parsed: unknown = JSON.parse(stdout)
+    if (parsed && typeof parsed === 'object') {
+      const result = parsed as Record<string, unknown>
+      detail = `is_error ${String(result.is_error)}, subtype ${String(result.subtype)}`
+    }
+  } catch {
+    // Not JSON, so the raw stdout is the best account of the failure.
+  }
+  return `${label}: claude -p exit ${exit}; ${detail}; stderr: ${stderr.trim()}`
+}
+
+// Removing a worktree that `worktree add` never created fails and its error
+// would bury the one that stopped the run.
+export function worktreeRemoveCommand(
+  repo: string,
+  worktree: string,
+  created: boolean,
+): string[] | null {
+  return created ? ['git', '-C', repo, 'worktree', 'remove', '--force', worktree] : null
+}
+
 async function exec(
   cmd: string[],
-  options: { cwd?: string; stdinPath?: string } = {},
+  options: {
+    cwd?: string
+    stdinPath?: string
+    claudeLabel?: string
+    inFlight?: Set<Subprocess>
+  } = {},
 ): Promise<string> {
   const proc = Bun.spawn(cmd, {
     cwd: options.cwd,
@@ -34,12 +73,20 @@ async function exec(
     stdout: 'pipe',
     stderr: 'pipe',
   })
+  options.inFlight?.add(proc)
   const [stdout, stderr, exit] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ])
-  if (exit !== 0) throw new Error(`${cmd.slice(0, 3).join(' ')} exit ${exit}: ${stderr.trim()}`)
+  options.inFlight?.delete(proc)
+  if (exit !== 0) {
+    throw new Error(
+      options.claudeLabel === undefined
+        ? `${cmd.slice(0, 3).join(' ')} exit ${exit}: ${stderr.trim()}`
+        : claudeFailureMessage(options.claudeLabel, exit, stdout, stderr),
+    )
+  }
   return stdout
 }
 
@@ -61,8 +108,10 @@ async function main(argv: string[]): Promise<number> {
 
   const scratch = await mkdtemp(join(tmpdir(), 'magpie-replay-critic-'))
   const worktree = join(scratch, 'worktree')
+  let worktreeCreated = false
   try {
     await exec(['git', '-C', flags.repo, 'worktree', 'add', '--detach', worktree, sha])
+    worktreeCreated = true
     await copyCorpusFiles(run, scratch, [
       'pr.json',
       'diff.patch',
@@ -80,29 +129,40 @@ async function main(argv: string[]): Promise<number> {
         return { promptPath, outputPath }
       })
 
-    const costs = await Promise.all(
-      batches.map(async (b, i) => {
-        const label = `critic batch ${i + 1}`
-        const stdout = await exec(
-          [
-            'claude',
-            '-p',
-            '--allowedTools',
-            'Read,Grep,Glob,Write',
-            '--output-format',
-            'json',
-            '--add-dir',
-            scratch,
-          ],
-          { cwd: worktree, stdinPath: b.promptPath },
-        )
-        const { costUsd } = parseClaudeResult(stdout, label)
-        if (!(await Bun.file(b.outputPath).exists())) {
-          throw new Error(`${label} finished without writing ${b.outputPath}`)
-        }
-        return costUsd
-      }),
-    )
+    // One failed batch fails the replay, so the others are killed rather than
+    // left spending money and writing into a worktree about to be removed.
+    const inFlight = new Set<Subprocess>()
+    let costs: Array<number | null>
+    try {
+      costs = await Promise.all(
+        batches.map(async (b, i) => {
+          const label = `critic batch ${i + 1}`
+          const stdout = await exec(
+            [
+              'claude',
+              '-p',
+              '--allowedTools',
+              'Read,Grep,Glob,Write',
+              '--output-format',
+              'json',
+              '--add-dir',
+              scratch,
+            ],
+            { cwd: worktree, stdinPath: b.promptPath, claudeLabel: label, inFlight },
+          )
+          const { costUsd } = parseClaudeResult(stdout, label)
+          if (!(await Bun.file(b.outputPath).exists())) {
+            throw new Error(`${label} finished without writing ${b.outputPath}`)
+          }
+          return costUsd
+        }),
+      )
+    } catch (err) {
+      const children = [...inFlight]
+      for (const child of children) child.kill()
+      await Promise.all(children.map((child) => child.exited))
+      throw err
+    }
 
     await exec(['bun', MAGPIE_BIN, 'critic-apply', scratch])
     const kept = await readFindings(join(scratch, 'findings.kept.json'))
@@ -139,12 +199,13 @@ async function main(argv: string[]): Promise<number> {
     return 0
   } finally {
     // A failed removal must not mask the error that got us here, but it must be seen.
-    await exec(['git', '-C', flags.repo, 'worktree', 'remove', '--force', worktree]).catch(
-      (err) => {
+    const removeCommand = worktreeRemoveCommand(flags.repo, worktree, worktreeCreated)
+    if (removeCommand) {
+      await exec(removeCommand).catch((err) => {
         process.stderr.write(`replay-critic: worktree removal failed: ${err.message}\n`)
         process.exitCode = 1
-      },
-    )
+      })
+    }
     await rm(scratch, { recursive: true, force: true })
   }
 }
