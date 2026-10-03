@@ -1,6 +1,6 @@
 import { diceCoefficient, tokenize } from '../../scripts/dedupe.ts'
 import type { FindingLabel } from '../../scripts/labels.ts'
-import type { ReviewFinding } from '../../scripts/types.ts'
+import { isSuggestion, type ReviewFinding } from '../../scripts/types.ts'
 
 export const MATCH_LINE_RADIUS = 5
 export const MATCH_MIN_DICE = 0.4
@@ -104,6 +104,15 @@ export function explainPostedDrops(input: {
       if (target !== undefined) return { id: l.id, reason: `merged into ${target}` }
       throw new Error(`posted candidate ${l.id} is neither kept, dropped nor merged`)
     })
+}
+
+/**
+ * The kept findings the report shows by default. A critic that downgrades minor
+ * findings instead of dropping them keeps more in total, so precision over every
+ * kept finding would punish it for findings the reviewer only sees on request.
+ */
+export function actionableIds(kept: ReviewFinding[]): string[] {
+  return kept.filter((f) => !isSuggestion(f)).map((f) => f.id)
 }
 
 // Two file-level findings (line null) sit at the same place; a file-level

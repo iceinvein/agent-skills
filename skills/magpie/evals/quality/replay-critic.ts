@@ -16,6 +16,7 @@ import {
   resolveCorpusRoot,
 } from './corpus.ts'
 import {
+  actionableIds,
   explainPostedDrops,
   formatRatio,
   parseClaudeResult,
@@ -200,7 +201,17 @@ async function main(argv: string[]): Promise<number> {
       keptIds: kept.map((f) => f.id),
       findings: deduped,
     })
-    const baseline = scoreSelection(originalSelection(run))
+    const original = originalSelection(run)
+    const baseline = scoreSelection(original)
+    const actionable = scoreSelection({
+      labels: run.labels,
+      keptIds: actionableIds(kept),
+      findings: deduped,
+    })
+    const baselineActionable = scoreSelection({
+      ...original,
+      keptIds: actionableIds(run.kept ?? []),
+    })
     const reported = costs.filter((c): c is number => c !== null)
     const costUsd =
       reported.length === costs.length ? reported.reduce((sum, c) => sum + c, 0) : null
@@ -222,6 +233,8 @@ async function main(argv: string[]): Promise<number> {
       keptIds: kept.map((f) => f.id),
       score,
       baseline,
+      actionable,
+      baselineActionable,
       postedDropped,
       dropped,
       verdicts,
@@ -232,6 +245,9 @@ async function main(argv: string[]): Promise<number> {
         `precision ${formatRatio(score.precision)} (was ${formatRatio(baseline.precision)}), ` +
         `recall ${formatRatio(score.recall)} (was ${formatRatio(baseline.recall)}), ` +
         `${score.unlabelledKept} kept unlabelled, ` +
+        `actionable kept ${actionable.kept} (was ${baselineActionable.kept}) ` +
+        `precision ${formatRatio(actionable.precision)} (was ${formatRatio(baselineActionable.precision)}) ` +
+        `recall ${formatRatio(actionable.recall)} (was ${formatRatio(baselineActionable.recall)}), ` +
         `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\n` +
         postedDropped.map((d) => `  posted but dropped: ${d.id}: ${d.reason}\n`).join('') +
         `wrote ${outPath}\n`,

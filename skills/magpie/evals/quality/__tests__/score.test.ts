@@ -6,6 +6,7 @@ import type { FindingLabel } from '../../../scripts/labels.ts'
 import type { ReviewFinding } from '../../../scripts/types.ts'
 import { assertOutsideRepo, buildCorpusRun, listSourceRuns, loadCorpusRun } from '../corpus.ts'
 import {
+  actionableIds,
   explainPostedDrops,
   matchFindings,
   parseClaudeResult,
@@ -146,6 +147,22 @@ test('a posted finding outside the candidate pool is not reported as dropped', (
     verdicts: [],
   })
   expect(drops).toEqual([{ id: 'p3', reason: 'speculative' }])
+})
+
+test('actionable ids keep must-fix and should-fix findings and leave out suggestions', () => {
+  const risk = (action: ReviewFinding['risk']['action']) => ({
+    impact: 'medium' as const,
+    likelihood: 'possible' as const,
+    confidence: 'high' as const,
+    action,
+  })
+  const kept = [
+    finding({ id: 'm', risk: risk('must-fix') }),
+    finding({ id: 's', risk: risk('should-fix') }),
+    finding({ id: 'c', risk: risk('consider') }),
+    finding({ id: 'o', risk: risk('optional') }),
+  ]
+  expect(actionableIds(kept)).toEqual(['m', 's'])
 })
 
 test('a kept id missing from the findings is an error naming it', () => {
