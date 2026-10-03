@@ -1,7 +1,7 @@
 import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { annotateChangedLines } from './changed-lines.ts'
-import { deduplicateFindings } from './dedupe.ts'
+import { deduplicateFindings, findMergeCandidates } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
 import { namespaceId, parseFindingsFilename } from './findings-files.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
@@ -137,10 +137,14 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
     join(runDir, 'findings.deduped.json'),
     `${JSON.stringify(aboveThreshold, null, 2)}\n`,
   )
-  if (evidence.dropped.length > 0) {
+  await writeFile(
+    join(runDir, 'merge-candidates.json'),
+    `${JSON.stringify(findMergeCandidates(aboveThreshold), null, 2)}\n`,
+  )
+  if (evidence.dropped.length > 0 || evidence.reanchored.length > 0) {
     await writeFile(
       join(runDir, 'evidence-dropped.json'),
-      `${JSON.stringify(evidence.dropped, null, 2)}\n`,
+      `${JSON.stringify({ dropped: evidence.dropped, reanchored: evidence.reanchored }, null, 2)}\n`,
     )
   }
   if (belowThreshold.length > 0) {
@@ -171,6 +175,7 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
     evidence: {
       skipped: evidence.skipped,
       dropped: evidence.dropped.length,
+      reanchored: evidence.reanchored.length,
     },
     ...(coverage ? { coverage } : {}),
   })

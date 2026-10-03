@@ -151,6 +151,83 @@ test('runDedupe leaves unsharded ids untouched', async () => {
   expect(out[0]?.id).toBe('bugs-1')
 })
 
+test('runDedupe writes neighbouring cross-domain findings to merge-candidates.json', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([f('bugs-1', 'a.ts', 10, 'unchecked input reaches the parser', 'bugs')]),
+  )
+  await writeFile(
+    join(runDir, 'findings', 'security.json'),
+    JSON.stringify([
+      f('security-1', 'a.ts', 15, 'injection through the query builder', 'security'),
+      f('security-2', 'b.ts', 15, 'token logged in plain text', 'security'),
+    ]),
+  )
+  expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+  const groups = JSON.parse(await readFile(join(runDir, 'merge-candidates.json'), 'utf8'))
+  expect(groups).toEqual([['bugs-1', 'security-1']])
+})
+
+test('runDedupe writes an empty merge-candidates.json when nothing neighbours', async () => {
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([f('bugs-1', 'a.ts', 10, 'off by one in the loop bound', 'bugs')]),
+  )
+  expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+  const groups = JSON.parse(await readFile(join(runDir, 'merge-candidates.json'), 'utf8'))
+  expect(groups).toEqual([])
+})
+
+/** A worktree file whose only distinctive line is 25. */
+async function writeWorktreeSource(): Promise<void> {
+  await mkdir(join(runDir, 'worktree'), { recursive: true })
+  const lines = Array.from({ length: 30 }, (_, i) =>
+    i + 1 === 25 ? 'const secret = process.env.KEY' : `// line ${i + 1}`,
+  )
+  await writeFile(join(runDir, 'worktree', 'a.ts'), `${lines.join('\n')}\n`)
+}
+
+test('runDedupe records re-anchored findings in evidence-dropped.json', async () => {
+  await writeWorktreeSource()
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([
+      {
+        ...f('bugs-1', 'a.ts', 2, 'secret read without a fallback', 'bugs'),
+        evidence: 'const secret = process.env.KEY',
+      },
+    ]),
+  )
+  expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+  const evidence = JSON.parse(await readFile(join(runDir, 'evidence-dropped.json'), 'utf8'))
+  expect(evidence).toEqual({
+    dropped: [],
+    reanchored: [{ id: 'bugs-1', file: 'a.ts', from: 2, to: 25 }],
+  })
+})
+
+test('runDedupe logs evidence drop and re-anchor counts', async () => {
+  await writeWorktreeSource()
+  await writeFile(
+    join(runDir, 'findings', 'bugs.json'),
+    JSON.stringify([
+      {
+        ...f('bugs-1', 'a.ts', 2, 'secret read without a fallback', 'bugs'),
+        evidence: 'const secret = process.env.KEY',
+      },
+      f('bugs-2', 'a.ts', 5, 'quotes nothing at all', 'bugs'),
+    ]),
+  )
+  expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  const done = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .find((e) => e.stage === 'dedupe' && e.status === 'done')
+  expect(done?.evidence).toEqual({ skipped: false, dropped: 1, reanchored: 1 })
+})
+
 const LLM_FOCUSES = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
 
 /** A manifest with `count` shards, shaped like the one `shardDiff` writes. */

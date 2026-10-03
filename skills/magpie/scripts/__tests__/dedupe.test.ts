@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { deduplicateFindings, diceCoefficient, tokenize } from '../dedupe.ts'
+import { deduplicateFindings, diceCoefficient, findMergeCandidates, tokenize } from '../dedupe.ts'
 import type { ReviewFinding } from '../types.ts'
 
 function f(partial: Partial<ReviewFinding> & { id: string; title: string }): ReviewFinding {
@@ -108,4 +108,46 @@ test('merged primary keeps suggestion from cluster member when primary lacks one
   ])
   expect(out).toHaveLength(1)
   expect(out[0]?.suggestion?.body).toBe('if (!x) return')
+})
+
+test('findMergeCandidates groups findings from different domains five lines apart', () => {
+  const groups = findMergeCandidates([
+    f({ id: 'a', line: 10, title: 'unchecked input', domain: 'bugs' }),
+    f({ id: 'b', line: 15, title: 'injection risk', domain: 'security' }),
+  ])
+  expect(groups).toEqual([['a', 'b']])
+})
+
+test('findMergeCandidates does not group findings from the same domain', () => {
+  const groups = findMergeCandidates([
+    f({ id: 'a', line: 10, title: 'unchecked input', domain: 'bugs' }),
+    f({ id: 'b', line: 15, title: 'off by one', domain: 'bugs' }),
+  ])
+  expect(groups).toEqual([])
+})
+
+test('findMergeCandidates does not group findings nine lines apart', () => {
+  const groups = findMergeCandidates([
+    f({ id: 'a', line: 10, title: 'unchecked input', domain: 'bugs' }),
+    f({ id: 'b', line: 19, title: 'injection risk', domain: 'security' }),
+  ])
+  expect(groups).toEqual([])
+})
+
+test('findMergeCandidates chains neighbours into one group', () => {
+  const groups = findMergeCandidates([
+    f({ id: 'a', line: 10, title: 'unchecked input', domain: 'bugs' }),
+    f({ id: 'b', line: 16, title: 'injection risk', domain: 'security' }),
+    f({ id: 'c', line: 22, title: 'layering leak', domain: 'architecture' }),
+  ])
+  expect(groups).toEqual([['a', 'b', 'c']])
+})
+
+test('findMergeCandidates never groups unanchored findings', () => {
+  const groups = findMergeCandidates([
+    f({ id: 'a', line: null, title: 'unchecked input', domain: 'bugs' }),
+    f({ id: 'b', line: null, title: 'injection risk', domain: 'security' }),
+    f({ id: 'c', line: 10, title: 'layering leak', domain: 'architecture' }),
+  ])
+  expect(groups).toEqual([])
 })

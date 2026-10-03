@@ -240,6 +240,47 @@ function mergeNearLineDuplicates(findings: ReviewFinding[]): ReviewFinding[] {
   return result
 }
 
+const MERGE_CANDIDATE_RADIUS = 8
+
+/**
+ * Groups of finding ids that sit close together in one file and come from more
+ * than one domain: likely the same defect seen through different lenses, which
+ * the critic decides whether to merge. Proximity chains, so A near B near C
+ * forms one group even when A and C are further apart than `radius`.
+ */
+export function findMergeCandidates(
+  findings: ReviewFinding[],
+  radius = MERGE_CANDIDATE_RADIUS,
+): string[][] {
+  const byFile = new Map<string, Array<ReviewFinding & { line: number }>>()
+  for (const f of findings) {
+    if (f.line == null || !f.file) continue
+    const list = byFile.get(f.file)
+    const anchored = { ...f, line: f.line }
+    if (list) list.push(anchored)
+    else byFile.set(f.file, [anchored])
+  }
+
+  const runs: Array<Array<ReviewFinding & { line: number }>> = []
+  for (const file of [...byFile.keys()].sort()) {
+    const sorted = [...(byFile.get(file) ?? [])].sort((a, b) => a.line - b.line)
+    let run: Array<ReviewFinding & { line: number }> = []
+    for (const f of sorted) {
+      const last = run[run.length - 1]
+      if (last && f.line - last.line > radius) {
+        runs.push(run)
+        run = []
+      }
+      run.push(f)
+    }
+    runs.push(run)
+  }
+
+  return runs
+    .filter((run) => new Set(run.flatMap((f) => (f.domain ? [f.domain] : []))).size >= 2)
+    .map((run) => run.map((f) => f.id))
+}
+
 export function deduplicateFindings(findings: ReviewFinding[]): ReviewFinding[] {
   const groups = new Map<string, ReviewFinding[]>()
   for (const f of findings) {

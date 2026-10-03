@@ -60,6 +60,7 @@ test('setup -> dedupe -> render(progress) -> render(findings) -> cleanup compose
         title: 'first bug',
         description: 'd',
         domain: 'bugs',
+        evidence: 'a',
       },
     ]),
   )
