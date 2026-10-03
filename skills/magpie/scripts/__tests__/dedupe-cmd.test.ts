@@ -110,6 +110,18 @@ test('runDedupe drops findings below threshold and writes sidecar', async () => 
   expect(dropped[0]?.id).toBe('low-1')
 })
 
+test('a clean re-run removes a stale evidence-dropped.json', async () => {
+  await writeFile(join(runDir, 'evidence-dropped.json'), '{"dropped":[{"id":"old"}]}\n')
+  await runDedupe(runDir)
+  expect(await Bun.file(join(runDir, 'evidence-dropped.json')).exists()).toBe(false)
+})
+
+test('a clean re-run removes a stale threshold-dropped.json', async () => {
+  await writeFile(join(runDir, 'threshold-dropped.json'), '[{"id":"old"}]\n')
+  await runDedupe(runDir)
+  expect(await Bun.file(join(runDir, 'threshold-dropped.json')).exists()).toBe(false)
+})
+
 test('runDedupe with threshold 0 keeps everything', async () => {
   const low: ReviewFinding = {
     ...f('low-1', 'a.ts', 10, 'tiny cleanup', 'code-smells'),

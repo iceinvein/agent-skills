@@ -1,4 +1,4 @@
-import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { annotateChangedLines } from './changed-lines.ts'
 import { deduplicateFindings, findMergeCandidates } from './dedupe.ts'
@@ -141,11 +141,14 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
     join(runDir, 'merge-candidates.json'),
     `${JSON.stringify(findMergeCandidates(aboveThreshold), null, 2)}\n`,
   )
+  // A sidecar left from an earlier run would describe drops this run did not make.
   if (evidence.dropped.length > 0 || evidence.reanchored.length > 0) {
     await writeFile(
       join(runDir, 'evidence-dropped.json'),
       `${JSON.stringify({ dropped: evidence.dropped, reanchored: evidence.reanchored }, null, 2)}\n`,
     )
+  } else {
+    await rm(join(runDir, 'evidence-dropped.json'), { force: true })
   }
   if (belowThreshold.length > 0) {
     await writeFile(
@@ -156,6 +159,8 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
         2,
       )}\n`,
     )
+  } else {
+    await rm(join(runDir, 'threshold-dropped.json'), { force: true })
   }
   const coverage = await reconcileCoverage(runDir, new Set(files))
   if (coverage) {
