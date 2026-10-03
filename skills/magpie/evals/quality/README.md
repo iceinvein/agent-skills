@@ -87,7 +87,7 @@ calls; free to run.
 ## Critic replay
 
 ```
-bun evals/quality/replay-critic.ts --corpus <runId> --repo <path-to-local-clone>
+bun evals/quality/replay-critic.ts --corpus <runId> --repo <path-to-local-clone> [--design-cap <n>]
 ```
 
 Re-runs stage 6 alone on one corpus run:
@@ -99,8 +99,15 @@ Re-runs stage 6 alone on one corpus run:
    --output-format json --add-dir <scratch>` per batch, prompt on stdin, from the
    worktree. Batches run in parallel. A non-zero exit, an `is_error` result or a missing
    output file fails the replay.
-4. `magpie critic-apply`, then `scoreSelection` over the new `findings.kept.json`, written
-   with the run's baseline score to `results/<ts>-critic-<runId>.json`.
+4. `magpie critic-apply` (with `--design-cap <n>` when given, so a cap can be compared
+   against the default of 3), then `scoreSelection` over the new `findings.kept.json`,
+   written with the run's baseline score to `results/<ts>-critic[-cap<n>]-<runId>.json`.
+   The result also keeps every critic verdict, `critic-dropped.json`, and
+   `postedDropped`: each posted candidate the replay did not keep, with the critic's
+   reason, `design-cap`, or its merge target. Those lines are printed too, so a recall
+   loss can be pinned on the critic or the cap. `unlabelledKept` counts kept findings the
+   original critic had dropped: nobody ever judged them, so precision leaves them out
+   and the count says how much of the selection precision does not cover.
 5. Removes the worktree and scratch dir whatever happened.
 
 **Cost:** one Claude session per batch of up to 30 candidates; the corpus runs have 17 to

@@ -10,6 +10,8 @@ export type QualityScore = {
   posted: number
   postedKept: number
   dismissedKept: Record<string, number>
+  /** Kept findings no reviewer ever saw, so precision says nothing about them. */
+  unlabelledKept: number
   precision: number | null
   recall: number | null
   byDomain: Record<string, { kept: number; postedKept: number }>
@@ -67,11 +69,41 @@ export function scoreSelection(input: {
     posted,
     postedKept,
     dismissedKept,
+    unlabelledKept: input.keptIds.length - labelledKept,
     precision: labelledKept === 0 ? null : postedKept / labelledKept,
     recall: posted === 0 ? null : postedKept / posted,
     byDomain,
     byVia,
   }
+}
+
+/**
+ * Says why each posted candidate is missing from the replayed selection, so a
+ * recall loss can be pinned on the critic's judgement, the design cap, or a
+ * merge. A posted candidate with no record at all means critic-apply lost it.
+ */
+export function explainPostedDrops(input: {
+  labels: FindingLabel[]
+  candidateIds: string[]
+  keptIds: string[]
+  dropped: Array<{ id: string; reason: string }>
+  verdicts: Array<{ id: string; verdict: string; mergeInto?: string }>
+}): Array<{ id: string; reason: string }> {
+  const candidates = new Set(input.candidateIds)
+  const kept = new Set(input.keptIds)
+  const dropReason = new Map(input.dropped.map((d) => [d.id, d.reason]))
+  const mergeTarget = new Map(
+    input.verdicts.filter((v) => v.verdict === 'merge').map((v) => [v.id, v.mergeInto]),
+  )
+  return input.labels
+    .filter((l) => l.label === 'posted' && candidates.has(l.id) && !kept.has(l.id))
+    .map((l) => {
+      const reason = dropReason.get(l.id)
+      if (reason !== undefined) return { id: l.id, reason }
+      const target = mergeTarget.get(l.id)
+      if (target !== undefined) return { id: l.id, reason: `merged into ${target}` }
+      throw new Error(`posted candidate ${l.id} is neither kept, dropped nor merged`)
+    })
 }
 
 // Two file-level findings (line null) sit at the same place; a file-level

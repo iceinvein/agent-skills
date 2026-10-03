@@ -71,4 +71,11 @@ Task status lives in `.sluice/run.json`, not here.
   - cleanup leaving a half-done run on a bad events line (it fails loudly, which is the intent)
   - helper.js tests read source text, matching the file's existing pattern; a DOM check would need
     agent-browser or a new dependency
+- T8 partial (partner ran it): critic replay on pr-70, $1.55. Kept 5 (was 18), precision 1.00
+  (was 0.50), recall 0.44 (was 1.00). Of the 9 posted findings it dropped 5: architecture-s5-3,
+  architecture-s5-4, code-smells-s4-1, code-smells-s5-1, security-s5-1. Four are design-domain,
+  and the 3 design keeps hit the cap exactly, so the cap is the likely cause but unconfirmed: the
+  replay deletes its scratch dir and the result file doesn't keep `critic-dropped.json`. Kept
+  `code-smells-s4-5` has no label (the original critic dropped it), so it's left out of precision,
+  which overstates it.
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.

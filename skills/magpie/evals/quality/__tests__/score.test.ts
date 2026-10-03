@@ -5,7 +5,13 @@ import { join } from 'node:path'
 import type { FindingLabel } from '../../../scripts/labels.ts'
 import type { ReviewFinding } from '../../../scripts/types.ts'
 import { assertOutsideRepo, buildCorpusRun, listSourceRuns, loadCorpusRun } from '../corpus.ts'
-import { matchFindings, parseClaudeResult, scoreReplay, scoreSelection } from '../score.ts'
+import {
+  explainPostedDrops,
+  matchFindings,
+  parseClaudeResult,
+  scoreReplay,
+  scoreSelection,
+} from '../score.ts'
 
 function finding(over: Partial<ReviewFinding> & { id: string }): ReviewFinding {
   return {
@@ -85,6 +91,61 @@ test('a kept id with no label stays out of the precision denominator', () => {
     findings,
   })
   expect([s.kept, s.precision]).toEqual([6, 2 / 5])
+})
+
+test('kept ids with no label are counted as unlabelled', () => {
+  const findings = [...fixtureFindings, finding({ id: 'new-1' }), finding({ id: 'new-2' })]
+  const s = scoreSelection({
+    labels: fixtureLabels,
+    keptIds: [...fixtureKept, 'new-1', 'new-2'],
+    findings,
+  })
+  expect(s.unlabelledKept).toBe(2)
+})
+
+test('a posted finding the critic dropped is explained by its drop reason', () => {
+  const drops = explainPostedDrops({
+    labels: fixtureLabels,
+    candidateIds: fixtureFindings.map((f) => f.id),
+    keptIds: fixtureKept,
+    dropped: [{ id: 'p3', reason: 'design-cap' }],
+    verdicts: [],
+  })
+  expect(drops).toEqual([{ id: 'p3', reason: 'design-cap' }])
+})
+
+test('a posted finding merged into another is explained by its merge target', () => {
+  const drops = explainPostedDrops({
+    labels: fixtureLabels,
+    candidateIds: fixtureFindings.map((f) => f.id),
+    keptIds: fixtureKept,
+    dropped: [],
+    verdicts: [{ id: 'p3', verdict: 'merge', mergeInto: 'p1' }],
+  })
+  expect(drops).toEqual([{ id: 'p3', reason: 'merged into p1' }])
+})
+
+test('a posted finding missing with no drop or merge record is an error naming it', () => {
+  expect(() =>
+    explainPostedDrops({
+      labels: fixtureLabels,
+      candidateIds: fixtureFindings.map((f) => f.id),
+      keptIds: fixtureKept,
+      dropped: [],
+      verdicts: [],
+    }),
+  ).toThrow('p3')
+})
+
+test('a posted finding outside the candidate pool is not reported as dropped', () => {
+  const drops = explainPostedDrops({
+    labels: [...fixtureLabels, { id: 'peer-1', label: 'posted' }],
+    candidateIds: fixtureFindings.map((f) => f.id),
+    keptIds: fixtureKept,
+    dropped: [{ id: 'p3', reason: 'speculative' }],
+    verdicts: [],
+  })
+  expect(drops).toEqual([{ id: 'p3', reason: 'speculative' }])
 })
 
 test('a kept id missing from the findings is an error naming it', () => {

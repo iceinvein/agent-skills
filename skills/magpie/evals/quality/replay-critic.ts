@@ -16,6 +16,7 @@ import {
   resolveCorpusRoot,
 } from './corpus.ts'
 import {
+  explainPostedDrops,
   formatRatio,
   parseClaudeResult,
   parseFlags,
@@ -91,9 +92,15 @@ async function exec(
 }
 
 async function main(argv: string[]): Promise<number> {
-  const flags = parseFlags(argv, ['corpus', 'repo', 'out'])
+  const flags = parseFlags(argv, ['corpus', 'repo', 'out', 'design-cap'])
   if (!flags.corpus || !flags.repo) {
-    throw new Error('usage: replay-critic.ts --corpus <runId> --repo <path> [--out <corpus-dir>]')
+    throw new Error(
+      'usage: replay-critic.ts --corpus <runId> --repo <path> [--design-cap <n>] [--out <corpus-dir>]',
+    )
+  }
+  const designCap = flags['design-cap']
+  if (designCap !== undefined && !/^\d+$/.test(designCap)) {
+    throw new Error(`--design-cap ${designCap}: want an integer >= 0`)
   }
   const corpusRoot = resolveCorpusRoot(flags)
   const run = await loadCorpusRun(join(corpusRoot, flags.corpus))
@@ -164,8 +171,30 @@ async function main(argv: string[]): Promise<number> {
       throw err
     }
 
-    await exec(['bun', MAGPIE_BIN, 'critic-apply', scratch])
+    await exec([
+      'bun',
+      MAGPIE_BIN,
+      'critic-apply',
+      scratch,
+      ...(designCap === undefined ? [] : ['--design-cap', designCap]),
+    ])
     const kept = await readFindings(join(scratch, 'findings.kept.json'))
+    // The scratch dir is deleted below, so the verdicts and drop reasons have to
+    // land in the result file to explain what the critic did.
+    const dropped = (await Bun.file(join(scratch, 'critic-dropped.json')).json()) as Array<{
+      id: string
+      reason: string
+    }>
+    const verdicts = (
+      await Promise.all(batches.map((b) => Bun.file(b.outputPath).json()))
+    ).flat() as Array<{ id: string; verdict: string; mergeInto?: string }>
+    const postedDropped = explainPostedDrops({
+      labels: run.labels,
+      candidateIds: deduped.map((f) => f.id),
+      keptIds: kept.map((f) => f.id),
+      dropped,
+      verdicts,
+    })
     const score = scoreSelection({
       labels: run.labels,
       keptIds: kept.map((f) => f.id),
@@ -178,23 +207,34 @@ async function main(argv: string[]): Promise<number> {
 
     const resultsDir = join(corpusRoot, 'results')
     await mkdir(resultsDir, { recursive: true })
-    const outPath = join(resultsDir, `${resultTimestamp(new Date())}-critic-${run.runId}.json`)
+    const capTag = designCap === undefined ? '' : `-cap${designCap}`
+    const outPath = join(
+      resultsDir,
+      `${resultTimestamp(new Date())}-critic${capTag}-${run.runId}.json`,
+    )
     const result = {
       tier: 'critic',
       runId: run.runId,
       sha,
+      designCap: designCap === undefined ? 'default' : Number(designCap),
       batches: batches.length,
       costUsd,
       keptIds: kept.map((f) => f.id),
       score,
       baseline,
+      postedDropped,
+      dropped,
+      verdicts,
     }
     await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
     process.stdout.write(
       `${run.runId}: kept ${score.kept} (was ${baseline.kept}), ` +
         `precision ${formatRatio(score.precision)} (was ${formatRatio(baseline.precision)}), ` +
         `recall ${formatRatio(score.recall)} (was ${formatRatio(baseline.recall)}), ` +
-        `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\nwrote ${outPath}\n`,
+        `${score.unlabelledKept} kept unlabelled, ` +
+        `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\n` +
+        postedDropped.map((d) => `  posted but dropped: ${d.id}: ${d.reason}\n`).join('') +
+        `wrote ${outPath}\n`,
     )
     return 0
   } finally {
