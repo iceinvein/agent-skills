@@ -42,3 +42,22 @@ test('serve prints server-info JSON to stdout and stays alive briefly', async ()
   proc.kill()
   throw new Error('did not receive server-info on stdout')
 })
+
+test('serve logs a failed refresh to stderr and keeps serving the previous page', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), '[]')
+  await writeFile(join(runDir, 'screen', 'findings.html'), '<html>OLD</html>')
+  await writeFile(join(runDir, 'state', 'events'), '{"type":"dismiss"\n')
+  const proc = Bun.spawn(['bun', CLI, 'serve', runDir, '--idle-ms', '300'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  await proc.exited
+  const info = JSON.parse(stdout.split('\n')[0] ?? '')
+  expect(typeof info.url).toBe('string')
+  expect(stderr).toContain('state/events:1 is not valid JSON')
+  expect(await Bun.file(join(runDir, 'screen', 'findings.html')).text()).toBe('<html>OLD</html>')
+})

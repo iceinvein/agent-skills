@@ -148,3 +148,31 @@ test('returns 2 when run dir has no screen output', async () => {
   }
   expect(errs.join('')).toContain('no findings.html')
 })
+
+test('a failed refresh prints the error and still opens the previous findings.html', async () => {
+  const runPath = await makeRunWithFindings('pr-1-1000')
+  await writeFile(join(runPath, 'findings.final.json'), '[]')
+  await mkdir(join(runPath, 'state'), { recursive: true })
+  await writeFile(join(runPath, 'state', 'events'), '{"type":"dismiss"\n')
+  const out: string[] = []
+  const errs: string[] = []
+  const writeOut = process.stdout.write.bind(process.stdout)
+  const writeErr = process.stderr.write.bind(process.stderr)
+  process.stdout.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stdout.write
+  process.stderr.write = ((s: string) => {
+    errs.push(s)
+    return true
+  }) as typeof process.stderr.write
+  try {
+    const code = await runOpen({ home, dryRun: true, opener: 'fakeopen' })
+    expect(code).toBe(0)
+  } finally {
+    process.stdout.write = writeOut
+    process.stderr.write = writeErr
+  }
+  expect(out.join('')).toContain(join(runPath, 'screen', 'findings.html'))
+  expect(errs.join('')).toContain('state/events:1 is not valid JSON')
+})

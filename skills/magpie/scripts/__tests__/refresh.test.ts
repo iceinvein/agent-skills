@@ -140,3 +140,14 @@ test('refreshFindings keeps a dismissal recorded in state/events', async () => {
   const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
   expect(fresh).toMatch(/data-finding-id="a"[^>]*data-dismissed="not-worth-it"/)
 })
+
+test('refreshFindings rejects on a truncated events line and leaves the previous page in place', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([sampleFinding]))
+  await writeFile(join(runDir, 'screen', 'findings.html'), '<html>OLD</html>')
+  await mkdir(join(runDir, 'state'), { recursive: true })
+  await writeFile(join(runDir, 'state', 'events'), '{"type":"dismiss","findingId":"a","rea\n')
+
+  await expect(refreshFindings(runDir)).rejects.toThrow('state/events:1 is not valid JSON')
+  const kept = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(kept).toBe('<html>OLD</html>')
+})

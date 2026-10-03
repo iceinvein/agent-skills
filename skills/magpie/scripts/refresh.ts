@@ -1,4 +1,4 @@
-import { readdir, readFile, unlink } from 'node:fs/promises'
+import { readdir, readFile, rename, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { readDismissed } from './labels.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
@@ -37,21 +37,6 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
     findings = raw.map((item) => parseFinding(item))
   } catch {
     return { refreshed: false, pruned: 0, reason: 'parse-error' }
-  }
-
-  const screenDir = join(runDir, 'screen')
-  let pruned = 0
-  try {
-    const entries = await readdir(screenDir)
-    for (const name of entries) {
-      if (FINDINGS_HTML_RE.test(name)) {
-        await unlink(join(screenDir, name)).catch(() => {})
-        pruned++
-      }
-    }
-  } catch {
-    // screen dir may not exist on a brand-new rundir; renderFindingsToDisk
-    // will create the path via Bun.write below.
   }
 
   let postStatus: PostStatusMap = {}
@@ -107,6 +92,12 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
     diffSource = undefined
   }
 
+  // Every read that can throw happens before the prune, and the page renders
+  // to a temp file first, so a failure leaves the previous findings.html
+  // in place instead of an empty screen dir.
+  const dismissed = await readDismissed(runDir)
+  const screenDir = join(runDir, 'screen')
+  const tempPath = join(screenDir, '.findings.html.tmp')
   await renderFindingsToDisk(
     {
       findings,
@@ -118,11 +109,20 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
       brief: brief ?? undefined,
       issues,
       diffSource,
-      dismissed: await readDismissed(runDir),
+      dismissed,
       topN: DEFAULT_TOP_N,
     },
-    join(screenDir, 'findings.html'),
+    tempPath,
   )
+
+  let pruned = 0
+  for (const name of await readdir(screenDir)) {
+    if (FINDINGS_HTML_RE.test(name)) {
+      await unlink(join(screenDir, name))
+      pruned++
+    }
+  }
+  await rename(tempPath, join(screenDir, 'findings.html'))
 
   return { refreshed: true, pruned }
 }

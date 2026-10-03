@@ -99,9 +99,16 @@ const HANDLERS: Record<string, Handler> = {
       }
     }
     // Auto-refresh: re-render findings.html with the currently-shipped CSS/JS
-    // so serving an old archive picks up new report features. Best-effort.
+    // so serving an old archive picks up new report features. A failed refresh
+    // leaves the previous page in place, so serve keeps going after reporting why.
     const { refreshFindings } = await import('../scripts/refresh.ts')
-    await refreshFindings(runDir).catch(() => {})
+    try {
+      await refreshFindings(runDir)
+    } catch (err) {
+      process.stderr.write(
+        `serve: refresh failed, serving the previous page: ${err instanceof Error ? err.message : String(err)}\n`,
+      )
+    }
     const { runServe } = await import('../scripts/serve-cmd.ts')
     return runServe({ runDir, idleMs, host })
   },

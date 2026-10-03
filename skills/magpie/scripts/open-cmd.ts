@@ -37,9 +37,16 @@ export async function runOpen(input: OpenInput): Promise<number> {
   }
 
   // Re-render findings.html from findings.final.json with the currently-shipped
-  // CSS/JS so old archives pick up new report features automatically. Best-effort:
-  // an early-stage run without findings.final.json simply no-ops.
-  await refreshFindings(resolved.path).catch(() => {})
+  // CSS/JS so old archives pick up new report features automatically. An
+  // early-stage run without findings.final.json simply no-ops. A failed refresh
+  // leaves the previous page in place, so open still shows it after reporting why.
+  try {
+    await refreshFindings(resolved.path)
+  } catch (err) {
+    process.stderr.write(
+      `open: refresh failed, showing the previous page: ${err instanceof Error ? err.message : String(err)}\n`,
+    )
+  }
 
   const target = await firstExisting([
     join(resolved.path, 'screen', 'findings.html'),
