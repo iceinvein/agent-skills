@@ -2,6 +2,7 @@ import { beforeAll, expect, test } from 'bun:test'
 import type { Highlighter } from 'shiki'
 import { getHighlighter } from '../highlight.ts'
 import { renderFindingsHtml } from '../render-findings.ts'
+import { DEFAULT_TOP_N } from '../render-issues-list.ts'
 import type { PrBrief, ReviewFinding } from '../types.ts'
 
 function f(p: Partial<ReviewFinding> & { id: string; title: string }): ReviewFinding {
@@ -52,20 +53,38 @@ beforeAll(async () => {
 })
 
 test('empty findings renders the page shell with an empty-state message', () => {
-  const html = renderFindingsHtml({ findings: [], postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('class="pr-header"')
   expect(html).toContain('No findings')
 })
 
 test('emits the two-tab segmented control with Files and All Issues buttons', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('data-action="set-view"')
   expect(html).toContain('data-view="files"')
   expect(html).toContain('data-view="all-issues"')
 })
 
 test('sets body data attributes for default view, diff-mode, and suggestions visibility', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('data-page="findings"')
   expect(html).toContain('data-view="files"')
   expect(html).toContain('data-diff-mode="unified"')
@@ -81,6 +100,8 @@ test('renders one file pane per PrFileEntry, hidden by default', () => {
       { path: 'src/b.ts', additions: 1, deletions: 0 },
     ],
     diff: SAMPLE_DIFF,
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('data-file-pane="src/a.ts"')
@@ -89,7 +110,13 @@ test('renders one file pane per PrFileEntry, hidden by default', () => {
 })
 
 test('renders an Overview pane mapped to data-file-pane=""', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('data-file-pane=""')
 })
 
@@ -99,6 +126,8 @@ test('renders a per-file toolbar with breadcrumb, deltas, finding-nav and diff-m
     postStatus: {},
     files: [{ path: 'src/a.ts', additions: 3, deletions: 1 }],
     diff: SAMPLE_DIFF,
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('+3')
@@ -116,6 +145,8 @@ test('renders both unified and split diff containers per file', () => {
     postStatus: {},
     files: [{ path: 'src/a.ts', additions: 3, deletions: 1 }],
     diff: SAMPLE_DIFF,
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('data-diff-mode="unified"')
@@ -128,6 +159,8 @@ test('places an inline annotation at the affected diff line', () => {
     postStatus: {},
     files: [{ path: 'src/a.ts', additions: 3, deletions: 1 }],
     diff: SAMPLE_DIFF,
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('data-finding-id="a"')
@@ -135,12 +168,24 @@ test('places an inline annotation at the affected diff line', () => {
 })
 
 test('mounts the All Issues pane', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('data-role="issues-list"')
 })
 
 test('mounts the action bar at the page bottom', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).toContain('data-role="action-bar"')
   expect(html).toContain('Post Recommended')
 })
@@ -149,6 +194,8 @@ test('marks posted findings with data-posted="true"', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: { a: 'posted' },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('data-posted="true"')
@@ -164,6 +211,8 @@ test('renders the suggestion code block in the annotation', () => {
       }),
     ],
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   // Shiki tokenizes identifiers into separate spans; check for a known token
@@ -182,6 +231,8 @@ test('parses labelled paragraphs into section headers', () => {
       }),
     ],
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('Observation')
@@ -194,6 +245,8 @@ test('renders pr meta when supplied', () => {
     findings: SAMPLE_FINDINGS,
     postStatus: {},
     pr: { number: 42, branch: 'feat/x', headSha: 'deadbeefdeadbeef0000111122223333' },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('PR #42')
@@ -214,6 +267,8 @@ test('brief header renders purpose and changes', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: SAMPLE_BRIEF,
   })
@@ -226,6 +281,8 @@ test('brief header omits watchItems and unclear, which are prompt-only', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: SAMPLE_BRIEF,
   })
@@ -234,7 +291,13 @@ test('brief header omits watchItems and unclear, which are prompt-only', () => {
 })
 
 test('no brief means no brief header at all', () => {
-  const html = renderFindingsHtml({ findings: SAMPLE_FINDINGS, postStatus: {}, highlighter: hl })
+  const html = renderFindingsHtml({
+    findings: SAMPLE_FINDINGS,
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
   expect(html).not.toContain('class="pr-brief"')
 })
 
@@ -242,6 +305,8 @@ test('brief header renders on the empty-findings page too', () => {
   const html = renderFindingsHtml({
     findings: [],
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: SAMPLE_BRIEF,
   })
@@ -253,6 +318,8 @@ test('linked issues render as links when supplied', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: SAMPLE_BRIEF,
     issues: [
@@ -267,6 +334,8 @@ test('brief content is HTML-escaped', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: { ...SAMPLE_BRIEF, purpose: 'Fixes <script>alert(1)</script> handling' },
   })
@@ -278,6 +347,8 @@ test('issue title escapes quotes in its title="" attribute context', () => {
   const html = renderFindingsHtml({
     findings: SAMPLE_FINDINGS,
     postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
     brief: SAMPLE_BRIEF,
     issues: [
@@ -302,6 +373,8 @@ test('findings header notes a locally-built diff', () => {
     postStatus: {},
     pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
     diffSource: { source: 'git', mergeBase: 'a'.repeat(40) },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).toContain('local clone')
@@ -314,6 +387,8 @@ test('findings header stays quiet when the diff came from gh', () => {
     postStatus: {},
     pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
     diffSource: { source: 'gh', mergeBase: null },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).not.toContain('local clone')
@@ -324,6 +399,8 @@ test('findings header stays quiet when there is no diff source at all', () => {
     findings: [],
     postStatus: {},
     pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
     highlighter: hl,
   })
   expect(html).not.toContain('local clone')

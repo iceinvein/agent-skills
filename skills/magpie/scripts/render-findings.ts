@@ -6,7 +6,7 @@ import { getHighlighter } from './highlight.ts'
 import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
-import { DEFAULT_TOP_N, renderIssuesList } from './render-issues-list.ts'
+import { renderIssuesList } from './render-issues-list.ts'
 import type { PostStatusMap, PrBrief, PrFileEntry, ReviewFinding } from './types.ts'
 
 export type { PostStatusEntry, PostStatusMap } from './types.ts'
@@ -59,13 +59,10 @@ export type RenderFindingsInput = {
   issues?: BriefIssue[]
   /** Shiki highlighter, prepared by the caller. */
   highlighter: Highlighter
-  /**
-   * Finding id to dismiss reason, folded from state/events. Required by
-   * renderFindingsToDisk; optional here only for direct renders in tests.
-   */
-  dismissed?: Map<string, string>
-  /** How many findings the issues view recommends before folding. Same split as dismissed. */
-  topN?: number
+  /** Finding id to dismiss reason, folded from state/events. */
+  dismissed: Map<string, string>
+  /** How many findings the issues view recommends before folding the rest. */
+  topN: number
   /** Where diff.patch came from. Absent means gh, which needs no note. */
   diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
 }
@@ -240,8 +237,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
   const diff = input.diff ?? ''
   const splitDiffs = splitDiffByFile(diff)
   const selectedIds = new Set<string>()
-  const dismissed = input.dismissed ?? new Map<string, string>()
-  const topN = input.topN ?? DEFAULT_TOP_N
+  const { dismissed, topN } = input
   const briefHtml = briefBlock(input.brief, input.issues ?? [])
 
   if (input.findings.length === 0) {
@@ -328,10 +324,7 @@ ${actionBar}
 }
 
 export async function renderFindingsToDisk(
-  input: Omit<RenderFindingsInput, 'highlighter' | 'dismissed' | 'topN'> & {
-    dismissed: Map<string, string>
-    topN: number
-  },
+  input: Omit<RenderFindingsInput, 'highlighter'>,
   outPath: string,
 ): Promise<void> {
   const stylesPath = new URL('../templates/styles.css', import.meta.url).pathname

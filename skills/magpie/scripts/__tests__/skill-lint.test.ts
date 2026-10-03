@@ -153,8 +153,15 @@ test('rendered HTML opts into light/dark with a color-scheme meta tag', async ()
   const { renderFindingsHtml } = await import('../render-findings.ts')
   const { renderProgressHtml } = await import('../render-progress.ts')
   const { getHighlighter } = await import('../highlight.ts')
+  const { DEFAULT_TOP_N } = await import('../render-issues-list.ts')
   const highlighter = await getHighlighter()
-  const findings = renderFindingsHtml({ findings: [], postStatus: {}, highlighter })
+  const findings = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter,
+  })
   const progress = renderProgressHtml({
     prNumber: 1,
     headSha: 'deadbeef0011',
