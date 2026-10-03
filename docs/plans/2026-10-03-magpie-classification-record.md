@@ -78,4 +78,14 @@ Task status lives in `.sluice/run.json`, not here.
   replay deletes its scratch dir and the result file doesn't keep `critic-dropped.json`. Kept
   `code-smells-s4-5` has no label (the original critic dropped it), so it's left out of precision,
   which overstates it.
+- Cap comparison on pr-70, after 25a1240 (partner ran both):
+  - cap 3: kept 7, precision 1.00, recall 0.56, 2 unlabelled, $1.10. Posted drops: 2 by
+    `design-cap` (architecture-s5-1, code-smells-s4-1) and 2 by the critic.
+  - cap 99: kept 10, precision 0.88, recall 0.78, 2 unlabelled, $1.14. Posted drops: only the
+    critic's 2 (architecture-s5-3 "no concrete near-term breaking change", architecture-s5-4
+    "premise false: main already enqueues video_lock rows").
+  - Same cap, two runs: 5 kept, then 7. Run-to-run variance is real, and this is one PR.
+- Stage eval suite (partner ran it outside the session, against the branch at 25a1240): all 5
+  cases score 1.00, 1 run each, $1.64, 218s. Report:
+  `skills/magpie/evals/results/2026-10-03T03-14-27-047Z/report.html` (gitignored).
 - T3: the cap test uses 7.1 instead of 7.0 because no risk combination scores exactly 7.0.
