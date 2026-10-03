@@ -45,9 +45,11 @@ export const DEFAULT_TOP_N = 10
  * Splits the actionable findings into the recommended set (the topN highest
  * risk scores, not dismissed) and the rest, both ordered by score descending.
  * The action bar counts the same set the issues list marks, so both use this.
+ * A posted finding is past dismissing, so a dismissal recorded for it is ignored.
  */
 export function rankActionable(
   findings: ReviewFinding[],
+  postStatus: PostStatusMap,
   dismissed: Map<string, string>,
   topN: number,
 ): { recommended: ReviewFinding[]; folded: ReviewFinding[] } {
@@ -55,7 +57,9 @@ export function rankActionable(
   const sorted = findings
     .filter((f) => !isSuggestion(f))
     .sort((a, b) => scoreRisk(b.risk) - scoreRisk(a.risk))
-  const recommended = sorted.filter((f) => !dismissed.has(f.id)).slice(0, topN)
+  const recommended = sorted
+    .filter((f) => postStatus[f.id] === 'posted' || !dismissed.has(f.id))
+    .slice(0, topN)
   const picked = new Set(recommended)
   return { recommended, folded: sorted.filter((f) => !picked.has(f)) }
 }
@@ -100,7 +104,7 @@ export function renderIssuesList(input: RenderIssuesListInput): string {
   if (topN === null) {
     cardsHtml = findings.map(renderCard).join('\n')
   } else {
-    const { recommended, folded } = rankActionable(findings, dismissed, topN)
+    const { recommended, folded } = rankActionable(findings, postStatus, dismissed, topN)
     const recommendedHtml = recommended
       .map((f) => `<div class="recommended-slot" data-recommended="true">${renderCard(f)}</div>`)
       .join('\n')

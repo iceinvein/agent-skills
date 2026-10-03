@@ -292,7 +292,12 @@ ${briefHtml}
     topN,
     highlighter: input.highlighter,
   })
-  const actionBar = renderActionBar({ findings: input.findings, dismissed, topN })
+  const actionBar = renderActionBar({
+    findings: input.findings,
+    postStatus: input.postStatus,
+    dismissed,
+    topN,
+  })
 
   return `<!DOCTYPE html>
 <html lang="en">

@@ -192,6 +192,18 @@ describe('renderIssuesList', () => {
     expect(cardIds(html.slice(foldAt))).toEqual(['a', 'k'])
   })
 
+  test('a posted finding ranks as recommended even when it was dismissed', () => {
+    const html = renderIssuesList({
+      findings: ranked,
+      postStatus: { a: 'posted' },
+      selectedIds: new Set(),
+      dismissed: new Map([['a', 'wrong']]),
+      topN: 10,
+      highlighter: hl,
+    })
+    expect(recommendedIds(html)).toEqual(['a', 'b', 'c', 'x', 'd', 'g', 'f', 'e', 'h', 'i'])
+  })
+
   test('renders no fold when every actionable finding fits in the topN', () => {
     const html = renderIssuesList({
       findings: ranked.slice(0, 4),
