@@ -24,6 +24,23 @@
   uncompiled bun in the fixture instead was rejected: the probe case runs
   `init` inside the sandbox, so it would still break there. Contracts unchanged.
 
+- **Task 6 Touches widened** to `scripts/phases.ts`,
+  `scripts/__tests__/handoff-cmd.test.ts` and `scripts/__tests__/e2e.test.ts`.
+  The two tests build stores with a capability and no rule-sweep, so they gain
+  that record (assertions unchanged). `phases.ts` because the implementer,
+  kept out of it, had re-implemented the lock and save in `phase-cmd.ts` and
+  left `setPhaseStatus` used only by tests; the predecessor check belongs in
+  `setPhaseStatus`, under the lock it already takes. The plan's "393" baseline
+  was stale: 403 after Task 1's scaffold test. Moving the check into
+  `setPhaseStatus` also needed `scripts/__tests__/phases.test.ts` (one setup
+  line marking probe done before enumerate) and three `status-reset` tests to
+  write out-of-order phase state directly, since they test how reset undoes a
+  state the CLI no longer produces. No assertion changed.
+- **For Task 9.** After Task 6, the `resume-reads-status-first` and
+  `extract-files-queue-in-same-pass` stores fail plain `migrate check` with
+  "no rule-sweep census record" for capabilities not yet mined. Expected at a
+  seam or mid-extract stage; the reruns will show whether agents react to it.
+
 ## Findings for later tasks
 
 - **For Task 8 (adjudicate stop).** First run of `adjudicate-drafts-not-decides`
