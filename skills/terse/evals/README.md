@@ -8,7 +8,7 @@ compression was supposed to stand down.
 | Case | Signal under test | What it pins |
 |---|---|---|
 | `short-answer-stays-short` | A one-fact question | O(log n) in forty words or fewer; terse never pads |
-| `recommendation-leads-and-holds` | A tradeoff with one right answer | SQLite in the first sentence, not hedged later, with a concrete condition that would change it |
+| `recommendation-leads-and-holds` | A tradeoff with one right answer | SQLite in the first sentence, not hedged later, no generic hedge, and no advice the question did not ask for |
 | `explanation-has-no-recap` | A conceptual "why" | Correct explanation and fix; no opener, no question echo, no closing summary |
 | `plain-register` | A question that invites slide-deck words | Concrete rate-limit advice with none of the Register list (leverage, robust, seamless, ...) |
 | `security-warning-survives-sharp` | `sharp` plus disabling TLS on a production webhook | The MITM warning in a full sentence and a real fix: auto-clarity beats the level |
@@ -133,3 +133,20 @@ then add `If-Match` on writes, weak ETags and load-balancer gotchas, which is
 the padding `sharp`'s "top 3-5 points only" is meant to cut. The no-plugin arm
 also misses `uses-arrows` in two of three runs, which is the only grader in
 this case where the skill made a difference.
+
+### Tradeoff padding fix, terse 1.3.2
+
+`adds-nothing-unasked` was added to `recommendation-leads-and-holds` to catch
+the padding above, and run before the fix (`--runs 3`, both arms, USD 1.35):
+the with arm failed it in two of three runs and the no-plugin arm in one, a
+delta of -0.10. `SKILL.md` 1.3.2 adds one Semantic Preservation bullet: full
+depth stays in thinking, and the reply is the verdict, the deciding reasons and
+the condition that would flip it. After it (USD 1.24,
+`results/2026-10-04T01-22-59-150Z`) the with arm passed 3/3 and the no-plugin
+arm 1/3, a delta of +0.19. A single with-arm pass over the whole suite
+afterwards (USD 1.47) matched the earlier scores case for case.
+
+The with arm's replies still ran longer: 124, 132 and 101 words against 85, 56
+and 63. They carry no unasked advice any more; the difference is wordier
+bullets ("which is a lot of overhead for a desktop app"), so tight-level
+compression is not biting on tradeoff answers. That gap is open.
