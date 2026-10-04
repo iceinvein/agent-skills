@@ -114,6 +114,16 @@ async function store(
       queued: [],
       batch: 'b-routes-1',
     },
+    {
+      kind: 'rule-sweep',
+      subject: 'user-management',
+      phase: 'extract',
+      probes: 1,
+      found: 0,
+      as_requirements: 0,
+      queued: [],
+      batch: 'b-extract-1',
+    },
   ])
   const status = over.queueStatus ?? 'adjudicated'
   await writeFile(

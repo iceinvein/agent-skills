@@ -103,6 +103,16 @@ async function store(over: { requirements?: Requirement[]; queueStatus?: string 
       queued: [],
       batch: 'b-routes-1',
     },
+    {
+      kind: 'rule-sweep',
+      subject: 'user-management',
+      phase: 'extract',
+      probes: 1,
+      found: 0,
+      as_requirements: 0,
+      queued: [],
+      batch: 'b-extract-1',
+    },
   ])
 
   await writeFile(

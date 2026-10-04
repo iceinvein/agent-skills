@@ -41,6 +41,7 @@ test('recordBatch is idempotent on a repeated batch id', async () => {
 })
 
 test('recordBatch does not reopen a done phase', async () => {
+  await setPhaseStatus(root, 'probe', 'done', NO_SOURCE)
   await setPhaseStatus(root, 'enumerate', 'done', NO_SOURCE)
   await recordBatch(root, 'enumerate', { id: 'b-late', count: 1 }, NO_SOURCE)
   const state = await loadPhases(root)

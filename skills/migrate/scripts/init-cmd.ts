@@ -72,7 +72,9 @@ export async function runInit(opts: {
   }
 
   if (existsSync(paths.config)) {
-    process.stderr.write(`init: ${paths.config} already exists; edit it or remove it first\n`)
+    process.stderr.write(
+      `init: ${paths.config} already exists; this is a resume, run migrate status\n`,
+    )
     return 1
   }
 

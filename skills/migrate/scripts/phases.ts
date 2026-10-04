@@ -91,6 +91,19 @@ export async function recordBatch(
   await savePhases(root, phases, sourcePath)
 }
 
+// A phase cannot be marked done until the one before it is. Its own type so
+// phase-cmd.ts can report it as a domain refusal rather than a crash.
+export class PhaseOrderError extends Error {
+  constructor(
+    readonly phase: Phase,
+    readonly previous: Phase,
+    readonly previousStatus: PhaseState['status'],
+  ) {
+    super(`${phase} cannot be done while ${previous} is ${previousStatus}`)
+    this.name = 'PhaseOrderError'
+  }
+}
+
 export async function setPhaseStatus(
   root: string,
   phase: Phase,
@@ -101,10 +114,20 @@ export async function setPhaseStatus(
   // Same read-modify-write hazard as recordBatch. The orchestrator is the
   // only expected caller and is serial, but the cost of holding the lock for
   // a status flip is a few milliseconds and it removes the question.
+  //
+  // The predecessor is checked here, under the same lock and against the same
+  // read the write replaces, rather than by the caller beforehand: a reset or
+  // another phase write landing between a check and this write could leave
+  // the phase done over a predecessor that no longer is, which is the state
+  // the refusal exists to prevent.
   await withStoreLock(
     root,
     async () => {
       const phases = await loadPhases(root)
+      const previous = PHASES[PHASES.indexOf(phase) - 1]
+      if (status === 'done' && previous && phases[previous].status !== 'done') {
+        throw new PhaseOrderError(phase, previous, phases[previous].status)
+      }
       phases[phase].status = status
       await savePhases(root, phases, sourcePath)
     },

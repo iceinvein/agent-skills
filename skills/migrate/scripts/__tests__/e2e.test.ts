@@ -171,8 +171,24 @@ test('init, import, census, check, report over the fixture source', async () => 
   const caps = join(target, '.migrate', 'capabilities.jsonl')
   await writeFile(
     caps,
-    `${JSON.stringify({ slug: 'users', title: 'Users', ns: 'US', elements: [] })}\n`,
+    `${JSON.stringify({
+      slug: 'users',
+      title: 'Users',
+      ns: 'US',
+      elements: ['route-get-api-users', 'route-post-api-users', 'table-users'],
+    })}\n`,
   )
+  const sweep = await write('c-rule-sweep-users.json', {
+    kind: 'rule-sweep',
+    subject: 'users',
+    phase: 'extract',
+    probes: 1,
+    found: 0,
+    as_requirements: 0,
+    queued: [],
+    batch: 'b-rules-users-1',
+  })
+  expect((await migrate(['census', sweep])).code).toBe(0)
 
   const reqs = await write('reqs.json', {
     batch: 'b-2',

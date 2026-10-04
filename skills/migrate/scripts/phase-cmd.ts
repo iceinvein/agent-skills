@@ -1,6 +1,13 @@
 import { loadConfig } from './config.ts'
 import { LockError } from './lock.ts'
-import { isPhase, loadPhases, PHASES, type PhaseState, setPhaseStatus } from './phases.ts'
+import {
+  isPhase,
+  loadPhases,
+  PHASES,
+  PhaseOrderError,
+  type PhaseState,
+  setPhaseStatus,
+} from './phases.ts'
 
 const STATUSES: readonly PhaseState['status'][] = ['pending', 'running', 'blocked', 'done']
 
@@ -55,6 +62,12 @@ export async function runPhase(opts: {
     if (e instanceof LockError) {
       process.stderr.write(`phase: ${e.message}\n`)
       return 3
+    }
+    // A domain refusal, not a usage error: the phase and status are both
+    // valid, and the store's own state is what rules the request out.
+    if (e instanceof PhaseOrderError) {
+      process.stderr.write(`phase: ${e.message}\n`)
+      return 1
     }
     throw e
   }

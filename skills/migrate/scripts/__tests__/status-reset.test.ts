@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { writeConfig } from '../config.ts'
 import { storePaths } from '../paths.ts'
-import { loadPhases, recordBatch, setPhaseStatus } from '../phases.ts'
+import { loadPhases, type Phase, recordBatch, savePhases, setPhaseStatus } from '../phases.ts'
 import { loadQueue } from '../queue.ts'
 import { runReset } from '../reset-cmd.ts'
 import { runStatus } from '../status-cmd.ts'
@@ -121,6 +121,16 @@ Route POST /api/invoice/batch found in InvoiceController.cs:215-240.
 Recommend (c); three invocations in six months.
 `
 
+// The reset tests below each need one phase done in isolation, which
+// setPhaseStatus now refuses over an unfinished predecessor. That state is
+// written straight to phases.json, the same way a hand edit would reach it,
+// since what is under test is how reset undoes it, not how it arose.
+async function markDoneOutOfOrder(phase: Phase): Promise<void> {
+  const phases = await loadPhases(root)
+  phases[phase].status = 'done'
+  await savePhases(root, phases, source)
+}
+
 async function writeQueueItem(root: string): Promise<string> {
   const path = join(storePaths(root).queueDir, 'q-invoice-batch-scope.md')
   await writeFile(path, QUEUE_ITEM)
@@ -132,7 +142,7 @@ test('reset extract clears requirements and returns dispositions to unaccounted'
   await writeRows(p.elements, [ELEMENT], source)
   await writeRows(p.requirements, [REQUIREMENT], source)
   await writeRows(p.census, [LENS_CENSUS, ATTR_CENSUS], source)
-  await setPhaseStatus(root, 'extract', 'done', source)
+  await markDoneOutOfOrder('extract')
 
   expect(await runReset({ root, phase: 'extract' })).toBe(0)
 
@@ -170,7 +180,7 @@ test('reset seam clears capabilities and seam files but leaves elements and requ
   await writeRows(p.capabilities, [CAPABILITY], source)
   await writeFile(p.seamJson, '{"capabilities":[]}\n')
   await writeFile(p.seamMd, '# Seam\n')
-  await setPhaseStatus(root, 'seam', 'done', source)
+  await markDoneOutOfOrder('seam')
 
   expect(await runReset({ root, phase: 'seam' })).toBe(0)
 
@@ -192,7 +202,7 @@ test('reset parity clears deltas and nulls every requirement parity but leaves e
   await writeRows(p.elements, [ELEMENT], source)
   await writeRows(p.requirements, [REQUIREMENT, other], source)
   await writeRows(p.deltas, [DELTA], source)
-  await setPhaseStatus(root, 'parity', 'done', source)
+  await markDoneOutOfOrder('parity')
 
   expect(await runReset({ root, phase: 'parity' })).toBe(0)
 

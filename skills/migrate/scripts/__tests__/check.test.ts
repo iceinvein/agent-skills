@@ -80,16 +80,33 @@ function lensCensus(surface: string, total: number, inLedger: number): Census {
   }
 }
 
+function ruleSweep(capability: string, queued: string[] = []): Census {
+  return {
+    kind: 'rule-sweep',
+    subject: capability,
+    phase: 'extract',
+    probes: 1,
+    found: queued.length,
+    as_requirements: 0,
+    queued,
+    batch: 'b-1',
+  }
+}
+
 async function seedClean(): Promise<void> {
   const p = storePaths(root)
   await writeRows(p.elements, [ELEMENT], source)
   await writeRows(p.requirements, [REQUIREMENT], source)
   await writeRows(
     p.capabilities,
-    [{ slug: 'user-management', title: 'Users', ns: 'UM', elements: [] }],
+    [{ slug: 'user-management', title: 'Users', ns: 'UM', elements: ['route-get-api-users'] }],
     source,
   )
-  await writeRows(p.census, [lensCensus('routes', 1, 1), lensCensus('tables', 0, 0)], source)
+  await writeRows(
+    p.census,
+    [lensCensus('routes', 1, 1), lensCensus('tables', 0, 0), ruleSweep('user-management')],
+    source,
+  )
 }
 
 // The run-state gate now checks whether the run actually happened, so a
@@ -153,7 +170,7 @@ test('a lens census claiming elements that were never added to the ledger is a c
   // rows for 'tables': the padding surface the report describes verbatim.
   await writeRows(
     storePaths(root).census,
-    [lensCensus('routes', 1, 1), { ...lensCensus('tables', 50, 50) }],
+    [lensCensus('routes', 1, 1), { ...lensCensus('tables', 50, 50) }, ruleSweep('user-management')],
     source,
   )
   const result = await runCheck({ root })
@@ -174,7 +191,11 @@ test('a lens census whose in_ledger + added matches the real ledger count passes
 
 test('a declared surface with no census record is a census violation', async () => {
   await seedClean()
-  await writeRows(storePaths(root).census, [lensCensus('routes', 1, 1)], source)
+  await writeRows(
+    storePaths(root).census,
+    [lensCensus('routes', 1, 1), ruleSweep('user-management')],
+    source,
+  )
   const result = await runCheck({ root })
   const census = result.violations.filter((v) => v.gate === 'census')
   expect(census).toHaveLength(1)
@@ -231,7 +252,7 @@ test('a hand-edited census.jsonl with a single-direction row and an old-shape ro
   }
   await writeFile(
     storePaths(root).census,
-    `${JSON.stringify(singleDirection)}\n${JSON.stringify(oldShape)}\n`,
+    `${JSON.stringify(singleDirection)}\n${JSON.stringify(oldShape)}\n${JSON.stringify(ruleSweep('user-management'))}\n`,
   )
   const result = await runCheck({ root })
   const census = result.violations.filter((v) => v.gate === 'census')
@@ -455,4 +476,256 @@ test('two citations of the same missing queue id on one requirement produce two 
   expect(new Set(refs.map((v) => v.message)).size).toBe(2)
   expect(refs.some((v) => v.message.includes('confidence.queue'))).toBe(true)
   expect(refs.some((v) => v.message.includes('parity.queue'))).toBe(true)
+})
+
+// Capability membership. capabilities.jsonl is hand-written at seam, so
+// nothing but this gate ties the partition back to the ledger it partitions.
+
+test('a capability listing an element the ledger does not hold is a refs violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      {
+        slug: 'user-management',
+        title: 'Users',
+        ns: 'UM',
+        elements: ['route-get-api-users', 'table-ghosts'],
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'capability user-management lists element table-ghosts, which is not in the ledger',
+    },
+  ])
+})
+
+test('an element listed by two capabilities is a refs violation naming both', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      { slug: 'user-management', title: 'Users', ns: 'UM', elements: ['route-get-api-users'] },
+      { slug: 'reporting', title: 'Reporting', ns: 'RP', elements: ['route-get-api-users'] },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'element route-get-api-users sits in capabilities user-management and reporting',
+    },
+  ])
+})
+
+test('an element listed by three capabilities is one refs violation naming all three', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      { slug: 'user-management', title: 'Users', ns: 'UM', elements: ['route-get-api-users'] },
+      { slug: 'reporting', title: 'Reporting', ns: 'RP', elements: ['route-get-api-users'] },
+      { slug: 'audit', title: 'Audit', ns: 'AU', elements: ['route-get-api-users'] },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message:
+        'element route-get-api-users sits in capabilities user-management, reporting and audit',
+    },
+  ])
+})
+
+test('a mapped element no capability lists is a refs violation', async () => {
+  await seedClean()
+  const orphan: Element = {
+    ...ELEMENT,
+    id: 'route-post-api-users',
+    element: 'POST /api/users',
+  }
+  await writeRows(storePaths(root).elements, [ELEMENT, orphan], source)
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'element route-post-api-users is in no capability, so extract will never reach it',
+    },
+  ])
+})
+
+test('an out-of-scope element no capability lists is not a refs violation', async () => {
+  await seedClean()
+  await writeFile(
+    join(storePaths(root).queueDir, 'q-legacy-export.md'),
+    `---
+id: q-legacy-export
+severity: minor
+status: open
+---
+
+## Evidence
+
+GET /api/export is linked from nowhere.
+
+## Options
+
+(a) Port it. (b) Drop it.
+
+## Recommendation
+
+Recommend (b).
+`,
+  )
+  const parked: Element = {
+    ...ELEMENT,
+    id: 'route-get-api-export',
+    element: 'GET /api/export',
+    disposition: { kind: 'out-of-scope', queue: 'q-legacy-export' },
+  }
+  await writeRows(storePaths(root).elements, [ELEMENT, parked], source)
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([])
+})
+
+test('before any capability is written, an element in no capability is not a refs violation', async () => {
+  await seedClean()
+  await writeRows(storePaths(root).capabilities, [], source)
+  const result = await runCheck({ root })
+  expect(
+    result.violations.filter((v) => v.gate === 'refs' && v.message.includes('in no capability')),
+  ).toEqual([])
+})
+
+test('an element whose ledger ref names an id the ledger does not hold is a refs violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).elements,
+    [{ ...ELEMENT, refs: [{ kind: 'ledger', id: 'table-users' }] }],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'element route-get-api-users refs ledger id table-users, which is not in the ledger',
+    },
+  ])
+})
+
+test('a census record queueing an id with no queue file is a refs violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).census,
+    [
+      lensCensus('routes', 1, 1),
+      lensCensus('tables', 0, 0),
+      ruleSweep('user-management', ['q-missing-rule']),
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'rule-sweep census for user-management queues q-missing-rule, which does not exist',
+    },
+  ])
+})
+
+test('a capability with no rule-sweep census record is a census violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).census,
+    [lensCensus('routes', 1, 1), lensCensus('tables', 0, 0)],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'census')).toEqual([
+    { gate: 'census', message: 'capability user-management has no rule-sweep census record' },
+  ])
+})
+
+test('a parity ref outside the capability parity_test_path names is a parity violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).requirements,
+    [{ ...REQUIREMENT, parity: { kind: 'golden-master', ref: 'tests/parity/users/list.test.ts' } }],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'parity')).toEqual([
+    {
+      gate: 'parity',
+      message:
+        'UM-001 parity ref tests/parity/users/list.test.ts does not match parity_test_path tests/parity/{capability}/{fr_slug}.test.ts',
+    },
+  ])
+})
+
+test('a parity ref that substitutes the capability slug and a kebab-case fr_slug passes', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).requirements,
+    [
+      {
+        ...REQUIREMENT,
+        parity: { kind: 'differential', ref: 'tests/parity/user-management/list-users.test.ts' },
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'parity')).toEqual([])
+})
+
+test('a parity ref only matches the template dots literally, not as any character', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).requirements,
+    [
+      {
+        ...REQUIREMENT,
+        parity: { kind: 'golden-master', ref: 'tests/parity/user-management/list-usersXtestXts' },
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'parity')).toEqual([
+    {
+      gate: 'parity',
+      message:
+        'UM-001 parity ref tests/parity/user-management/list-usersXtestXts does not match parity_test_path tests/parity/{capability}/{fr_slug}.test.ts',
+    },
+  ])
+})
+
+test('a parity ref naming the fr id rather than a kebab-case fr_slug is a parity violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).requirements,
+    [
+      {
+        ...REQUIREMENT,
+        parity: { kind: 'golden-master', ref: 'tests/parity/user-management/UM-001.test.ts' },
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'parity')).toEqual([
+    {
+      gate: 'parity',
+      message:
+        'UM-001 parity ref tests/parity/user-management/UM-001.test.ts does not match parity_test_path tests/parity/{capability}/{fr_slug}.test.ts',
+    },
+  ])
 })

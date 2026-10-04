@@ -149,3 +149,32 @@ test('a closer census without a phase is rejected', async () => {
   expect(result.code).toBe(2)
   expect(result.err).toContain('phase is required')
 })
+
+test('marking a phase done over an unfinished predecessor is refused and changes nothing', async () => {
+  expect((await migrate(['phase', 'probe', '--status', 'done'])).code).toBe(0)
+  const result = await migrate(['phase', 'seam', '--status', 'done'])
+  expect(result.code).toBe(1)
+  expect(result.err).toBe('phase: seam cannot be done while enumerate is pending\n')
+  const phases = JSON.parse(await readFile(join(target, '.migrate', 'phases.json'), 'utf8'))
+  expect(phases.phases.seam.status).toBe('pending')
+})
+
+test('a predecessor that is running still blocks done', async () => {
+  expect((await migrate(['phase', 'probe', '--status', 'running'])).code).toBe(0)
+  const result = await migrate(['phase', 'enumerate', '--status', 'done'])
+  expect(result.code).toBe(1)
+  expect(result.err).toBe('phase: enumerate cannot be done while probe is running\n')
+})
+
+test('a status other than done is set regardless of the predecessor', async () => {
+  const result = await migrate(['phase', 'seam', '--status', 'blocked'])
+  expect(result.code).toBe(0)
+  expect(result.out).toContain('seam is now blocked')
+})
+
+test('a phase is marked done once its predecessor is done', async () => {
+  expect((await migrate(['phase', 'probe', '--status', 'done'])).code).toBe(0)
+  const result = await migrate(['phase', 'enumerate', '--status', 'done'])
+  expect(result.code).toBe(0)
+  expect(result.out).toContain('enumerate is now done')
+})

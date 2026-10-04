@@ -35,6 +35,7 @@ export const gate: Gate = (ctx): Violation[] => {
   const violations: Violation[] = []
   const surfacesWithCensus = new Set<string>()
   const closersWithCensus = new Set<string>()
+  const capabilitiesWithSweep = new Set<string>()
 
   for (const row of ctx.censusRows) {
     if (!row.ok) {
@@ -42,11 +43,11 @@ export const gate: Gate = (ctx): Violation[] => {
       for (const error of row.errors) {
         violations.push({ gate: 'census', message: `${label}: ${error}` })
       }
-      // A row that fails validation still ran and still named a surface or
-      // closer it claims to cover; only its shape is defective, not its
+      // A row that fails validation still ran and still named a surface,
+      // closer or capability it claims to cover; only its shape is defective, not its
       // existence. Registered defensively here (guarded the same way
       // censusRowLabel is, since the row is not a trustworthy Census) so
-      // gate 2 does not also claim that surface or closer has no census
+      // gate 2 does not also claim that subject has no census
       // record at all, which is a different and wrong accusation: that
       // message means the lens never ran or never closed, not that it ran
       // and produced something malformed. A row whose kind or identity
@@ -57,6 +58,8 @@ export const gate: Gate = (ctx): Violation[] => {
           surfacesWithCensus.add(row.raw.surface)
         } else if (row.raw.kind === 'closer' && typeof row.raw.closer === 'string') {
           closersWithCensus.add(row.raw.closer)
+        } else if (row.raw.kind === 'rule-sweep' && typeof row.raw.subject === 'string') {
+          capabilitiesWithSweep.add(row.raw.subject)
         }
       }
       continue
@@ -85,6 +88,7 @@ export const gate: Gate = (ctx): Violation[] => {
       }
     }
     if (record.kind === 'closer') closersWithCensus.add(record.closer)
+    if (record.kind === 'rule-sweep') capabilitiesWithSweep.add(record.subject)
   }
 
   for (const surface of ctx.cfg.surfaces) {
@@ -100,6 +104,18 @@ export const gate: Gate = (ctx): Violation[] => {
       violations.push({
         gate: 'census',
         message: `declared closer ${closer} has no census record`,
+      })
+    }
+  }
+  // The capability partition is the declared list a rule-sweep closes
+  // against, the way [surfaces].types is for lens records: extract sweeps
+  // each capability for the business rules no single element carries, and a
+  // capability with no record is one that was never swept.
+  for (const cap of ctx.capabilities) {
+    if (!capabilitiesWithSweep.has(cap.slug)) {
+      violations.push({
+        gate: 'census',
+        message: `capability ${cap.slug} has no rule-sweep census record`,
       })
     }
   }

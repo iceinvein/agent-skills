@@ -22,6 +22,21 @@ async function captureStdout(fn: () => Promise<number>): Promise<{ code: number;
   }
 }
 
+async function captureStderr(fn: () => Promise<number>): Promise<{ code: number; text: string }> {
+  const err: string[] = []
+  const original = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    err.push(s)
+    return true
+  }) as typeof process.stderr.write
+  try {
+    const code = await fn()
+    return { code, text: err.join('') }
+  } finally {
+    process.stderr.write = original
+  }
+}
+
 let root: string
 let source: string
 
@@ -48,6 +63,15 @@ test('init creates the store and a loadable config', async () => {
 test('init refuses to overwrite an existing config', async () => {
   await runInit(BASE())
   expect(await runInit(BASE())).toBe(1)
+})
+
+test('init over an existing store calls it a resume and points at migrate status', async () => {
+  await runInit(BASE())
+  const result = await captureStderr(() => runInit(BASE()))
+  expect(result.code).toBe(1)
+  expect(result.text).toBe(
+    `init: ${storePaths(root).config} already exists; this is a resume, run migrate status\n`,
+  )
 })
 
 test('init refuses a source path that does not exist', async () => {

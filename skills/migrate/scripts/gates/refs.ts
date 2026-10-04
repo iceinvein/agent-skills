@@ -1,5 +1,5 @@
-import type { Violation } from '../types.ts'
-import type { Gate } from './context.ts'
+import type { Census, Violation } from '../types.ts'
+import { type Gate, validCensus } from './context.ts'
 
 // A duplicate id or slug within one store file is a real defect the refs
 // gate must catch on its own, not something it can assume another gate or
@@ -19,6 +19,13 @@ function duplicatesOf(values: string[]): Map<string, number> {
     if (count > 1) dups.set(v, count)
   }
   return dups
+}
+
+// The field that identifies a census record, the same one censusKey keys on.
+function censusSubject(record: Census): string {
+  if (record.kind === 'lens') return record.surface
+  if (record.kind === 'closer') return record.closer
+  return record.subject
 }
 
 // Gate 3: referential integrity.
@@ -89,6 +96,73 @@ export const gate: Gate = (ctx): Violation[] => {
         violations.push({
           gate: 'refs',
           message: `${req.id} cites ledger id ${ref.id}, which is not in the ledger`,
+        })
+      }
+    }
+  }
+
+  // An element's ledger refs are the only edges seam's surface-affinity
+  // validator clusters on. enumerate.md lets a lens point at an id another
+  // lens has not added yet, so a dangling ref is expected mid-batch; by the
+  // time check runs every lens has landed, and one still dangling is a
+  // misspelled id or an element that was never added.
+  for (const el of ctx.elements) {
+    for (const ref of el.refs) {
+      if (ref.kind === 'ledger' && !elementIds.has(ref.id)) {
+        violations.push({
+          gate: 'refs',
+          message: `element ${el.id} refs ledger id ${ref.id}, which is not in the ledger`,
+        })
+      }
+    }
+  }
+
+  // capabilities.jsonl is the partition extract fans out over, one agent per
+  // capability, and it is written by hand at seam. An element listed twice is
+  // mined twice; an element listed nowhere is never mined at all, which no
+  // other gate notices because coverage only asks whether it was mapped.
+  const capsOf = new Map<string, string[]>()
+  for (const cap of ctx.capabilities) {
+    for (const id of cap.elements) {
+      if (!elementIds.has(id)) {
+        violations.push({
+          gate: 'refs',
+          message: `capability ${cap.slug} lists element ${id}, which is not in the ledger`,
+        })
+        continue
+      }
+      capsOf.set(id, [...(capsOf.get(id) ?? []), cap.slug])
+    }
+  }
+  for (const [id, slugs] of capsOf) {
+    if (slugs.length > 1) {
+      const named = `${slugs.slice(0, -1).join(', ')} and ${slugs[slugs.length - 1]}`
+      violations.push({ gate: 'refs', message: `element ${id} sits in capabilities ${named}` })
+    }
+  }
+  // Before seam writes the first row there is no partition to be missing
+  // from, and an out-of-scope element is deliberately not extracted.
+  if (ctx.capabilities.length > 0) {
+    for (const el of ctx.elements) {
+      if (el.disposition.kind !== 'out-of-scope' && !capsOf.has(el.id)) {
+        violations.push({
+          gate: 'refs',
+          message: `element ${el.id} is in no capability, so extract will never reach it`,
+        })
+      }
+    }
+  }
+
+  // Every census kind carries `queued`, the ids of the queue items it parked
+  // its remainder in, and balanceOf counts them toward the record's total. A
+  // queued id with no file behind it balances the arithmetic with a decision
+  // nobody can ever see or make.
+  for (const record of validCensus(ctx.censusRows)) {
+    for (const qid of record.queued) {
+      if (!queueIds.has(qid)) {
+        violations.push({
+          gate: 'refs',
+          message: `${record.kind} census for ${censusSubject(record)} queues ${qid}, which does not exist`,
         })
       }
     }
