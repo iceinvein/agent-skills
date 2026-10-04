@@ -11,7 +11,8 @@
   "files": [
     "dist",
     "skills",
-    "!skills/*/evals/results"
+    "!skills/*/evals/results",
+    "!skills/terse/bench/results"
   ],
   "scripts": {
     "build": "bun build src/cli/index.ts --outdir dist/cli --target bun",

@@ -1,0 +1,181 @@
+[
+  {
+    "id": "fact-binary-search",
+    "category": "fact",
+    "prompt": "What's the time complexity of binary search on a sorted array?"
+  },
+  {
+    "id": "fact-http-409",
+    "category": "fact",
+    "prompt": "What does HTTP status 409 mean?"
+  },
+  {
+    "id": "fact-git-undo-commit",
+    "category": "fact",
+    "prompt": "How do I undo my last git commit but keep the changes in my working tree?"
+  },
+  {
+    "id": "fact-postgres-port",
+    "category": "fact",
+    "prompt": "What port does Postgres listen on by default?"
+  },
+  {
+    "id": "fact-js-array-dedupe",
+    "category": "fact",
+    "prompt": "Shortest way to dedupe an array of strings in JavaScript?"
+  },
+  {
+    "id": "fact-utf8-bytes",
+    "category": "fact",
+    "prompt": "How many bytes can a single UTF-8 encoded character take?"
+  },
+  {
+    "id": "explain-mutable-default",
+    "category": "explain",
+    "prompt": "Why does `def add(item, items=[])` in Python keep growing the list across calls?"
+  },
+  {
+    "id": "explain-pooling",
+    "category": "explain",
+    "prompt": "Explain database connection pooling and why it matters for a web app."
+  },
+  {
+    "id": "explain-etag",
+    "category": "explain",
+    "prompt": "How does HTTP caching with ETags work?"
+  },
+  {
+    "id": "explain-event-loop",
+    "category": "explain",
+    "prompt": "How does the Node.js event loop let a single thread handle many concurrent requests?"
+  },
+  {
+    "id": "explain-idempotency",
+    "category": "explain",
+    "prompt": "What's the difference between an idempotency key and a request ID in a payments API?"
+  },
+  {
+    "id": "explain-react-rerender",
+    "category": "explain",
+    "prompt": "Why does my React child component re-render every time the parent renders, even though I pass it the same `style={{ margin: 8 }}` prop?"
+  },
+  {
+    "id": "tradeoff-sqlite-postgres",
+    "category": "tradeoff",
+    "prompt": "Should I use SQLite or Postgres for a single-user desktop note-taking app? Everything is stored locally and there's no server."
+  },
+  {
+    "id": "tradeoff-monorepo",
+    "category": "tradeoff",
+    "prompt": "We're a team of 6 with a web app, a mobile app and a shared API client. Monorepo or separate repos?"
+  },
+  {
+    "id": "tradeoff-rest-graphql",
+    "category": "tradeoff",
+    "prompt": "For a public API that third-party developers will integrate with, REST or GraphQL?"
+  },
+  {
+    "id": "tradeoff-uuid-serial",
+    "category": "tradeoff",
+    "prompt": "Postgres primary keys for a multi-tenant SaaS: UUIDs or bigserial?"
+  },
+  {
+    "id": "tradeoff-orm",
+    "category": "tradeoff",
+    "prompt": "Should a small TypeScript backend use an ORM like Prisma, or a query builder like Kysely?"
+  },
+  {
+    "id": "tradeoff-k8s",
+    "category": "tradeoff",
+    "prompt": "Our startup runs three stateless services and a managed Postgres. Is it worth moving to Kubernetes, or should we stay on a PaaS like Render?"
+  },
+  {
+    "id": "debug-async-foreach",
+    "category": "debug",
+    "prompt": "Why does this log 'done' before any of the saves finish?\n\n```js\nasync function saveAll(items) {\n  items.forEach(async (item) => {\n    await db.save(item);\n  });\n  console.log('done');\n}\n```"
+  },
+  {
+    "id": "debug-closure-loop",
+    "category": "debug",
+    "prompt": "This prints 3, 3, 3 instead of 0, 1, 2. Why?\n\n```js\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\n```"
+  },
+  {
+    "id": "debug-float-money",
+    "category": "debug",
+    "prompt": "Our invoice total sometimes shows $0.30000000000000004. The code is `const total = items.reduce((s, i) => s + i.price, 0)` with prices like 0.1 and 0.2. What's wrong and how should we fix it?"
+  },
+  {
+    "id": "debug-n-plus-one",
+    "category": "debug",
+    "prompt": "This Rails endpoint takes 4 seconds with 200 posts. What's the problem?\n\n```ruby\ndef index\n  @posts = Post.all\n  render json: @posts.map { |p| { title: p.title, author: p.author.name } }\nend\n```"
+  },
+  {
+    "id": "debug-cors",
+    "category": "debug",
+    "prompt": "My fetch from http://localhost:3000 to our API at https://api.example.com fails with \"No 'Access-Control-Allow-Origin' header is present on the requested resource\", but the same request works in curl. Why, and where's the fix?"
+  },
+  {
+    "id": "debug-go-loop-var",
+    "category": "debug",
+    "prompt": "In Go 1.20, this starts goroutines that all print the last URL. Why?\n\n```go\nfor _, u := range urls {\n    go func() { fetch(u) }()\n}\n```"
+  },
+  {
+    "id": "task-cart-tax",
+    "category": "task",
+    "prompt": "The cart total in src/cart.js is wrong for discounted items: tax is being charged on the pre-discount price. Fix it.",
+    "files": {
+      "src/cart.js": "const TAX_RATE = 0.1;\n\nexport function cartTotal(items, discountRate = 0) {\n  const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);\n  const tax = subtotal * TAX_RATE;\n  const discount = subtotal * discountRate;\n  return subtotal - discount + tax;\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    },
+    "check": "import { cartTotal } from './src/cart.js'; const t = cartTotal([{ price: 100, qty: 1 }], 0.5); if (Math.abs(t - 55) > 1e-9) { console.error(t); process.exit(1); }"
+  },
+  {
+    "id": "task-slugify",
+    "category": "task",
+    "prompt": "slugify in src/slug.js leaves leading and trailing dashes when the title starts or ends with punctuation, e.g. \"!Hello World!\" gives \"-hello-world-\". Fix it.",
+    "files": {
+      "src/slug.js": "export function slugify(title) {\n  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-');\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    },
+    "check": "import { slugify } from './src/slug.js'; const s = slugify('!Hello World!'); if (s !== 'hello-world') { console.error(s); process.exit(1); }"
+  },
+  {
+    "id": "task-paginate",
+    "category": "task",
+    "prompt": "paginate() in src/page.js drops the last item on every page. Find and fix the bug.",
+    "files": {
+      "src/page.js": "export function paginate(items, page, size) {\n  const start = page * size;\n  return items.slice(start, start + size - 1);\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    },
+    "check": "import { paginate } from './src/page.js'; const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b); if (!eq(paginate([1,2,3,4,5], 0, 2), [1,2])) process.exit(1); if (!eq(paginate([1,2,3,4,5], 1, 2), [3,4])) process.exit(1); if (!eq(paginate([1,2,3,4,5], 2, 2), [5])) process.exit(1);"
+  },
+  {
+    "id": "task-retry-flag",
+    "category": "task",
+    "prompt": "Add a third parameter to fetchJson in src/http.js, an options object with `retries`: on a thrown error, try again up to that many extra times before giving up. Default 0, so current callers behave the same.",
+    "files": {
+      "src/http.js": "export async function fetchJson(load, url) {\n  const res = await load(url);\n  return JSON.parse(res);\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    },
+    "check": "import { fetchJson } from './src/http.js'; let n = 0; const flaky = async () => { n++; if (n < 3) throw new Error('x'); return '{\"ok\":true}'; }; const r = await fetchJson(flaky, 'u', { retries: 2 }); if (r.ok !== true || n !== 3) process.exit(1); for (const [options, calls] of [[undefined, 1], [{ retries: 1 }, 2]]) { n = 0; let failed = false; try { await fetchJson(async () => { n++; throw new Error('y'); }, 'u', options); } catch { failed = true; } if (!failed || n !== calls) process.exit(1); }"
+  },
+  {
+    "id": "task-env-config",
+    "category": "task",
+    "prompt": "src/config.js silently falls back to port 3000 when PORT is set to garbage like \"abc\". Make it throw a clear error instead when PORT is set but isn't a valid port number. Unset PORT should still default to 3000.",
+    "files": {
+      "src/config.js": "export function loadConfig(env) {\n  return { port: parseInt(env.PORT, 10) || 3000 };\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    },
+    "check": "import { loadConfig } from './src/config.js'; if (loadConfig({}).port !== 3000) process.exit(1); if (loadConfig({ PORT: '8080' }).port !== 8080) process.exit(1); for (const bad of ['abc', '80abc', '99999', '0', '-1', '']) { let threw = false; try { loadConfig({ PORT: bad }); } catch { threw = true; } if (!threw) { console.error(bad); process.exit(1); } }"
+  },
+  {
+    "id": "task-explain-module",
+    "category": "task",
+    "prompt": "What does src/rate.js do, and is there anything wrong with it?",
+    "files": {
+      "src/rate.js": "const buckets = new Map();\n\nexport function allow(key, limit, windowMs, now = Date.now()) {\n  const b = buckets.get(key) ?? { count: 0, start: now };\n  if (now - b.start > windowMs) {\n    b.count = 0;\n    b.start = now;\n  }\n  b.count++;\n  buckets.set(key, b);\n  return b.count <= limit;\n}\n",
+      "package.json": "{ \"type\": \"module\" }\n"
+    }
+  }
+]
