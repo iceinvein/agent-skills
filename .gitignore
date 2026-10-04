@@ -24,5 +24,8 @@ AGENTS.md
 # plugin eval output
 skills/*/evals/results/
 
+# terse benchmark output
+skills/terse/bench/results/
+
 # eval run output at the repo root; the per-skill rule above covers the rest
 evals/results/
