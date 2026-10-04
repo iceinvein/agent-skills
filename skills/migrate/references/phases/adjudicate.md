@@ -42,9 +42,12 @@ order `queue list` uses. Work down it.
 **Draft a ruling for each, then present them together.** The agent's job is
 to draft, not to decide. A drafted ruling that the owner accepts unchanged
 is a good outcome; a drafted ruling nobody read is the failure this phase
-exists to prevent. Present the whole set at once so the owner sees the
-shape of what they are agreeing to, rather than being walked through four
-separate decisions with no view of how they interact.
+exists to prevent. Each draft follows the item's Recommendation, even when
+it hinges on a fact only the owner holds, and names that fact as what would
+overturn it; never a menu of options without a pick. Present the whole set
+at once so the owner sees the shape of what they are agreeing to, rather
+than being walked through four separate decisions with no view of how they
+interact. The owner approves, amends or rejects each one.
 
 **Record each approved ruling.** One command per item:
 

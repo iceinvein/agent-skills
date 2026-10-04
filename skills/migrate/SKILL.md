@@ -14,6 +14,30 @@ description: Source-agnostic legacy migration mapping. Walks a legacy codebase t
 - A target repo that is a git working copy. The store lives inside it and
   commits alongside your own work; there is no separate run directory.
 
+## Starting
+
+If `.migrate/config.toml` exists, this is a resume: run `migrate status` first
+and never `init`, which refuses with `init: <path> already exists; this is a
+resume, run migrate status`. Otherwise start at phase 0.
+
+## Where you stop
+
+At each of these, stop and wait for the owner; nothing you can run stands in
+for their answer.
+
+- Probe interview: target stack, layout, commands. Ask after writing
+  `parity-basis.md`; run `init` only once answered.
+- A seam that escalates: file the queue item with its recommendation; the
+  owner picks the partition, you do not.
+- Adjudication: draft every ruling, present them together, record only what
+  the owner approved.
+- A handoff that refuses: report the blockers it names; never rule or flip a
+  phase just to clear them.
+- Forecast attestation: the owner fills `forecast-assumptions.md`; never
+  author it.
+- A store lock held by a live process (exit 3, timed out waiting): ask;
+  `--force-unlock` is only for a holder that is not running.
+
 ## Phase walkthrough
 
 Work phases 0 through 7 in order. Do not skip ahead: the run-state gate fails a

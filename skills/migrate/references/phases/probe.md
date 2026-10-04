@@ -42,17 +42,27 @@ What you read instead:
    build, and start it, in whatever order the stack suggests. Write every
    probe command you ran and its actual output to `.migrate/parity-basis.md`
    as prose, along with any dependency gap or environmental blocker you hit.
-   This is prose, not a census record, because it is an argument for the
+   Create `.migrate/` yourself if it is not there yet: `init` has not run,
+   and it leaves an existing `parity-basis.md` untouched. Write this before
+   the interview, so the evidence is on disk whatever the answers turn out to
+   be. This is prose, not a census record, because it is an argument for the
    basis you are about to declare, not a count anything can balance. Decide
-   `runnable` or `source-only` from that evidence and pass it to `--basis`.
+   `runnable` or `source-only` from that evidence; it goes to `--basis` in
+   step 4.
 
-3. **Interview for the target profile.** Ask for: a name, the target stack,
-   the layout (which directories hold which part of the target), the
-   commands that test, lint, and build it, and `parity_test_path` (the path
-   template later phases will write parity tests under, for example
-   `tests/parity/{capability}/{fr_slug}.test.ts`).
+3. **Interview for the target profile, then stop until it is answered.** Ask
+   for: a name, the target stack, the layout (which directories hold which
+   part of the target), the commands that test, lint, and build it, and
+   `parity_test_path` (the path template later phases will write parity
+   tests under, for example `tests/parity/{capability}/{fr_slug}.test.ts`).
+   `init` takes the name as `--name`, so it cannot run before this.
 
-4. **Confirm or replace the default surface set.** The default is
+4. **Run `migrate init` with the answers.** Pass the name, the target stack,
+   the detected source stack and the basis from step 2 (the example under
+   "What closes it"), then hand-edit `[target.layout]` and
+   `[target.commands]` as step 5 describes.
+
+5. **Confirm or replace the default surface set.** The default is
    `["routes", "tables", "jobs", "reports", "screens", "integrations",
    "workflows", "settings"]`. This is written by `migrate init` and is not
    yours to change through a flag: `init` takes no surface-set argument at
@@ -96,7 +106,9 @@ What you read instead:
 
 There is no census kind for probe; it is not a lens, an attribute, a
 rule-sweep, or a closer, so nothing balances here. The phase closes on the
-artifacts existing and the status flip:
+artifacts existing and the status flip. By the time this runs,
+`parity-basis.md` is already written and the interview answered; `init`
+comes after both, and leaves the evidence file as it found it:
 
 ```
 migrate init --source /abs/path/to/legacy --scope "user management module" \
@@ -105,7 +117,8 @@ migrate init --source /abs/path/to/legacy --scope "user management module" \
 migrate phase probe --status done
 ```
 
-`init` exits 1 if `config.toml` already exists, and 2 if `--source` is
+`init` exits 1 if `config.toml` already exists (`init: <path> already
+exists; this is a resume, run migrate status`), and 2 if `--source` is
 missing, is not a directory, or `--basis` is not `runnable` or
 `source-only`. Confirm the write with `migrate status`, which prints the
 detected stack and basis on its first line.
