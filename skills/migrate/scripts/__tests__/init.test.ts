@@ -74,6 +74,14 @@ test('init over an existing store calls it a resume and points at migrate status
   )
 })
 
+test('init points at finishing probe, not at the next phase', async () => {
+  const result = await captureStdout(() => runInit(BASE()))
+  expect(result.code).toBe(0)
+  expect(result.text).toContain(
+    'next: finish probe (target layout and commands, surface set), then `migrate phase probe --status done`',
+  )
+})
+
 test('init refuses a source path that does not exist', async () => {
   expect(await runInit({ ...BASE(), sourcePath: join(root, 'nope') })).toBe(2)
 })

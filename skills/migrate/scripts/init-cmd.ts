@@ -115,6 +115,10 @@ export async function runInit(opts: {
     process.stdout.write(`init: created ${gitignore} with ${ENV_IGNORE}\n`)
   }
 
-  process.stdout.write('next: run the enumerate phase, then `migrate check`\n')
+  // init runs mid-probe, after the interview: the layout, the commands and the
+  // surface set are still hand edits, and enumerate cannot be done before probe.
+  process.stdout.write(
+    'next: finish probe (target layout and commands, surface set), then `migrate phase probe --status done`\n',
+  )
   return 0
 }
