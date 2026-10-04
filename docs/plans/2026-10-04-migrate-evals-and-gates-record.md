@@ -64,6 +64,31 @@
   "no rule-sweep census record" for capabilities not yet mined. Expected at a
   seam or mid-extract stage; the reruns will show whether agents react to it.
 
+- **Task 9 rerun: 10/10 at 1.00** (USD 4.21, 214s,
+  `results/2026-10-04T01-54-24-677Z`), against the 8/10 baseline. The probe run
+  wrote `parity-basis.md`, asked, and never ran `init`.
+- **Final review: nothing blocking.** Fixed by the controller, since every
+  implementer had finished: the extract dead-route regex assumed `kind` came
+  first inside `disposition` (the importer keeps the agent's key order), now
+  lookaheads; that case gained `check-was-run`, so its dangling-id
+  `not_contains` cannot pass on a run that never checked; `seam-low-q` gained
+  `no-partition-written` (the fixture now writes an empty `capabilities.jsonl`)
+  and both seam cases a `store-was-scaffolded` grader; the probe case's text
+  now states the new order and `init-waits-for-the-answers` pins it; the resume
+  "read" pattern no longer counts `migrate phase <p> --status <s>`; SKILL.md's
+  walkthrough intro described the old run-state-only ordering, and its probe
+  and adjudication stop lines now carry the name, the parity test path and the
+  draft-from-recommendation rule; `init` pointed at "run the enumerate phase",
+  which now refuses while probe is pending, so it points at finishing probe
+  (test added, watched red); three overlong lines reflowed. The five cases
+  whose graders changed are rerun after these edits.
+- **Spec deviations, for the record.** The spec's `evals/lib/build-store.ts`
+  builder became `lib/scaffold.sh` plus one replay file per CLI step: boring
+  bash a fixture can source, and each step is readable on its own. The
+  adjudicate case has four open items, not three: the express `queued` store
+  carries four, and trimming one would mean diverging from the store the other
+  cases share.
+
 ## Findings for later tasks
 
 - **For Task 8 (adjudicate stop).** First run of `adjudicate-drafts-not-decides`
