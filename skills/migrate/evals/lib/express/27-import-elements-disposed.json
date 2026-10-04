@@ -1,0 +1,219 @@
+{
+  "batch": "b-elements-disposition-001",
+  "phase": "extract",
+  "rows": [
+    {
+      "id": "route-get-api-users",
+      "surface": "routes",
+      "element": "GET /api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-001"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-post-api-users",
+      "surface": "routes",
+      "element": "POST /api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-002"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-get-api-users-id-welcome",
+      "surface": "routes",
+      "element": "GET /api/users/:id/welcome",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "WN-001"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-users",
+      "surface": "tables",
+      "element": "users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-003"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-audit-log",
+      "surface": "tables",
+      "element": "audit_log",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "AR-002"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "job-purge-audit-log",
+      "surface": "jobs",
+      "element": "nightly purge of audit_log",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "AR-001"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-audit-log"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "report-daily-users",
+      "surface": "reports",
+      "element": "daily-users report",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-004"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "screen-users",
+      "surface": "screens",
+      "element": "users list screen",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-005"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "integration-mailer",
+      "surface": "integrations",
+      "element": "call to mailer service",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "WN-003"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "workflow-welcome-email",
+      "surface": "workflows",
+      "element": "welcome email workflow",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "WN-002"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "route-post-api-users"
+        },
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users-id-welcome"
+        },
+        {
+          "kind": "ledger",
+          "id": "setting-welcome-email-enabled"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-welcome-email-enabled",
+      "surface": "settings",
+      "element": "welcomeEmailEnabled",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "WN-001"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-max-users-per-page",
+      "surface": "settings",
+      "element": "maxUsersPerPage",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "mapped",
+        "fr": "UD-001"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

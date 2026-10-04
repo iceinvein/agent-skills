@@ -1,0 +1,10 @@
+{
+  "kind": "closer",
+  "closer": "cross-capability-workflow",
+  "phase": "extract",
+  "checked": 1,
+  "findings": 1,
+  "fixed": 1,
+  "queued": [],
+  "batch": "b-closer-cross-capability-001"
+}

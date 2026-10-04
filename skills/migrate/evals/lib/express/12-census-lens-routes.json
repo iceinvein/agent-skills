@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "routes",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 3,
+      "evidence": "grep \"app.(get|post)\" across app.js"
+    },
+    "manual": {
+      "count": 3,
+      "evidence": "manual walk of route registrations in app.js"
+    }
+  },
+  "total": 3,
+  "in_ledger": 0,
+  "added": 3,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-routes-census-001"
+}

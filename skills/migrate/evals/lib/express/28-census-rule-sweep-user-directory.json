@@ -1,0 +1,10 @@
+{
+  "kind": "rule-sweep",
+  "subject": "user-directory",
+  "phase": "extract",
+  "probes": 2,
+  "found": 1,
+  "as_requirements": 1,
+  "queued": [],
+  "batch": "b-rules-user-directory-001"
+}

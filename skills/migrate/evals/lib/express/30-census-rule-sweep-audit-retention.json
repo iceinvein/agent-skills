@@ -1,0 +1,10 @@
+{
+  "kind": "rule-sweep",
+  "subject": "audit-retention",
+  "phase": "extract",
+  "probes": 2,
+  "found": 1,
+  "as_requirements": 1,
+  "queued": [],
+  "batch": "b-rules-audit-retention-001"
+}

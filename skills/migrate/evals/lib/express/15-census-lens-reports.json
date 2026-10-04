@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "reports",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 1,
+      "evidence": "ls reports/*.json"
+    },
+    "manual": {
+      "count": 1,
+      "evidence": "manual review of report definitions under reports/"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-reports-census-001"
+}

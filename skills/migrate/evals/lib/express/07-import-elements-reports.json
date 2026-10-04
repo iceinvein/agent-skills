@@ -1,0 +1,26 @@
+{
+  "batch": "b-reports-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "report-daily-users",
+      "surface": "reports",
+      "element": "daily-users report",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

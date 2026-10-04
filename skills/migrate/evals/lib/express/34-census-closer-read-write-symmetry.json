@@ -1,0 +1,12 @@
+{
+  "kind": "closer",
+  "closer": "read-write-symmetry",
+  "phase": "extract",
+  "checked": 11,
+  "findings": 1,
+  "fixed": 0,
+  "queued": [
+    "q-express-users-table-unwired"
+  ],
+  "batch": "b-closer-read-write-symmetry-001"
+}

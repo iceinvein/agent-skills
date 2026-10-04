@@ -1,0 +1,21 @@
+{
+  "batch": "b-screens-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "screen-users",
+      "surface": "screens",
+      "element": "users list screen",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

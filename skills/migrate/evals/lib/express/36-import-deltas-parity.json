@@ -1,0 +1,14 @@
+{
+  "batch": "b-deltas-parity-001",
+  "phase": "parity",
+  "rows": [
+    {
+      "id": "delta-mailer-provider-swap",
+      "scope": "Outbound welcome email delivery (WN-003)",
+      "rationale": "The legacy app posts straight to mailer.example.com from inside the request handler. The target sends through its own provider, so the outbound request differs by destination and headers for reasons that have nothing to do with whether a welcome was owed.",
+      "parity_exclusion": "The WN-003 parity check must not assert on the mailer endpoint or the shape of the request sent to it, only that a send was attempted for an enabled, pending welcome.",
+      "validation": "A greenfield-only test asserts the target provider is called with the right recipient; the parity suite does not re-prove the transport.",
+      "owner_signed": "2026-08-08"
+    }
+  ]
+}

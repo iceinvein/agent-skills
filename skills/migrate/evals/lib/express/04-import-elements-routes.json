@@ -1,0 +1,61 @@
+{
+  "batch": "b-routes-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "route-get-api-users",
+      "surface": "routes",
+      "element": "GET /api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-post-api-users",
+      "surface": "routes",
+      "element": "POST /api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-get-api-users-id-welcome",
+      "surface": "routes",
+      "element": "GET /api/users/:id/welcome",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

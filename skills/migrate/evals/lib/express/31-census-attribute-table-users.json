@@ -1,0 +1,21 @@
+{
+  "kind": "attribute",
+  "surface": "tables",
+  "subject": "table-users",
+  "phase": "extract",
+  "directions": {
+    "ddl": {
+      "count": 3,
+      "evidence": "column list from CREATE TABLE users in schema.sql"
+    },
+    "report_query": {
+      "count": 1,
+      "evidence": "columns named in the query in reports/daily-users.json"
+    }
+  },
+  "total": 3,
+  "behavioral": 2,
+  "explained": 2,
+  "queued": [],
+  "batch": "b-attr-table-users-001"
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "tables",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 2,
+      "evidence": "grep \"CREATE TABLE\" across schema.sql"
+    },
+    "manual": {
+      "count": 2,
+      "evidence": "manual review of table names referenced in app.js, cron.js and reports/"
+    }
+  },
+  "total": 2,
+  "in_ledger": 0,
+  "added": 2,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-tables-census-001"
+}

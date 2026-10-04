@@ -1,0 +1,336 @@
+{
+  "batch": "b-reqs-extract-001",
+  "phase": "extract",
+  "rows": [
+    {
+      "id": "UD-001",
+      "cap": "user-directory",
+      "requirement": "Listing users returns at most the configured maximum number of users per page",
+      "actors": "API client",
+      "objects": "User list",
+      "rules": "The response is sliced to settings.maxUsersPerPage entries",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            8,
+            8
+          ]
+        },
+        {
+          "kind": "src",
+          "path": "settings.json",
+          "lines": [
+            1,
+            4
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "UD-002",
+      "cap": "user-directory",
+      "requirement": "Creating a user returns a generated id and records a pending welcome against it",
+      "actors": "API client",
+      "objects": "User",
+      "rules": "The id is minted from the current clock; the submitted email is held against it",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "route-post-api-users"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            10,
+            14
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "UD-003",
+      "cap": "user-directory",
+      "requirement": "The users table stores an id, a required email, and an active flag defaulting to set",
+      "actors": "-",
+      "objects": "User row",
+      "rules": "email is NOT NULL; is_active defaults to 1",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        },
+        {
+          "kind": "src",
+          "path": "schema.sql",
+          "lines": [
+            1,
+            5
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "UD-004",
+      "cap": "user-directory",
+      "requirement": "The daily-users report counts only users whose active flag is set",
+      "actors": "Report consumer",
+      "objects": "Active user count",
+      "rules": "The query filters on is_active = 1 and runs once a day",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "report-daily-users"
+        },
+        {
+          "kind": "src",
+          "path": "reports/daily-users.json",
+          "lines": [
+            1,
+            6
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "UD-005",
+      "cap": "user-directory",
+      "requirement": "The users screen renders one list entry per user email",
+      "actors": "Operator",
+      "objects": "User list screen",
+      "rules": "Each entry is bound to the email field",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "screen-users"
+        },
+        {
+          "kind": "src",
+          "path": "views/users.html",
+          "lines": [
+            1,
+            9
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "UD-006",
+      "cap": "user-directory",
+      "requirement": "The users list endpoint reads the rows it returns from the users table",
+      "actors": "API client",
+      "objects": "User list",
+      "rules": "-",
+      "origin": "intended",
+      "confidence": {
+        "kind": "queued",
+        "queue": "q-express-user-list-source"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            8,
+            8
+          ]
+        },
+        {
+          "kind": "src",
+          "path": "schema.sql",
+          "lines": [
+            1,
+            5
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "WN-001",
+      "cap": "welcome-notification",
+      "requirement": "The welcome route reports a send only when the welcome setting is enabled and a pending welcome exists for that id",
+      "actors": "API client",
+      "objects": "Pending welcome",
+      "rules": "Both settings.welcomeEmailEnabled and a stored email must hold, or nothing is sent",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users-id-welcome"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            18,
+            27
+          ]
+        },
+        {
+          "kind": "src",
+          "path": "settings.json",
+          "lines": [
+            1,
+            4
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "WN-002",
+      "cap": "welcome-notification",
+      "requirement": "Signup and welcome are one two-step workflow carrying the pending email in process memory between the two requests",
+      "actors": "API client",
+      "objects": "Pending welcome state",
+      "rules": "Step one writes the map entry; step two consumes it",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "workflow-welcome-email"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            5,
+            6
+          ]
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            16,
+            19
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "WN-003",
+      "cap": "welcome-notification",
+      "requirement": "The welcome email is sent by an outbound POST to the mailer service",
+      "actors": "System",
+      "objects": "Welcome email",
+      "rules": "The recipient address is the email held against the pending welcome",
+      "origin": "intended",
+      "confidence": {
+        "kind": "inferred"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "integration-mailer"
+        },
+        {
+          "kind": "src",
+          "path": "app.js",
+          "lines": [
+            21,
+            24
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "AR-001",
+      "cap": "audit-retention",
+      "requirement": "Audit log rows older than thirty days are purged on a nightly schedule",
+      "actors": "System",
+      "objects": "Audit log rows",
+      "rules": "Runs at 02:00 daily; the cutoff is thirty days",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "job-purge-audit-log"
+        },
+        {
+          "kind": "src",
+          "path": "cron.js",
+          "lines": [
+            3,
+            6
+          ]
+        }
+      ],
+      "parity": null
+    },
+    {
+      "id": "AR-002",
+      "cap": "audit-retention",
+      "requirement": "The audit log stores one row per user action with a creation timestamp",
+      "actors": "-",
+      "objects": "Audit log row",
+      "rules": "user_id, action and created_at are all NOT NULL",
+      "origin": "intended",
+      "confidence": {
+        "kind": "confirmed"
+      },
+      "citations": [
+        {
+          "kind": "ledger",
+          "id": "table-audit-log"
+        },
+        {
+          "kind": "src",
+          "path": "schema.sql",
+          "lines": [
+            7,
+            12
+          ]
+        }
+      ],
+      "parity": null
+    }
+  ]
+}

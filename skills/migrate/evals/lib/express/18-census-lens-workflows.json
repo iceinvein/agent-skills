@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "workflows",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 1,
+      "evidence": "manual review of state stored and later consumed across app.js handlers"
+    },
+    "manual": {
+      "count": 1,
+      "evidence": "grep \"pendingWelcomes\" across app.js"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-workflows-census-001"
+}

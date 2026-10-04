@@ -1,0 +1,36 @@
+{
+  "batch": "b-settings-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "setting-welcome-email-enabled",
+      "surface": "settings",
+      "element": "welcomeEmailEnabled",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-max-users-per-page",
+      "surface": "settings",
+      "element": "maxUsersPerPage",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

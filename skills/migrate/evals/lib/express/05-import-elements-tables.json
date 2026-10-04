@@ -1,0 +1,36 @@
+{
+  "batch": "b-tables-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "table-users",
+      "surface": "tables",
+      "element": "users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-audit-log",
+      "surface": "tables",
+      "element": "audit_log",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

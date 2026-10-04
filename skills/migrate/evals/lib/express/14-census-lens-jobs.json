@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "jobs",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 1,
+      "evidence": "grep \"cron.schedule\" across cron.js"
+    },
+    "manual": {
+      "count": 1,
+      "evidence": "manual review of cron.js"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-jobs-census-001"
+}

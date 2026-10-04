@@ -1,0 +1,10 @@
+{
+  "kind": "closer",
+  "closer": "scope-injection",
+  "phase": "extract",
+  "checked": 11,
+  "findings": 0,
+  "fixed": 0,
+  "queued": [],
+  "batch": "b-closer-scope-injection-001"
+}

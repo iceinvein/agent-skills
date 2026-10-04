@@ -1,0 +1,26 @@
+{
+  "batch": "b-jobs-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "job-purge-audit-log",
+      "surface": "jobs",
+      "element": "nightly purge of audit_log",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-audit-log"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

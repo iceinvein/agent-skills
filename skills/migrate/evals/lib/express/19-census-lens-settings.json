@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "settings",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 2,
+      "evidence": "grep \"settings\\.\" across app.js, excluding the require line"
+    },
+    "manual": {
+      "count": 2,
+      "evidence": "manual review of settings.json keys"
+    }
+  },
+  "total": 2,
+  "in_ledger": 0,
+  "added": 2,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-settings-census-001"
+}

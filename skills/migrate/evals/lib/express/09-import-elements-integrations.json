@@ -1,0 +1,21 @@
+{
+  "batch": "b-integrations-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "integration-mailer",
+      "surface": "integrations",
+      "element": "call to mailer service",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

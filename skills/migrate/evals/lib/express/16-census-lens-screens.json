@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "screens",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 1,
+      "evidence": "ls views/*.html"
+    },
+    "manual": {
+      "count": 1,
+      "evidence": "manual review of templates under views/"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-screens-census-001"
+}

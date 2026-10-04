@@ -1,0 +1,34 @@
+{
+  "batch": "b-workflows-elements-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "workflow-welcome-email",
+      "surface": "workflows",
+      "element": "welcome email workflow",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "out-of-scope",
+        "queue": "q-tiny-express-enumerate-scaffold"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "route-post-api-users"
+        },
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users-id-welcome"
+        },
+        {
+          "kind": "ledger",
+          "id": "setting-welcome-email-enabled"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}
