@@ -340,6 +340,65 @@ describe("sluice design stop and plan mode", () => {
 	});
 });
 
+// Sessions on the same skill text went from asking through the tool to asking
+// in lettered prose, because the text read either way: "as choices" fits a
+// lettered list, and "a question tool does not end it for you" read as a reason
+// to skip the tool. Naming the tool at each point the partner chooses removes
+// the second reading.
+describe("sluice asks its choices through the question tool", () => {
+	const INTENT = readFileSync(join(dir, "references", "intent.md"), "utf8");
+	const FINISH = readFileSync(join(dir, "references", "finish.md"), "utf8");
+
+	function sentenceWith(md: string, word: RegExp): string {
+		const flat = md.replace(/\n/g, " ");
+		const found = flat.split(/(?<=\.)\s+/).find((x) => word.test(x));
+		expect(found).toBeDefined();
+		return found as string;
+	}
+
+	test("the router sends a choice for the partner through the tool, and a stop still ends the turn", () => {
+		const route = section(SKILL, "Route first");
+		expect(route).toContain("AskUserQuestion");
+		expect(route).toMatch(/end the turn/i);
+	});
+
+	test("agreeing intent asks through the tool", () => {
+		const rule = section(SKILL, "The rules")
+			.split("\n- ")
+			.find((b) => b.startsWith("**Agree intent**"));
+		expect(rule).toContain("AskUserQuestion");
+		expect(INTENT).toContain("AskUserQuestion");
+	});
+
+	test("the router asks the design fork through the tool before the design", () => {
+		const fork = sentenceWith(section(SKILL, "Deep channel"), /\bfork\b/);
+		expect(fork).toContain("AskUserQuestion");
+		expect(fork).toMatch(/before the design/);
+	});
+
+	test("the router asks pre-flight through the tool", () => {
+		expect(sentenceWith(section(SKILL, "Deep channel"), /^Ask them/)).toContain("AskUserQuestion");
+	});
+
+	test("the reference asks pre-flight through the tool, then ends the turn on the answers", () => {
+		const preflight = section(DEEP, "Pre-flight");
+		expect(preflight).toContain("AskUserQuestion");
+		expect(preflight).toMatch(/end the turn/);
+	});
+
+	test("the reference names a lettered list in prose as the paragraph pre-flight rules out", () => {
+		expect(sentenceWith(section(DEEP, "Pre-flight"), /lettered/)).toMatch(/paragraph/);
+	});
+
+	test("the reference says what pre-flight does where there is no question tool", () => {
+		expect(section(DEEP, "Pre-flight")).toMatch(/no question tool|without (the|a) question tool/i);
+	});
+
+	test("finish offers its three options through the tool", () => {
+		expect(sentenceWith(FINISH, /three options/)).toContain("AskUserQuestion");
+	});
+});
+
 // A repo that mandates its own process rules this router out, and the only
 // place that mandate is found is the repo's own instructions. An eval run
 // announced a channel first and had to take it back.

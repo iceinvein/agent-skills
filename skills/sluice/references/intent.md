@@ -1,7 +1,9 @@
 # Agree intent
 
-Ask one question at a time. Use multiple choice when the answer set is
-bounded.
+Ask one question at a time, through `AskUserQuestion` where the harness has
+it, with the options as choices and your recommendation first. Prose is the
+fallback for a harness without the tool or an answer set that is genuinely
+open, not the default.
 
 Offer two or three approaches, never a survey. Put your top pick first
 and explain what makes it the better bet. Cut every feature YAGNI would
