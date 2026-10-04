@@ -277,9 +277,17 @@ specific numbers named: submitting `found: 2` against the same
 does not balance: found 2 but as_requirements 0 + queued 1 = 1`, run
 against a real store.
 
-File the queue item this record names, in the same pass, even though (the
-attribute section below explains why) no gate will ever check that you
-did:
+File the queue item this record names, in the same pass. The `refs` gate
+resolves every census record's `queued` ids against real queue files, the
+same as a disposition's queue id; run against a real store before this
+file existed, `migrate check` reported:
+
+```
+  refs:
+    rule-sweep census for user-management queues q-account-lockout-scope, which does not exist
+```
+
+The file:
 
 ```markdown
 ---
@@ -316,7 +324,17 @@ not), not two.
 **A rule-sweep with nothing to report still needs a record**, the same
 zero-findings discipline enumerate.md states for a lens: `probes: N,
 found: 0, as_requirements: 0, queued: []` is a real, closeable record, not
-a reason to skip writing one.
+a reason to skip writing one. The `census` gate holds every capability in
+`capabilities.jsonl` to one `rule-sweep` record whose `subject` is its
+slug, and names a sweep whose `subject` is no slug at all. Run against a
+disposable copy of a real store, reset before any sweep, with one sweep
+recorded under a misspelled slug:
+
+```
+  census:
+    capability user-management has no rule-sweep census record
+    rule-sweep census for user-managment names no capability
+```
 
 ### The attribute lens
 
@@ -411,17 +429,17 @@ exists, and only the operator can say which one is true today.
 `queue add: q-users-islocked-semantics [moderate]`.
 
 **The honest limit: nothing checks that every attribute-bearing element
-actually got an attribute census, or that every capability actually got a
-rule-sweep.** Verified on a disposable copy of the store: stripping both
-kinds of record out of `census.jsonl` there still passes `migrate check`
-clean, because gate 2 only
-tracks completeness for `lens` (against `[surfaces].types`) and `closer`
-(against `[closers].set`); `attribute` and `rule-sweep` records are
-balance-checked when present but never counted against any declared list.
-Doing the sweep for every capability and the attribute pass for every
-table, report, and screen with sub-elements is this manual's discipline,
-not the tool's gate, the same way the closer set below is enforced by name
-and these two kinds are not.
+actually got an attribute census.** Verified on a disposable copy of the
+store: stripping the `attribute` record out of `census.jsonl` there adds
+no violation to `migrate check`, because gate 2 tracks completeness for
+`lens` (against `[surfaces].types`), `closer` (against `[closers].set`)
+and `rule-sweep` (against the capability slugs), and there is no declared
+list for `attribute`: which elements bear attributes worth a census is a
+judgment the store does not record. `attribute` records are balance- and
+bounds-checked when present, and their `queued` ids are resolved, but
+never counted against anything. Doing the attribute pass for every table,
+report, and screen with sub-elements is this manual's discipline, not the
+tool's gate.
 
 ### The declared closer set
 
@@ -561,13 +579,16 @@ own worked grammar example is built on this exact file).
 
 A declared closer with no record at all fails `census`, run on a
 disposable copy with extract reset before any closer census was recorded
-(never reset the running example itself just to see this message):
+(never reset the running example itself just to see this message). The
+reset clears the rule-sweep too, so its line follows the closers'; the six
+unenumerated-surface lines that precede them are left out here:
 
 ```
   census:
     declared closer cross-capability-workflow has no census record
     declared closer scope-injection has no census record
     declared closer read-write-symmetry has no census record
+    capability user-management has no rule-sweep census record
 ```
 
 ### Workflow tracing
@@ -589,13 +610,23 @@ recorded, every queue item this phase's own findings named already filed
 which is expected: the census gate reads the whole store regardless of
 `--phase`, so it still names every surface this scratch run never
 enumerated (`jobs`, `reports`, `screens`, `integrations`, `workflows`,
-`settings`). `refs` does not appear below only because `q-legacy-admin-tool`
-was already filed above; skip that step and it reappears here, naming
-`route-get-legacy-admin-tool`, exactly the way enumerate.md's and seam.md's
-own noisy-but-expected checks name what is genuinely still missing rather
-than padding the count. Run `migrate check --phase extract` for real,
-right before flipping the phase, against a store with exactly the rows
-this manual's examples built:
+`settings`). `refs` does not appear below only because this phase's four
+queue items were already filed above; skip that step and it reappears
+here, one line per missing item, as it did on this store before they were
+filed:
+
+```
+  refs:
+    route-get-legacy-admin-tool references queue item q-legacy-admin-tool via disposition.queue, which does not exist
+    rule-sweep census for user-management queues q-account-lockout-scope, which does not exist
+    attribute census for table-users queues q-users-islocked-semantics, which does not exist
+    closer census for read-write-symmetry queues q-reset-token-verify-missing, which does not exist
+```
+
+That is the same way enumerate.md's and seam.md's own noisy-but-expected
+checks name what is genuinely still missing rather than padding the count.
+Run `migrate check --phase extract` for real, right before flipping the
+phase, against a store with exactly the rows this manual's examples built:
 
 ```
 4/5 mapped, 1 out-of-scope, 0 unaccounted

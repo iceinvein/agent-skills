@@ -137,22 +137,26 @@ ambiguity mislabeled one tier too high ever costs.
 
 ### Referential integrity
 
-**The gate checks exactly three fields against real queue files, by name,
-and no others: `confidence.queue` on a requirement whose `confidence.kind`
-is `queued`; `disposition.queue` on an element whose `disposition.kind` is
-`out-of-scope`; and `parity.queue` on a requirement whose `parity.kind` is
-`rubric` at any level below `high`.** State this before relying on it for
-anything else, because the obvious-sounding generalization is wrong: a
-census record's own `queued` array (on a `lens`, `attribute`, `rule-sweep`,
-or `closer` record) is never cross-checked against a real queue file by any
-gate. Verified on a disposable copy of the store, taken before extract.md's
-own queue items were filed: a census record whose `queued` array names an
-id with no file behind it still passes `migrate check` with zero `refs`
-violations for that id, on that copy. Filing the file anyway is still this
-manual's discipline, exactly as extract.md says, even though nothing
-downstream will ever catch you if you skip it there.
+**The gate checks four places against real queue files, by name:
+`confidence.queue` on a requirement whose `confidence.kind` is `queued`;
+`disposition.queue` on an element whose `disposition.kind` is
+`out-of-scope`; `parity.queue` on a requirement whose `parity.kind` is
+`rubric` at any level below `high`; and every id in a census record's own
+`queued` array, on a `lens`, `attribute`, `rule-sweep`, or `closer`
+record.** Run against a real store, taken before extract.md's own queue
+items were filed, the census records it had already written reported:
 
-A worked example of what the gate does check, run on a disposable copy so
+```
+  refs:
+    rule-sweep census for user-management queues q-account-lockout-scope, which does not exist
+    attribute census for table-users queues q-users-islocked-semantics, which does not exist
+    closer census for read-write-symmetry queues q-reset-token-verify-missing, which does not exist
+```
+
+A census `queued` id balances that record's arithmetic, so one with no
+file behind it would stand for a decision nobody can ever see or make.
+
+A worked example of a requirement field, run on a disposable copy so
 the extra requirement and queue item below never enter the running example
 (which by this point already has all five of its own items filed and would
 otherwise read as six): a requirement with `confidence: {"kind": "queued",
@@ -167,8 +171,9 @@ otherwise read as six): a requirement with `confidence: {"kind": "queued",
 files the missing item; the very next `migrate check` no longer names it,
 with no other change to that copy. The message names which field the
 reference came from (`disposition.queue`, `confidence.queue`, or
-`parity.queue`) precisely so that one requirement dangling from two
-different fields at once reads as two separate things to fix, not one
+`parity.queue`; a census id names its record's kind and subject instead)
+precisely so that one requirement dangling from two different fields at
+once reads as two separate things to fix, not one
 ambiguous-looking duplicate.
 
 ## What closes it
@@ -202,13 +207,13 @@ this set already explains, not a queue defect: those six surfaces were
 never enumerated in this scratch run. Closed for real, on the same store
 with a zero-finding lens record recorded for each: `migrate check --phase
 queue` exits 0 with no violations at all, confirming this phase's own
-gates (`queue`, and the three `refs` fields above) were clean the whole
+gates (`queue`, and the four `refs` checks above) were clean the whole
 time and only the unrelated census gap was ever holding exit 0 back.
 
 Plain `migrate check`, with no `--phase`, still fails here, and should:
 phases 6 and 7 have not run, so `run-state` names both, the `adjudication`
 gate names every item nobody has ruled on, and the `handoff` gate reports
-that nothing has been emitted.
+that nothing has been emitted. After the same six census lines:
 
 ```
   run-state:
@@ -216,6 +221,10 @@ that nothing has been emitted.
     phase handoff is pending; every phase through handoff must be done
   adjudication:
     q-reset-token-verify-missing [critical] is still open; every queue item needs a ruling before handoff
+    q-account-lockout-scope [moderate] is still open; every queue item needs a ruling before handoff
+    q-parity-um-003-reset-flow [moderate] is still open; every queue item needs a ruling before handoff
+    q-users-islocked-semantics [moderate] is still open; every queue item needs a ruling before handoff
+    q-legacy-admin-tool [minor] is still open; every queue item needs a ruling before handoff
   handoff:
     no handoff.json in the store; handoff has not run, so nothing has reached a delivery medium
 ```
@@ -235,9 +244,6 @@ queue item(s) of 5`, `resume: adjudicate, no batches yet`.
   cost of a false escalation (an owner glances at it sooner than strictly
   needed) is smaller than the cost of a false de-escalation (a real problem
   waits at the bottom of the list).
-- **A census record's own `queued` ids with no queue file behind them.**
-  Not caught by any gate, covered above; file them anyway, since a reviewer
-  reading this run against this manual will expect to find one.
 
 ## Commands
 

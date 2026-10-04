@@ -81,9 +81,9 @@ These refs are not something this phase produces itself: they come from
 lens records that an element it just found touches one already in the
 ledger. If that step was skipped for real touches that exist in the
 source, this graph has no edge for them, silently; there is no check here
-or anywhere else that notices a missing ref, only one (in `enumerate.md`'s
-own step 4) that notices a `ledger` ref pointing at an id the ledger does
-not yet have.
+or anywhere else that notices a missing ref, only the `refs` gate's check
+(shown in `enumerate.md`'s step 4) that a `ledger` ref names an id the
+ledger actually has.
 
 **Cluster it.** Connected components: two elements with no path of `refs`
 between them cannot possibly share a capability, so start by splitting the
@@ -152,16 +152,29 @@ is not a partition of anything; it defeats the fanout the seam exists to
 produce, since extract dispatches one agent per capability and would then
 dispatch one per stray settings key.
 
-It is not **leave it out of every capability**. Nothing here catches that:
-no gate reads `capabilities.jsonl`'s `elements` array at all, at any phase.
-`check.ts` reads that file only for the `slug` set, to reject duplicate
-slugs and to resolve each requirement's `cap`. So an element in no
-capability passes every gate this phase and the next one have, and then
-surfaces two phases later in the most expensive possible way: extract fans
-out per capability, an element in no capability gets no agent, no agent
-writes it a disposition, and the coverage gate fails on an `unaccounted`
-element with nothing in the message pointing back at the seam decision that
-caused it.
+It is not **leave it out of every capability**. Extract fans out per
+capability, so an element in no capability gets no agent and no
+disposition. The `refs` gate reads every capability's `elements` array
+once `capabilities.jsonl` has a row, and names that element at seam,
+before extract runs. The same gate names an id a capability lists that is
+not in the ledger, an id listed twice in one capability, and an element
+claimed by two capabilities (which extract would mine twice). Run against a
+disposable copy of a real store where `table-users` was left out, one
+capability listed `route-get-api-users` twice, and a second capability
+claimed `route-post-api-login` alongside a misspelled `table-user`:
+
+```
+  refs:
+    capability user-management lists element route-get-api-users more than once
+    capability accounts lists element table-user, which is not in the ledger
+    element route-post-api-login sits in capabilities user-management and accounts
+    element table-users is in no capability, so extract will never reach it
+```
+
+An element in three or more capabilities is named the same way, with the
+slugs joined as `a, b and c`. An element already disposed `out-of-scope`
+is exempt from the "in no capability" check, since extract deliberately
+does not mine it.
 
 The one exception is deliberate rather than accidental. When no capability
 is a defensible home (a connection string every capability's data path
@@ -171,9 +184,12 @@ capabilities with a partial claim, and the real options, and leave it out
 of every capability on purpose. Extract then disposes of it `out-of-scope`
 citing that same item, which is the one route by which an element reaches a
 terminal disposition without belonging to a capability, and the `refs` gate
-does check that queue id resolves. Deliberate and recorded; the failure
-above is silent and unrecorded, and that is the whole difference between
-them.
+does check that queue id resolves. Until extract writes that disposition,
+`check` names the element `in no capability`, exactly as it names an
+accidental omission: the gate cannot tell the two apart, so that line is
+expected for this one element from seam until extract, and the queue item
+is what records the difference. Deliberate and recorded, against
+accidental and unrecorded: that is the whole difference between them.
 
 A worked example, run against a real store, of the fully degraded case
 above: assume this source has no relational schema, no statically
@@ -316,10 +332,11 @@ hand-written, the same way `parity-basis.md` is in phase 0. (`migrate reset
 deleting the other two, but that undoes the phase rather than writing its
 content.) Whichever validator produced the accepted partition (the worked
 examples above show surface-affinity; a schema-clustering or call-graph
-result is written the same way), each community becomes one line. The gate
-checks the file for duplicate slugs (the only structural check it gets,
-since there is no importer to validate it at write time) and later, in
-extract, for every requirement's `cap` resolving to one of these slugs.
+result is written the same way), each community becomes one line. With no
+importer to validate it at write time, the `refs` gate is what checks the
+file: duplicate slugs, the membership rules above, and later, in extract,
+every requirement's `cap` resolving to one of these slugs. The `census`
+gate also reads it: each slug is owed a `rule-sweep` record in extract.
 
 `seam.json`'s shape is in `docs/reference.md`'s store artifacts section.
 Unlike `capabilities.jsonl`, no gate reads `seam.json` or `seam.md` at
@@ -337,19 +354,19 @@ and the status flip, the same shape as probe:
 migrate phase seam --status done
 ```
 
-`migrate phase seam --status done` succeeds even if `enumerate` is not
-`done` yet: the status setter does not check its predecessor. `migrate
-check` does. A real run against a store where `enumerate` was still
-`running` when `seam` was flipped to `done` reported:
+The status setter refuses while any earlier phase is not `done`. A real
+run against a store where `enumerate` was still `running` exited 1 with:
 
 ```
-  run-state:
-    phase enumerate is running; every phase through seam must be done
+phase: seam cannot be done while enumerate is running
 ```
 
-That is the mechanism behind `SKILL.md`'s "do not skip ahead": nothing
-stops you from flipping phases out of order, but `check --phase seam` (or
-later, plain `check`) names exactly which predecessor is not finished.
+That is the mechanism behind `SKILL.md`'s "do not skip ahead": a phase
+cannot be flipped to `done` out of order, and the message names which
+earlier phase is not finished. `check --phase seam` before the flip names
+every capability under `census` as having no `rule-sweep` record
+(`capability user-management has no rule-sweep census record`); that is
+expected until extract sweeps each one.
 
 ## Degradation
 

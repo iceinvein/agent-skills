@@ -74,14 +74,22 @@ subtraction, not you.
    table to receive (`<singular>-<slug>`, the same convention every element
    id follows). A `ledger` ref naming an id not yet in the ledger is
    expected mid-enumerate, and resolves once the other lens's batch lands.
-   Nothing rejects it on either end at this phase: `migrate import
-   elements` validates that a `ledger` ref carries a string `id`, not that
-   the id already exists, and `check.ts`'s `refs` gate resolves a `ledger`
-   *citation* on a requirement against the ledger, but never reads an
-   element's own `refs` at all, so nothing checks that one element's ref
-   resolves to another. That is a real gap, not a guarantee in disguise;
-   this manual does not add a check to close it, and seam is where a
-   dangling ref would first actually matter.
+   `migrate import elements` accepts it, since it validates only that a
+   `ledger` ref carries a string `id`. The `refs` gate does resolve every
+   element's `ledger` refs against the ledger, and it is not phase-scoped,
+   so a `check --phase enumerate` run after the routes batch but before the
+   tables batch reports, against a real store:
+
+   ```
+     refs:
+       element route-get-api-users refs ledger id table-users, which is not in the ledger
+       element route-post-api-login refs ledger id table-users, which is not in the ledger
+   ```
+
+   That is the expected noise, and it clears when the tables batch lands. A
+   ref still dangling once every lens has run is a misspelled id or an
+   element nobody added, and seam's clustering would silently lose that
+   edge.
 
 5. **Declare `"phase": "enumerate"` on the record, not the batch's phase or
    any other.** A lens census must declare `enumerate`; nothing else is
@@ -263,6 +271,8 @@ has a record, no matter when you flip the phase status. `coverage` naming
 your just-imported elements as unaccounted is equally expected, and it
 clears on a different schedule again: nothing disposes an element before
 extract, so it stays noisy through the whole of this phase regardless.
+`refs` is absent here only because both batches have landed; between them
+it names the dangling `ledger` refs shown in step 4.
 `run-state` is the one line that is really about *this* phase's own
 status, and it is also the only one of the three that clears the moment
 you flip it. Once every declared surface has closed, flip it:

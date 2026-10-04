@@ -41,7 +41,7 @@ scripts/
   store.ts             JSONL read, atomic write, id upsert, file readers
   lock.ts              store lock: serialises the read-modify-write in import,
                        census, phase --status, reset, adjudicate and handoff
-  phases.ts            phases.json state and committed batches
+  phases.ts            phases.json state, committed batches, phase order
   validate.ts          per-row shape validation shared by import and check
   census.ts            census kinds, balance and bounds invariants, subject identity
   citations.ts         resolves src refs against the source tree
@@ -121,8 +121,10 @@ error. A fixed temp name was tried first and lost data under concurrent writes.
 do one. `import` and `census` each read a whole store file, upsert or replace
 rows, and rewrite the whole file; both also commit a batch into `phases.json`,
 via `recordBatch`, inside the same lock. `phase --status` does its own
-read-modify-write on `phases.json` alone. `reset` does the widest one of the
-four, and which files it touches depends on the phase named: `elements.jsonl`
+read-modify-write on `phases.json` alone, and refuses `done` while any earlier
+phase is not `done`, checked against the same read under the same lock so a
+concurrent `reset` cannot slip between the check and the write. `reset` does
+the widest one of the four, and which files it touches depends on the phase named: `elements.jsonl`
 and `census.jsonl` for `enumerate`, `capabilities.jsonl` plus removal of
 `seam.json` and `seam.md` for `seam`, `requirements.jsonl` and `census.jsonl`
 and `elements.jsonl` again for `extract`, `deltas.jsonl` and
@@ -230,8 +232,9 @@ its own roadmap before regenerating it for exactly that reason.
 1. Add the variant to the `Census` union in `types.ts`.
 2. Add its balance rule to `balanceOf` in `census.ts`. The message must state the
    arithmetic so a reviewer can check it without re-deriving anything.
-3. Add its subject identity to `censusKey`, so re-recording replaces rather than
-   stacks.
+3. Add its subject field to `censusSubject`, which `censusKey` keys on so
+   re-recording replaces rather than stacks, and which the `refs` gate names a
+   dangling `queued` id against.
 4. Extend `validateCensus` for the new fields.
 
 ### Add a surface type
@@ -322,7 +325,16 @@ mechanism out rather than a pattern already proven in the store. Milestone 2
 closed this with a store lock instead; see the invariant above.
 
 **`capabilities.jsonl` has no import path.** It is hand-written, which is why the
-`refs` gate checks for duplicate slugs explicitly.
+`refs` gate checks it explicitly: duplicate slugs, listed ids that are not in
+the ledger or repeat, and every element in at most one capability and, unless
+disposed `out-of-scope`, in at least one.
+
+**Attribute-census completeness is not gated.** Lens, closer and rule-sweep
+records are each counted against a declared list (`[surfaces].types`,
+`[closers].set`, the capability slugs). `attribute` records have no such list,
+because which elements bear attributes worth a census is a judgment the store
+does not record; they are balance-checked when present and never missed when
+absent.
 
 **Bun 1.3.14 TOML quirk.** `Bun.TOML.parse` swaps the named `\t` and `\f`
 escapes: parsing `a = "x\ty"` yields codepoint 12. `config.ts` works around it

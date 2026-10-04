@@ -172,8 +172,11 @@ directly, one JSON object per line:
 {"slug": "user-management", "title": "User Management", "ns": "UM", "elements": []}
 ```
 
-Because hand-editing is the only route, the gate checks for duplicate slugs
-explicitly.
+Because hand-editing is the only route, the `refs` gate checks it explicitly:
+duplicate slugs, an `elements` id that is not in the ledger, an id listed twice
+in one capability, an element in more than one capability, and (once the file
+has a row) an element in no capability unless it is disposed `out-of-scope`.
+The `census` gate owes each slug a `rule-sweep` record.
 
 ### Seam artifacts
 
@@ -251,11 +254,10 @@ Only `src` refs are resolved against the source tree, and only by the
 `citations` gate (on by default; skipped under `--no-citations`). A `ledger`
 entry inside a requirement's `citations` is resolved by the `refs` gate,
 which checks it names a real element. The same `{"kind": "ledger", ...}`
-shape inside an element's own `refs` is a different case entirely: nothing
-checks it, on either end, at any phase. `refs` and `citations` share this
-grammar but not this enforcement; `references/phases/enumerate.md`'s
-Procedure (step 4) and `references/phases/seam.md` explain why an
-element's `refs` is exempt, and what depends on it anyway.
+shape inside an element's own `refs` is checked by the same gate, and is
+expected to dangle mid-enumerate until the other lens's batch lands;
+`references/phases/enumerate.md`'s Procedure (step 4) shows that noise, and
+`references/phases/seam.md` explains what depends on these refs.
 
 **Disposition** (on elements)
 
@@ -410,7 +412,8 @@ Balance: `explained + queued.length == behavioral`. `total` is bounded by
 ### rule-sweep
 
 One per capability, recording a search for code-enforced rules that no CRUD
-requirement captured.
+requirement captured. `subject` is the capability's slug; the census gate
+names a capability with no record and a record whose `subject` is no slug.
 
 ```json
 {
@@ -500,11 +503,11 @@ The summary line is always printed, passing or failing:
 | Gate | Enforces |
 |---|---|
 | `coverage` | Every element has a terminal disposition. An `unaccounted` element is a violation naming its id and surface. |
-| `census` | Every declared surface has a lens record and every declared closer has a closer record; every record is validated and balances; `in_ledger + added` matches the real element count for that surface; for `lens` and `attribute` records, `total` is bounded by `max(directions) <= total <= sum(directions)`. A row that fails validation is named by line number, and excluded from the arithmetic checks above, but still registers the surface or closer it names so this gate does not also claim that surface's lens never ran. |
-| `refs` | Referential integrity: a `mapped` disposition resolves to a real requirement, a queue id resolves to a real queue file, a requirement's `cap` resolves to a capability, a `ledger` citation resolves to a real element. Also catches duplicate requirement ids, capability slugs and element ids. |
+| `census` | Every declared surface has a lens record, every declared closer has a closer record, and every capability has a `rule-sweep` record (a sweep whose `subject` is no capability slug is named too); every record is validated and balances; `in_ledger + added` matches the real element count for that surface; for `lens` and `attribute` records, `total` is bounded by `max(directions) <= total <= sum(directions)`. A row that fails validation is named by line number, and excluded from the arithmetic checks above, but still registers the surface or closer it names so this gate does not also claim that surface's lens never ran. |
+| `refs` | Referential integrity: a `mapped` disposition resolves to a real requirement, a queue id resolves to a real queue file (including every id in a census record's `queued`), a requirement's `cap` resolves to a capability, a `ledger` citation or an element's `ledger` ref resolves to a real element. Every element a capability lists is in the ledger, listed once, and in no other capability; once `capabilities.jsonl` has a row, every element not disposed `out-of-scope` is in some capability. Also catches duplicate requirement ids, capability slugs and element ids. |
 | `queue` | Queue files parse and satisfy the grammar above. |
 | `deltas` | No delta is left unsigned. |
-| `parity` | Every requirement whose confidence is not `queued` carries a parity plan. |
+| `parity` | Every requirement whose confidence is not `queued` carries a parity plan, and a `golden-master` or `differential` `ref` matches `target.parity_test_path`, with `{capability}` as the requirement's `cap` and `{fr_slug}` as lowercase kebab-case. The file it names is never opened. |
 | `citations` | **On by default; opt out with `--no-citations`.** Every `src` citation resolves against the source tree, with line ranges inside the file. Symlinks are followed and checked, so a link out of the tree is rejected. The old `--citations` flag is still accepted and silently ignored. |
 | `leaks` | **Opt-in, `--leaks`.** No value from `.migrate/.env` appears in a committed artifact or anywhere in git history. Messages name the variable and file, never the value. |
 | `source` | The source checkout has no uncommitted changes, when it is a git repo. |
@@ -552,7 +555,8 @@ file written outside `.migrate/` is never written in silence. A target whose
 `.gitignore` already lists the entry gets neither line, because nothing was
 written.
 
-Refuses an existing config at 1, and a source path that is missing or not a
+Refuses an existing config at 1 (`init: <path> already exists; this is a
+resume, run migrate status`), and a source path that is missing or not a
 directory at 2. Refuses at 2, before creating anything at all, if any of its
 three write targets (`config.toml`, `queue/`, `.gitignore`) resolves inside
 `source.path`; a refusal leaves the tree exactly as it found it. Values you
@@ -570,7 +574,9 @@ each, reading is the default so an orchestrator resuming a run sees where it
 stopped before it moves anything. With `<name>` alone, prints just that
 phase's line. With `<name> --status <s>`, sets that phase's status; `<s>` is
 one of `pending`, `running`, `blocked`, `done`. An unknown phase name or status
-value exits 2, naming the valid set. The write path takes the store lock and
+value exits 2, naming the valid set. Setting `done` while any earlier phase is
+not `done` exits 1 (`phase: seam cannot be done while enumerate is running`),
+naming the first such phase. The write path takes the store lock and
 accepts `--force-unlock`; a lock failure exits 3. Unlike `init`, `phase`
 resolves its store root the same way `check` does, by searching upward from
 the cwd, not by trusting the cwd itself.

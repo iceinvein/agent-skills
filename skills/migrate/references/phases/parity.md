@@ -112,23 +112,34 @@ Recommend (c); `rubric:moderate` matches what is actually known today.
 `migrate queue add q-parity-um-003-reset-flow.md` accepts this and prints
 `queue add: q-parity-um-003-reset-flow [moderate]`.
 
-**Show the substitution, because nothing else will.** `{capability}` is the
-capability's own `slug` from `capabilities.jsonl`, already known.
-`{fr_slug}` has no deriving code anywhere in this CLI: it is a short,
-kebab-case name you choose by hand for what the requirement actually is
-(`login`, `list-users`), not the arbitrary FR id (`UM-001` tells a reader of
-the test tree nothing). This is hand work the same way writing
-`capabilities.jsonl` itself is hand work in seam.md: nothing imports a
-parity plan's `ref` against the template, checks that it resolves to a real
-file, or even checks that it looks like the template at all. Verified on a
-disposable copy of the store, not the running example (overwriting UM-001's
-real plan here just to prove this point would only recreate the exact kind
-of drift this manual exists to prevent): a `golden-master` row with
-`"ref": "this/path/does/not/exist/anywhere.test.ts"`, matching neither the
-template nor any real file, imports cleanly and passes `migrate check`
-without a single violation. The convention is entirely this manual's
-discipline; get the substitution right by hand, because no gate is behind
-you if you do not.
+**Show the substitution.** `{capability}` is the requirement's own `cap`,
+a `slug` from `capabilities.jsonl`, already known. `{fr_slug}` has no
+deriving code anywhere in this CLI: it is a short, lowercase kebab-case
+name you choose by hand for what the requirement actually is (`login`,
+`list-users`), not the arbitrary FR id (`UM-001` tells a reader of the test
+tree nothing). The importer accepts any string as a `ref`; the `parity`
+gate then checks every `golden-master` and `differential` ref against the
+template, with `{capability}` fixed to the requirement's `cap` and
+`{fr_slug}` matched as kebab-case. It never checks that the file exists.
+Verified on a disposable copy of the store, not the running example
+(overwriting UM-002's real plan here just to prove this point would only
+recreate the exact kind of drift this manual exists to prevent): a
+`golden-master` row with `"ref": "this/path/does/not/exist/anywhere.test.ts"`
+imports cleanly, and `migrate check --phase parity` then reports:
+
+```
+  parity:
+    UM-002 parity ref this/path/does/not/exist/anywhere.test.ts does not match parity_test_path tests/parity/{capability}/{fr_slug}.test.ts
+```
+
+What the match cannot see: a template with no placeholder accepts only its
+own literal path, so every requirement would share one file; `{fr_slug}`
+is checked for shape only, so a wrong but well-formed name passes; and a
+flat template such as `tests/parity/{capability}-{fr_slug}.test.ts` lets
+cap `user` match `tests/parity/user-management-list-users.test.ts`, since
+`management-list-users` is itself a valid `{fr_slug}`. Keep the capability
+in its own path segment, as the default does, and get the name right by
+hand.
 
 **Deltas exist to record sanctioned differences, never to silence a real
 failure.** State this before writing one, not after: a delta is a *reason*
@@ -207,9 +218,10 @@ where all three are `confirmed` or `inferred` (never `queued`) and none yet
 has a plan.
 
 **The honest limit: a parity plan on record is a commitment, not a proof.**
-`check`'s parity gate is satisfied once `parity` is a well-formed value; it
-never runs `target.commands.test`, never opens the file the `ref` names,
-and never confirms the test that file describes actually exists or passes.
+`check`'s parity gate is satisfied once `parity` is a well-formed value
+whose executable `ref` fits the template; it never runs
+`target.commands.test`, never opens the file the `ref` names, and never
+confirms the test that file describes actually exists or passes.
 Writing `{"kind": "golden-master", "ref": "..."}` and later writing the test
 file at that path are two separate acts, and only the manual's own
 discipline connects them.
@@ -257,9 +269,9 @@ migrate phase parity --status done
   levels, and more queue items, on a `source-only` run than on a `runnable`
   one.
 - **The target's test command is still `init`'s placeholder.** A parity
-  plan can still be recorded (the gate only checks the value's shape); the
-  test itself has nowhere real to run yet. This is exactly the "commitment,
-  not proof" limit above, sharpest right after probe when `target.commands`
+  plan can still be recorded (the gate checks only the value's shape and the
+  `ref` against the template); the test itself has nowhere real to run
+  yet. This is exactly the "commitment, not proof" limit above, sharpest right after probe when `target.commands`
   has not been wired up.
 - **Genuinely unclear which rubric level applies.** Use `unknown` rather
   than guessing a specific level to avoid a queue id; `unknown` still needs
