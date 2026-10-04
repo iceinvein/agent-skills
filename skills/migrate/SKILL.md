@@ -25,11 +25,12 @@ resume, run migrate status`. Otherwise start at phase 0.
 At each of these, stop and wait for the owner; nothing you can run stands in
 for their answer.
 
-- Probe interview: target stack, layout, commands. Ask after writing
-  `parity-basis.md`; run `init` only once answered.
+- Probe interview: target name, stack, layout, commands, parity test path.
+  Ask after writing `parity-basis.md`; run `init` only once answered.
 - A seam that escalates: file the queue item with its recommendation; the
   owner picks the partition, you do not.
-- Adjudication: draft every ruling, present them together, record only what
+- Adjudication: draft every ruling from the item's recommendation, naming
+  the fact that would overturn it; present them together; record only what
   the owner approved.
 - A handoff that refuses: report the blockers it names; never rule or flip a
   phase just to clear them.
@@ -40,9 +41,9 @@ for their answer.
 
 ## Phase walkthrough
 
-Work phases 0 through 7 in order. Do not skip ahead: the run-state gate fails a
-phase marked `done` while its predecessor is still `pending`, so working out of
-order just produces a violation you undo later.
+Work phases 0 through 7 in order. `migrate phase <p> --status done` refuses
+while any earlier phase is not `done`, and the run-state gate catches a store
+whose phases were set out of order by hand.
 
 ### 0. Probe
 

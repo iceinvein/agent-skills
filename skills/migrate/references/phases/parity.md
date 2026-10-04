@@ -271,8 +271,8 @@ migrate phase parity --status done
 - **The target's test command is still `init`'s placeholder.** A parity
   plan can still be recorded (the gate checks only the value's shape and the
   `ref` against the template); the test itself has nowhere real to run
-  yet. This is exactly the "commitment, not proof" limit above, sharpest right after probe when `target.commands`
-  has not been wired up.
+  yet. This is exactly the "commitment, not proof" limit above, sharpest
+  right after probe when `target.commands` has not been wired up.
 - **Genuinely unclear which rubric level applies.** Use `unknown` rather
   than guessing a specific level to avoid a queue id; `unknown` still needs
   one, so nothing is gained by picking a falsely specific level instead.

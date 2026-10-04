@@ -124,8 +124,8 @@ via `recordBatch`, inside the same lock. `phase --status` does its own
 read-modify-write on `phases.json` alone, and refuses `done` while any earlier
 phase is not `done`, checked against the same read under the same lock so a
 concurrent `reset` cannot slip between the check and the write. `reset` does
-the widest one of the four, and which files it touches depends on the phase named: `elements.jsonl`
-and `census.jsonl` for `enumerate`, `capabilities.jsonl` plus removal of
+the widest one of the four, and which files it touches depends on the phase
+named: `elements.jsonl` and `census.jsonl` for `enumerate`, `capabilities.jsonl` plus removal of
 `seam.json` and `seam.md` for `seam`, `requirements.jsonl` and `census.jsonl`
 and `elements.jsonl` again for `extract`, `deltas.jsonl` and
 `requirements.jsonl` for `parity`, and `phases.json` for every phase including

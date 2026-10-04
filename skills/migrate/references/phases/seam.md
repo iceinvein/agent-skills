@@ -361,7 +361,7 @@ run against a store where `enumerate` was still `running` exited 1 with:
 phase: seam cannot be done while enumerate is running
 ```
 
-That is the mechanism behind `SKILL.md`'s "do not skip ahead": a phase
+That is what keeps the phases in order (`SKILL.md`'s walkthrough): a phase
 cannot be flipped to `done` out of order, and the message names which
 earlier phase is not finished. `check --phase seam` before the flip names
 every capability under `census` as having no `rule-sweep` record
