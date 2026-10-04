@@ -1,5 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+// Imported as a file so `bun build --compile` embeds the template; a path
+// joined from import.meta.dir points outside the binary once compiled.
+import configTemplatePath from '../templates/config.toml' with { type: 'file' }
 import { storePaths } from './paths.ts'
 
 export const DEFAULT_SURFACES: readonly string[] = [
@@ -192,8 +194,7 @@ export async function loadConfig(root: string): Promise<Config> {
 }
 
 export async function writeConfig(root: string, init: ConfigInit): Promise<void> {
-  const templatePath = join(import.meta.dir, '..', 'templates', 'config.toml')
-  const template = await readFile(templatePath, 'utf8')
+  const template = await readFile(configTemplatePath, 'utf8')
   let rendered = template
   rendered = substitute(
     rendered,
