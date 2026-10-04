@@ -178,3 +178,13 @@ test('a phase is marked done once its predecessor is done', async () => {
   expect(result.code).toBe(0)
   expect(result.out).toContain('enumerate is now done')
 })
+
+test('a phase cannot be done over an earlier phase reset behind a done predecessor', async () => {
+  for (const p of ['probe', 'enumerate', 'seam']) {
+    expect((await migrate(['phase', p, '--status', 'done'])).code).toBe(0)
+  }
+  expect((await migrate(['reset', '--phase', 'enumerate'])).code).toBe(0)
+  const result = await migrate(['phase', 'extract', '--status', 'done'])
+  expect(result.code).toBe(1)
+  expect(result.err).toBe('phase: extract cannot be done while enumerate is pending\n')
+})

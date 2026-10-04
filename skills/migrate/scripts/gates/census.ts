@@ -119,5 +119,17 @@ export const gate: Gate = (ctx): Violation[] => {
       })
     }
   }
+  // The reverse: a sweep whose subject is no capability slug swept something
+  // the partition does not hold, usually a misspelled or since-renamed slug,
+  // and leaves the real capability it meant unswept.
+  const capSlugs = new Set(ctx.capabilities.map((c) => c.slug))
+  for (const subject of capabilitiesWithSweep) {
+    if (!capSlugs.has(subject)) {
+      violations.push({
+        gate: 'census',
+        message: `rule-sweep census for ${subject} names no capability`,
+      })
+    }
+  }
   return violations
 }

@@ -25,11 +25,16 @@ function normalizeForComparison(s: string): string {
   return s.trim().toLowerCase()
 }
 
+// The field that identifies a census record: what a lens covers, what an
+// attribute or rule-sweep examined, which closer ran.
+export function censusSubject(record: Census): string {
+  if (record.kind === 'lens') return record.surface
+  if (record.kind === 'closer') return record.closer
+  return record.subject
+}
+
 export function censusKey(record: Census): string {
-  if (record.kind === 'lens') return `lens:${record.surface}`
-  if (record.kind === 'attribute') return `attribute:${record.subject}`
-  if (record.kind === 'rule-sweep') return `rule-sweep:${record.subject}`
-  return `closer:${record.closer}`
+  return `${record.kind}:${censusSubject(record)}`
 }
 
 export function balanceOf(record: Census): string | null {
@@ -72,10 +77,7 @@ export function boundsOf(record: Census): string | null {
   if (record.kind !== 'lens' && record.kind !== 'attribute') return null
   const entries = Object.entries(record.directions)
   if (entries.length === 0) return null
-  const label =
-    record.kind === 'lens'
-      ? `lens census for ${record.surface}`
-      : `attribute census for ${record.subject}`
+  const label = `${record.kind} census for ${censusSubject(record)}`
   // This function's own type signature promises record.directions is a
   // Record<string, Direction>, but a hand-edited census.jsonl can still put
   // a bare number or any other malformed value there without ever going

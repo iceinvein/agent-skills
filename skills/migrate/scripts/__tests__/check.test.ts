@@ -729,3 +729,72 @@ test('a parity ref naming the fr id rather than a kebab-case fr_slug is a parity
     },
   ])
 })
+
+test('an element listed twice by one capability is a refs violation naming that capability once', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      {
+        slug: 'user-management',
+        title: 'Users',
+        ns: 'UM',
+        elements: ['route-get-api-users', 'route-get-api-users'],
+      },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'capability user-management lists element route-get-api-users more than once',
+    },
+  ])
+})
+
+test('an element listed twice by one capability and once by another names each capability once', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).capabilities,
+    [
+      {
+        slug: 'user-management',
+        title: 'Users',
+        ns: 'UM',
+        elements: ['route-get-api-users', 'route-get-api-users'],
+      },
+      { slug: 'reporting', title: 'Reporting', ns: 'RP', elements: ['route-get-api-users'] },
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'refs')).toEqual([
+    {
+      gate: 'refs',
+      message: 'capability user-management lists element route-get-api-users more than once',
+    },
+    {
+      gate: 'refs',
+      message: 'element route-get-api-users sits in capabilities user-management and reporting',
+    },
+  ])
+})
+
+test('a rule-sweep whose subject is no capability slug is a census violation', async () => {
+  await seedClean()
+  await writeRows(
+    storePaths(root).census,
+    [
+      lensCensus('routes', 1, 1),
+      lensCensus('tables', 0, 0),
+      ruleSweep('user-management'),
+      ruleSweep('user-managment'),
+    ],
+    source,
+  )
+  const result = await runCheck({ root })
+  expect(result.violations.filter((v) => v.gate === 'census')).toEqual([
+    { gate: 'census', message: 'rule-sweep census for user-managment names no capability' },
+  ])
+})

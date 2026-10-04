@@ -1,4 +1,5 @@
-import type { Census, Violation } from '../types.ts'
+import { censusSubject } from '../census.ts'
+import type { Violation } from '../types.ts'
 import { type Gate, validCensus } from './context.ts'
 
 // A duplicate id or slug within one store file is a real defect the refs
@@ -19,13 +20,6 @@ function duplicatesOf(values: string[]): Map<string, number> {
     if (count > 1) dups.set(v, count)
   }
   return dups
-}
-
-// The field that identifies a census record, the same one censusKey keys on.
-function censusSubject(record: Census): string {
-  if (record.kind === 'lens') return record.surface
-  if (record.kind === 'closer') return record.closer
-  return record.subject
 }
 
 // Gate 3: referential integrity.
@@ -103,9 +97,11 @@ export const gate: Gate = (ctx): Violation[] => {
 
   // An element's ledger refs are the only edges seam's surface-affinity
   // validator clusters on. enumerate.md lets a lens point at an id another
-  // lens has not added yet, so a dangling ref is expected mid-batch; by the
-  // time check runs every lens has landed, and one still dangling is a
-  // misspelled id or an element that was never added.
+  // lens has not added yet, and this gate is not phase-scoped, so a
+  // `check --phase enumerate` after one lens's batch reports refs to
+  // elements the next lens will add. That noise is expected mid-enumerate
+  // and clears when the other lens's batch lands; one still dangling after
+  // every lens has run is a misspelled id or an element never added.
   for (const el of ctx.elements) {
     for (const ref of el.refs) {
       if (ref.kind === 'ledger' && !elementIds.has(ref.id)) {
@@ -122,8 +118,17 @@ export const gate: Gate = (ctx): Violation[] => {
   // mined twice; an element listed nowhere is never mined at all, which no
   // other gate notices because coverage only asks whether it was mapped.
   const capsOf = new Map<string, string[]>()
+  // A repeat inside one capability is a typo in that row, not a second
+  // capability claiming the element, so it is named against the row and
+  // counted once toward membership.
   for (const cap of ctx.capabilities) {
-    for (const id of cap.elements) {
+    for (const [id] of duplicatesOf(cap.elements)) {
+      violations.push({
+        gate: 'refs',
+        message: `capability ${cap.slug} lists element ${id} more than once`,
+      })
+    }
+    for (const id of new Set(cap.elements)) {
       if (!elementIds.has(id)) {
         violations.push({
           gate: 'refs',

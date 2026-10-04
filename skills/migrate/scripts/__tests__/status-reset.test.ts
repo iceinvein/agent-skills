@@ -121,10 +121,10 @@ Route POST /api/invoice/batch found in InvoiceController.cs:215-240.
 Recommend (c); three invocations in six months.
 `
 
-// The reset tests below each need one phase done in isolation, which
-// setPhaseStatus now refuses over an unfinished predecessor. That state is
-// written straight to phases.json, the same way a hand edit would reach it,
-// since what is under test is how reset undoes it, not how it arose.
+// The reset tests below each start from one phase done with nothing before
+// it, a state the CLI refuses to produce. It is written straight to
+// phases.json, the way a hand edit would reach it, because what is under
+// test is how reset undoes that state, not how it arose.
 async function markDoneOutOfOrder(phase: Phase): Promise<void> {
   const phases = await loadPhases(root)
   phases[phase].status = 'done'
