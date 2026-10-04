@@ -8,11 +8,11 @@ and whether it files a queue item in the same pass that names it.
 
 | Case | Signal under test | What it pins |
 |---|---|---|
-| `probe-asks-for-the-target` | A fresh ask over a legacy source, no store | Writes `parity-basis.md` from the probe evidence; asks for the target stack, layout and commands instead of inventing them |
+| `probe-asks-for-the-target` | A fresh ask over a legacy source, no store | Writes `parity-basis.md` from the probe evidence; asks for the target profile instead of inventing it; holds `init` until answered |
 | `resume-reads-status-first` | A store paused mid-extract, "carry on" | `migrate status` or `phase` before any write; never runs `init` |
 | `seam-low-q-escalates` | A tangled source whose refs give Q = 0 | A `critical` queue item offering vertical-slice; seam left open; no partition written |
 | `seam-shared-element-queued` | tiny-webforms, one setting every community reads | `setting-default-connection` lands in no capability and is queued |
-| `extract-files-queue-in-same-pass` | A route on an Express router nothing mounts | The route is accounted for through a queue item filed before any check could see it dangling |
+| `extract-files-queue-in-same-pass` | A route on an Express router nothing mounts | The route is accounted for through a queue item; a check runs and never sees the id dangling |
 | `adjudicate-drafts-not-decides` | Four open queue items, "adjudicate the queue" | Review sheet read; a drafted ruling for every item in one message; nothing recorded |
 | `handoff-blocked-reports-blockers` | One item reopened after adjudication | Handoff attempted; nothing emitted; the open item named as the blocker |
 | `done-means-plain-check` | Everything done but one unsigned delta | Plain `migrate check`; answers "not finished" and names the delta |
@@ -98,10 +98,10 @@ Three graders pinned more than the skill asks, and were re-pinned on the
 evidence of a run rather than loosened to pass one:
 
 - `probe-asks-for-the-target` required `config.toml` to exist. `init` takes
-  `--name`, which is an interview answer, and the skill never says whether
-  `init` comes before the interview, so an agent that asks first is not wrong.
-  Those graders were removed. The `parity-basis.md` grader stays: probe.md
-  writes it at step 2, before the interview.
+  `--name`, which is an interview answer, and at the time the skill did not say
+  whether `init` came before the interview, so an agent that asked first was
+  not wrong. Those graders were removed. The skill now states the order
+  (evidence, interview, then `init`), and `init-waits-for-the-answers` pins it.
 - `seam-shared-element-queued` assumed only surface affinity could run, as
   seam.md's worked example does. The agent built a call graph from the C#,
   found it disagreed with affinity, and escalated under the two-agree rule. The
@@ -144,3 +144,25 @@ earlier single runs, so neither reads as noise yet.
 
 Not yet known: no case has a no-plugin arm, so the ablation delta is
 unmeasured, and no case has been repeated within one invocation.
+
+### After the gate and SKILL.md changes, Opus 5.5, 2026-10-04
+
+Same command, same models (USD 4.21, 214s, `results/2026-10-04T01-54-24-677Z`):
+all ten at 1.00, against eight at the baseline.
+
+| Case | Baseline | After | Reading |
+|---|---|---|---|
+| `probe-asks-for-the-target` | 0.71 | 1.00 | Wrote `parity-basis.md` with the detection evidence, then asked for the target profile and ran no `init` |
+| `adjudicate-drafts-not-decides` | 0.77 | 1.00 | Every draft took a side, following the item's recommendation |
+| the other eight | 1.00 | 1.00 | |
+
+A final review then tightened five cases' graders: an order-independent
+disposition match and a required `migrate check` in the extract case, a
+no-partition grader and scaffold checks in the seam cases, the `init` order in
+probe, and a stricter status read in resume. Those five were rerun once each on
+the tightened graders and all scored 1.00 (USD 2.90 in all,
+`results/2026-10-04T02-00-2*`).
+
+Still single samples: one run per case, no no-plugin arm. The two moved cases
+went from a consistent miss (twice each before the change) to one pass each,
+which is direction, not yet a rate.

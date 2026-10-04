@@ -3,11 +3,10 @@
 # next phase is adjudicate: its rulings are the owner's to make, and the agent
 # drafts them for the owner rather than recording them.
 #
-# The plan called for three open items. The queued store as built carries
-# four (the enumerate scaffold item plus the three extract filed), and all four
-# are left open: trimming one would mean a fixture-only edit to a store the
-# express steps otherwise build verbatim, and four still tests that the drafts
-# come as one set.
+# All four items the queued store carries stay open (the enumerate scaffold
+# item plus the three extract filed), so the store matches the one every other
+# express case starts from, and four is enough to test that the drafts come as
+# one set.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/scaffold.sh"
 

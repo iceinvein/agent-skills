@@ -42,4 +42,7 @@ for surface in routes tables jobs reports screens integrations workflows setting
   migrate census "$CASE_DIR/enumerate/census-$surface.json"
 done
 migrate phase enumerate --status done
+# Seam has not run, so the partition file is empty: the same state
+# `migrate reset --phase seam` leaves, and a real file for the graders to read.
+: > .migrate/capabilities.jsonl
 _migrate_eval_commit "migrate: enumerate"
