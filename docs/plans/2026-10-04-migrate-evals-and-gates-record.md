@@ -51,6 +51,14 @@
   it out-of-scope; accepted noise, covered by e2e-webforms. Task 7 Touches
   widened to `references/phases/queue.md`, which also claimed census queue ids
   are never cross-checked.
+- **Task 8 scope and the probe order, decided.** Touches widened to
+  `references/phases/probe.md` and `adjudicate.md`, where the two baseline
+  misses live. Order: detect stack and runnability, write `parity-basis.md`,
+  interview and stop, then `init` with the answers. Chosen because `--name` is
+  an interview answer and the evidence exists before the interview; the
+  implementer is to confirm `init` leaves an existing `parity-basis.md` alone.
+  Adjudicate: a draft follows the item's recommendation and names the fact that
+  would overturn it, never a menu without a pick.
 - **For Task 9.** After Task 6, the `resume-reads-status-first` and
   `extract-files-queue-in-same-pass` stores fail plain `migrate check` with
   "no rule-sweep census record" for capabilities not yet mined. Expected at a
