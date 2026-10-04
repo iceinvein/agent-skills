@@ -121,3 +121,10 @@ test('the agent shell finds the compiled CLI first on PATH', async () => {
   const result = await spawn(['zsh', '-c', 'command -v migrate'], ws)
   expect(result.out.trim()).toBe(join(ws.home, 'shims', 'migrate'))
 })
+
+test('the workspace holds no compiler leftovers for the agent to find', async () => {
+  const ws = workspaces.get('queued')
+  if (!ws) throw new Error('no workspace built for queued')
+  const tracked = await spawn(['git', 'ls-files'], ws)
+  expect(tracked.out.split('\n').filter((path) => path.endsWith('.bun-build'))).toEqual([])
+})

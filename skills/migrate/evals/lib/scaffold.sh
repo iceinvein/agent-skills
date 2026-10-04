@@ -42,7 +42,9 @@ migrate_scaffold() (
   fi
 
   mkdir -p "$HOME/shims" "$HOME/tmp"
-  bun build --compile "$MIGRATE_SKILL_ROOT/bin/migrate.ts" --outfile "$HOME/shims/migrate" >/dev/null
+  # bun build --compile leaves a large .bun-build file in its cwd; build from
+  # $HOME/tmp so it never lands in the workspace the agent reads.
+  (cd "$HOME/tmp" && bun build --compile "$MIGRATE_SKILL_ROOT/bin/migrate.ts" --outfile "$HOME/shims/migrate" >/dev/null)
   cat > "$HOME/.zshenv" <<'RC'
 export PATH="$HOME/shims:/usr/bin:/bin:/usr/sbin:/sbin"
 # /usr/bin/python3 is the Xcode shim, and without a writable TMPDIR it fails
