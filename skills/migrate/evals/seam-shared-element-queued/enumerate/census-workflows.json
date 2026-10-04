@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "workflows",
+  "phase": "enumerate",
+  "directions": {
+    "multistep": {
+      "count": 0,
+      "evidence": "rg -n -g '*.cs' 'ActionResult Step[0-9]+' <source>: no matches"
+    },
+    "statecarriers": {
+      "count": 1,
+      "evidence": "rg -n -g '*.cs' 'Session\\[|TempData\\[' <source>"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-workflows-census-001"
+}

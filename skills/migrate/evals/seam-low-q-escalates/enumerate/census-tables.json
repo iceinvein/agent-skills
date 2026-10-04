@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "tables",
+  "phase": "enumerate",
+  "directions": {
+    "ddl": {
+      "count": 3,
+      "evidence": "grep -n 'CREATE TABLE' schema.sql"
+    },
+    "queries": {
+      "count": 3,
+      "evidence": "distinct table names after FROM and INTO in server.js"
+    }
+  },
+  "total": 3,
+  "in_ledger": 0,
+  "added": 3,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-tables-census-001"
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "workflows",
+  "phase": "enumerate",
+  "directions": {
+    "state": {
+      "count": 0,
+      "evidence": "grep -nE 'session|new Map' server.js: no matches"
+    },
+    "manual": {
+      "count": 0,
+      "evidence": "manual read: every route completes in a single request"
+    }
+  },
+  "total": 0,
+  "in_ledger": 0,
+  "added": 0,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-workflows-census-001"
+}

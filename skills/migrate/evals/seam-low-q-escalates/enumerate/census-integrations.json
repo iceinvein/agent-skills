@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "integrations",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 0,
+      "evidence": "grep -nE 'fetch\\(|axios|http\\.request' server.js: no matches"
+    },
+    "manual": {
+      "count": 0,
+      "evidence": "manual read of server.js: no outbound calls"
+    }
+  },
+  "total": 0,
+  "in_ledger": 0,
+  "added": 0,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-integrations-census-001"
+}

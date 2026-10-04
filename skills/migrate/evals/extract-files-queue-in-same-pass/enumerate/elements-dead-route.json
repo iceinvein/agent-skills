@@ -1,0 +1,16 @@
+{
+  "batch": "b-routes-elements-002",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "route-get-admin-audit-log-export",
+      "surface": "routes",
+      "element": "GET /admin/audit-log/export",
+      "found_by": ["code"],
+      "disposition": { "kind": "unaccounted" },
+      "refs": [{ "kind": "ledger", "id": "table-audit-log" }],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

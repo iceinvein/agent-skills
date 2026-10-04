@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "settings",
+  "phase": "enumerate",
+  "directions": {
+    "files": {
+      "count": 0,
+      "evidence": "find . -name '*.json' -o -name '.env*' -o -name '*.config.*': no matches"
+    },
+    "env": {
+      "count": 0,
+      "evidence": "grep -n 'process.env' server.js: no matches"
+    }
+  },
+  "total": 0,
+  "in_ledger": 0,
+  "added": 0,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-settings-census-001"
+}

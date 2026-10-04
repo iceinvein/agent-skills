@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "settings",
+  "phase": "enumerate",
+  "directions": {
+    "storage": {
+      "count": 3,
+      "evidence": "rg -n -g '*.config' '<add (key|name)=' <source>"
+    },
+    "readsites": {
+      "count": 3,
+      "evidence": "rg -n -g '*.cs' 'ConfigurationManager\\.(AppSettings|ConnectionStrings)' <source>"
+    }
+  },
+  "total": 3,
+  "in_ledger": 0,
+  "added": 3,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-settings-census-001"
+}

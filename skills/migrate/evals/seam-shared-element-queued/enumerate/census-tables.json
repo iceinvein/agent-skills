@@ -1,0 +1,25 @@
+{
+  "kind": "lens",
+  "surface": "tables",
+  "phase": "enumerate",
+  "directions": {
+    "ddl": {
+      "count": 2,
+      "evidence": "rg -n -g '*.sql' -i '^\\s*CREATE TABLE' <source>"
+    },
+    "raw_ado": {
+      "count": 2,
+      "evidence": "rg -n -g '*.cs' '(FROM|INTO|UPDATE)\\s+((\\[[^]]+\\]|\\w+)\\.)*(\\[[^]]+\\]|\\w+)' <source> | grep -Ev '^[^:]+:[0-9]+:[[:space:]]*//'"
+    },
+    "orm": {
+      "count": 0,
+      "evidence": "rg -n -g '*.cs' 'DbSet<|\\[Table\\(' <source>: no matches"
+    }
+  },
+  "total": 2,
+  "in_ledger": 0,
+  "added": 2,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-tables-census-001"
+}

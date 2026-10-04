@@ -1,0 +1,183 @@
+{
+  "batch": "b-elements-enumerate-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "route-get-api-customers",
+      "surface": "routes",
+      "element": "GET /api/customers",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-customers"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-invoices"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-payments"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-get-api-invoices",
+      "surface": "routes",
+      "element": "GET /api/invoices",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-customers"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-invoices"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-payments"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-post-api-payments",
+      "surface": "routes",
+      "element": "POST /api/payments",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-customers"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-invoices"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-payments"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-get-api-dashboard",
+      "surface": "routes",
+      "element": "GET /api/dashboard",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-customers"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-invoices"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-payments"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-customers",
+      "surface": "tables",
+      "element": "customers",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-invoices",
+      "surface": "tables",
+      "element": "invoices",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-payments",
+      "surface": "tables",
+      "element": "payments",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "job-nightly-overdue-check",
+      "surface": "jobs",
+      "element": "nightly 06:00 overdue invoice check",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-customers"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-invoices"
+        },
+        {
+          "kind": "ledger",
+          "id": "table-payments"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

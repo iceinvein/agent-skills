@@ -1,0 +1,25 @@
+{
+  "kind": "lens",
+  "surface": "integrations",
+  "phase": "enumerate",
+  "directions": {
+    "httpclient": {
+      "count": 1,
+      "evidence": "rg -n -g '*.cs' 'new HttpClient\\(|new WebClient\\(' <source>"
+    },
+    "wcf": {
+      "count": 0,
+      "evidence": "rg -n -g '*.cs' 'ClientBase<|ChannelFactory<|\\[ServiceContract\\]' <source>: no matches"
+    },
+    "configured": {
+      "count": 0,
+      "evidence": "rg -n -g '*.config' '<endpoint\\b' <source>: no matches"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-integrations-census-001"
+}

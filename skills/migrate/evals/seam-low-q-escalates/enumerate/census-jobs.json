@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "jobs",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 1,
+      "evidence": "grep -n 'cron.schedule' server.js"
+    },
+    "manual": {
+      "count": 1,
+      "evidence": "manual read of server.js for timers and schedulers"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-jobs-census-001"
+}

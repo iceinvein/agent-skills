@@ -1,0 +1,25 @@
+{
+  "kind": "lens",
+  "surface": "routes",
+  "phase": "enumerate",
+  "directions": {
+    "attribute": {
+      "count": 3,
+      "evidence": "rg -n -g '*.cs' '[\\[,]\\s*(RoutePrefix|Route|HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|HttpHead|HttpOptions)\\b' <source>"
+    },
+    "convention": {
+      "count": 3,
+      "evidence": "rg -n -g '*Controller*.cs' 'public\\s+\\S+\\s+\\w+\\s*\\(' <source>"
+    },
+    "webforms": {
+      "count": 2,
+      "evidence": "find <source> -type f \\( -name '*.aspx' -o -name '*.ashx' \\)"
+    }
+  },
+  "total": 5,
+  "in_ledger": 0,
+  "added": 5,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-routes-census-001"
+}

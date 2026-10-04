@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "screens",
+  "phase": "enumerate",
+  "directions": {
+    "filesystem": {
+      "count": 0,
+      "evidence": "find . -name '*.html' -o -name '*.ejs' -o -name '*.pug': no matches"
+    },
+    "render": {
+      "count": 0,
+      "evidence": "grep -nE 'res\\.render|sendFile' server.js: no matches"
+    }
+  },
+  "total": 0,
+  "in_ledger": 0,
+  "added": 0,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-screens-census-001"
+}

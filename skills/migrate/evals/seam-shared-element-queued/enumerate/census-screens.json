@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "screens",
+  "phase": "enumerate",
+  "directions": {
+    "filesystem": {
+      "count": 2,
+      "evidence": "find <source> -type f \\( -name '*.aspx' -o -name '*.cshtml' \\)"
+    },
+    "nav": {
+      "count": 2,
+      "evidence": "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' '(url|href|NavigateUrl)=\"~/|Html\\.ActionLink\\(|Url\\.Action\\(' <source>"
+    }
+  },
+  "total": 2,
+  "in_ledger": 0,
+  "added": 2,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-screens-census-001"
+}

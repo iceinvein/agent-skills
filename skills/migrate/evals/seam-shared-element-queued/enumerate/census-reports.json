@@ -1,0 +1,25 @@
+{
+  "kind": "lens",
+  "surface": "reports",
+  "phase": "enumerate",
+  "directions": {
+    "disk": {
+      "count": 1,
+      "evidence": "find <source> -type f \\( -name '*.rdl' -o -name '*.rdlc' \\)"
+    },
+    "nav": {
+      "count": 1,
+      "evidence": "rg -n -g '*.sitemap' -g '_Layout.cshtml' -g '*.master' -g '*Nav*.cshtml' -g '*Menu*.cshtml' -i 'report' <source>"
+    },
+    "builder": {
+      "count": 0,
+      "evidence": "rg -n -g '*.cs' '\\.rdlc?\"' <source>: no matches"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-reports-census-001"
+}

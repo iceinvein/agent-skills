@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "routes",
+  "phase": "enumerate",
+  "directions": {
+    "grep": {
+      "count": 4,
+      "evidence": "grep -nE \"(app|admin)\\.(get|post)\" across app.js"
+    },
+    "manual": {
+      "count": 4,
+      "evidence": "manual walk of route registrations in app.js, the admin router included"
+    }
+  },
+  "total": 4,
+  "in_ledger": 3,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-routes-census-002"
+}

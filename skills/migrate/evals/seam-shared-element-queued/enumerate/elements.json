@@ -1,0 +1,278 @@
+{
+  "batch": "b-elements-enumerate-001",
+  "phase": "enumerate",
+  "rows": [
+    {
+      "id": "route-get-api-users",
+      "surface": "routes",
+      "element": "GET api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-post-api-users",
+      "surface": "routes",
+      "element": "POST api/users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-get-api-users-id-welcome",
+      "surface": "routes",
+      "element": "GET api/users/{id}/welcome",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "integration-billing-sync"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-default-aspx",
+      "surface": "routes",
+      "element": "Default.aspx",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "route-users-aspx",
+      "surface": "routes",
+      "element": "Users.aspx",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-users",
+      "surface": "tables",
+      "element": "Users",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "table-audit-log",
+      "surface": "tables",
+      "element": "AuditLog",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "job-nightly-digest",
+      "surface": "jobs",
+      "element": "nightly purge of AuditLog rows older than the configured cutoff",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-audit-log"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "report-daily-users",
+      "surface": "reports",
+      "element": "daily active users report",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "table-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "screen-default",
+      "surface": "screens",
+      "element": "signup screen (Default.aspx)",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "route-post-api-users"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "screen-users",
+      "surface": "screens",
+      "element": "users list and welcome screen (Users.aspx)",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users-id-welcome"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "integration-billing-sync",
+      "surface": "integrations",
+      "element": "outbound call to the billing system on activation",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "workflow-signup-welcome",
+      "surface": "workflows",
+      "element": "two-page signup then welcome workflow",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [
+        {
+          "kind": "ledger",
+          "id": "route-post-api-users"
+        },
+        {
+          "kind": "ledger",
+          "id": "route-get-api-users-id-welcome"
+        },
+        {
+          "kind": "ledger",
+          "id": "setting-welcome-email-enabled"
+        }
+      ],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-welcome-email-enabled",
+      "surface": "settings",
+      "element": "WelcomeEmailEnabled",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-nightly-digest-cutoff-days",
+      "surface": "settings",
+      "element": "NightlyDigestCutoffDays",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    },
+    {
+      "id": "setting-default-connection",
+      "surface": "settings",
+      "element": "DefaultConnection",
+      "found_by": [
+        "code"
+      ],
+      "disposition": {
+        "kind": "unaccounted"
+      },
+      "refs": [],
+      "lens": "code",
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "kind": "lens",
+  "surface": "jobs",
+  "phase": "enumerate",
+  "directions": {
+    "quartz": {
+      "count": 1,
+      "evidence": "rg -n -g '*.cs' 'IJob\\b|JobBuilder\\.Create|ScheduleJob\\(' <source>"
+    },
+    "hangfire": {
+      "count": 0,
+      "evidence": "rg -n -g '*.cs' 'RecurringJob\\.|BackgroundJob\\.' <source>: no matches"
+    },
+    "osconfig": {
+      "count": 0,
+      "evidence": "rg -n -g '*.xml' -g '*.config' -i 'cron|schedule|<Task version' <source>: no matches"
+    }
+  },
+  "total": 1,
+  "in_ledger": 0,
+  "added": 1,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-jobs-census-001"
+}

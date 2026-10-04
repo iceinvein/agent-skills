@@ -1,0 +1,21 @@
+{
+  "kind": "lens",
+  "surface": "reports",
+  "phase": "enumerate",
+  "directions": {
+    "files": {
+      "count": 0,
+      "evidence": "find . -iname '*report*': no matches"
+    },
+    "manual": {
+      "count": 0,
+      "evidence": "manual read of server.js: no report output"
+    }
+  },
+  "total": 0,
+  "in_ledger": 0,
+  "added": 0,
+  "skipped": [],
+  "queued": [],
+  "batch": "b-reports-census-001"
+}
