@@ -99,7 +99,7 @@ gate rules land inside the existing `refs`, `census` and `parity` gates and in
 
 ### Task 7: Manuals match the new gates
 **Contract:** Needs: `gate_messages` | Offers: `manuals_updated`
-**Touches:** skills/migrate/references/phases/enumerate.md (edit) | skills/migrate/references/phases/seam.md (edit) | skills/migrate/references/phases/extract.md (edit) | skills/migrate/references/phases/parity.md (edit) | skills/migrate/docs/reference.md (edit) | skills/migrate/docs/architecture.md (edit)
+**Touches:** skills/migrate/references/phases/enumerate.md (edit) | skills/migrate/references/phases/seam.md (edit) | skills/migrate/references/phases/extract.md (edit) | skills/migrate/references/phases/parity.md (edit) | skills/migrate/references/phases/queue.md (edit) | skills/migrate/docs/reference.md (edit) | skills/migrate/docs/architecture.md (edit)
 - [ ] Replace each "no gate checks", "honest limit" and "real gap" passage that Task 6 closed with the rule and its message; keep the attribute-completeness limit, which stays a discipline -> grep for those phrases finds only that one
 - [ ] Update the mid-run `check` transcripts to output produced by running the CLI against a scratch store at that point, not edited by hand -> each transcript matches a real run
 - [ ] Commit `docs(migrate): describe the gates that replaced the manual disciplines` -> SHA reported

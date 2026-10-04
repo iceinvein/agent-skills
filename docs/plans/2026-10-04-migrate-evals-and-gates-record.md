@@ -36,6 +36,21 @@
   line marking probe done before enumerate) and three `status-reset` tests to
   write out-of-order phase state directly, since they test how reset undoes a
   state the CLI no longer produces. No assertion changed.
+- **Task 6 review, round 1: nothing blocking.** Every rule matches the spec and
+  no assertion was loosened. Sent back for a follow-up commit: a refs comment
+  claiming every lens has landed by check time (false mid-enumerate); the phase
+  refusal checking only the immediate predecessor (reset of an earlier phase
+  then lets a later one go done); a rule-sweep naming no capability passing
+  silently; an element listed twice in one capability reported as "sits in
+  capabilities X and X"; a third copy of the census kind-to-subject switch; a
+  narrating test comment and unused error fields. Kept as known limits, not
+  fixed: a placeholder-free `parity_test_path` accepts the literal path, a
+  flat template can let cap `user` match `user-management-...`, and
+  `{fr_slug}` is kebab-case only, which a snake_case test convention will hit.
+  The deliberate seam exclusion reads "in no capability" until extract marks
+  it out-of-scope; accepted noise, covered by e2e-webforms. Task 7 Touches
+  widened to `references/phases/queue.md`, which also claimed census queue ids
+  are never cross-checked.
 - **For Task 9.** After Task 6, the `resume-reads-status-first` and
   `extract-files-queue-in-same-pass` stores fail plain `migrate check` with
   "no rule-sweep census record" for capabilities not yet mined. Expected at a
