@@ -30,6 +30,11 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      # migrate's eval-scaffold test checks the PATH the eval child's shell
+      # sees, and that shell is zsh reading ~/.zshenv; the runner image has none.
+      - name: Install zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+
       - run: bun test
 
       - run: bun build src/cli/index.ts --outdir dist/cli --target node
