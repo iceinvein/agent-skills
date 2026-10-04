@@ -155,7 +155,7 @@ a fork only your partner can settle, one whose answer changes the design's
 shape (where state lives, what shares it, which process owns it) rather than a
 value the design can leave as config, ask it as one question with your
 recommendation before the design is written, and write the design on the
-answer. Ask it with the question tool where there is one, which returns the
+answer. Ask it with `AskUserQuestion` where there is one, which returns the
 answer without ending the turn; without one, the question is a stop of its
 own, and the design is written, to its file, on the next turn. A design drafted
 across both branches of a fork doubles the reading and still has to be
@@ -186,19 +186,23 @@ enforcement was.
 ## Pre-flight
 
 Design signed off, plan written, nothing built yet. Before Task 1, stop once
-and settle three things with your partner. Ask them as questions with options,
-not as a paragraph they have to reply to in prose: what you are after is a
-decision, and a wall of considerations asks them to extract the decision from
-it first.
+and settle three things with your partner. Ask them with `AskUserQuestion`,
+one question per decision, your recommendation as the first option and the
+counts in the option text: what you are after is a decision, and a wall of
+considerations asks them to extract the decision from it first. A lettered
+list in prose is that same paragraph with letters on it, still something to
+reply to rather than pick from.
 
-This stop is the plan's sign-off as well, so it ends your turn, and a
-question tool does not end it for you. That tool returns an answer without
-returning control: two options came back, the plan itself did not, and your
+This stop is the plan's sign-off as well, so it ends your turn, and the tool
+does not end it for you. It returns the answers without returning control:
+the options came back, the plan itself did not, and if you carry on, your
 partner reads the summary of it in the same message as Task 1's first edit,
-by which point their only remaining move is to interrupt. Ask the questions,
-then end the turn on the answers and let the next instruction start the
+by which point their only remaining move is to interrupt. So ask with the
+tool, then end the turn on the answers and let the next instruction start the
 build. If the answers arrive with that instruction already attached, you have
-your sign-off and Task 1 begins.
+your sign-off and Task 1 begins. Where the harness has no question tool, the
+same questions go at the end of the message as numbered options with the
+recommendation marked, and the turn ends on them.
 
 **Review.** Name the tasks the table below sends to a reviewer, each with the
 trigger that qualified it, and say how many of the rest skip with a ledger

@@ -28,9 +28,14 @@ Two subsystems is `main`; the third is what makes it `deep`.
 
 `bypass`, `fast`, and `main` proceed without stopping for approval; only
 `deep` stops: once for design sign-off before code, once for the plan and
-pre-flight together before Task 1. A stop ends your turn. Asking a question
-with a tool is not one, however many options it carried: the answer comes
-back to you and the run never left your hands.
+pre-flight together before Task 1. A stop ends your turn.
+
+A choice that is your partner's to make goes to them through `AskUserQuestion`
+wherever the harness has it, at a stop or between them: options to pick from,
+your recommendation first, not a paragraph or a lettered list to reply to.
+Asking is not itself a stop, however many options it carried, because the
+answer comes back to you and the run never left your hands. So at a stop, ask
+with the tool, then end the turn once the answers are in.
 
 Name the channel and the signal that actually routed you there. The strings above
 are examples, not fixed copy, and a channel with a two-part signal should say
@@ -66,9 +71,9 @@ announces nothing to measure from.
 One line each. Read the reference only on friction: the moment you notice
 yourself wanting to skip the rule, or arguing that this one is the exception.
 
-- **Agree intent** before building. One question at a time. Propose approaches
-  with a recommendation, not a survey. `main` agrees in a message, `deep` writes
-  it down. `references/intent.md`
+- **Agree intent** before building. One question at a time, through
+  `AskUserQuestion`. Propose approaches with a recommendation, not a survey.
+  `main` agrees in a message, `deep` writes it down. `references/intent.md`
 - **Test first.** The test comes before the code; run it while it should
   still be failing, then write the least code that turns it green. Skip that
   watching step and a green result is only an unchecked guess. A test no
@@ -104,7 +109,10 @@ collapses to `fast`.
 
 Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
 `docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
-your partner states a preference. Get the design signed off before code.
+your partner states a preference. Get the design signed off before code. When
+the design's shape turns on a fork only your partner can settle, ask that one
+question through `AskUserQuestion`, with your recommendation, before the design
+is written. `references/deep-channel.md` has the test for what counts.
 
 Take the design stop through the harness's plan mode where there is one. Its
 gate is enforced rather than requested and it holds edits shut while it is open,
@@ -162,8 +170,9 @@ instead of to the branch at large.
 
 Pre-flight rides in that same stop: which flagged tasks get a reviewer, which
 mechanical ones the plan marked for low effort, and whether the work runs
-in a worktree. Ask them as choices with the counts in them, never as a
-paragraph, then end the turn. Task 1 opens on their next
+in a worktree. Ask them through `AskUserQuestion`, one question each with the
+counts in the options, never as a paragraph or a lettered list, then end the
+turn on the answers. Task 1 opens on their next
 instruction, and an answer that already carries one is that instruction. A
 session that dispatches only when asked has not ruled dispatch out, it has made
 this question the place to ask; genuine unavailability is the tool not being

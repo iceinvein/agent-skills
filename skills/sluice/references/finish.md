@@ -18,7 +18,8 @@ Confirm the base branch instead of assuming it; untangling a wrong merge
 costs far more than asking would have.
 
 With the suite green and the base confirmed, put exactly three options to
-your partner, with the run ledger above them so the choice is made against
+your partner through `AskUserQuestion`, with the run ledger in the message
+above them so the choice is made against
 what the work actually cost rather than against your account of it;
 `references/meter.md` owns that. Say in one clause whether the work was
 reviewed. Merging reviewed work and merging unreviewed work are different
@@ -53,7 +54,7 @@ the one list of them. In order:
    controller stat read plus the final whole-plan pass rather than a per-task
    dispatch" is the accurate line, and it is a coverage level rather than a
    debt. Where nothing was priced, it is a debt and says so.
-5. The three options, and nothing after them.
+5. The three options, asked through `AskUserQuestion`, and nothing after them.
 
 A `deep` run closes when the work stops being yours to act on: after a local
 merge and its re-run of the suite, or when your partner leaves the branch where
