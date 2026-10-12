@@ -18,7 +18,7 @@ function baseline(model: string, cases: Record<string, CaseRecord>): Baseline {
 	};
 }
 
-const noRules: Manifest = { rules: [], sandboxSensitive: [] };
+const noRules: Manifest = { rules: [], sandboxSensitive: [], vacuousWithout: [], unclaimed: [] };
 
 describe("reduce", () => {
 	test("keeps the model, judge, CLI version, start time and per-run scores of a real result", () => {
@@ -108,19 +108,29 @@ describe("compare verdicts", () => {
 	});
 
 	test("the same drop on a sandbox-sensitive case is sandbox and not regressed", () => {
-		const manifest: Manifest = { rules: [], sandboxSensitive: ["c"] };
+		const manifest: Manifest = { ...noRules, sandboxSensitive: ["c"] };
 		expect(verdictsOf({ with: [0.5, 0.6], without: [0] }, { with: [0.8, 0.8], without: [0] }, manifest)).toEqual([
 			"sandbox",
 		]);
 	});
 
 	test("a sandbox-sensitive case that did not drop is steady", () => {
-		const manifest: Manifest = { rules: [], sandboxSensitive: ["c"] };
+		const manifest: Manifest = { ...noRules, sandboxSensitive: ["c"] };
 		expect(verdictsOf({ with: [1], without: [0] }, { with: [1], without: [0] }, manifest)).toEqual(["steady"]);
 	});
 
 	test("a perfect with arm matched by the without arm is redundant", () => {
 		expect(verdictsOf({ with: [1, 1], without: [1, 1] }, { with: [1], without: [1] })).toEqual(["redundant"]);
+	});
+
+	test("a vacuous-without case with both arms perfect is steady, not redundant", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["c"] };
+		expect(verdictsOf({ with: [1, 1], without: [1, 1] }, { with: [1], without: [1] }, manifest)).toEqual(["steady"]);
+	});
+
+	test("a vacuous-without case that dropped is still regressed", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["c"] };
+		expect(verdictsOf({ with: [0.5], without: [1] }, { with: [1], without: [1] }, manifest)).toEqual(["regressed"]);
 	});
 
 	test("a without arm matching an imperfect with arm is not redundant", () => {
@@ -202,7 +212,7 @@ describe("compare rule status", () => {
 			solved: { with: [1], without: [1] },
 			fine: { with: [1], without: [0] },
 		});
-		return compare(current, before, { rules: [rule], sandboxSensitive }, 0.1).rules[0].status;
+		return compare(current, before, { ...noRules, rules: [rule], sandboxSensitive }, 0.1).rules[0].status;
 	};
 	const rule = (cases: string[]) => ({ id: "r", states: "SKILL.md", origin: "docs/design.md", cases });
 

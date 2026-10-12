@@ -107,7 +107,12 @@ function caseReport(
 	const dropped = baselineWithMean !== null && baselineWithMean - withMean > tolerance + MEAN_EPSILON;
 	const sandboxSensitive = manifest.sandboxSensitive.includes(name);
 	if (dropped && !sandboxSensitive) verdicts.push("regressed");
-	if (current.without.length > 0 && withMean === 1 && withoutMean >= withMean) verdicts.push("redundant");
+	// The CLI drops Skill-fired graders from the without arm's score, so some
+	// cases pass there because the model did nothing, which proves nothing.
+	const vacuous = manifest.vacuousWithout.includes(name);
+	if (!vacuous && current.without.length > 0 && withMean === 1 && withoutMean >= withMean) {
+		verdicts.push("redundant");
+	}
 	if (disagrees(current.with) || disagrees(current.without)) verdicts.push("flaky");
 	if (dropped && sandboxSensitive) verdicts.push("sandbox");
 	if (baseline !== null && before === undefined) verdicts.push("new");

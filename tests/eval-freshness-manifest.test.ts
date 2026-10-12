@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { caseNames, checkManifest, loadManifest } from "../scripts/eval-freshness/manifest";
 
-type Tree = { cases?: string[]; rules?: unknown; sandboxSensitive?: string[] };
+type Tree = {
+	cases?: string[];
+	rules?: unknown;
+	sandboxSensitive?: string[];
+	vacuousWithout?: string[];
+	unclaimed?: { case: string; reason: string }[];
+};
 
 /**
  * Builds <root>/skills/demo with SKILL.md, a docs/design.md origin, and one
@@ -27,6 +33,8 @@ function skillTree(tree: Tree = {}): string {
 			{ id: "r2", states: "SKILL.md", origin: "docs/design.md", cases: ["beta"] },
 		],
 		sandboxSensitive: tree.sandboxSensitive ?? [],
+		vacuousWithout: tree.vacuousWithout ?? [],
+		unclaimed: tree.unclaimed ?? [],
 	};
 	writeFileSync(join(skill, "evals", "rules.json"), JSON.stringify(manifest));
 	return skill;
@@ -111,6 +119,70 @@ describe("checkManifest on empty or non-file references", () => {
 		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "docs" })] });
 		expect(checkManifest(skill)).toEqual(['rule r1 origin "docs" is not a file in the repo']);
 	});
+});
+
+describe("checkManifest on vacuous, unclaimed and commit-origin entries", () => {
+	test("reports a vacuousWithout name that is not a case", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({})], vacuousWithout: ["ghost"] });
+		expect(checkManifest(skill)).toEqual(['vacuousWithout names "ghost", which is not a case']);
+	});
+
+	test("reports an unclaimed case that is not a case", () => {
+		const skill = skillTree({
+			cases: ["alpha"],
+			rules: [rule({})],
+			unclaimed: [{ case: "ghost", reason: "guards a repo convention" }],
+		});
+		expect(checkManifest(skill)).toEqual(['unclaimed names "ghost", which is not a case']);
+	});
+
+	test("reports an unclaimed case that a rule also names", () => {
+		const skill = skillTree({
+			cases: ["alpha"],
+			rules: [rule({})],
+			unclaimed: [{ case: "alpha", reason: "guards a repo convention" }],
+		});
+		expect(checkManifest(skill)).toEqual(['unclaimed case "alpha" is also named by rule r1']);
+	});
+
+	test("reports an unclaimed entry with a blank reason", () => {
+		const skill = skillTree({ rules: [rule({})], unclaimed: [{ case: "beta", reason: "  " }] });
+		expect(checkManifest(skill)).toEqual(['unclaimed case "beta" has no reason']);
+	});
+
+	test("accepts a case listed as unclaimed though no rule names it", () => {
+		const skill = skillTree({ rules: [rule({})], unclaimed: [{ case: "beta", reason: "guards a repo convention" }] });
+		expect(checkManifest(skill)).toEqual([]);
+	});
+
+	test("accepts a well-formed commit origin without looking for a file", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit:dd12f45" })] });
+		expect(checkManifest(skill)).toEqual([]);
+	});
+
+	test("accepts a full 40-character commit origin", () => {
+		const skill = skillTree({
+			cases: ["alpha"],
+			rules: [rule({ origin: "commit:0123456789abcdef0123456789abcdef01234567" })],
+		});
+		expect(checkManifest(skill)).toEqual([]);
+	});
+
+	test("reports a commit origin whose SHA is too short", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit:dd12f4" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "commit:dd12f4" is not commit:<7 to 40 lowercase hex>']);
+	});
+
+	test("reports a commit origin whose SHA is longer than 40 characters", () => {
+		const origin = `commit:${"a".repeat(41)}`;
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin })] });
+		expect(checkManifest(skill)).toEqual([`rule r1 origin "${origin}" is not commit:<7 to 40 lowercase hex>`]);
+	});
+
+	test("reports a commit origin with uppercase hex", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit:DD12F45" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "commit:DD12F45" is not commit:<7 to 40 lowercase hex>']);
+	});
 
 	test("treats a blank unpinned as no reason", () => {
 		const skill = skillTree({ cases: ["alpha"], rules: [rule({}), rule({ id: "r2", cases: [], unpinned: "  " })] });
@@ -124,6 +196,8 @@ describe("loadManifest", () => {
 		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 
+	const validTop = { rules: [rule({})], sandboxSensitive: [], vacuousWithout: [], unclaimed: [] };
+
 	function rulesFile(text: string): string {
 		const skill = skillTree();
 		writeFileSync(join(skill, "evals", "rules.json"), text);
@@ -131,17 +205,58 @@ describe("loadManifest", () => {
 	}
 
 	test("throws naming the file when cases is a string", () => {
-		const skill = rulesFile(JSON.stringify({ rules: [rule({ cases: "alpha" })], sandboxSensitive: [] }));
+		const skill = rulesFile(JSON.stringify({ ...validTop, rules: [rule({ cases: "alpha" })] }));
 		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 
 	test("throws naming the file when sandboxSensitive is missing", () => {
-		const skill = rulesFile(JSON.stringify({ rules: [rule({})] }));
+		const skill = rulesFile(JSON.stringify({ ...validTop, sandboxSensitive: undefined }));
 		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 
 	test("throws naming the file when unpinned is not a string", () => {
-		const skill = rulesFile(JSON.stringify({ rules: [rule({ cases: [], unpinned: 3 })], sandboxSensitive: [] }));
+		const skill = rulesFile(JSON.stringify({ ...validTop, rules: [rule({ cases: [], unpinned: 3 })] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("loads a manifest carrying all four keys", () => {
+		const top = { ...validTop, vacuousWithout: ["alpha"], unclaimed: [{ case: "beta", reason: "convention" }] };
+		const skill = rulesFile(JSON.stringify(top));
+		expect(loadManifest(skill)).toEqual({
+			rules: [{ id: "r1", states: "SKILL.md", origin: "docs/design.md", cases: ["alpha"] }],
+			sandboxSensitive: [],
+			vacuousWithout: ["alpha"],
+			unclaimed: [{ case: "beta", reason: "convention" }],
+		});
+	});
+
+	test("throws naming the file when vacuousWithout is missing", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, vacuousWithout: undefined }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when vacuousWithout holds a non-string", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, vacuousWithout: [3] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when unclaimed is missing", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, unclaimed: undefined }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when an unclaimed entry is a bare case name", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, unclaimed: ["beta"] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when an unclaimed entry has no reason", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, unclaimed: [{ case: "beta" }] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when an unclaimed case is not a string", () => {
+		const skill = rulesFile(JSON.stringify({ ...validTop, unclaimed: [{ case: 3, reason: "convention" }] }));
 		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 
