@@ -32,6 +32,22 @@ claude plugin eval skills/bug-hunter --scaffold --allow-tools Bash Write Edit \
 Add `--keep-temp` to keep each run's sandbox and trace, which is the only way
 to read back why a grader failed. `-j 7` runs the seven cases at once.
 
+To check the skill against its last accepted baseline, use `eval:fresh`:
+
+```bash
+bun run eval:fresh run skills/bug-hunter --model claude-opus-5-5
+bun run eval:fresh diff skills/bug-hunter <result.json> [--against <model>]
+bun run eval:fresh accept skills/bug-hunter <result.json>
+```
+
+- `run` runs both arms on your Claude plan (default `--runs 3 -j 2`), then
+  diffs the result against `evals/baselines/<model>.json`.
+- `diff` is free: it re-reads an existing result and runs nothing.
+- `accept` writes the baseline. It is always a deliberate step, never part of
+  `run`.
+
+What each verdict means is in `skills/sluice/evals/README.md`.
+
 ## What the graders can and cannot see
 
 The run directory is `.bug-hunter/<date>-<slug>/` and the slug is the skill's

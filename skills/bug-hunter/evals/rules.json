@@ -1,0 +1,56 @@
+{
+  "rules": [
+    {
+      "id": "no-repro-no-finding",
+      "states": "SKILL.md: No repro, no finding",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": ["proves-a-spec-boundary-bug", "correct-code-has-no-bugs"]
+    },
+    {
+      "id": "silent-spec-is-an-ambiguity",
+      "states": "SKILL.md: No repro, no finding",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": ["silent-spec-is-an-ambiguity"]
+    },
+    {
+      "id": "intent-before-implementation",
+      "states": "SKILL.md: Intent before implementation",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": ["scenarios-before-bodies"]
+    },
+    {
+      "id": "scratch-worktree-leaves-callers-tree-unchanged",
+      "states": "SKILL.md: Scratch worktree",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": ["callers-tree-unchanged"]
+    },
+    {
+      "id": "findings-written-with-write-tool-to-shape",
+      "states": "SKILL.md: Output",
+      "origin": "docs/plans/2026-10-12-bug-hunter-record.md",
+      "cases": ["silent-spec-is-an-ambiguity", "correct-code-has-no-bugs"]
+    },
+    {
+      "id": "stop-when-no-checkable-intent",
+      "states": "SKILL.md: Input",
+      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "Every fixture ships a SPEC.md with checkable claims, so no case gives the skill a target without intent."
+    },
+    {
+      "id": "single-agent-fallback-order",
+      "states": "SKILL.md: Single-agent fallback",
+      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "No case takes dispatch away, so the fallback runs only when the model skips the Agent tool, and its late-claim rule needs a sibling implementation or stated invariant that no fixture has."
+    },
+    {
+      "id": "hand-back-contents",
+      "states": "SKILL.md: Hand-back",
+      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "No grader reads the final message, so the run directory, bucket counts and per-bug lines go unchecked."
+    }
+  ],
+  "sandboxSensitive": []
+}
