@@ -133,6 +133,21 @@ describe("compare verdicts", () => {
 		expect(verdictsOf({ with: [0.5], without: [1] }, { with: [1], without: [1] }, manifest)).toEqual(["regressed"]);
 	});
 
+	test("a vacuous-without case whose runs disagree is still flaky", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["c"] };
+		expect(verdictsOf({ with: [1, 0], without: [1, 1] }, { with: [0.5], without: [1] }, manifest)).toEqual(["flaky"]);
+	});
+
+	test("a vacuous-without case with both arms perfect that is absent from the baseline is only new", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["c"] };
+		expect(verdictsOf({ with: [1], without: [1] }, undefined, manifest)).toEqual(["new"]);
+	});
+
+	test("listing a different case as vacuous-without leaves a perfect case redundant", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["other"] };
+		expect(verdictsOf({ with: [1, 1], without: [1, 1] }, { with: [1], without: [1] }, manifest)).toEqual(["redundant"]);
+	});
+
 	test("a without arm matching an imperfect with arm is not redundant", () => {
 		expect(verdictsOf({ with: [0.5], without: [0.5] }, { with: [0.5], without: [0.5] })).toEqual(["steady"]);
 	});
@@ -242,6 +257,22 @@ describe("compare rule status", () => {
 
 	test("a rule is not an expiry candidate while one of its cases did not run", () => {
 		expect(statusOf(rule(["solved", "absent"]))).toBe("ok");
+	});
+
+	test("an unclaimed case keeps its verdicts and changes no rule's status", () => {
+		const current = baseline("new", { dropped: { with: [0.2], without: [0] }, fine: { with: [1], without: [0] } });
+		const before = baseline("old", { dropped: { with: [1], without: [0] }, fine: { with: [1], without: [0] } });
+		const manifest: Manifest = {
+			...noRules,
+			rules: [rule(["fine"])],
+			unclaimed: [{ case: "dropped", reason: "guards a repo convention" }],
+		};
+		const report = compare(current, before, manifest, 0.1);
+		expect(report.cases.map((c) => [c.name, c.verdicts])).toEqual([
+			["dropped", ["regressed"]],
+			["fine", ["steady"]],
+		]);
+		expect(report.rules).toEqual([{ id: "r", status: "ok" }]);
 	});
 
 	test("a missing case does not hide a regression in a case that ran", () => {

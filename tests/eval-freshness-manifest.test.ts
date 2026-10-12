@@ -138,11 +138,19 @@ describe("checkManifest on vacuous, unclaimed and commit-origin entries", () => 
 
 	test("reports an unclaimed case that a rule also names", () => {
 		const skill = skillTree({
-			cases: ["alpha"],
-			rules: [rule({})],
-			unclaimed: [{ case: "alpha", reason: "guards a repo convention" }],
+			rules: [rule({}), rule({ id: "r2", cases: ["beta"] })],
+			unclaimed: [{ case: "beta", reason: "guards a repo convention" }],
 		});
-		expect(checkManifest(skill)).toEqual(['unclaimed case "alpha" is also named by rule r1']);
+		expect(checkManifest(skill)).toEqual(['unclaimed case "beta" is also named by rule r2']);
+	});
+
+	test("still reports a case no rule names when a different case is unclaimed", () => {
+		const skill = skillTree({
+			cases: ["alpha", "beta", "x"],
+			rules: [rule({})],
+			unclaimed: [{ case: "beta", reason: "guards a repo convention" }],
+		});
+		expect(checkManifest(skill)).toEqual(['case "x" is named by no rule']);
 	});
 
 	test("reports an unclaimed entry with a blank reason", () => {
@@ -182,6 +190,16 @@ describe("checkManifest on vacuous, unclaimed and commit-origin entries", () => 
 	test("reports a commit origin with uppercase hex", () => {
 		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit:DD12F45" })] });
 		expect(checkManifest(skill)).toEqual(['rule r1 origin "commit:DD12F45" is not commit:<7 to 40 lowercase hex>']);
+	});
+
+	test("reports a commit origin with lowercase letters that are not hex", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit:ghijklm" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "commit:ghijklm" is not commit:<7 to 40 lowercase hex>']);
+	});
+
+	test("checks a bare commit origin as a file path", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "commit" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "commit" is not a file in the repo']);
 	});
 
 	test("treats a blank unpinned as no reason", () => {
