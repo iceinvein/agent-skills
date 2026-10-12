@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: proves-a-spec-boundary-bug
+context:
+  scaffold_script: fixture.sh
