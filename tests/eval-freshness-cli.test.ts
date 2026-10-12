@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,8 +39,40 @@ function writeBaseline(model: string): void {
 }
 
 function cli(...args: string[]) {
-	const proc = Bun.spawnSync(["bun", CLI, ...args], { stdout: "pipe", stderr: "pipe" });
+	return cliWithEnv({}, ...args);
+}
+
+function cliWithEnv(env: Record<string, string>, ...args: string[]) {
+	const proc = Bun.spawnSync(["bun", CLI, ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, ...env } });
 	return { code: proc.exitCode, stdout: proc.stdout.toString(), stderr: proc.stderr.toString() };
+}
+
+// Stands in for the paid `claude plugin eval`: records its argv and, when
+// FAKE_RESULT is set, copies that file to the path after --json.
+const FAKE_CLAUDE = `#!/bin/sh
+printf '%s\\n' "$@" > "$FAKE_ARGV"
+if [ -n "$FAKE_RESULT" ]; then
+	prev=""
+	for arg in "$@"; do
+		if [ "$prev" = "--json" ]; then cp "$FAKE_RESULT" "$arg"; fi
+		prev="$arg"
+	done
+fi
+exit "\${FAKE_EXIT:-0}"
+`;
+
+function runWithFake(result: unknown | null, ...args: string[]) {
+	const bin = join(skillDir, "bin");
+	mkdirSync(bin);
+	writeFileSync(join(bin, "claude"), FAKE_CLAUDE);
+	chmodSync(join(bin, "claude"), 0o755);
+	const argvFile = join(skillDir, "argv.txt");
+	const env: Record<string, string> = { PATH: `${bin}:${process.env.PATH}`, FAKE_ARGV: argvFile, FAKE_EXIT: "0" };
+	if (result !== null) env.FAKE_RESULT = writeResult(result);
+	else env.FAKE_EXIT = "3";
+	const out = cliWithEnv(env, "run", skillDir, ...args);
+	const argv = existsSync(argvFile) ? readFileSync(argvFile, "utf8").trimEnd().split("\n") : null;
+	return { ...out, argv };
 }
 
 beforeEach(() => {
@@ -126,4 +158,115 @@ test("run without --model exits 2", () => {
 	const out = cli("run", skillDir);
 	expect(out.code).toBe(2);
 	expect(out.stderr).toContain("--model");
+});
+
+function writeRawBaseline(text: string): void {
+	mkdirSync(join(skillDir, "evals", "baselines"), { recursive: true });
+	writeFileSync(join(skillDir, "evals", "baselines", "opus.json"), text);
+}
+
+test("diff exits 2 naming the file when the baseline is null", () => {
+	writeRawBaseline("null");
+	const out = cli("diff", skillDir, writeResult(result([0, 0], [0, 0])));
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain(join(skillDir, "evals", "baselines", "opus.json"));
+});
+
+test("diff exits 2 naming the file when the baseline is an empty object", () => {
+	writeRawBaseline("{}");
+	const out = cli("diff", skillDir, writeResult(result([0, 0], [0, 0])));
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain(join(skillDir, "evals", "baselines", "opus.json"));
+});
+
+test("diff exits 2 when a baseline score is a string", () => {
+	writeRawBaseline(
+		JSON.stringify({
+			model: "opus",
+			judgeModel: "haiku",
+			claudeVersion: "2.0.0",
+			skillVersion: "1.2.0",
+			date: "2026-09-01T00:00:00.000Z",
+			cases: { "case-a": { with: ["1", 1], without: [0, 0] } },
+		}),
+	);
+	const out = cli("diff", skillDir, writeResult(result([0, 0], [0, 0])));
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain(join(skillDir, "evals", "baselines", "opus.json"));
+});
+
+test("diff rejects an unknown flag with usage instead of ignoring it", () => {
+	writeBaseline("sonnet");
+	const out = cli("diff", skillDir, writeResult(result([0, 0], [0, 0])), "--agianst", "sonnet");
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("usage");
+});
+
+test("diff rejects an extra positional argument with usage", () => {
+	const out = cli("diff", skillDir, writeResult(result([1, 1], [0, 0])), "stray");
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("usage");
+});
+
+test("accept maps characters outside [A-Za-z0-9._-] in the model id to dashes in the filename", () => {
+	const value = result([1, 1], [0, 0]);
+	value.suite.modelOverride = "vendor/opus:1m";
+	const out = cli("accept", skillDir, writeResult(value));
+	expect(out.code).toBe(0);
+	expect(existsSync(join(skillDir, "evals", "baselines", "vendor-opus-1m.json"))).toBe(true);
+});
+
+test("run passes the eval its fixed flags, the defaults and a json path under evals/results", () => {
+	const out = runWithFake(result([1, 1], [0, 0]), "--model", "vendor/opus:1m", "--case", "case-*");
+	expect(out.code).toBe(0);
+	const argv = out.argv ?? [];
+	const jsonPath = argv.at(-1) ?? "";
+	expect(argv.slice(0, -1)).toEqual([
+		"plugin", "eval", skillDir,
+		"--scaffold",
+		"--allow-tools", "Bash", "Write", "Edit",
+		"--ablation", "with-without",
+		"--model", "vendor/opus:1m",
+		"--judge-model", "vendor/opus:1m",
+		"--runs", "3",
+		"-j", "2",
+		"--case", "case-*",
+		"--no-publish",
+		"--json",
+	]);
+	expect(jsonPath.startsWith(join(skillDir, "evals", "results", "fresh-vendor-opus-1m-"))).toBe(true);
+	expect(jsonPath).toMatch(/fresh-vendor-opus-1m-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z\.json$/);
+});
+
+test("run passes --runs and -j through when given", () => {
+	const out = runWithFake(result([1, 1], [0, 0]), "--model", "opus", "--runs", "5", "-j", "4");
+	const argv = out.argv ?? [];
+	expect(argv.slice(argv.indexOf("--runs"), argv.indexOf("--runs") + 4)).toEqual(["--runs", "5", "-j", "4"]);
+});
+
+test("run exits 2 when the eval fails and writes no result", () => {
+	const out = runWithFake(null, "--model", "opus");
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("wrote no result");
+});
+
+test("run hands the result to diff, printing the report and exiting 1 on a regression", () => {
+	writeBaseline("opus");
+	const out = runWithFake(result([0, 0], [0, 0]), "--model", "opus");
+	expect(out.code).toBe(1);
+	expect(out.stdout).toContain("opus against baseline opus");
+});
+
+test("run does not spawn the eval when skill.json has no version", () => {
+	writeFileSync(join(skillDir, "skill.json"), JSON.stringify({ name: "demo" }));
+	const out = runWithFake(result([1, 1], [0, 0]), "--model", "opus");
+	expect(out.code).toBe(2);
+	expect(out.argv).toBeNull();
+});
+
+test("run does not spawn the eval when rules.json is not a manifest", () => {
+	writeFileSync(join(skillDir, "evals", "rules.json"), JSON.stringify({ rules: [] }));
+	const out = runWithFake(result([1, 1], [0, 0]), "--model", "opus");
+	expect(out.code).toBe(2);
+	expect(out.argv).toBeNull();
 });
