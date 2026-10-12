@@ -57,8 +57,9 @@ root. `SCRATCH` is the scratch worktree.
 > a scenario that rests on it is `open`.
 >
 > Then write `RUN/scenarios.md`: numbered scenarios, `S1`, `S2`, ... Each
-> names its catalog category (`references/scenario-catalog.md`), the setup and
-> action in QA terms, the expected result, and the claim it rests on. Where
+> has a one-line label saying what it tests, names its catalog category
+> (`references/scenario-catalog.md`), and gives the setup and action in QA
+> terms, the expected result, and the claim it rests on. Where
 > the claims do not settle the expected result, write the scenario anyway,
 > mark it `open`, and state the question. Skip scenarios existing tests
 > already pin. Prefer ten sharp scenarios to forty shallow ones; work through

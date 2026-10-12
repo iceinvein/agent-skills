@@ -44,12 +44,17 @@ a file needs its exact path and throws on a glob. So:
   see a `findings.json` that a script builds** (`python3 -c` with `json.dump`,
   `node -e` with `JSON.stringify`): the trace then holds the script, not the
   JSON, and the grader fails whatever the file says. The baseline hit this.
+  Both judge only the **last** write of `findings.json`: a closing lookahead
+  fails the match if any later write of it follows (a Write, an Edit, or a
+  shell redirect). Before 0.2.1 they passed on any write, so an empty first
+  draft rewritten with bugs passed `bugs-empty`. A later Edit fails them,
+  since an Edit's trace entry does not carry the whole file.
 - `bug-cites-the-limit` is an `llm` judge over the trace, so it can read a
   script that builds the file as well as a literal. It sees a head-and-tail
   window of a long trace (about 80k characters of head, 20k of tail), so a
   findings write that lands in the dropped middle is invisible to it. It cannot
   run the repro; "fails in the fixture" is judged against the fixture's code,
-  which the rubric quotes.
+  which the rubric quotes. Its rubric also says to judge only the last write.
 - `tree-unchanged` cannot run `git status --porcelain`. It reads the harness's
   `files` target, the list of paths the run created or changed in its working
   directory, and fails on any path outside `.bug-hunter/` or `.git/`. It is
@@ -65,6 +70,30 @@ a file needs its exact path and throws on a glob. So:
   signatures, is not counted.
 
 ## Baseline
+
+### Skill 0.2.1, Opus 5.5, 2026-10-12
+
+Same command as 0.2.0 below. Skill 0.2.1 writes each findings `scenario` as
+`"<id>: <label>"`, lets the single-agent fallback add a late claim from a
+source other than the changed body, and the `findings.json` graders now judge
+only the last write. USD 5.39 in all, 361s,
+`results/2026-10-12T09-23-52-868Z`. Overall 1.00. One run per case.
+
+| Case | 0.2.0 | 0.2.1 | USD (0.2.1) | Reading |
+|---|---|---|---|---|
+| `proves-a-spec-boundary-bug` | 1.00 | 1.00 | 1.01 | Judge PASS PASS PASS. `B1` is `"S2: a 20-character name is accepted"`, citing I1 |
+| `silent-spec-is-an-ambiguity` | 1.00 | 1.00 | 1.04 | One `findings.json` Write, `bugs` empty; the cap question is `"S13: Quantity exactly at the cap, one below and one above"` |
+| `correct-code-has-no-bugs` | 1.00 | 1.00 | 1.03 | One Write, `bugs` empty, 16 covered, two ambiguities (numeric strings, `Infinity`) |
+| `callers-tree-unchanged` | 1.00 | 1.00 | 0.70 | No path outside `.bug-hunter/` changed |
+| `scenarios-before-bodies` | 1.00 | 1.00 | 1.61 | Scenario author dispatched; `scenarios.md` written before any Read of `src/discount.js` |
+
+Every `scenario` in every bucket of all five runs carried its label. Every
+run wrote `findings.json` once, so the last-write rule changed no verdict
+here; it was checked on doctored copies of the 0.2.0 traces (an empty draft
+followed by a write with bugs, a later Edit, a later heredoc), where the old
+patterns passed and the new ones fail. Every run dispatched at least one role
+and wrote `intent.md` once, so the fallback's late-claim rule was not
+exercised; no fixture has a sibling implementation or a stated invariant.
 
 ### Skill 0.2.0, Opus 5.5, 2026-10-12
 

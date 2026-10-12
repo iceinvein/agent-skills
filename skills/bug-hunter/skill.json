@@ -1,6 +1,6 @@
 {
   "name": "bug-hunter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. Three dispatched roles in order: a scenario author who writes QA-style scenarios from intent without reading changed function bodies, an executor who runs them as repros in the repo's own test runner inside a scratch git worktree, and a refuter who re-runs each failure clean and confirms it against a cited claim or demotes it to an ambiguity. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
   "author": "iceinvein",
   "type": "prompt",

@@ -106,9 +106,15 @@ the order is the whole safeguard:
 2. Write `intent.md` and `scenarios.md` to the run directory. Both exist on
    disk before any changed body is opened.
 3. Only then open the bodies, and execute in the scratch worktree.
-4. Refute each failure as the refuter brief says, citing the claim from
-   `intent.md` as written in step 2. Do not edit `intent.md` or
-   `scenarios.md` after step 2; a claim discovered later is an ambiguity.
+4. Refute each failure as the refuter brief says, citing a claim from
+   `intent.md`. Do not edit `scenarios.md` after step 2.
+
+A claim found after step 2 in a source other than the target's changed
+bodies (a sibling implementation, an invariant stated in unchanged code, an
+existing test, a doc) may be appended to `intent.md` with its citation, and a
+scenario it settles may then be confirmed as a bug. A "claim" read out of a
+changed body never may: that is the expected value taken from the code. A
+scenario no claim settles stays an ambiguity.
 
 The friction line: "I need to read the function to know what to test." You need
 to read its signature and its callers. The body tells you what it does, which

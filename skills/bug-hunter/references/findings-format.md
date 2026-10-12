@@ -24,8 +24,11 @@ Field by field:
   `claim` its text, `source` where it came from (file and line, commit SHA, or
   `request`). A claim taken from a sibling implementation or a stated
   invariant cites the file and line that holds it.
-- `bugs`: confirmed findings only. `id` numbers them (`B1`). `scenario` is the
-  scenario's id from `scenarios.md` (`S4`). `claim` is the violated intent id.
+- `bugs`: confirmed findings only. `id` numbers them (`B1`). `scenario` is
+  the scenario's id from `scenarios.md` and its one-line label, as
+  `"<id>: <label>"`, for example `"S4: quantity of exactly the cap is
+  accepted"`. A reader that sees only this field must still know what was
+  tested, so never give the bare id. `claim` is the violated intent id.
   `expected` and `observed` are the values the repro asserted and got.
 - `repro.files`: paths relative to the repo root, each mapped to the file's
   full contents, so a grader can write them into a fresh checkout and run
@@ -34,10 +37,10 @@ Field by field:
   patch.
 - `repro.cmd`: a command run from the repo root that runs this repro alone and
   exits non-zero while the bug is present.
-- `ambiguities`: `id` numbers them (`A1`); `scenario` is the scenario id;
-  `question` is what product has to decide.
-- `covered`: scenarios that ran and passed. `scenario` is the scenario id,
-  `claim` the intent id it checked.
+- `ambiguities`: `id` numbers them (`A1`); `scenario` is `"<id>: <label>"`,
+  as in `bugs`; `question` is what product has to decide.
+- `covered`: scenarios that ran and passed. `scenario` is `"<id>: <label>"`,
+  as in `bugs`; `claim` the intent id it checked.
 
 Empty buckets are empty arrays, never omitted. Rejected findings and
 exploratory tests appear nowhere in the file.

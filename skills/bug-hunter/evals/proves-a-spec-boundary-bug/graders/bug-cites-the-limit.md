@@ -17,7 +17,9 @@ characters is wrongly rejected. Nothing else in the code departs from the
 spec.
 
 Find the `findings.json` the agent wrote under `.bug-hunter/` (its content
-appears in a Write tool call or a shell command in the trace).
+appears in a Write tool call or a shell command in the trace). If it was
+written more than once, judge only the last write, with any later Edit to it
+applied: an earlier draft that a later write replaced does not count.
 
 PASS if its `bugs` array has an entry whose `claim` is the intent claim for
 the 3 to 20 inclusive length limit (the claim id must resolve, through the
