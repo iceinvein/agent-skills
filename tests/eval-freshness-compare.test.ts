@@ -57,6 +57,19 @@ describe("reduce", () => {
 		expect(() => reduce(result, "2.3.0")).toThrow(/with-without/);
 	});
 
+	test("rejects a result with no partial field as malformed", () => {
+		const result = fixture();
+		delete result.partial;
+		expect(() => reduce(result, "2.3.0")).toThrow(/partial/);
+	});
+
+	test("rejects a result that names the same case twice", () => {
+		const result = fixture();
+		const cases = result.cases as unknown[];
+		cases.push(structuredClone(cases[0]));
+		expect(() => reduce(result, "2.3.0")).toThrow(/bypass-question-stays-silent/);
+	});
+
 	test("rejects a result with no model override", () => {
 		const result = fixture();
 		delete (result.suite as Record<string, unknown>).modelOverride;
@@ -69,15 +82,25 @@ describe("compare verdicts", () => {
 		current: CaseRecord,
 		before: CaseRecord | null | undefined,
 		manifest: Manifest = noRules,
+		tolerance = 0.1,
 	): string[] => {
 		const base = before === null ? null : baseline("old", before === undefined ? {} : { c: before });
-		return compare(baseline("new", { c: current }), base, manifest, 0.1).cases[0].verdicts;
+		return compare(baseline("new", { c: current }), base, manifest, tolerance).cases[0].verdicts;
 	};
 
 	test("a with mean below the baseline's by more than the tolerance is regressed", () => {
 		expect(verdictsOf({ with: [0.5, 0.6], without: [0] }, { with: [0.8, 0.8], without: [0] })).toEqual([
 			"regressed",
 		]);
+	});
+
+	test("a drop just over the tolerance is regressed", () => {
+		expect(verdictsOf({ with: [0.69], without: [0] }, { with: [0.8], without: [0] })).toEqual(["regressed"]);
+	});
+
+	test("a drop of exactly the tolerance is not regressed despite float means", () => {
+		expect(verdictsOf({ with: [0.73, 0.73, 1], without: [0] }, { with: [0.92], without: [0] })).toEqual(["flaky"]);
+		expect(verdictsOf({ with: [0.7], without: [0] }, { with: [0.8], without: [0] })).toEqual(["steady"]);
 	});
 
 	test("a drop within the tolerance is steady", () => {
@@ -89,6 +112,11 @@ describe("compare verdicts", () => {
 		expect(verdictsOf({ with: [0.5, 0.6], without: [0] }, { with: [0.8, 0.8], without: [0] }, manifest)).toEqual([
 			"sandbox",
 		]);
+	});
+
+	test("a sandbox-sensitive case that did not drop is steady", () => {
+		const manifest: Manifest = { rules: [], sandboxSensitive: ["c"] };
+		expect(verdictsOf({ with: [1], without: [0] }, { with: [1], without: [0] }, manifest)).toEqual(["steady"]);
 	});
 
 	test("a perfect with arm matched by the without arm is redundant", () => {
@@ -163,7 +191,7 @@ describe("compare verdicts", () => {
 });
 
 describe("compare rule status", () => {
-	const statusOf = (rule: Manifest["rules"][number]): string => {
+	const statusOf = (rule: Manifest["rules"][number], sandboxSensitive: string[] = []): string => {
 		const current = baseline("new", {
 			dropped: { with: [0.2], without: [0] },
 			solved: { with: [1], without: [1] },
@@ -174,7 +202,7 @@ describe("compare rule status", () => {
 			solved: { with: [1], without: [1] },
 			fine: { with: [1], without: [0] },
 		});
-		return compare(current, before, { rules: [rule], sandboxSensitive: [] }, 0.1).rules[0].status;
+		return compare(current, before, { rules: [rule], sandboxSensitive }, 0.1).rules[0].status;
 	};
 	const rule = (cases: string[]) => ({ id: "r", states: "SKILL.md", origin: "docs/design.md", cases });
 
@@ -184,6 +212,10 @@ describe("compare rule status", () => {
 
 	test("a rule whose every case is redundant is an expiry candidate", () => {
 		expect(statusOf(rule(["solved"]))).toBe("expiry-candidate");
+	});
+
+	test("a rule whose dropped case is sandbox-sensitive is not at risk", () => {
+		expect(statusOf(rule(["dropped"]), ["dropped"])).toBe("ok");
 	});
 
 	test("a rule with no cases is unpinned", () => {

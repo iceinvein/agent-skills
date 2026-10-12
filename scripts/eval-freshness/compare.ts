@@ -29,6 +29,10 @@ export type Report = {
 // The CLI judges with haiku unless --judge-model is given.
 const DEFAULT_JUDGE = "haiku";
 
+// Means of quarter and third scores carry float error, so a drop of exactly
+// the tolerance can compute as a hair over it and must not count.
+const MEAN_EPSILON = 1e-9;
+
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
 function scores(runs: unknown, where: string): number[] {
@@ -62,6 +66,7 @@ export function reduce(result: unknown, skillVersion: string): Baseline {
 		if (!isObject(entry) || typeof entry.name !== "string" || !isObject(entry.arms)) {
 			throw new Error(`eval result cases[${i}] has no name or arms`);
 		}
+		if (Object.hasOwn(cases, entry.name)) throw new Error(`eval result names case ${entry.name} more than once`);
 		const where = `case ${entry.name}`;
 		cases[entry.name] = {
 			with: scores(entry.arms.with, `${where} arms.with`),
@@ -99,7 +104,7 @@ function caseReport(
 	const baselineWithMean = before === undefined ? null : mean(before.with);
 	const verdicts: CaseVerdict[] = [];
 
-	const dropped = baselineWithMean !== null && withMean < baselineWithMean - tolerance;
+	const dropped = baselineWithMean !== null && baselineWithMean - withMean > tolerance + MEAN_EPSILON;
 	const sandboxSensitive = manifest.sandboxSensitive.includes(name);
 	if (dropped && !sandboxSensitive) verdicts.push("regressed");
 	if (current.without.length > 0 && withMean === 1 && withoutMean >= withMean) verdicts.push("redundant");
