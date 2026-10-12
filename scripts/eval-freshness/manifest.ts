@@ -22,7 +22,12 @@ function isRule(value: unknown): value is Rule {
 export function loadManifest(skillDir: string): Manifest {
 	const path = join(skillDir, "evals", "rules.json");
 	if (!existsSync(path)) throw new Error(`${path} is missing`);
-	const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(readFileSync(path, "utf8"));
+	} catch (error) {
+		throw new Error(`${path} is not valid JSON: ${(error as Error).message}`);
+	}
 	const m = parsed as Record<string, unknown>;
 	if (
 		typeof parsed !== "object" ||
@@ -35,6 +40,8 @@ export function loadManifest(skillDir: string): Manifest {
 	}
 	return { rules: m.rules, sandboxSensitive: m.sandboxSensitive };
 }
+
+const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile();
 
 export function caseNames(skillDir: string): string[] {
 	const evals = join(skillDir, "evals");
@@ -63,18 +70,23 @@ export function checkManifest(skillDir: string): string[] {
 			named.add(name);
 			if (!cases.includes(name)) problems.push(`rule ${rule.id} names case "${name}", which does not exist`);
 		}
-		if (rule.cases.length === 0 && rule.unpinned === undefined) {
+		const hasReason = (rule.unpinned ?? "").trim() !== "";
+		if (rule.cases.length === 0 && !hasReason) {
 			problems.push(`rule ${rule.id} has no cases and no unpinned reason`);
 		}
-		if (rule.cases.length > 0 && rule.unpinned !== undefined) {
+		if (rule.cases.length > 0 && hasReason) {
 			problems.push(`rule ${rule.id} has both cases and an unpinned reason`);
 		}
 		const statesFile = rule.states.split(":")[0].trim();
-		if (!existsSync(join(skillDir, statesFile))) {
-			problems.push(`rule ${rule.id} states "${statesFile}", which does not exist in the skill`);
+		if (statesFile === "") {
+			problems.push(`rule ${rule.id} states no file`);
+		} else if (!isFile(join(skillDir, statesFile))) {
+			problems.push(`rule ${rule.id} states "${statesFile}", which is not a file in the skill`);
 		}
-		if (!existsSync(join(repoRoot, rule.origin))) {
-			problems.push(`rule ${rule.id} origin "${rule.origin}" does not exist in the repo`);
+		if (rule.origin.trim() === "") {
+			problems.push(`rule ${rule.id} has no origin`);
+		} else if (!isFile(join(repoRoot, rule.origin))) {
+			problems.push(`rule ${rule.id} origin "${rule.origin}" is not a file in the repo`);
 		}
 	}
 	for (const name of cases) {

@@ -77,24 +77,82 @@ describe("checkManifest", () => {
 
 	test("reports a states file missing under the skill dir", () => {
 		const skill = skillTree({ cases: ["alpha"], rules: [rule({ states: " references/gone.md : step 2" })] });
-		expect(checkManifest(skill)).toEqual(['rule r1 states "references/gone.md", which does not exist in the skill']);
+		expect(checkManifest(skill)).toEqual(['rule r1 states "references/gone.md", which is not a file in the skill']);
 	});
 
 	test("reports an origin missing under the repo root", () => {
 		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "docs/gone.md" })] });
-		expect(checkManifest(skill)).toEqual(['rule r1 origin "docs/gone.md" does not exist in the repo']);
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "docs/gone.md" is not a file in the repo']);
+	});
+});
+
+describe("checkManifest on empty or non-file references", () => {
+	test("reports an empty states string as naming no file", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ states: "" })] });
+		expect(checkManifest(skill)).toEqual(["rule r1 states no file"]);
+	});
+
+	test("reports a states with nothing before the colon as naming no file", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ states: " : step 2" })] });
+		expect(checkManifest(skill)).toEqual(["rule r1 states no file"]);
+	});
+
+	test("reports a states naming a directory", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ states: "evals: step 1" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 states "evals", which is not a file in the skill']);
+	});
+
+	test("reports an empty origin", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "" })] });
+		expect(checkManifest(skill)).toEqual(["rule r1 has no origin"]);
+	});
+
+	test("reports an origin naming a directory", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({ origin: "docs" })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 origin "docs" is not a file in the repo']);
+	});
+
+	test("treats a blank unpinned as no reason", () => {
+		const skill = skillTree({ cases: ["alpha"], rules: [rule({}), rule({ id: "r2", cases: [], unpinned: "  " })] });
+		expect(checkManifest(skill)).toEqual(["rule r2 has no cases and no unpinned reason"]);
 	});
 });
 
 describe("loadManifest", () => {
 	test("throws when rules.json is missing", () => {
 		const skill = mkdtempSync(join(tmpdir(), "eval-freshness-manifest-"));
-		expect(() => loadManifest(skill)).toThrow();
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 
-	test("throws when rules.json is not the manifest shape", () => {
-		const skill = skillTree({ rules: [{ id: "r1", cases: "alpha" }] });
-		expect(() => loadManifest(skill)).toThrow();
+	function rulesFile(text: string): string {
+		const skill = skillTree();
+		writeFileSync(join(skill, "evals", "rules.json"), text);
+		return skill;
+	}
+
+	test("throws naming the file when cases is a string", () => {
+		const skill = rulesFile(JSON.stringify({ rules: [rule({ cases: "alpha" })], sandboxSensitive: [] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when sandboxSensitive is missing", () => {
+		const skill = rulesFile(JSON.stringify({ rules: [rule({})] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when unpinned is not a string", () => {
+		const skill = rulesFile(JSON.stringify({ rules: [rule({ cases: [], unpinned: 3 })], sandboxSensitive: [] }));
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when the top level is not an object", () => {
+		const skill = rulesFile("[]");
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
+	});
+
+	test("throws naming the file when it is not valid JSON", () => {
+		const skill = rulesFile("{ rules: ");
+		expect(() => loadManifest(skill)).toThrow(join(skill, "evals", "rules.json"));
 	});
 });
 
