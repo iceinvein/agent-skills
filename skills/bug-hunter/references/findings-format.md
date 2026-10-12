@@ -5,6 +5,11 @@ Every run writes `report.md` and `findings.json` to
 They carry the same content; `findings.json` is the one a grader or a calling
 skill parses, so it follows this shape exactly.
 
+Write both files with the Write tool, passing the full contents. Do not build
+them with a shell command, a heredoc or a script (`python3 -c` with
+`json.dump`, `node -e` with `JSON.stringify`): a grader reading the run's trace
+sees a script, not the JSON it produced.
+
 ## findings.json
 
 ```
@@ -17,7 +22,8 @@ Field by field:
   range or paths).
 - `intent`: the claims from `intent.md`. `id` is the claim's number (`I1`),
   `claim` its text, `source` where it came from (file and line, commit SHA, or
-  `request`).
+  `request`). A claim taken from a sibling implementation or a stated
+  invariant cites the file and line that holds it.
 - `bugs`: confirmed findings only. `id` numbers them (`B1`). `scenario` is the
   scenario's id from `scenarios.md` (`S4`). `claim` is the violated intent id.
   `expected` and `observed` are the values the repro asserted and got.

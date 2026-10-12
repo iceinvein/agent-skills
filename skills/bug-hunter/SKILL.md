@@ -15,15 +15,20 @@ the change was meant to do.
 A bug is reported only with a reproduction that fails in a clean run and names
 the intent claim it violates. A suspicion without a failing repro is not a
 finding. A failing repro whose expected value no claim supports is an
-ambiguity, a question for whoever owns the intent, never a bug.
+ambiguity, a question for whoever owns the intent, never a bug. A repro that
+shows the target contradicting a concrete claim the repo makes about it (an
+invariant the code states, a sibling implementation it says it mirrors, an
+existing test, a doc) is a bug citing that claim, not an ambiguity.
 
 ## Input
 
 - **Target:** a diff (a commit, a range, or the working changes) or a set of
   paths. Name it in one line before starting; every later step is scoped to it.
 - **Intent sources:** the request or ticket text the caller passes in, commit
-  messages, specs and docs in the repo, `CLAUDE.md`/`AGENTS.md`, and the
-  docstrings and types on the changed signatures. Intent is what the change
+  messages, specs and docs in the repo, `CLAUDE.md`/`AGENTS.md`, the
+  docstrings and types on the changed signatures, invariants the code states
+  about itself in comments, sibling or mirrored implementations the target
+  says it matches, and the repo's existing tests. Intent is what the change
   was meant to do, which is a different thing from what it does.
 
 If no intent source states anything checkable about the target, say so and
@@ -83,7 +88,9 @@ Both reports sort results into three buckets:
 - **covered:** scenarios that ran and passed, with the claim each one checked.
 
 Shapes and layout are in `references/findings-format.md`. Write
-`findings.json` to that shape exactly; a caller parses it.
+`findings.json` to that shape exactly; a caller parses it. Write
+`findings.json` and `report.md` with the Write tool, never from a shell
+command or a script, so their contents appear literally in the run's trace.
 
 The `.bug-hunter/` directory is the one path in the caller's tree the skill
 writes. Say in the hand-back if it is not in `.gitignore`, rather than editing

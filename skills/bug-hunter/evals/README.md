@@ -66,7 +66,41 @@ a file needs its exact path and throws on a glob. So:
 
 ## Baseline
 
-### Opus 5.5, 2026-10-12
+### Skill 0.2.0, Opus 5.5, 2026-10-12
+
+Same command plus `--trust-plugin --no-publish`, CLI 2.1.296. Skill 0.2.0
+counts intent stated in the repo itself (invariants the code states, sibling
+implementations it says it mirrors, existing tests, docs) and requires
+`findings.json` and `report.md` to be written with the Write tool. USD 5.08 in
+all (judging USD 0.40), 265s, `results/2026-10-12T07-49-17-746Z`. Overall
+1.00, against 0.84 for 0.1.0 below. One run per case, so every score is a
+single sample.
+
+| Case | 0.1.0 | 0.2.0 | USD (0.2.0) | Reading |
+|---|---|---|---|---|
+| `proves-a-spec-boundary-bug` | 1.00 | 1.00 | 1.33 | Judge PASS PASS PASS |
+| `silent-spec-is-an-ambiguity` | 0.20 | 1.00 | 1.12 | `findings.json` written with Write, so both regexes see it. `bugs` empty; `A1` asks what the cap is and names the code's 99 |
+| `correct-code-has-no-bugs` | 1.00 | 1.00 | 0.38 | `bugs` empty, 13 covered, one ambiguity (sparse arrays, which `SPEC.md` does not address) |
+| `callers-tree-unchanged` | 1.00 | 1.00 | 1.17 | No path outside `.bug-hunter/` changed |
+| `scenarios-before-bodies` | 1.00 | 1.00 | 1.08 | The dispatched scenario author wrote `scenarios.md` before any Read of `src/discount.js` |
+
+No failures. The 0.1.0 failure is closed by the Write rule, not by a grader
+change: all five runs wrote both files with the Write tool. The new intent
+rule did not promote anything in the two cases it could have over-promoted:
+the ambiguity run's five questions all stay ambiguities with `bugs` empty, and
+the correct-code run's one open question (sparse arrays) stays an ambiguity.
+None of the five fixtures has a sibling implementation or a stated invariant,
+so these cases do not exercise the new confirm path; they only show it does
+not leak into silent-spec cases.
+
+Dispatch is still not reliable. The correct-code run ran all three roles in
+the main thread with the Agent tool available (70s, the cheapest run); its
+`intent.md` and `scenarios.md` were on disk before it ran `cat` on
+`src/paginate.js`, so the fallback's order held. It hunted in a `$TMPDIR` copy
+rather than a git worktree. The ambiguity run dispatched the scenario author
+and executor and no refuter, which fits: no repro failed.
+
+### Skill 0.1.0, Opus 5.5, 2026-10-12
 
 CLI 2.1.296, `--model claude-opus-5-5 --judge-model claude-opus-5-5 --runs 1
 --ablation none --keep-temp -j 5`. One run per case, so every score is a single
