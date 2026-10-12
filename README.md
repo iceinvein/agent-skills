@@ -77,6 +77,14 @@ Skills for reviewing high-level architecture, messaging patterns, and data flow.
 | **composability-auditor** | McIlroy, Pike, Thompson (Unix Philosophy) | Identifies reuse blockers (hidden I/O, non-standard interfaces, statefulness) and decomposes self-sufficient units into composable pieces. |
 | **temporal-coupling-detector** | Beck, Fowler (software engineering canon) | Detects hidden ordering dependencies (two-phase init, method order, invisible preconditions) and enforces them through types, parameters, and factory patterns. |
 
+### Verification
+
+Skills that check code does what it was meant to do, with evidence rather than opinion.
+
+| Skill | Based on | What it does |
+|-------|----------|--------------|
+| **bug-hunter** | QA scenario testing; intent-first reproduction | Proves logic bugs with failing repros checked against stated intent. Writes scenarios before reading the code, and reports bugs, ambiguities, and covered scenarios. |
+
 ### Communication
 
 Skills that control how the agent communicates: output compression, token efficiency, and response style.
