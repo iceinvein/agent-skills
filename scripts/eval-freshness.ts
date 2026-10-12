@@ -101,18 +101,50 @@ const modelFileName = (model: string) => model.replace(/[^A-Za-z0-9._-]/g, "-");
 const baselinePath = (skillDir: string, model: string) =>
 	join(skillDir, "evals", "baselines", `${modelFileName(model)}.json`);
 
+// An errored run keeps a score (usually 0) that reduce cannot tell apart from
+// a real failure, so errors are read from the raw result, which reduce has
+// already checked for shape.
+function erroredRuns(result: unknown): string[] {
+	const cases = (result as { cases: { name: string; arms: Record<string, unknown[] | undefined> }[] }).cases;
+	const lines: string[] = [];
+	for (const entry of cases) {
+		for (const arm of ["with", "without"]) {
+			for (const [i, run] of (entry.arms[arm] ?? []).entries()) {
+				const error = (run as { error?: unknown }).error;
+				if (error === null || error === undefined) continue;
+				const text = typeof error === "string" ? error : JSON.stringify(error);
+				lines.push(`${entry.name} ${arm} run ${i + 1}: ${text}`);
+			}
+		}
+	}
+	return lines;
+}
+
 function diff(skillDir: string, resultPath: string, against: string | undefined, tol: number): number {
-	const current = reduce(readJson(resultPath), skillVersion(skillDir));
+	const result = readJson(resultPath);
+	const current = reduce(result, skillVersion(skillDir));
 	const manifest = loadManifest(skillDir);
 	const path = baselinePath(skillDir, against ?? current.model);
 	const baseline = readBaseline(path);
 	const report = compare(current, baseline, manifest, tol);
 	process.stdout.write(formatReport(report));
+	for (const line of erroredRuns(result)) console.log(`errored: ${line}`);
 	return report.cases.some((c) => c.verdicts.includes("regressed")) ? 1 : 0;
 }
 
 function accept(skillDir: string, resultPath: string): number {
-	const baseline = reduce(readJson(resultPath), skillVersion(skillDir));
+	const result = readJson(resultPath);
+	const baseline = reduce(result, skillVersion(skillDir));
+	// A filtered run would replace the whole baseline, leaving every skipped
+	// case to read as "new" and so never as "regressed".
+	const caseFilter = (result as { suite: { caseFilter?: unknown } }).suite.caseFilter;
+	if (typeof caseFilter === "string" && caseFilter !== "") {
+		throw new Error(`${resultPath} was filtered with --case ${caseFilter}; a baseline needs a full run`);
+	}
+	const errored = erroredRuns(result);
+	if (errored.length > 0) {
+		throw new Error(`${resultPath} has errored runs, so it cannot be a baseline:\n  ${errored.join("\n  ")}`);
+	}
 	const path = baselinePath(skillDir, baseline.model);
 	mkdirSync(join(skillDir, "evals", "baselines"), { recursive: true });
 	writeFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);

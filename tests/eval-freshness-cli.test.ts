@@ -270,3 +270,42 @@ test("run does not spawn the eval when rules.json is not a manifest", () => {
 	expect(out.code).toBe(2);
 	expect(out.argv).toBeNull();
 });
+
+function filteredResult() {
+	const value = result([1, 1], [0, 0]);
+	return { ...value, suite: { ...value.suite, caseFilter: "case-*" } };
+}
+
+function erroredResult() {
+	const value = result([1, 0], [0, 0]);
+	const run: { error: string | null } = value.cases[0].arms.with[1];
+	run.error = "sandbox timed out";
+	return value;
+}
+
+test("accept refuses a result filtered with --case, since a baseline needs a full run", () => {
+	const out = cli("accept", skillDir, writeResult(filteredResult()));
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("full run");
+	expect(existsSync(join(skillDir, "evals", "baselines", "opus.json"))).toBe(false);
+});
+
+test("accept refuses a result with an errored run and names the case and error", () => {
+	const out = cli("accept", skillDir, writeResult(erroredResult()));
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("case-a");
+	expect(out.stderr).toContain("sandbox timed out");
+	expect(existsSync(join(skillDir, "evals", "baselines", "opus.json"))).toBe(false);
+});
+
+test("diff prints a line for each errored run after the report", () => {
+	const out = cli("diff", skillDir, writeResult(erroredResult()));
+	expect(out.code).toBe(0);
+	expect(out.stdout).toContain("errored: case-a with run 2: sandbox timed out");
+});
+
+test("diff still compares a result filtered with --case", () => {
+	const out = cli("diff", skillDir, writeResult(filteredResult()));
+	expect(out.code).toBe(0);
+	expect(out.stdout).toContain("against no baseline");
+});

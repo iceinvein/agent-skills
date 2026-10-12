@@ -84,7 +84,11 @@ bun run eval:fresh accept skills/sluice <result.json>
 `run` takes `--case <glob>`, `--runs <n>`, `-j <n>` and `--tolerance <x>`;
 `diff` takes `--against <model>` and `--tolerance <x>`. Both exit 0 when no
 case regressed, 1 when one did, and 2 on bad input (a missing flag value, an
-unreadable result or a malformed manifest).
+unreadable result or a malformed manifest). `run` also exits 2 when the eval
+writes no result. `accept` exits 2 on a result filtered with `--case`, since a
+baseline needs a full run, and on a result with any errored run. `diff` lists
+errored runs after the report without changing its exit code. `run` passes
+`--no-publish`, so the HTML report stays local.
 
 The diff gives each case its verdicts. `regressed` means the with-arm mean
 dropped below the baseline by more than `--tolerance` (default 0.1).
