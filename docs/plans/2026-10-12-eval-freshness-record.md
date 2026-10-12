@@ -50,4 +50,48 @@ Plan: `docs/plans/2026-10-12-eval-freshness.md`. Design: `docs/specs/2026-10-12-
   - `unclaimed: [{case, reason}]` holds cases that pin no stated rule.
   - `origin` may be `commit:<sha>`, format-checked only, because the publish job's checkout is shallow.
 - T5 and T6 were reset to `todo` until T9 lands. Their round-1 findings are re-dispatched against the new schema.
+- T4 landed as 111f306 and was cherry-picked as 71fd1e9.
+  - Round 1, Important: the baseline is cast without validation. A `null` baseline reads as none and exits 0, so it hides regressions.
+  - Round 1, Important: no tests for `run`. They will use a fake `claude` on PATH.
+  - Minors sent back: validate before the paid spawn; mkdir `results/`; sanitize model ids in filenames; reject unknown flags.
+  - ef-t4 was reset to ce72e5e for the fix round.
+- T9 landed as f6e2297 and was cherry-picked as ce72e5e. Round 1 met the contract.
+  - Two Important test gaps: a vacuous guard on the wrong case, and the unclaimed exemption applied to every case. Both survived mutation.
+  - Sent back as tests only.
+- I sent T5 and T6 their reworks while T9's test-only fixes were still out. T9's Offers do not change in that round, so the rework builds on a stable schema. Their worktrees were reset to ce72e5e.
+- T9 test fixes landed as 65a8628 (b25d231). Each new test was checked against the mutant it targets, so T9 is done and reviewed.
+- T6 rework landed as 5045500 (abc30a6). It has 18 rules (7 pinned, 11 unpinned), with `vacuousWithout: [callers-tree-unchanged]` and `unclaimed: []`. Origins now cite commits where no doc introduced the rule. The implementer split the `.gitignore` rule: "not edited" is pinned by `tree-unchanged`, while "named in hand-back" is unpinned. I spot-checked it myself rather than sending a second review, because the rework only applied round-1 findings.
+- T4 fixes landed as b1344ab (e4f969e). Baselines are validated and exit 2 when bad, `run` is tested through a fake `claude` on PATH, and inputs are checked before the paid spawn. Model ids are sanitised in filenames, and unknown flags exit 2. I read the diff and the 104 tests pass.
+- T5 rework landed as 992686d (c9daddf). It has 38 rules, `vacuousWithout: [superpowers-conflict-stands-down]` (a bare model never names a channel), and `unclaimed: [fast-reads-the-unmentioned-convention]`. The pre-flight stop origin is `commit:371804f`, the commit that wrote the stop as SKILL.md states it now. The full `bun test` run: 1909 pass, 0 fail.
+- Minor, waiting: `skills/index.json` still lists sluice 0.23.1 and bug-hunter 0.2.1. `bun run build:index` belongs to the release.
+- Minor: `skill:bump:check` compares against tag v0.21.5, so it proves nothing about this run's bumps. The bumps were made by hand.
+- T7 (the flip) landed as bd708b7. Its drift check went red on a renamed case, and the full suite was 1912 pass. The tier-3 review cleared with no Critical or Important findings; the invariant also holds from another cwd and from a CI-like clean copy. Two Minors, waiting:
+  - Only sluice and bug-hunter are pinned as required, so deleting a future third skill's `rules.json` drops its check silently.
+  - `publish.yml` runs only on `v*` tags, so drift blocks publishing but not merging. Catching it at PR time would need a separate workflow.
+- T8 first read (Opus 5.5, one run per arm, judge Opus 5.5, CLI 2.1.296, on the user's plan). Both runs exited 0, and nothing was accepted as a baseline.
+  - bug-hunter (USD 4.21 at API prices, 382s): every case scored 1.00 with the skill. Without it, 0.00 everywhere except `callers-tree-unchanged`, which scored 1.00 and is correctly not called redundant because it is in `vacuousWithout`.
+  - sluice (USD 20.09, 1621s):
+
+    | Case | With | Without |
+    |---|---|---|
+    | announcement-reaches-the-ledger | 0.40 | 0.40 |
+    | bypass-question-stays-silent | 1.00 | 1.00 |
+    | deep-plan-across-subsystems | 1.00 | 0.42 |
+    | deep-plan-asks-the-fork | 1.00 | 0.44 |
+    | deep-run-blocks-on-a-real-decision | 0.54 | 1.00 |
+    | deep-run-decides-a-non-blocking-choice | 1.00 | 1.00 |
+    | deep-run-fans-out | 1.00 | 0.28 |
+    | deep-run-finishes-every-task | 1.00 | 1.00 |
+    | deep-run-survives-a-milestone | 1.00 | 1.00 |
+    | deep-run-waits-for-a-running-agent | 1.00 | 0.75 |
+    | explicit-instruction-collapses-to-fast | 1.00 | 0.71 |
+    | fast-flag-on-existing-command | 1.00 | 0.28 |
+    | fast-reads-the-unmentioned-convention | 1.00 | 1.00 |
+    | main-new-interface | 1.00 | 0.33 |
+    | superpowers-conflict-stands-down | 1.00 | 0.50 |
+
+  - Expiry candidates: bypass-answers-without-announcing, deep-run-finishes-without-checking-in, deep-run-survives-a-milestone and deep-run-decides-a-non-blocking-choice. Each rests on a single sample.
+  - Two results the verdicts cannot show:
+    - `announcement-reaches-the-ledger` scored 0.40 with sluice, against 1.00 in the 2026-09-23 hand-written baseline. No committed baseline exists, so nothing could flag it.
+    - `deep-run-blocks-on-a-real-decision` scored worse with sluice (0.54) than without it (1.00). No verdict covers the skill making the model worse. That is a design gap, not in this run.
 - Design deviation, agreed at pre-flight: `regressed` uses `--tolerance` (default 0.1), because 1/runs can never flag a single-run drop.
