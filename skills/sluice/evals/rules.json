@@ -1,0 +1,222 @@
+{
+  "rules": [
+    {
+      "id": "bypass-answers-without-announcing",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "bypass-question-stays-silent"
+      ]
+    },
+    {
+      "id": "fast-for-existing-interfaces",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "fast-flag-on-existing-command",
+        "fast-reads-the-unmentioned-convention"
+      ]
+    },
+    {
+      "id": "main-for-a-new-interface",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "main-new-interface"
+      ]
+    },
+    {
+      "id": "deep-for-several-subsystems-or-a-plan",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "deep-plan-across-subsystems",
+        "deep-plan-asks-the-fork"
+      ]
+    },
+    {
+      "id": "announce-with-the-route-call",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "announcement-reaches-the-ledger"
+      ]
+    },
+    {
+      "id": "route-reads-repo-instructions-first",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "superpowers-conflict-stands-down"
+      ]
+    },
+    {
+      "id": "choices-go-through-ask-user-question",
+      "states": "SKILL.md: Route first",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "no grader checks that a question went out through the AskUserQuestion tool rather than as prose"
+    },
+    {
+      "id": "deep-stops-for-design-sign-off",
+      "states": "SKILL.md: Deep channel",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "deep-plan-across-subsystems"
+      ]
+    },
+    {
+      "id": "deep-asks-the-fork-before-the-design",
+      "states": "SKILL.md: Deep channel",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-plan-asks-the-fork"
+      ]
+    },
+    {
+      "id": "deep-stops-for-plan-and-pre-flight",
+      "states": "SKILL.md: Deep channel",
+      "origin": "docs/specs/2026-08-23-sluice-cross-harness.md",
+      "cases": [],
+      "unpinned": "every deep-run case starts past pre-flight, and no case runs from a signed-off design to the plan stop"
+    },
+    {
+      "id": "escalate-out-loud",
+      "states": "SKILL.md: Changing channel",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "announcement-reaches-the-ledger"
+      ]
+    },
+    {
+      "id": "explicit-instruction-collapses-to-fast",
+      "states": "SKILL.md: Changing channel",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "explicit-instruction-collapses-to-fast"
+      ]
+    },
+    {
+      "id": "agree-intent-before-building",
+      "states": "references/intent.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "main-new-interface"
+      ]
+    },
+    {
+      "id": "test-first",
+      "states": "references/test-first.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "fast-flag-on-existing-command"
+      ]
+    },
+    {
+      "id": "root-cause-before-fix",
+      "states": "references/root-cause.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "no case reproduces a bug or a red test for the run to investigate"
+    },
+    {
+      "id": "verify-before-claiming",
+      "states": "references/verify.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "no grader checks that a claim of success follows a command run in the same turn"
+    },
+    {
+      "id": "review-before-merge",
+      "states": "references/review.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "no grader checks that a fresh-context reviewer was dispatched with the diff on disk"
+    },
+    {
+      "id": "finish-lets-the-partner-pick",
+      "states": "references/finish.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "the handback judges accept the finish choice but none fails a run that merged or opened a PR on its own"
+    },
+    {
+      "id": "meter-the-run-at-handback",
+      "states": "references/meter.md",
+      "origin": "docs/specs/2026-08-23-sluice-cross-harness.md",
+      "cases": [],
+      "unpinned": "no grader checks that run-stats.sh ran at the handback"
+    },
+    {
+      "id": "show-or-say",
+      "states": "references/show-or-say.md",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [],
+      "unpinned": "no case asks a question that turns on how something looks"
+    },
+    {
+      "id": "stand-down-under-superpowers",
+      "states": "SKILL.md: Conflicts",
+      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "cases": [
+        "superpowers-conflict-stands-down"
+      ]
+    },
+    {
+      "id": "deep-run-finishes-without-checking-in",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-finishes-every-task"
+      ]
+    },
+    {
+      "id": "deep-run-blocks-only-on-a-real-decision",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-blocks-on-a-real-decision"
+      ]
+    },
+    {
+      "id": "deep-run-survives-a-milestone",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-survives-a-milestone"
+      ]
+    },
+    {
+      "id": "deep-run-decides-a-non-blocking-choice",
+      "states": "references/deep-channel.md: The dispatch brief",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-decides-a-non-blocking-choice"
+      ]
+    },
+    {
+      "id": "deep-run-waits-for-a-running-agent",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-waits-for-a-running-agent"
+      ]
+    },
+    {
+      "id": "deep-run-fans-out",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "cases": [
+        "deep-run-fans-out"
+      ]
+    }
+  ],
+  "sandboxSensitive": [
+    "deep-run-blocks-on-a-real-decision",
+    "deep-run-decides-a-non-blocking-choice",
+    "deep-run-fans-out",
+    "deep-run-finishes-every-task",
+    "deep-run-survives-a-milestone",
+    "deep-run-waits-for-a-running-agent"
+  ]
+}

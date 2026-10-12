@@ -59,6 +59,38 @@ claude plugin eval skills/sluice --scaffold --allow-tools Bash Write Edit \
   --trust-plugin --threshold 0.8
 ```
 
+To check whether the rules in `rules.json` still earn their place on a model,
+run both arms through `eval:fresh`. It runs on your Claude plan, at
+`--runs 3 -j 2` by default, then diffs the result against
+`evals/baselines/<model>.json`:
+
+```bash
+bun run eval:fresh run skills/sluice --model claude-opus-5-5
+```
+
+Re-reading a result costs nothing, and `--against` diffs it against another
+model's baseline:
+
+```bash
+bun run eval:fresh diff skills/sluice <result.json> [--against <model>]
+```
+
+Writing the baseline is always a deliberate step of its own:
+
+```bash
+bun run eval:fresh accept skills/sluice <result.json>
+```
+
+The diff gives each case its verdicts. `regressed` means the with-arm mean
+dropped below the baseline by more than `--tolerance` (default 0.1).
+`redundant` means the bare model matches the skill at 1.0. `flaky` means the
+runs disagree. `sandbox` is that same miss on a case listed in
+`sandboxSensitive`, read as the harness (see "Git inside the eval sandbox"
+below) rather than as a regression. `new` is a case the baseline does not have,
+and `steady` is a case none of the others apply to. A rule is "at risk" if any
+of its cases regressed, and an "expiry candidate" if all of its cases are
+redundant.
+
 ## Scoring notes
 
 `tool_used: Skill` graders are excluded from the score in a two-arm run and
