@@ -13,10 +13,52 @@
       "cases": ["silent-spec-is-an-ambiguity"]
     },
     {
+      "id": "contradicting-a-stated-claim-is-a-bug",
+      "states": "SKILL.md: No repro, no finding",
+      "origin": "commit:bd7fc25",
+      "cases": [],
+      "unpinned": "No fixture has a sibling implementation, a stated invariant or an existing test the target contradicts, so the confirm path is never exercised."
+    },
+    {
+      "id": "target-named-in-one-line",
+      "states": "SKILL.md: Input",
+      "origin": "commit:f88c60a",
+      "cases": [],
+      "unpinned": "No grader reads the opening message where the target is named."
+    },
+    {
+      "id": "stop-when-no-checkable-intent",
+      "states": "SKILL.md: Input",
+      "origin": "commit:f88c60a",
+      "cases": [],
+      "unpinned": "Every fixture ships a SPEC.md with checkable claims, so no case gives the skill a target without intent."
+    },
+    {
       "id": "intent-before-implementation",
       "states": "SKILL.md: Intent before implementation",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
       "cases": ["scenarios-before-bodies"]
+    },
+    {
+      "id": "roles-are-separate-dispatches",
+      "states": "SKILL.md: Intent before implementation",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "No grader checks for Agent tool calls; the baselines show runs that did all three roles in the main thread and still scored 1.00."
+    },
+    {
+      "id": "executor-reasoning-kept-from-refuter",
+      "states": "SKILL.md: Intent before implementation",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "No grader reads the refuter's dispatch prompt, so passing it the executor's reasoning goes unseen."
+    },
+    {
+      "id": "repros-use-the-repos-own-test-runner",
+      "states": "SKILL.md: Intent before implementation",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "The repro judge reads what the repro asserts against the fixture's code, not which runner or framework it is written in."
     },
     {
       "id": "scratch-worktree-leaves-callers-tree-unchanged",
@@ -25,32 +67,60 @@
       "cases": ["callers-tree-unchanged"]
     },
     {
+      "id": "hunt-in-a-real-git-worktree-and-remove-it",
+      "states": "SKILL.md: Scratch worktree",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": [],
+      "unpinned": "tree-unchanged passes a hunt in a $TMPDIR copy just as well (four of five 0.1.0 baseline runs hunted outside a git worktree), and nothing checks the worktree is removed."
+    },
+    {
+      "id": "never-stage-or-commit",
+      "states": "SKILL.md: Scratch worktree",
+      "origin": "commit:f88c60a",
+      "cases": [],
+      "unpinned": "tree-unchanged ignores .git/ and a commit leaves no changed path in the working directory, so staging or committing is invisible to it."
+    },
+    {
       "id": "findings-written-with-write-tool-to-shape",
       "states": "SKILL.md: Output",
-      "origin": "docs/plans/2026-10-12-bug-hunter-record.md",
+      "origin": "commit:bd7fc25",
       "cases": ["silent-spec-is-an-ambiguity", "correct-code-has-no-bugs"]
     },
     {
-      "id": "stop-when-no-checkable-intent",
-      "states": "SKILL.md: Input",
-      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "id": "gitignore-left-unedited",
+      "states": "SKILL.md: Output",
+      "origin": "commit:f88c60a",
+      "cases": ["callers-tree-unchanged"]
+    },
+    {
+      "id": "gitignore-gap-named-in-hand-back",
+      "states": "SKILL.md: Output",
+      "origin": "commit:f88c60a",
       "cases": [],
-      "unpinned": "Every fixture ships a SPEC.md with checkable claims, so no case gives the skill a target without intent."
+      "unpinned": "No grader reads the final message, though no fixture's .gitignore covers .bug-hunter/."
     },
     {
       "id": "single-agent-fallback-order",
       "states": "SKILL.md: Single-agent fallback",
-      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "origin": "docs/specs/2026-10-12-bug-hunter.md",
+      "cases": ["scenarios-before-bodies"]
+    },
+    {
+      "id": "single-agent-late-claims",
+      "states": "SKILL.md: Single-agent fallback",
+      "origin": "commit:abe091c",
       "cases": [],
-      "unpinned": "No case takes dispatch away, so the fallback runs only when the model skips the Agent tool, and its late-claim rule needs a sibling implementation or stated invariant that no fixture has."
+      "unpinned": "No case takes dispatch away, and a late claim needs a sibling implementation or stated invariant that no fixture has."
     },
     {
       "id": "hand-back-contents",
       "states": "SKILL.md: Hand-back",
-      "origin": "docs/plans/2026-10-12-bug-hunter.md",
+      "origin": "commit:f88c60a",
       "cases": [],
       "unpinned": "No grader reads the final message, so the run directory, bucket counts and per-bug lines go unchecked."
     }
   ],
-  "sandboxSensitive": []
+  "sandboxSensitive": [],
+  "vacuousWithout": ["callers-tree-unchanged"],
+  "unclaimed": []
 }

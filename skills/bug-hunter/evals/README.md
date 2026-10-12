@@ -47,6 +47,9 @@ bun run eval:fresh accept skills/bug-hunter <result.json>
   `run`.
 
 What each verdict means is in `skills/sluice/evals/README.md`.
+`callers-tree-unchanged` is listed in `vacuousWithout` in `rules.json`:
+`tree-unchanged` passes on a run that writes nothing, so the no-plugin arm
+scores on it without hunting, and the case is never called redundant.
 
 ## What the graders can and cannot see
 
