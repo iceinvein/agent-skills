@@ -94,4 +94,10 @@ Plan: `docs/plans/2026-10-12-eval-freshness.md`. Design: `docs/specs/2026-10-12-
   - Two results the verdicts cannot show:
     - `announcement-reaches-the-ledger` scored 0.40 with sluice, against 1.00 in the 2026-09-23 hand-written baseline. No committed baseline exists, so nothing could flag it.
     - `deep-run-blocks-on-a-real-decision` scored worse with sluice (0.54) than without it (1.00). No verdict covers the skill making the model worse. That is a design gap, not in this run.
+- Final review. Integration, suite (1912 pass), tsc, skill:audit and commit messages are all clean.
+  - Important: `accept` on a `--case` run replaced the whole baseline, which hid regressions.
+  - Important: errored runs scored 0 silently and could be accepted.
+  - Fix, kept in the CLI so no shared contract changes: `accept` refuses filtered or errored results with exit 2, and `diff` lists errored runs. I chose to refuse rather than merge a filtered result into the baseline, because refusing is the smaller and louder fix.
+  - Minor, waiting: a mistyped `--against` reads as no baseline. The header says so.
+  - Minor, waiting: baselines store per-run scores rather than a mean and a count. Both can be derived.
 - Design deviation, agreed at pre-flight: `regressed` uses `--tolerance` (default 0.1), because 1/runs can never flag a single-run drop.
