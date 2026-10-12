@@ -62,7 +62,7 @@ than a tolerance, `--tolerance`, default `0.1`.
 
 ### Task 5: Sluice rules manifest
 
-**Contract:** Needs: `checkManifest(skillDir: string): string[]`, `type Manifest` | Offers: file `skills/sluice/evals/rules.json`
+**Contract:** Needs: `checkManifest(skillDir: string): string[]`, `type Manifest`, `vacuousWithout`, `unclaimed`, `commit origin` | Offers: file `skills/sluice/evals/rules.json`
 **Touches:** skills/sluice/evals/rules.json (new) | skills/sluice/evals/README.md (edit) | skills/sluice/skill.json (edit)
 - [ ] Write one rule per rule SKILL.md states: the four channel routes; announce with the route call; read repo instructions before routing; choices go through AskUserQuestion; the deep design stop, the fork question first, and the pre-flight stop; escalate out loud, and explicit instruction collapses to fast; the seven rules (agree intent, test first, root cause, verify, review, finish, meter), plus show-or-say; stand down under superpowers; the deep-run execution rules the six `deep-run-*` cases pin. Each rule takes `cases` from `evals/README.md`'s tables, or an honest `unpinned` reason, and an `origin` that exists under `docs/specs` or `docs/plans`. Put `deep-run-fans-out` and every other `deep-run-*` case that commits in `sandboxSensitive`. -> `bun -e "import {checkManifest} from './scripts/eval-freshness/manifest.ts'; console.log(checkManifest('skills/sluice'))"` prints `[]`
 - [ ] README "Running" gains the `eval:fresh` commands and one paragraph on verdicts. The existing verification history is not touched -> read back
@@ -70,7 +70,7 @@ than a tolerance, `--tolerance`, default `0.1`.
 
 ### Task 6: Bug-hunter rules manifest
 
-**Contract:** Needs: `checkManifest(skillDir: string): string[]`, `type Manifest` | Offers: file `skills/bug-hunter/evals/rules.json`
+**Contract:** Needs: `checkManifest(skillDir: string): string[]`, `type Manifest`, `vacuousWithout`, `unclaimed`, `commit origin` | Offers: file `skills/bug-hunter/evals/rules.json`
 **Touches:** skills/bug-hunter/evals/rules.json (new) | skills/bug-hunter/evals/README.md (edit) | skills/bug-hunter/skill.json (edit)
 - [ ] One rule per bug-hunter rule: no repro, no finding; a silent spec is an ambiguity; intent before implementation (scenarios before bodies); the scratch worktree leaves the caller's tree unchanged; findings are written with the Write tool to the stated shape; stop when there is no intent; the single-agent fallback; the hand-back. Cases come from `evals/README.md`'s table, otherwise `unpinned` with a reason. `origin` is `docs/plans/2026-10-12-bug-hunter.md` or an existing spec. `sandboxSensitive` is empty unless a case commits. -> `checkManifest('skills/bug-hunter')` prints `[]`
 - [ ] README "Running" gains the `eval:fresh` commands -> read back
@@ -92,3 +92,14 @@ than a tolerance, `--tolerance`, default `0.1`.
 - [ ] `bun run eval:fresh run skills/bug-hunter --model claude-opus-5-5 --runs 1` -> report printed, exit code read
 - [ ] `bun run eval:fresh run skills/sluice --model claude-opus-5-5 --runs 1` -> report printed, exit code read
 - [ ] Copy both reports into the run record. Accept nothing: whether to accept these, or spend a `--runs 3` pass first, goes to the user at handback -> record holds both reports
+
+### Task 9: Manifest schema for vacuous cases, unclaimed cases and commit origins
+
+Added mid-run (partner decisions after the T5 and T6 reviews). It lands before T5 and T6 rework onto it.
+
+**Contract:** Needs: `type Manifest`, `checkManifest(skillDir: string): string[]`, `compare(current: Baseline, baseline: Baseline | null, manifest: Manifest, tolerance: number): Report` | Offers: `type Manifest = { rules: Rule[]; sandboxSensitive: string[]; vacuousWithout: string[]; unclaimed: { case: string; reason: string }[] }` (all four keys required), `vacuousWithout` (compare never emits `redundant` for these cases), `unclaimed` (cases checkManifest accepts without a rule; compare still reports their verdicts and rolls them into no rule), `commit origin` (`origin` may be `commit:<7 to 40 lowercase hex>`, format-checked only)
+**Touches:** scripts/eval-freshness/manifest.ts (edit) | scripts/eval-freshness/compare.ts (edit) | tests/eval-freshness-manifest.test.ts (test) | tests/eval-freshness-compare.test.ts (test)
+- [ ] `loadManifest` requires `vacuousWithout` (string array) and `unclaimed` (array of `{case, reason}` strings) and throws naming the file otherwise -> throw tests pass
+- [ ] `checkManifest` reports: a `vacuousWithout` or `unclaimed` name that is not a case; an `unclaimed` case that a rule also names; an `unclaimed` entry with a blank reason; an `origin` starting `commit:` whose rest is not 7 to 40 lowercase hex. A case in `unclaimed` no longer counts as named by no rule. A valid `commit:` origin is not checked against the file system -> one test per line
+- [ ] `compare` never gives `redundant` to a case in `vacuousWithout` (it can still be `regressed`, `flaky`, `sandbox`, `new`) -> test with a without arm at 1.0
+- [ ] Existing tests' manifest literals gain the two new keys -> full `bun test tests/eval-freshness-*` green
