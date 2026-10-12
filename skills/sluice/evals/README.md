@@ -81,15 +81,28 @@ Writing the baseline is always a deliberate step of its own:
 bun run eval:fresh accept skills/sluice <result.json>
 ```
 
+`run` takes `--case <glob>`, `--runs <n>`, `-j <n>` and `--tolerance <x>`;
+`diff` takes `--against <model>` and `--tolerance <x>`. Both exit 0 when no
+case regressed, 1 when one did, and 2 on bad input (a missing flag value, an
+unreadable result or a malformed manifest).
+
 The diff gives each case its verdicts. `regressed` means the with-arm mean
 dropped below the baseline by more than `--tolerance` (default 0.1).
 `redundant` means the bare model matches the skill at 1.0. `flaky` means the
-runs disagree. `sandbox` is that same miss on a case listed in
-`sandboxSensitive`, read as the harness (see "Git inside the eval sandbox"
-below) rather than as a regression. `new` is a case the baseline does not have,
-and `steady` is a case none of the others apply to. A rule is "at risk" if any
-of its cases regressed, and an "expiry candidate" if all of its cases are
-redundant.
+runs disagree. `sandbox` is a drop past the tolerance on a case listed in
+`sandboxSensitive`, and it replaces `regressed` there, because the drop is read
+as the harness (see "Git inside the eval sandbox" below). `new` is a case the
+baseline does not have, and `steady` is a case none of the others apply to. A
+rule is "at risk" if any of its cases regressed, and an "expiry candidate" if
+all of its cases are redundant.
+
+Since a sandbox-sensitive case never reads `regressed`, a rule pinned only by
+such cases never reads "at risk", on this machine or any other.
+
+`vacuousWithout` lists cases whose graders, leaving out the `tool_used: Skill`
+grader the no-plugin arm drops, can pass when the model does nothing the rule
+asks for; those cases are never called redundant. `unclaimed` lists cases that
+pin no rule SKILL.md states, each with its reason.
 
 ## Scoring notes
 

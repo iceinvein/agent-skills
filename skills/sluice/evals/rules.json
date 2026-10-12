@@ -13,8 +13,7 @@
       "states": "SKILL.md: Route first",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
-        "fast-flag-on-existing-command",
-        "fast-reads-the-unmentioned-convention"
+        "fast-flag-on-existing-command"
       ]
     },
     {
@@ -22,7 +21,8 @@
       "states": "SKILL.md: Route first",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
-        "main-new-interface"
+        "main-new-interface",
+        "announcement-reaches-the-ledger"
       ]
     },
     {
@@ -45,7 +45,7 @@
     {
       "id": "route-reads-repo-instructions-first",
       "states": "SKILL.md: Route first",
-      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "origin": "commit:4d9d252",
       "cases": [
         "superpowers-conflict-stands-down"
       ]
@@ -53,7 +53,7 @@
     {
       "id": "choices-go-through-ask-user-question",
       "states": "SKILL.md: Route first",
-      "origin": "docs/specs/2026-08-07-sluice-design.md",
+      "origin": "commit:f2a1932",
       "cases": [],
       "unpinned": "no grader checks that a question went out through the AskUserQuestion tool rather than as prose"
     },
@@ -62,13 +62,14 @@
       "states": "SKILL.md: Deep channel",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
-        "deep-plan-across-subsystems"
+        "deep-plan-across-subsystems",
+        "deep-plan-asks-the-fork"
       ]
     },
     {
       "id": "deep-asks-the-fork-before-the-design",
       "states": "SKILL.md: Deep channel",
-      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "origin": "commit:4d9d252",
       "cases": [
         "deep-plan-asks-the-fork"
       ]
@@ -76,7 +77,7 @@
     {
       "id": "deep-stops-for-plan-and-pre-flight",
       "states": "SKILL.md: Deep channel",
-      "origin": "docs/specs/2026-08-23-sluice-cross-harness.md",
+      "origin": "commit:371804f",
       "cases": [],
       "unpinned": "every deep-run case starts past pre-flight, and no case runs from a signed-off design to the plan stop"
     },
@@ -101,7 +102,8 @@
       "states": "references/intent.md",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
-        "main-new-interface"
+        "main-new-interface",
+        "deep-plan-asks-the-fork"
       ]
     },
     {
@@ -123,8 +125,10 @@
       "id": "verify-before-claiming",
       "states": "references/verify.md",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
-      "cases": [],
-      "unpinned": "no grader checks that a claim of success follows a command run in the same turn"
+      "cases": [
+        "deep-run-finishes-every-task",
+        "deep-run-waits-for-a-running-agent"
+      ]
     },
     {
       "id": "review-before-merge",
@@ -143,7 +147,7 @@
     {
       "id": "meter-the-run-at-handback",
       "states": "references/meter.md",
-      "origin": "docs/specs/2026-08-23-sluice-cross-harness.md",
+      "origin": "commit:5b2cf93",
       "cases": [],
       "unpinned": "no grader checks that run-stats.sh ran at the handback"
     },
@@ -197,7 +201,7 @@
     {
       "id": "deep-run-waits-for-a-running-agent",
       "states": "references/deep-channel.md: Dispatch rules",
-      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "origin": "docs/specs/2026-09-23-sluice-eval-followup.md",
       "cases": [
         "deep-run-waits-for-a-running-agent"
       ]
@@ -205,9 +209,95 @@
     {
       "id": "deep-run-fans-out",
       "states": "references/deep-channel.md: Dispatch rules",
-      "origin": "docs/specs/2026-09-23-sluice-opus-5-5.md",
+      "origin": "commit:cc50bcf",
       "cases": [
         "deep-run-fans-out"
+      ]
+    },
+    {
+      "id": "unannounced-change-is-stopped-once",
+      "states": "SKILL.md: Route first",
+      "origin": "commit:bee6042",
+      "cases": [],
+      "unpinned": "every case that changes the tree also routes it, so the Stop hook's unrouted check never fires"
+    },
+    {
+      "id": "deep-design-stop-through-plan-mode-or-a-file",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:8d83f6d",
+      "cases": [
+        "deep-plan-across-subsystems"
+      ]
+    },
+    {
+      "id": "run-state-in-run-json",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:8fbb85c",
+      "cases": [
+        "deep-run-blocks-on-a-real-decision",
+        "deep-run-decides-a-non-blocking-choice",
+        "deep-run-fans-out",
+        "deep-run-finishes-every-task",
+        "deep-run-survives-a-milestone",
+        "deep-run-waits-for-a-running-agent"
+      ]
+    },
+    {
+      "id": "read-deep-channel-before-the-plan",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:25ef193",
+      "cases": [],
+      "unpinned": "every deep case either stops before the plan or starts from a plan the fixture wrote"
+    },
+    {
+      "id": "plan-orders-inert-tasks-first-with-one-flip",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:cc50bcf",
+      "cases": [],
+      "unpinned": "no case has the run write a plan, so none can see its task order or its Flips line"
+    },
+    {
+      "id": "pre-flight-answers-recorded-before-task-1",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:8fbb85c",
+      "cases": [],
+      "unpinned": "every deep-run fixture seeds the pre-flight rows, and no case runs the pre-flight stop"
+    },
+    {
+      "id": "concurrent-implementers-get-a-worktree-each",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:cc50bcf",
+      "cases": [],
+      "unpinned": "deep-run-fans-out settles worktrees in pre-flight, but no grader checks that one was cut per implementer"
+    },
+    {
+      "id": "flip-runs-alone",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:cc50bcf",
+      "cases": [
+        "deep-run-fans-out"
+      ]
+    },
+    {
+      "id": "no-dispatch-replaces-the-review-tier",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:5b2cf93",
+      "cases": [],
+      "unpinned": "every deep-run case has dispatch available, and no grader reads what replaced review without it"
+    },
+    {
+      "id": "run-ends-with-final-or-close",
+      "states": "SKILL.md: Deep channel",
+      "origin": "commit:1d2ff37",
+      "cases": [],
+      "unpinned": "no grader checks that run.json was finalised or closed at the end of a run"
+    },
+    {
+      "id": "dispatch-labelled-with-the-task",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "commit:410159a",
+      "cases": [
+        "deep-run-waits-for-a-running-agent"
       ]
     }
   ],
@@ -218,5 +308,14 @@
     "deep-run-finishes-every-task",
     "deep-run-survives-a-milestone",
     "deep-run-waits-for-a-running-agent"
+  ],
+  "vacuousWithout": [
+    "superpowers-conflict-stands-down"
+  ],
+  "unclaimed": [
+    {
+      "case": "fast-reads-the-unmentioned-convention",
+      "reason": "its graders check only that the flag landed in the flags table and the help test, which no rule in SKILL.md states"
+    }
   ]
 }
