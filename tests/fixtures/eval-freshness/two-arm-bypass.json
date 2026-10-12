@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.296",
+  "startedAt": "2026-10-12T13:57:25.414Z",
+  "durationSeconds": 36,
+  "costUsd": 0.1594684,
+  "partial": false,
+  "suite": {
+    "root": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/eval-freshness/skills/sluice",
+    "ablation": "with-without",
+    "modelOverride": "claude-opus-5-5",
+    "judgeModel": "claude-opus-5-5",
+    "caseFilter": "bypass-*",
+    "threshold": 1,
+    "concurrency": 1,
+    "plugins": [
+      {
+        "name": "sluice",
+        "path": "/Users/dikrana/Documents/projects/agent-skills/.claude/worktrees/eval-freshness/skills/sluice"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "bypass-question-stays-silent",
+      "dir": "evals/bypass-question-stays-silent",
+      "source": "prose",
+      "promptMarkdown": "What's the difference between an idempotency key and a request ID? I keep seeing both in payment APIs and I'm not sure when each one earns its place.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "answers-the-question",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The reply should answer a conceptual question about two identifiers used in payment APIs.\n\nPASS if the reply explains that an idempotency key is supplied by the caller to make a retried write safe (the server returns the original result instead of performing the operation twice), and that a request ID identifies one call for tracing, logging, or support, without affecting what the server does.\nFAIL if the reply conflates the two, describes only one of them, asks a clarifying question instead of answering, or answers with a plan of work rather than an explanation.",
+          "config": {
+            "criteria": "The reply should answer a conceptual question about two identifiers used in payment APIs.\n\nPASS if the reply explains that an idempotency key is supplied by the caller to make a retried write safe (the server returns the original result instead of performing the operation twice), and that a request ID identifies one call for tracing, logging, or support, without affecting what the server does.\nFAIL if the reply conflates the two, describes only one of them, asks a clarifying question instead of answering, or answers with a plan of work rather than an explanation.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-channel-announcement",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "last_message",
+            "pattern": "(bypass|fast|main|deep)\\s+channel",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "writes-nothing",
+          "type": "file_exists",
+          "weight": 1,
+          "config": {
+            "path": "**/*",
+            "exists": false
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0798462,
+            "judgeCostUsd": 0.015768,
+            "durationSeconds": 18,
+            "startedAt": "2026-10-12T13:57:25.469Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-XAj3iy/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-the-question",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "They solve different problems, and they're often confused because both are strings attached to a request.\n\n## Idempotency key: \"this is the same operation\"\n\nThe **client** creates it, and it represents the *intent*. It tells the server: \"if you've already seen this key, don't do the work again. Return the result you gave me last time.\"\n\n- **Scope:** one logical operation, such as \"charge order #8812 for $40.\"\n- **Stays the same across retries.** That's the point. If the network times out and you don't know whether the charge happened, you retry with the same key and can't double-charge.\n- **The server stores it**, usually for 24h to a few days, along with the original response. A duplicate gets the cached result back.\n- **Affects behavior.** It changes what the server does.\n- **Mismatch handling:** a good API rejects reuse of a key with a different payload (Stripe returns a 400 for this). That catches client bugs where a key gets recycled.\n\n## Request ID: \"this particular HTTP call\"\n\nThe **server** usually generates it, though clients sometimes send one in a header like `X-Request-Id`. It identifies a single attempt.\n\n- **Scope:** one network round trip.\n- **New on every attempt.** Three retries of one charge give three request IDs and one idempotency key.\n- **Used for tracing and support:** log correlation, distributed tracing, and \"here's the request ID, what happened?\" tickets.\n- **Doesn't affect behavior.** The server does exactly the same thing with or without it.\n\n## How they relate\n\n```\nIdempotency-Key: order-8812-charge      ← same on every retry\n  attempt 1 → Request-Id: req_a1  (timeout)\n  attempt 2 → Request-Id: req_b7  (503)\n  attempt 3 → Request-Id: req_c3  (200, charge created)\n```\n\nIf attempt 1 actually succeeded on the server, attempt 3 returns that same charge instead of creating a second one.\n\n## When each one earns its place\n\n**Use an idempotency key** on any non-idempotent, side-effecting call you might retry: creating charges, refunds, transfers, payouts, or \"create order.\" GET, PUT, and DELETE are usually idempotent by design, so they rarely need one. In payments it's effectively mandatory, because retries are unavoidable and duplicate money movement is the worst kind of bug.\n\n**Use a request ID** on every request, everywhere. It costs almost nothing and pays off the first time you debug a production issue across services.\n\n## Practical tips\n\n- **Derive the idempotency key from your domain**, such as an order ID plus the operation, or a UUID saved alongside the pending operation. Don't generate a fresh UUID inside the retry loop, or each retry gets a new key and you lose the protection.\n- **Persist the key before making the call.** Then if your process crashes mid-request, the retry after restart reuses the same key.\n- **Log both.** Then you can look up \"every attempt for this operation\" by idempotency key and \"exactly what happened on this attempt\" by request ID.\n\nIn short, the idempotency key protects correctness and the request ID helps observability. You don't choose between them; you use both."
+              },
+              {
+                "name": "no-channel-announcement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "writes-nothing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "**/* absent as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 1,
+            "costUsd": 0.0796222,
+            "judgeCostUsd": 0.016416000000000004,
+            "durationSeconds": 18,
+            "startedAt": "2026-10-12T13:57:43.286Z",
+            "error": null,
+            "tracePath": "/private/tmp/e-ziBT8n/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "answers-the-question",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "They look alike (both are unique strings sent in a header), but they do different jobs.\n\n## Request ID: \"which attempt was this?\"\n\n- **Purpose:** tracing and debugging. It labels one HTTP request so you can find it in logs, link it across services, and quote it to support (\"request `req_8f3a…` failed\").\n- **Uniqueness:** every attempt gets a new one, including retries. If you retry a call three times, you get three request IDs.\n- **Who makes it:** usually the server, returned in a response header like `Request-Id` or `X-Request-Id`. Sometimes the client sends one so it can be traced end to end.\n- **Effect on behavior:** none. The server doesn't change what it does based on it.\n\n## Idempotency key: \"which operation was this?\"\n\n- **Purpose:** correctness. It tells the server that these requests are all the same logical operation, so it should perform it at most once.\n- **Uniqueness:** one per business intent, reused on every retry of that intent. \"Charge order #1234 $50\" gets one key no matter how many times you resend it.\n- **Who makes it:** always the client, usually a UUID or something derived from your own domain, like `order-1234-charge`.\n- **Effect on behavior:** large. The server stores the key with the result. When a repeat arrives with the same key, it returns the stored response instead of running the operation again. Most implementations also reject a reused key if the request body is different, and keys expire after a while (Stripe keeps them for 24 hours).\n\n## Why payments need both\n\nThe classic failure: you send \"charge $50\", the connection times out, and you have no idea whether the charge went through.\n\n- **With only a request ID:** you can investigate afterwards, but a retry might charge the customer twice.\n- **With an idempotency key:** you retry with the same key. If the first attempt worked, you get the original result back. If it didn't, the charge happens now. Either way the customer is charged exactly once.\n\nEach retry still gets its own request ID, so you can see in the logs that attempt 1 timed out and attempt 2 returned the cached result.\n\n## When each one earns its place\n\n| | Request ID | Idempotency key |\n|---|---|---|\n| Use on | Every request | Non-idempotent writes with side effects: creating charges, refunds, transfers, orders |\n| Skip on | Never | GETs, and PUT/DELETE that are already naturally idempotent |\n| Scope | One network attempt | One business operation |\n| On retry | New value | Same value |\n| Main benefit | Observability | Exactly-once effects |\n\n## Common mistakes\n\n1. **Using the request ID as the idempotency key.** If you generate it per attempt, every retry looks like a new operation and you lose the protection.\n2. **Generating the key inside the retry loop.** Create it once, when the intent is created (ideally saved alongside the order), so it survives a process crash and restart.\n3. **Changing the request body while reusing a key.** That's a different operation and needs a new key.\n4. **Assuming a key protects forever.** Keys expire, so a retry days later may be treated as new. Back them with your own uniqueness checks, such as a unique constraint on `order_id` for charges.\n\nIn short, the request ID helps you understand what happened, and the idempotency key stops the same operation happening twice."
+              },
+              {
+                "name": "no-channel-announcement",
+                "passed": true,
+                "weight": 1,
+                "explanation": "pattern absent as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "writes-nothing",
+                "passed": true,
+                "weight": 1,
+                "explanation": "**/* absent as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1,
+    "meanDelta": 0
+  }
+}
