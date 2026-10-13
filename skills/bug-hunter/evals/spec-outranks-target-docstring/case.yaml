@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: spec-outranks-target-docstring
+context:
+  scaffold_script: fixture.sh

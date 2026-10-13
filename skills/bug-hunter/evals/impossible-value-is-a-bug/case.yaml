@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: scenarios-before-bodies
+name: impossible-value-is-a-bug
 context:
   scaffold_script: fixture.sh

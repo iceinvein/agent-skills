@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # A coupon helper whose only bug is in its rounding (the spec says halves
-# round up, the code floors). The case is about order, not the bug: the
-# scenarios have to be on disk before anything opens src/discount.js, so
-# their expected values come from SPEC.md rather than from the floor in the
-# body.
+# round up, the code floors). The case is about where the expected value comes
+# from: the bug has to cite a claim intent.md took from SPEC.md, not one read
+# out of the floor in src/discount.js, which would confirm the code against
+# itself.
 set -euo pipefail
 
 mkdir -p src tests
