@@ -34,13 +34,24 @@ test("dry run is read off the argv", () => {
 });
 JS
 
+cat > src/cli/steps.js <<'JS'
+import { execFileSync } from "node:child_process";
+
+export function runStep(step) {
+  execFileSync("npm", ["run", step], { stdio: "ignore" });
+}
+JS
+
 cat > src/cli/deploy.js <<'JS'
+import { runStep } from "./steps.js";
+
 const STEPS = ["build", "upload", "activate"];
 
-export function deploy(args) {
+export function deploy(args, run = runStep) {
   const { dryRun } = args;
 
   for (const step of STEPS) {
+    if (!dryRun) run(step);
     console.log(`-> ${step}`);
   }
 
@@ -66,12 +77,16 @@ function capture(run) {
 }
 
 test("dry run skips the steps and says so", () => {
-  const lines = capture(() => deploy({ dryRun: true }));
+  const ran = [];
+  const lines = capture(() => deploy({ dryRun: true }, (step) => ran.push(step)));
+  assert.deepEqual(ran, []);
   assert.equal(lines.at(-1), "dry run: 3 steps skipped");
 });
 
-test("a full deploy reports every step", () => {
-  const lines = capture(() => deploy({ dryRun: false }));
+test("a full deploy runs and reports every step", () => {
+  const ran = [];
+  const lines = capture(() => deploy({ dryRun: false }, (step) => ran.push(step)));
+  assert.deepEqual(ran, ["build", "upload", "activate"]);
   assert.deepEqual(lines, ["-> build", "-> upload", "-> activate", "deployed: 3 steps"]);
 });
 JS
@@ -83,15 +98,18 @@ cat > docs/plans/2026-09-22-step-timings.md <<'MD'
 
 `deploy --timings` appends each step's duration to its progress line, so
 `-> build` becomes `-> build (12ms)`. Without the flag every line is unchanged,
-and the summary line is unchanged either way.
+and the summary line is unchanged either way. A dry run runs no steps, so it
+prints the bare lines whether or not `--timings` is set.
 
 ## Architecture
 
 Tasks 1 to 3 are the first milestone: three inert pieces that nothing calls
 yet, a duration formatter, the flag, and a stopwatch driven by an injected
-clock. Tasks 4 and 5 build on the formatter and the stopwatch. Task 6 is the
-flip: `deploy` takes the clock as a second parameter and, when `timings` is
-set, prints the timed lines instead of the bare ones.
+clock. Tasks 4 and 5 build on the formatter and the stopwatch: Task 5 runs one
+step and laps the stopwatch after it returns, so the lap covers the step's
+work. Task 6 is the flip: `deploy` takes the clock as a third parameter, after
+the step runner it already takes, and when `timings` is set on a full deploy it
+prints each step's timed line as that step finishes.
 
 ## Ground Rules
 
@@ -135,23 +153,24 @@ set, prints the timed lines instead of the bare ones.
 - [ ] Add a test asserting `timedLine("build", 12)` returns `-> build (12ms)` and `timedLine("upload", 1500)` returns `-> upload (1.5s)` -> it fails because src/cli/timed-line.js does not exist
 - [ ] Write `timedLine` on top of `formatDuration` -> `npm test` green
 
-### Task 5: time the steps
+### Task 5: time a step
 
-**Contract:** Needs: `createStopwatch(now: () => number) -> { lap(): number }` | Offers: `timeSteps(steps: string[], stopwatch: { lap(): number }) -> { step: string, ms: number }[]`
-**Touches:** src/cli/time-steps.js (new) | tests/time-steps.test.js (new)
+**Contract:** Needs: `createStopwatch(now: () => number) -> { lap(): number }` | Offers: `timeStep(step: string, run: (step: string) => void, stopwatch: { lap(): number }) -> number`
+**Touches:** src/cli/time-step.js (new) | tests/time-step.test.js (new)
 
-- [ ] Add a test passing `["build", "upload"]` and a stopwatch over a fake clock returning 0, 5, 20, asserting the result is `[{ step: "build", ms: 5 }, { step: "upload", ms: 15 }]` -> it fails because src/cli/time-steps.js does not exist
-- [ ] Write `timeSteps` to take one lap per step, in order -> `npm test` green
+- [ ] Add a test with a fake clock that only moves inside `run`, by 5 for `build` and 15 for `upload`, asserting `timeStep` returns 5 then 15 over one stopwatch and that `run` saw `build` then `upload` -> it fails because src/cli/time-step.js does not exist
+- [ ] Write `timeStep`: call `run(step)`, then return one lap of the stopwatch -> `npm test` green
 
 ### Task 6: turn timings on
 
-**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, timings: boolean }`, `createStopwatch(now: () => number) -> { lap(): number }`, `timedLine(step: string, ms: number) -> string`, `timeSteps(steps: string[], stopwatch: { lap(): number }) -> { step: string, ms: number }[]` | Offers: `deploy(args: { dryRun: boolean, timings: boolean }, now: () => number) -> void`
+**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, timings: boolean }`, `createStopwatch(now: () => number) -> { lap(): number }`, `timedLine(step: string, ms: number) -> string`, `timeStep(step: string, run: (step: string) => void, stopwatch: { lap(): number }) -> number` | Offers: `deploy(args: { dryRun: boolean, timings: boolean }, run: (step: string) => void, now: () => number) -> void`
 **Touches:** src/cli/deploy.js (edit) | tests/deploy.test.js (test)
 **Flips:** step lines carry their duration when `timings` is set; before this task `--timings` parses and changes nothing
 
-- [ ] Add a test calling `deploy({ dryRun: false, timings: true }, now)` with a fake clock returning 0, 10, 30, 1530 and asserting the lines `-> build (10ms)`, `-> upload (20ms)`, `-> activate (1.5s)`, `deployed: 3 steps` -> it fails because deploy ignores `timings`
-- [ ] Give `deploy` the `now` parameter, defaulting to `Date.now`, and print `timedLine` for each entry of `timeSteps` when `timings` is set -> the new test passes
-- [ ] Keep both original deploy tests asserting the exact lines they assert today -> `npm test` green
+- [ ] Add a test calling `deploy({ dryRun: false, timings: true }, run, now)` with a fake clock that only moves inside `run`, by 10 for `build`, 20 for `upload` and 1500 for `activate`, asserting the lines `-> build (10ms)`, `-> upload (20ms)`, `-> activate (1.5s)`, `deployed: 3 steps` -> it fails because deploy ignores `timings`
+- [ ] Add a test calling `deploy({ dryRun: true, timings: true }, run, now)` asserting `run` is never called and the lines are the bare ones and `dry run: 3 steps skipped` -> it passes already, pinning the dry run
+- [ ] Give `deploy` the `now` parameter, defaulting to `Date.now`, and on a full deploy with `timings` set print `timedLine(step, timeStep(step, run, stopwatch))` for each step -> the new tests pass
+- [ ] Keep both original deploy tests asserting exactly what they assert today -> `npm test` green
 MD
 
 cat > docs/plans/2026-09-22-step-timings-record.md <<'MD'
@@ -246,7 +265,7 @@ cat > .sluice/run.json <<'JSON'
     {
       "id": 5,
       "status": "todo",
-      "name": "time the steps",
+      "name": "time a step",
       "tier": 2,
       "needs": [
         "createStopwatch",
@@ -254,17 +273,17 @@ cat > .sluice/run.json <<'JSON'
       ],
       "offers": [
         "lap",
-        "ms",
         "number",
+        "run",
         "step",
-        "steps",
         "stopwatch",
         "string",
-        "timeSteps"
+        "timeStep",
+        "void"
       ],
       "touches": [
-        "src/cli/time-steps.js",
-        "tests/time-steps.test.js"
+        "src/cli/time-step.js",
+        "tests/time-step.test.js"
       ]
     },
     {
@@ -277,7 +296,7 @@ cat > .sluice/run.json <<'JSON'
         "createStopwatch",
         "lap",
         "parseArgs",
-        "timeSteps",
+        "timeStep",
         "timedLine"
       ],
       "offers": [
@@ -287,6 +306,9 @@ cat > .sluice/run.json <<'JSON'
         "dryRun",
         "now",
         "number",
+        "run",
+        "step",
+        "string",
         "timings",
         "void"
       ],
