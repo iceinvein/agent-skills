@@ -100,4 +100,17 @@ Plan: `docs/plans/2026-10-12-eval-freshness.md`. Design: `docs/specs/2026-10-12-
   - Fix, kept in the CLI so no shared contract changes: `accept` refuses filtered or errored results with exit 2, and `diff` lists errored runs. I chose to refuse rather than merge a filtered result into the baseline, because refusing is the smaller and louder fix.
   - Minor, waiting: a mistyped `--against` reads as no baseline. The header says so.
   - Minor, waiting: baselines store per-run scores rather than a mean and a count. Both can be derived.
+- Merge to master, chosen by the partner, was blocked by uncommitted bug-hunter work in the main tree. The partner committed it. Master then held bug-hunter 0.4.0 (one agent, new SKILL.md sections, seven cases) and the new scope-estimate skill.
+  - The branch was rebased onto master (96099f5), keeping master's bug-hunter 0.4.0 version over this branch's 0.2.2 bump.
+  - After the rebase, the flip's check went red on bug-hunter: a case was gone and three new cases were unmapped. The check did what it exists for.
+  - The bug-hunter manifest was rebuilt against 0.4.0 in f7c7771: 20 rules. Rules that 0.4.0 no longer states were dropped. `callers-tree-unchanged` stays in `vacuousWithout`.
+  - Review of the rebuild found two Important errors, both fixed in f9f6bdf:
+    - The contradicted-claim bullet was marked unpinned although three cases pin it. The repo-stated sources from the old reason became their own unpinned rule.
+    - The changed-body rule was missing `silent-spec-is-an-ambiguity`.
+  - Minor, waiting:
+    - The run directory's date prefix is unchecked by any grader.
+    - A heredoc-written `findings.json` passes the Write-tool graders.
+    - The scratch-copy rule absorbs caveats the old manifest stated.
+    - In practice no bug-hunter rule can become an expiry candidate, because a bare model never writes the skill's artefacts.
+  - Full `bun test` after the fix: 1962 pass, 0 fail.
 - Design deviation, agreed at pre-flight: `regressed` uses `--tolerance` (default 0.1), because 1/runs can never flag a single-run drop.
