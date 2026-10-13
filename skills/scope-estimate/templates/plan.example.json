@@ -1,0 +1,33 @@
+{
+  "daysPerWeek": 5,
+  "rates": {
+    "fast": { "S": 0.1, "M": 0.4, "L": 1.0 },
+    "plan": { "S": 0.25, "M": 0.75, "L": 2.0 },
+    "floor": { "S": 0.5, "M": 1.0, "L": 2.5 }
+  },
+  "team": {
+    "engineers": [2, 3, 4],
+    "worktrees": [1, 2, 3],
+    "headline": { "engineers": 2, "worktrees": 3 }
+  },
+  "slices": [
+    { "id": "F1", "phase": 0, "name": "Monorepo and local dev stack", "goal": "Any engineer or agent can clone, install and run every app locally.", "capabilities": ["FD-REPO"] },
+    { "id": "F3", "phase": 0, "name": "Contracts and API skeleton", "goal": "Schemas generate types and mocks; the API validates and errors the same way everywhere.", "capabilities": ["FD-CON", "FD-API"] },
+    { "id": "F4", "phase": 0, "name": "Core data model", "goal": "Migrations create every core entity.", "capabilities": ["FD-DB"] },
+    { "id": "P1", "phase": 1, "name": "Sites and permissions", "goal": "Every query is scoped to the caller's site and every route checks the role inline.", "capabilities": ["IA-12", "IA-13"] },
+    { "id": "D1", "phase": 2, "name": "Optional export", "goal": "Only if the client keeps it.", "capabilities": ["RE-05"], "gated": true }
+  ],
+  "foundations": [
+    { "id": "F1a", "slice": "F1", "name": "TypeScript workspace base", "members": ["FD-REPO.1", "FD-REPO.2"] },
+    { "id": "F1d", "slice": "F1", "name": "Local dev stack (no requirement yet)", "members": [], "assumedDays": { "fast": 1, "plan": 2, "floor": 3 } },
+    { "id": "F3a", "slice": "F3", "name": "Contract mechanism and mocks", "members": ["FD-CON"] },
+    { "id": "F3e", "slice": "F3", "name": "API skeleton", "members": ["FD-API"] },
+    { "id": "F4a", "slice": "F4", "name": "Migrations and core tables", "members": ["FD-DB"] }
+  ],
+  "dependsOn": {
+    "foundation": ["F1a"],
+    "product": ["F1d"],
+    "layers": { "api": ["F3a", "F3e"], "db": ["F4a"] }
+  },
+  "aliases": { "contracts": ["F3a"], "db": ["F4a"] }
+}
