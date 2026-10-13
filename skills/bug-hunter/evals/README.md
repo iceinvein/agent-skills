@@ -73,6 +73,32 @@ a file needs its exact path and throws on a glob. So:
 
 ## Baseline
 
+### Skill 0.4.0, Opus 5.5, 2026-10-13
+
+Same command, `-j 7`. Skill 0.4.0 drops the three dispatched roles for one
+agent that may read the code freely, keeping intent collection, the scenario
+catalog, a clean re-run of each failure and the 0.3.0 rules, and reporting
+latent defects without filing them. It is the `variants/thin` arm of the
+pilot benchmark, which proved or judged 3 of 12 answer keys against 2 for the
+plain baseline and 2 for 0.3.0, with every extra finding triaged real, at USD
+1.83 a run against 3.19 for 0.3.0. USD 3.74 in all, 102s,
+`results/2026-10-13T03-48-17-313Z`. Overall 1.00. One run per case.
+
+| Case | 0.3.0 | 0.4.0 | USD (0.4.0) |
+|---|---|---|---|
+| `proves-a-spec-boundary-bug` | 1.00 | 1.00 | 0.77 |
+| `silent-spec-is-an-ambiguity` | 1.00 | 1.00 | 0.44 |
+| `correct-code-has-no-bugs` | 1.00 | 1.00 | 0.34 |
+| `callers-tree-unchanged` | 1.00 | 1.00 | 0.43 |
+| `scenarios-before-bodies` | 1.00 | 1.00 | 0.49 |
+| `spec-outranks-target-docstring` | 1.00 | 1.00 | 0.58 |
+| `impossible-value-is-a-bug` | 1.00 | 1.00 | 0.70 |
+
+`scenarios-before-bodies` passed, but 0.4.0 no longer asks for that order: the
+run happened to write `scenarios.md` before reading `src/discount.js`. The case
+pins a rule the skill dropped, so its pass is incidental and a later failure
+would not be a regression.
+
 ### Skill 0.3.0, Opus 5.5, 2026-10-12
 
 Same command, `-j 7`. Skill 0.3.0 ranks claims (a spec, design or request

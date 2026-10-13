@@ -11,9 +11,9 @@
   },
   {
     "name": "bug-hunter",
-    "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. Three dispatched roles in order: a scenario author who writes QA-style scenarios from intent without reading changed function bodies, an executor who runs them as repros in the repo's own test runner inside a scratch git worktree, and a refuter who re-runs each failure clean and confirms it against a cited claim or demotes it to an ambiguity. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
+    "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. One agent collects intent from the request, specs, docs and unchanged code, runs QA-style scenarios from a catalog as repros in the repo's own test runner inside a scratch copy, and re-runs each failure clean before reporting it. Counts a contradicted claim, or a result wrong under every reading, as a bug; keeps ambiguities for questions with more than one acceptable answer; reports latent defects without filing them. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
     "type": "prompt",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   {
     "name": "codebase-architecture",
