@@ -11,13 +11,18 @@
       "id": "intent-collected-into-intent-md",
       "states": "SKILL.md: Method",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
-      "cases": ["bug-cites-intent-from-spec"]
+      "cases": [
+        "bug-cites-intent-from-spec"
+      ]
     },
     {
       "id": "claim-never-from-a-changed-body",
       "states": "SKILL.md: Method",
       "origin": "commit:9a9dc31",
-      "cases": ["bug-cites-intent-from-spec"]
+      "cases": [
+        "bug-cites-intent-from-spec",
+        "silent-spec-is-an-ambiguity"
+      ]
     },
     {
       "id": "scenarios-written-from-the-catalog",
@@ -58,7 +63,9 @@
       "id": "scratch-worktree-leaves-callers-tree-unchanged",
       "states": "SKILL.md: Method",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
-      "cases": ["callers-tree-unchanged"]
+      "cases": [
+        "callers-tree-unchanged"
+      ]
     },
     {
       "id": "no-repro-no-finding",
@@ -76,6 +83,16 @@
       "id": "contradicting-a-stated-claim-is-a-bug",
       "states": "SKILL.md: What counts as a bug",
       "origin": "commit:bd7fc25",
+      "cases": [
+        "proves-a-spec-boundary-bug",
+        "bug-cites-intent-from-spec",
+        "spec-outranks-target-docstring"
+      ]
+    },
+    {
+      "id": "repo-stated-sources-are-intent",
+      "states": "SKILL.md: Method",
+      "origin": "commit:bd7fc25",
       "cases": [],
       "unpinned": "No fixture has a sibling implementation, a stated invariant or an existing test the target contradicts, so claims from those sources are never exercised."
     },
@@ -83,19 +100,25 @@
       "id": "claims-have-a-rank",
       "states": "SKILL.md: What counts as a bug",
       "origin": "commit:23d4466",
-      "cases": ["spec-outranks-target-docstring"]
+      "cases": [
+        "spec-outranks-target-docstring"
+      ]
     },
     {
       "id": "wrong-under-every-reading-is-a-bug",
       "states": "SKILL.md: What counts as a bug",
       "origin": "commit:23d4466",
-      "cases": ["impossible-value-is-a-bug"]
+      "cases": [
+        "impossible-value-is-a-bug"
+      ]
     },
     {
       "id": "silent-spec-is-an-ambiguity",
       "states": "SKILL.md: What counts as a bug",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
-      "cases": ["silent-spec-is-an-ambiguity"]
+      "cases": [
+        "silent-spec-is-an-ambiguity"
+      ]
     },
     {
       "id": "latent-is-not-a-bug",
@@ -108,25 +131,35 @@
       "id": "output-in-the-dated-run-directory",
       "states": "SKILL.md: Output",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
-      "cases": ["proves-a-spec-boundary-bug", "bug-cites-intent-from-spec"]
+      "cases": [
+        "proves-a-spec-boundary-bug",
+        "bug-cites-intent-from-spec"
+      ]
     },
     {
       "id": "findings-written-with-write-tool-to-shape",
       "states": "SKILL.md: Output",
       "origin": "commit:bd7fc25",
-      "cases": ["silent-spec-is-an-ambiguity", "correct-code-has-no-bugs"]
+      "cases": [
+        "silent-spec-is-an-ambiguity",
+        "correct-code-has-no-bugs"
+      ]
     },
     {
       "id": "bug-hunter-dir-is-the-only-path-written",
       "states": "SKILL.md: Output",
       "origin": "commit:f88c60a",
-      "cases": ["callers-tree-unchanged"]
+      "cases": [
+        "callers-tree-unchanged"
+      ]
     },
     {
       "id": "promoting-a-repro-is-the-callers-job",
       "states": "SKILL.md: Output",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",
-      "cases": ["callers-tree-unchanged"]
+      "cases": [
+        "callers-tree-unchanged"
+      ]
     },
     {
       "id": "hand-back-contents",
@@ -137,6 +170,8 @@
     }
   ],
   "sandboxSensitive": [],
-  "vacuousWithout": ["callers-tree-unchanged"],
+  "vacuousWithout": [
+    "callers-tree-unchanged"
+  ],
   "unclaimed": []
 }
