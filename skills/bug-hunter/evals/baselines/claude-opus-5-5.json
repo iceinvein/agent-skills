@@ -1,0 +1,93 @@
+{
+  "model": "claude-opus-5-5",
+  "judgeModel": "claude-opus-5-5",
+  "claudeVersion": "2.1.296",
+  "skillVersion": "0.4.0",
+  "date": "2026-10-13T09:54:28.052Z",
+  "cases": {
+    "bug-cites-intent-from-spec": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    },
+    "callers-tree-unchanged": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        1,
+        1,
+        1
+      ]
+    },
+    "correct-code-has-no-bugs": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    },
+    "impossible-value-is-a-bug": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    },
+    "proves-a-spec-boundary-bug": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    },
+    "silent-spec-is-an-ambiguity": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    },
+    "spec-outranks-target-docstring": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}
