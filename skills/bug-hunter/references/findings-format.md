@@ -23,7 +23,8 @@ Field by field:
 - `intent`: the claims from `intent.md`. `id` is the claim's number (`I1`),
   `claim` its text, `source` where it came from (file and line, commit SHA, or
   `request`). A claim taken from a sibling implementation or a stated
-  invariant cites the file and line that holds it.
+  invariant cites the file and line that holds it. A result wrong under every
+  reading (SKILL.md) has `source` `baseline`.
 - `bugs`: confirmed findings only. `id` numbers them (`B1`). `scenario` is
   the scenario's id from `scenarios.md` and its one-line label, as
   `"<id>: <label>"`, for example `"S4: quantity of exactly the cap is

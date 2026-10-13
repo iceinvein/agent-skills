@@ -1,6 +1,6 @@
 # bug-hunter evals
 
-Five cases for `claude plugin eval`. Each scaffolds a small Node repo with a
+Seven cases for `claude plugin eval`. Each scaffolds a small Node repo with a
 `SPEC.md`, one module and a passing `node --test` suite, committed in two steps
 (the spec, then the module) so the target reads as a change. The prompt asks
 what QA will find in the module, the way a user would, and never names the
@@ -13,6 +13,8 @@ skill.
 | `correct-code-has-no-bugs` | Pagination that meets every stated range at its edge | `bugs` is empty |
 | `callers-tree-unchanged` | A backoff whose first delay is doubled | Nothing changes in the caller's tree outside `.bug-hunter/` |
 | `scenarios-before-bodies` | A coupon that floors where the spec rounds half up | `scenarios.md` is written before any `Read` of `src/discount.js` |
+| `spec-outranks-target-docstring` | The spec keeps a sealed export on offer when its rewrite fails; the module's docstring and code drop it | A bug citing the spec claim, not an ambiguity between spec and docstring |
+| `impossible-value-is-a-bug` | The spec is silent on rounding; the code shows `60s` and `1m 60s` | A bug for the seconds field of 60, which no rounding rule gives |
 
 Every case also has `bug-hunter-fired`, a `tool_used: Skill` grader, so a
 score can be told apart from the model's own habits.
@@ -28,7 +30,7 @@ claude plugin eval skills/bug-hunter --scaffold --allow-tools Bash Write Edit \
 ```
 
 Add `--keep-temp` to keep each run's sandbox and trace, which is the only way
-to read back why a grader failed. `-j 5` runs the five cases at once.
+to read back why a grader failed. `-j 7` runs the seven cases at once.
 
 ## What the graders can and cannot see
 
@@ -70,6 +72,33 @@ a file needs its exact path and throws on a glob. So:
   signatures, is not counted.
 
 ## Baseline
+
+### Skill 0.3.0, Opus 5.5, 2026-10-12
+
+Same command, `-j 7`. Skill 0.3.0 ranks claims (a spec, design or request
+outranks a docstring in the changed code), lets a result wrong under every
+reading count as a bug against a `baseline` claim, and keeps ambiguities for
+questions with more than one acceptable answer. It answers the pilot
+benchmark, where 0.2.1 filed two real defects it had reproduced as
+ambiguities. USD 6.55 in all, 228s, `results/2026-10-12T14-46-50-101Z`.
+Overall 1.00. One run per case.
+
+The two new cases also scored 1.00 on 0.2.1 (USD 0.91 and 1.07,
+`results/2026-10-12T14-43-31-*`): at fixture size the conflict is plain enough
+that the old rules got it right, so neither reproduces the pilot's miss. They
+stay as guards against the opposite failure. The cases that pin over-reporting,
+`silent-spec-is-an-ambiguity` and `correct-code-has-no-bugs`, still hold on
+0.3.0: the cap stays a question and the correct module has no bugs.
+
+| Case | 0.2.1 | 0.3.0 | USD (0.3.0) |
+|---|---|---|---|
+| `proves-a-spec-boundary-bug` | 1.00 | 1.00 | 1.29 |
+| `silent-spec-is-an-ambiguity` | 1.00 | 1.00 | 1.07 |
+| `correct-code-has-no-bugs` | 1.00 | 1.00 | 0.69 |
+| `callers-tree-unchanged` | 1.00 | 1.00 | 0.62 |
+| `scenarios-before-bodies` | 1.00 | 1.00 | 0.65 |
+| `spec-outranks-target-docstring` | 1.00 | 1.00 | 1.35 |
+| `impossible-value-is-a-bug` | 1.00 | 1.00 | 0.88 |
 
 ### Skill 0.2.1, Opus 5.5, 2026-10-12
 

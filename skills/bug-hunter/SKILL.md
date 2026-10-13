@@ -14,11 +14,30 @@ the change was meant to do.
 
 A bug is reported only with a reproduction that fails in a clean run and names
 the intent claim it violates. A suspicion without a failing repro is not a
-finding. A failing repro whose expected value no claim supports is an
-ambiguity, a question for whoever owns the intent, never a bug. A repro that
-shows the target contradicting a concrete claim the repo makes about it (an
-invariant the code states, a sibling implementation it says it mirrors, an
-existing test, a doc) is a bug citing that claim, not an ambiguity.
+finding. A repro that shows the target contradicting a concrete claim the repo
+makes about it (the request, a spec or design, an invariant the code states, a
+sibling implementation it says it mirrors, an existing test, a doc) is a bug
+citing that claim.
+
+**Claims have a rank.** The request, ticket, spec or design outranks a comment
+or docstring inside the target's own changed code, which is the change
+describing itself. A target that follows its own docstring against the spec is
+a bug citing the spec, not a disagreement for product to settle. Only claims
+of the same rank that disagree make an ambiguity.
+
+**Some results are wrong under every reading.** No product chooses them, so
+they need no stated claim: a crash, an error or a blank page from input the
+target accepts; a call that reports success and did not do the work; an
+earlier action's result landing over a later one's; a value shown in a form no
+reading of the spec allows, such as a seconds field of 60; one user's data
+reaching or blocking another user. Write the one a scenario relies on into
+`intent.md` as a claim whose source is `baseline`, and a failing repro against
+it is a bug.
+
+**An ambiguity is a question with more than one acceptable answer,** where the
+code picked one and no claim says which: where a cap sits, whether a match
+ignores case. "No spec says so" is not enough. If every answer the question
+admits makes the observed result wrong, it is a bug, not an ambiguity.
 
 ## Input
 
@@ -83,8 +102,9 @@ Both reports sort results into three buckets:
 
 - **bugs:** confirmed by the refuter. Each carries the scenario, the violated
   claim, expected against observed, and the repro (files and command).
-- **ambiguities:** a scenario where intent is silent or contradicts itself,
-  stated as a question for product.
+- **ambiguities:** a scenario with more than one acceptable answer that no
+  claim chooses between, or where claims of the same rank disagree, stated as
+  a question for product.
 - **covered:** scenarios that ran and passed, with the claim each one checked.
 
 Shapes and layout are in `references/findings-format.md`. Write
@@ -114,7 +134,7 @@ bodies (a sibling implementation, an invariant stated in unchanged code, an
 existing test, a doc) may be appended to `intent.md` with its citation, and a
 scenario it settles may then be confirmed as a bug. A "claim" read out of a
 changed body never may: that is the expected value taken from the code. A
-scenario no claim settles stays an ambiguity.
+scenario no claim settles, baseline claims included, stays an ambiguity.
 
 The friction line: "I need to read the function to know what to test." You need
 to read its signature and its callers. The body tells you what it does, which

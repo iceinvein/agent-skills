@@ -56,12 +56,28 @@ root. `SCRATCH` is the scratch worktree.
 > or a sibling the target never says it matches, is not a claim; note it, and
 > a scenario that rests on it is `open`.
 >
+> Rank each claim. The request, ticket, spec or design ranks first; invariants
+> in unchanged code, siblings, existing tests and docs next; a docstring or
+> comment on a changed declaration last, because it is the change describing
+> itself. Where two claims disagree, note both; the higher one sets the
+> scenario's expected result.
+>
+> Add the baseline claims your scenarios rely on, with source `baseline`:
+> input the target accepts does not crash or blank the page; a call that
+> reports success did the work; a later action's result is not overwritten by
+> an earlier one's; a displayed value takes a form some reading of the spec
+> allows (no seconds field of 60); one user's data neither reaches nor blocks
+> another's. These settle a scenario's expected result even where the spec
+> is silent.
+>
 > Then write `RUN/scenarios.md`: numbered scenarios, `S1`, `S2`, ... Each
 > has a one-line label saying what it tests, names its catalog category
 > (`references/scenario-catalog.md`), and gives the setup and action in QA
 > terms, the expected result, and the claim it rests on. Where
 > the claims do not settle the expected result, write the scenario anyway,
-> mark it `open`, and state the question. Skip scenarios existing tests
+> mark it `open`, and state the question with the answers it admits. A
+> scenario whose every admissible answer rules out some result is not open on
+> that result: state the expected result as what all of them share. Skip scenarios existing tests
 > already pin. Prefer ten sharp scenarios to forty shallow ones; work through
 > every catalog category and say which ones the target gives no purchase on.
 
@@ -122,10 +138,16 @@ Repro files stay in `SCRATCH`.
 >    counts the same as a spec: if the target contradicts it, confirm, citing
 >    that source by file and line. Check the tie yourself: open the cited
 >    lines and confirm they say what the claim says, and for a sibling, that
->    it does behave that way on the repro's input. If the claim is silent,
->    vague, ambiguous, or contradicted by another claim, or rests on a sibling
->    the target never says it matches, demote the finding to an ambiguity and
->    write the question product has to answer.
+>    it does behave that way on the repro's input. A `baseline` claim needs
+>    no source to open: confirm when the observed result breaks it. Where
+>    the cited claim is contradicted by a lower-ranked one (a docstring or
+>    comment in the changed code against the spec), the higher one stands:
+>    confirm. Demote the finding to an ambiguity, with the question product
+>    has to answer, only if the expected value has more than one acceptable
+>    answer and the observed one is among them, if claims of the same rank
+>    disagree, or if it rests on a vague claim or on a sibling the target
+>    never says it matches. "No spec says so" is not by itself a reason to
+>    demote: ask whether any acceptable answer allows what was observed.
 > 3. Check the repro tests the target and not its own setup: a mocked
 >    dependency returning something the real one never would, or a fixture
 >    that breaks an invariant the caller guarantees, is a rejection.
