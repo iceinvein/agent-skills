@@ -12,7 +12,7 @@ skill.
 | `silent-spec-is-an-ambiguity` | Quantities are "capped"; the spec never says where, the code uses 99 | The cap lands in `ambiguities` and `bugs` is empty |
 | `correct-code-has-no-bugs` | Pagination that meets every stated range at its edge | `bugs` is empty |
 | `callers-tree-unchanged` | A backoff whose first delay is doubled | Nothing changes in the caller's tree outside `.bug-hunter/` |
-| `scenarios-before-bodies` | A coupon that floors where the spec rounds half up | `scenarios.md` is written before any `Read` of `src/discount.js` |
+| `bug-cites-intent-from-spec` | A coupon that floors where the spec rounds half up | `intent.md` is written, and the bug cites a claim sourced from `SPEC.md`, not from the code's floor |
 | `spec-outranks-target-docstring` | The spec keeps a sealed export on offer when its rewrite fails; the module's docstring and code drop it | A bug citing the spec claim, not an ambiguity between spec and docstring |
 | `impossible-value-is-a-bug` | The spec is silent on rounding; the code shows `60s` and `1m 60s` | A bug for the seconds field of 60, which no rounding rule gives |
 
@@ -62,14 +62,14 @@ a file needs its exact path and throws on a glob. So:
   directory, and fails on any path outside `.bug-hunter/` or `.git/`. It is
   stricter than porcelain (a file `.gitignore` hides still counts). A run that
   writes nothing passes it, which is why the case also has `bug-hunter-fired`.
-- `scenarios-before-bodies` reads the chronological trace, which carries the
-  tool calls of dispatched agents as well as the main thread's (each marked
-  with `parent_tool_use_id`), so a scenario author's Write and an executor's
-  Read are both visible. It sees `Read` calls on `src/discount.js` and the
-  `scenarios.md` write (a Write call or a shell redirect). It does not see the
-  body reached another way: `cat` or `sed` in Bash, Grep with content output,
-  or source pasted into a dispatch prompt. A grep for declaration lines, which every baseline run used to extract
-  signatures, is not counted.
+- `bug-cites-the-spec` in `bug-cites-intent-from-spec` is an `llm` judge over
+  the trace, with the same window and last-write limits as
+  `bug-cites-the-limit`. It resolves the bug's `claim` through the `intent`
+  array and fails a claim sourced from `src/discount.js`. It cannot tell a
+  claim the skill read out of the body but labelled `SPEC.md`; the spec's
+  wording ("half cent rounding up") is what makes such a mislabel visible to
+  it. This case replaced `scenarios-before-bodies` in 0.4.0, which pinned the
+  scenario-before-body order that 0.4.0 dropped.
 
 ## Baseline
 
@@ -96,8 +96,8 @@ plain baseline and 2 for 0.3.0, with every extra finding triaged real, at USD
 
 `scenarios-before-bodies` passed, but 0.4.0 no longer asks for that order: the
 run happened to write `scenarios.md` before reading `src/discount.js`. The case
-pins a rule the skill dropped, so its pass is incidental and a later failure
-would not be a regression.
+pinned a rule the skill dropped, so it was rewritten as
+`bug-cites-intent-from-spec` on the same fixture.
 
 ### Skill 0.3.0, Opus 5.5, 2026-10-12
 
