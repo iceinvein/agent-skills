@@ -21,18 +21,23 @@ The freshness harness (built, baselined) measures each gate once it lands.
 ## Decisions
 
 - **D1 `status.sh verify -- <cmd...>`.** Runs the check, passes its output and
-  exit code through, and on exit 0 writes the tree's digest (from
-  `tree-snapshot.sh`, so it matches what the hook computes) to
-  `.sluice/verified`. `.sluice/` already ignores itself, so the record never
-  moves the tree it describes. `status.sh verify --none "<reason>"` records the
-  digest for a change no check can cover (docs, config), with the reason in the
-  transcript where the partner and run-stats can read it. Explicit, rather than
-  guessing from the transcript which Bash command was "a test": that list would
-  be a hardcoded heuristic per ecosystem.
+  exit code through, and on exit 0 writes the tree's content digest to
+  `.sluice/verified`: `git write-tree` over a temporary copy of the index
+  after `git add -A`, from `scripts/content-digest.sh`, the same script the
+  hook runs. It hashes untracked files' contents and leaves out ignored ones,
+  and committing the same content does not change it. (Amended at the flip's
+  review: the first digest, `tree-snapshot.sh`, missed edits to new files and
+  read a commit after the check as a change.) `.sluice/` already ignores
+  itself, so the record never moves the tree it describes. `status.sh verify
+  --none "<reason>"` records the digest for a change no check can cover (docs,
+  config), with the reason in the transcript where the partner can read it
+  (run-stats does not parse it; that stays out of this run, as below).
+  Explicit, rather than guessing from the transcript which Bash command was "a
+  test": that list would be a hardcoded heuristic per ecosystem.
 - **D2 Stop hook gate, `fast` and `main`.** In a session whose last route is
   `fast` or `main` and whose tree moved since the session opened (the existing
   entry stamp), a stop is refused when `.sluice/verified` is missing or its
-  digest differs from the tree now. The reason names `status.sh verify -- <cmd>`
+  content digest differs from the tree now. The reason names `status.sh verify -- <cmd>`
   and `--none`. One refusal per turn (`stop_hook_active`), as the run guard
   does. `deep` is left to its run guard and `finish`'s full-suite run, so one
   turn never carries two refusals.
