@@ -90,6 +90,24 @@ baseline needs a full run, and on a result with any errored run. `diff` lists
 errored runs after the report without changing its exit code. `run` passes
 `--no-publish`, so the HTML report stays local.
 
+A run cut short by a timeout, a quota limit or a closed session needs only
+the cases it lacks. Rerun those with `run --case`, then fold the rerun into
+the full result:
+
+```bash
+bun run eval:fresh merge skills/sluice <full.json> <rerun.json>
+```
+
+It writes `<full>-merged.json` beside the full result, which `accept` takes.
+It exits 2 when the two results differ in model, judge, CLI version, ablation,
+skill or runs per case, or when the full result was itself filtered with
+`--case`. It also exits 2 when the rerun misses a case the full result lacks,
+has an errored or short case of its own, names a case the skill does not have,
+or reruns a case the full result already finished. That last refusal keeps a
+finished case's score from being rerolled. It cannot stop a case that needed
+filling from being rerun several times with only the best rerun merged, so
+merge the first clean rerun.
+
 The diff gives each case its verdicts. `regressed` means the with-arm mean
 dropped below the baseline by more than `--tolerance` (default 0.1).
 `redundant` means the bare model matches the skill at 1.0. `flaky` means the

@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { type Baseline, compare, formatReport, reduce } from "./eval-freshness/compare";
-import { loadManifest } from "./eval-freshness/manifest";
+import { caseNames, loadManifest } from "./eval-freshness/manifest";
+import { merge } from "./eval-freshness/merge";
 
 const USAGE = `usage:
   bun scripts/eval-freshness.ts run <skillDir> --model <id> [--runs <n>] [-j <n>] [--case <glob>] [--tolerance <x>]
   bun scripts/eval-freshness.ts diff <skillDir> <result.json> [--against <model>] [--tolerance <x>]
-  bun scripts/eval-freshness.ts accept <skillDir> <result.json>`;
+  bun scripts/eval-freshness.ts accept <skillDir> <result.json>
+  bun scripts/eval-freshness.ts merge <skillDir> <full.json> <rerun.json>`;
 
 const DEFAULT_TOLERANCE = 0.1;
 
@@ -16,7 +18,10 @@ const ALLOWED_FLAGS: Record<string, string[]> = {
 	run: ["model", "runs", "j", "case", "tolerance"],
 	diff: ["against", "tolerance"],
 	accept: [],
+	merge: [],
 };
+
+const POSITIONALS: Record<string, number> = { run: 1, diff: 2, accept: 2, merge: 3 };
 
 function parse(argv: string[]): { positional: string[]; flags: Record<string, string> } {
 	const positional: string[] = [];
@@ -152,6 +157,14 @@ function accept(skillDir: string, resultPath: string): number {
 	return 0;
 }
 
+function mergeResults(skillDir: string, fullPath: string, rerunPath: string): number {
+	const merged = merge(readJson(fullPath), readJson(rerunPath), caseNames(skillDir), { full: fullPath, rerun: rerunPath });
+	const path = join(dirname(fullPath), `${basename(fullPath, ".json")}-merged.json`);
+	writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`);
+	console.log(`wrote ${path}`);
+	return 0;
+}
+
 function run(skillDir: string, flags: Record<string, string>): number {
 	const model = flags.model;
 	if (model === undefined) throw new UsageError("run needs --model <id>");
@@ -195,10 +208,11 @@ function main(argv: string[]): number {
 	const allowed = ALLOWED_FLAGS[command];
 	const unknown = Object.keys(flags).filter((flag) => !allowed.includes(flag));
 	if (unknown.length > 0) throw new UsageError(`unknown flag for ${command}: ${unknown.join(", ")}`);
-	if (positional.length !== (command === "run" ? 1 : 2)) throw new UsageError(`wrong number of arguments for ${command}`);
-	const [skillDir, resultPath] = positional;
+	if (positional.length !== POSITIONALS[command]) throw new UsageError(`wrong number of arguments for ${command}`);
+	const [skillDir, resultPath, rerunPath] = positional;
 	if (command === "run") return run(skillDir, flags);
 	if (command === "diff") return diff(skillDir, resultPath, flags.against, tolerance(flags));
+	if (command === "merge") return mergeResults(skillDir, resultPath, rerunPath);
 	return accept(skillDir, resultPath);
 }
 

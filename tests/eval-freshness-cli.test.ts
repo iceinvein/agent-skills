@@ -309,3 +309,35 @@ test("diff still compares a result filtered with --case", () => {
 	expect(out.code).toBe(0);
 	expect(out.stdout).toContain("against no baseline");
 });
+
+test("merge writes a result beside the full one that accept then takes", () => {
+	const full = join(skillDir, "full.json");
+	const errored = erroredResult();
+	const suite = { ...errored.suite, root: skillDir };
+	writeFileSync(full, JSON.stringify({ ...errored, suite, cases: [{ ...errored.cases[0], runsPerCase: 2 }] }));
+	const rerun = join(skillDir, "rerun.json");
+	const filtered = filteredResult();
+	writeFileSync(rerun, JSON.stringify({ ...filtered, suite: { ...filtered.suite, root: skillDir }, cases: [{ ...filtered.cases[0], runsPerCase: 2 }] }));
+	const out = cli("merge", skillDir, full, rerun);
+	expect(out.code).toBe(0);
+	const merged = join(skillDir, "full-merged.json");
+	expect(out.stdout).toContain(merged);
+	expect(cli("accept", skillDir, merged).code).toBe(0);
+	const baseline = JSON.parse(readFileSync(join(skillDir, "evals", "baselines", "opus.json"), "utf8"));
+	expect(baseline.cases["case-a"]).toEqual({ with: [1, 1], without: [0, 0] });
+});
+
+test("merge exits 2 and writes nothing when the rerun used another model", () => {
+	const full = join(skillDir, "full.json");
+	const errored = erroredResult();
+	const suite = { ...errored.suite, root: skillDir };
+	writeFileSync(full, JSON.stringify({ ...errored, suite, cases: [{ ...errored.cases[0], runsPerCase: 2 }] }));
+	const rerun = join(skillDir, "rerun.json");
+	const other = filteredResult();
+	const otherCase = { ...other.cases[0], runsPerCase: 2 };
+	writeFileSync(rerun, JSON.stringify({ ...other, suite: { ...other.suite, root: skillDir, modelOverride: "sonnet" }, cases: [otherCase] }));
+	const out = cli("merge", skillDir, full, rerun);
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("differs");
+	expect(existsSync(join(skillDir, "full-merged.json"))).toBe(false);
+});
