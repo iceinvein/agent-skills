@@ -379,6 +379,12 @@ if [ "$SUB" = "verify" ]; then
 			;;
 	esac
 	mk_dir "$TREE/.sluice" "$TREE"
+	# mk_dir keeps a hand-written ignore file, and one that lets git see the
+	# record means writing it moves the tree, so the line could never match.
+	git -C "$TREE" check-ignore -q .sluice/verified || {
+		err "$TREE/.sluice/.gitignore does not ignore verified, so the record would move the tree it records; add * to it"
+		exit 1
+	}
 	SNAP="$(bash "$(dirname "$0")/tree-snapshot.sh" "$TREE")"
 	[ -n "$SNAP" ] || { err "could not read where $TREE stands, so nothing was recorded"; exit 1; }
 	printf '%s\n' "$SNAP" >"$TREE/.sluice/verified" || { err "could not write $TREE/.sluice/verified"; exit 1; }

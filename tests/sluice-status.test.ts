@@ -1973,6 +1973,34 @@ describe("verify", () => {
 		expect(r.out).toBe(`${realpathSync(dir)}\n`);
 	});
 
+	test("a call from a subdirectory records at the top of the tree", () => {
+		const dir = gitRepo();
+		mkdirSync(join(dir, "sub"));
+		expect(verify(join(dir, "sub"), "--", "true").code).toBe(0);
+		expect(verified(dir)).toBe(snapshot(dir));
+		expect(existsSync(join(dir, "sub", ".sluice", "verified"))).toBe(false);
+	});
+
+	test("a dirty tree with a live run records the snapshot it stands at", () => {
+		const dir = gitRepo();
+		run(dir, "init", "--topic", "widget", "--channel", "deep");
+		writeFileSync(join(dir, "README.md"), "changed\n");
+		writeFileSync(join(dir, "new.txt"), "new\n");
+		expect(verify(dir, "--", "true").code).toBe(0);
+		expect(verified(dir)).toBe(snapshot(dir));
+	});
+
+	// Recorded while git can still see it, the file itself moves the tree, and
+	// the line could never match a fresh snapshot again.
+	test("a .sluice whose own ignore file does not cover the record is refused", () => {
+		const dir = gitRepo();
+		mkdirSync(join(dir, ".sluice"));
+		writeFileSync(join(dir, ".sluice", ".gitignore"), "archive/\n");
+		const r = verify(dir, "--", "true");
+		expect(r.code).toBe(1);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
 	test("words after -- reach the command verbatim, --dir included", () => {
 		const r = verify(gitRepo(), "--", "echo", "--dir", "elsewhere", "--none");
 		expect(r.out).toBe("--dir elsewhere --none\n");
@@ -2002,9 +2030,14 @@ describe("verify", () => {
 		expect(verified(dir)).toBe(snapshot(dir));
 	});
 
-	test("--none without a reason is refused and records nothing", () => {
+	test("--none with the reason missing is refused and records nothing", () => {
 		const dir = gitRepo();
 		expect(verify(dir, "--none").code).toBe(4);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
+	test("--none with an empty reason is refused and records nothing", () => {
+		const dir = gitRepo();
 		expect(verify(dir, "--none", "").code).toBe(4);
 		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
 	});
