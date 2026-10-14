@@ -53,7 +53,11 @@ The freshness harness (built, baselined) measures each gate once it lands.
   bug-hunter on `<base>..HEAD` against `docs/specs/<topic>.md`. Each proven bug
   becomes one fix, test-first, recorded in the run record under a `## Hunt`
   section; the final review reads that section and the report. No new run.json
-  fields: the hunt is the controller's work, like the final review.
+  fields: the hunt is the controller's work, like the final review. (Amended at
+  Task 5's review: each fix does take a task row, dispatched and reviewed at
+  its tier, since a finding is not the controller's to fix.) In `main` and
+  `fast` the recorded check comes last, after the hunt and any fix, because
+  the hunt's own `.bug-hunter/` output moves the content digest.
 - **D5 Bug-hunter unavailable** (not installed, or no Skill tool): said once in
   the announcement and again at the merge, as `references/review.md` does for a
   missing reviewer. The gate is never silently skipped.

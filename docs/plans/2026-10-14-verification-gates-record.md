@@ -120,3 +120,19 @@ Design `docs/specs/2026-10-14-verification-gates.md`, plan
   bullet; whether a deep hunt fix takes a row was ambiguous, decided: the hunt
   takes none, each fix does, reviewed at its tier; a test satisfied by --none)
   and five Minor wording truths. Sent back.
+- T5 re-check (d0623bb): the deep-channel row and isolate-bullet fixes read
+  right; full suite 2055 pass in the worktree. T5 closed.
+
+## Final review
+
+- No Critical. Important 1: the main hunt writes `.bug-hunter/` (untracked),
+  which moves the content digest, so a check recorded before the hunt is
+  always refused; the prose now says the recorded check comes last (spec D4
+  amended). Important 2: eval sandboxes run the globally installed Stop hook
+  (~/.claude/skills/sluice), not the case-local copies, so the gate is only
+  measured once 0.24.0 is installed, and then existing fast/main cases take a
+  refusal turn; the eval runs therefore belong after merge and install, and the
+  evals README says so. Minors: rules.json states for the deep rule, the
+  channel table and skill.json's rule count, fast-verifies is sandbox
+  sensitive and verify's git-failure message, the fix row's --tier. Sent to
+  the T5 implementer; spec and record are the controller's.
