@@ -17,7 +17,7 @@ no longer which channel but whether the run keeps going.
 | `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
 | `fast-reads-the-unmentioned-convention` | Flags live in a table the prompt never names | The flag lands in the registry table and the generated `--help` |
 | `fast-verifies-before-handback` | A fast flag, then the handback | A passing `status.sh verify` after the last edit, before handing back |
-| `main-hunts-a-checkable-claim` | Main work whose intent states a checkable claim | bug-hunter on the diff once green; the `lastPage` bug it proves fixed test-first |
+| `main-hunts-a-checkable-claim` | Main work whose intent states a checkable claim | bug-hunter on the diff once green; the `lastPage` remainder bug it proves, fixed test-first |
 | `main-skips-the-hunt-without-a-claim` | A new interface with nothing to check | No bug-hunter; one line saying the intent stated no checkable claim |
 
 Execution, where the run is already past both stops:
@@ -34,7 +34,7 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Fourteen cases scaffold a small Node repo and then change it, so they need the
+Eighteen cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
 inherit it, and pin the judge, because `--model` does not reach it and the
 `llm` graders otherwise run on Haiku. From the repo root:
@@ -144,7 +144,7 @@ the model's own habits.
 
 The two stops a deep run is allowed are both before Task 1: design sign-off and
 plan-plus-pre-flight. `deep-plan-across-subsystems` pins the first. Everything
-after pre-flight is covered by the two execution cases, which is where a run
+after pre-flight is covered by the execution cases, which is where a run
 that checks in per task would show up. Their `.sluice/run.json` fixtures were
 produced by `status.sh` and `plan.sh import` rather than typed by hand, so the
 tiers and the graph columns match what the plan actually says; the plans pass
