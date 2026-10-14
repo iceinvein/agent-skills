@@ -45,6 +45,29 @@ describe("reduce", () => {
 		expect(reduce(result, "2.3.0").cases["bypass-question-stays-silent"]).toEqual({ with: [1], without: [] });
 	});
 
+	// An errored run keeps a score of 0 that says nothing about the skill, so
+	// counting it would read a crashed sandbox as a regression.
+	test("leaves errored runs out of the scores", () => {
+		const result = fixture();
+		const arms = (result.cases as { arms: Record<string, unknown[]> }[])[0].arms;
+		arms.with.push({ score: 0, passed: false, error: "sandbox timed out" });
+		expect(reduce(result, "2.3.0").cases["bypass-question-stays-silent"]).toEqual({ with: [1], without: [1] });
+	});
+
+	test("leaves out a case whose with arm has no run that finished", () => {
+		const result = fixture();
+		const arms = (result.cases as { arms: Record<string, unknown[]> }[])[0].arms;
+		arms.with = [{ score: 0, passed: false, error: "rate limited" }];
+		expect(reduce(result, "2.3.0").cases).toEqual({});
+	});
+
+	test("gives an empty without list for a case whose without arm is null", () => {
+		const result = fixture();
+		const only = (result.cases as { arms: Record<string, unknown> }[])[0];
+		only.arms.without = null;
+		expect(reduce(result, "2.3.0").cases["bypass-question-stays-silent"]).toEqual({ with: [1], without: [] });
+	});
+
 	test("rejects a partial result", () => {
 		const result = fixture();
 		result.partial = true;
@@ -156,8 +179,24 @@ describe("compare verdicts", () => {
 		expect(verdictsOf({ with: [1], without: [] }, { with: [1], without: [] })).toEqual(["steady"]);
 	});
 
+	test("a with mean below the without mean by more than the tolerance is skill-worse", () => {
+		expect(verdictsOf({ with: [0.5, 0.6], without: [0.9, 0.9] }, null)).toEqual(["skill-worse"]);
+	});
+
+	test("a without mean above the with mean by no more than the tolerance is not skill-worse", () => {
+		expect(verdictsOf({ with: [0.8], without: [0.9] }, null)).toEqual(["steady"]);
+	});
+
+	test("a vacuous-without case is never skill-worse", () => {
+		const manifest: Manifest = { ...noRules, vacuousWithout: ["c"] };
+		expect(verdictsOf({ with: [0.5], without: [1] }, null, manifest)).toEqual(["steady"]);
+	});
+
 	test("runs that disagree on passing within one arm are flaky", () => {
-		expect(verdictsOf({ with: [0.5, 0.5], without: [1, 0.9] }, { with: [0.5], without: [1] })).toEqual(["flaky"]);
+		expect(verdictsOf({ with: [0.5, 0.5], without: [1, 0.9] }, { with: [0.5], without: [1] })).toEqual([
+			"skill-worse",
+			"flaky",
+		]);
 	});
 
 	test("a case absent from the baseline is new", () => {

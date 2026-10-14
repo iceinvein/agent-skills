@@ -10,7 +10,7 @@ export type Baseline = {
 	cases: Record<string, CaseRecord>;
 };
 
-export type CaseVerdict = "regressed" | "redundant" | "flaky" | "sandbox" | "new" | "steady";
+export type CaseVerdict = "regressed" | "redundant" | "skill-worse" | "flaky" | "sandbox" | "new" | "steady";
 export type RuleStatus = "at-risk" | "expiry-candidate" | "unpinned" | "ok";
 export type CaseReport = {
 	name: string;
@@ -35,12 +35,17 @@ const MEAN_EPSILON = 1e-9;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
+// An errored run keeps a score, usually 0, that says nothing about the skill,
+// so it is left out here and reported separately from the raw result.
 function scores(runs: unknown, where: string): number[] {
+	if (runs === undefined || runs === null) return [];
 	if (!Array.isArray(runs)) throw new Error(`${where} is not a list of runs`);
-	return runs.map((run, i) => {
+	const finished: number[] = [];
+	for (const [i, run] of runs.entries()) {
 		if (!isObject(run) || typeof run.score !== "number") throw new Error(`${where}[${i}] has no numeric score`);
-		return run.score;
-	});
+		if (run.error === null || run.error === undefined) finished.push(run.score);
+	}
+	return finished;
 }
 
 export function reduce(result: unknown, skillVersion: string): Baseline {
@@ -68,10 +73,10 @@ export function reduce(result: unknown, skillVersion: string): Baseline {
 		}
 		if (Object.hasOwn(cases, entry.name)) throw new Error(`eval result names case ${entry.name} more than once`);
 		const where = `case ${entry.name}`;
-		cases[entry.name] = {
-			with: scores(entry.arms.with, `${where} arms.with`),
-			without: entry.arms.without === undefined ? [] : scores(entry.arms.without, `${where} arms.without`),
-		};
+		const withScores = scores(entry.arms.with, `${where} arms.with`);
+		// With no finished run there is no mean to compare, and a 0 would read as a regression.
+		if (withScores.length === 0) continue;
+		cases[entry.name] = { with: withScores, without: scores(entry.arms.without, `${where} arms.without`) };
 	}
 
 	return {
@@ -112,6 +117,9 @@ function caseReport(
 	const vacuous = manifest.vacuousWithout.includes(name);
 	if (!vacuous && current.without.length > 0 && withMean === 1 && withoutMean >= withMean) {
 		verdicts.push("redundant");
+	}
+	if (!vacuous && current.without.length > 0 && withoutMean - withMean > tolerance + MEAN_EPSILON) {
+		verdicts.push("skill-worse");
 	}
 	if (disagrees(current.with) || disagrees(current.without)) verdicts.push("flaky");
 	if (dropped && sandboxSensitive) verdicts.push("sandbox");

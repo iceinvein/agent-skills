@@ -153,6 +153,13 @@ test("a case with no without arm at all is replaced", () => {
 	expect(merge(full, rerun, NAMES, sources).cases[0]).toEqual(entry("case-a", [ok(1), ok(1)], [ok(0), ok(0)]));
 });
 
+test("a case whose without arm is null is replaced", () => {
+	const cut = { name: "case-a", runsPerCase: 2, arms: { with: [ok(1), ok(1)], without: null } };
+	const full = result([cut as unknown as Case, entry("case-b", [ok(1), ok(1)], [ok(0), ok(0)])], { partial: true });
+	const rerun = result([entry("case-a", [ok(1), ok(1)], [ok(0), ok(0)])]);
+	expect(merge(full, rerun, NAMES, sources).cases[0]).toEqual(entry("case-a", [ok(1), ok(1)], [ok(0), ok(0)]));
+});
+
 test("refuses a run that is not an object, naming its case", () => {
 	const broken = { name: "case-a", runsPerCase: 2, arms: { with: [null, ok(1)], without: [ok(0), ok(0)] } };
 	const full = result([broken as unknown as Case, entry("case-b", [ok(1), ok(1)], [ok(0), ok(0)])]);

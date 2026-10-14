@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { caseNames, checkManifest, loadManifest } from "../scripts/eval-freshness/manifest";
@@ -61,6 +61,11 @@ describe("checkManifest", () => {
 	test("reports a case no rule names", () => {
 		const skill = skillTree({ rules: [rule({})] });
 		expect(checkManifest(skill)).toEqual(['case "beta" is named by no rule']);
+	});
+
+	test("reports a rule naming the same case twice", () => {
+		const skill = skillTree({ rules: [rule({ cases: ["alpha", "alpha"] }), rule({ id: "r2", cases: ["beta"] })] });
+		expect(checkManifest(skill)).toEqual(['rule r1 names case "alpha" more than once']);
 	});
 
 	test("reports a duplicate rule id", () => {
@@ -300,5 +305,11 @@ describe("caseNames", () => {
 		mkdirSync(join(evals, "scratch"));
 		writeFileSync(join(evals, "README.md"), "# evals\n");
 		expect(caseNames(skill)).toEqual(["alpha", "gamma", "zeta"]);
+	});
+
+	test("names a case link that points nowhere", () => {
+		const skill = skillTree({ cases: ["alpha"] });
+		symlinkSync(join(skill, "missing"), join(skill, "evals", "dangling"));
+		expect(() => caseNames(skill)).toThrow("evals/dangling is a link to nothing");
 	});
 });

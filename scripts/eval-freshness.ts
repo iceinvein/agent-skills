@@ -130,6 +130,9 @@ function diff(skillDir: string, resultPath: string, against: string | undefined,
 	const current = reduce(result, skillVersion(skillDir));
 	const manifest = loadManifest(skillDir);
 	const path = baselinePath(skillDir, against ?? current.model);
+	// A missing baseline for the run's own model means none was accepted yet,
+	// but one named by --against was asked for, so its absence is a mistake.
+	if (against !== undefined && !existsSync(path)) throw new Error(`no baseline for --against ${against} at ${path}`);
 	const baseline = readBaseline(path);
 	const report = compare(current, baseline, manifest, tol);
 	process.stdout.write(formatReport(report));

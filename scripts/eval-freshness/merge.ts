@@ -1,5 +1,5 @@
 type Run = { error?: unknown };
-type Case = { name: string; runsPerCase: number; arms: { with?: Run[]; without?: Run[] } };
+type Case = { name: string; runsPerCase: number; arms: { with?: Run[] | null; without?: Run[] | null } };
 type Result = Record<string, unknown> & { suite: Record<string, unknown>; cases: Case[] };
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -18,7 +18,7 @@ function asResult(value: unknown, path: string): Result {
 		if (typeof entry.runsPerCase !== "number") throw new Error(`${path} case ${entry.name} has no runsPerCase`);
 		for (const arm of ["with", "without"]) {
 			const runs = entry.arms[arm];
-			if (runs === undefined) continue;
+			if (runs === undefined || runs === null) continue;
 			if (!Array.isArray(runs) || !runs.every(isObject)) {
 				throw new Error(`${path} case ${entry.name} arms.${arm} is not a list of runs`);
 			}

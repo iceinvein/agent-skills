@@ -74,6 +74,7 @@ export function caseNames(skillDir: string): string[] {
 	return readdirSync(evals)
 		.filter((name) => {
 			const dir = join(evals, name);
+			if (!existsSync(dir)) throw new Error(`evals/${name} is a link to nothing`);
 			if (name === "results" || !statSync(dir).isDirectory()) return false;
 			return existsSync(join(dir, "prompt.md")) || existsSync(join(dir, "case.yaml"));
 		})
@@ -92,7 +93,8 @@ export function checkManifest(skillDir: string): string[] {
 	for (const rule of rules) {
 		if (seenIds.has(rule.id)) problems.push(`rule id ${rule.id} is used more than once`);
 		seenIds.add(rule.id);
-		for (const name of rule.cases) {
+		for (const [i, name] of rule.cases.entries()) {
+			if (rule.cases.indexOf(name) !== i) problems.push(`rule ${rule.id} names case "${name}" more than once`);
 			named.add(name);
 			if (!cases.includes(name)) problems.push(`rule ${rule.id} names case "${name}", which does not exist`);
 		}

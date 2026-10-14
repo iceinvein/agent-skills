@@ -114,6 +114,13 @@ test("diff compares against the model named by --against", () => {
 	expect(out.stdout).toContain("against baseline sonnet");
 });
 
+test("diff exits 2 naming the file when --against names a model with no baseline", () => {
+	writeBaseline("opus");
+	const out = cli("diff", skillDir, writeResult(result([1, 1], [0, 0])), "--against", "sonet");
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain(join("baselines", "sonet.json"));
+});
+
 test("diff does not flag a drop within --tolerance", () => {
 	writeBaseline("opus");
 	const out = cli("diff", skillDir, writeResult(result([1, 0], [0, 0])), "--tolerance", "0.5");
@@ -302,6 +309,16 @@ test("diff prints a line for each errored run after the report", () => {
 	const out = cli("diff", skillDir, writeResult(erroredResult()));
 	expect(out.code).toBe(0);
 	expect(out.stdout).toContain("errored: case-a with run 2: sandbox timed out");
+});
+
+test("diff does not read an errored run as a regression", () => {
+	writeBaseline("opus");
+	const value = result([1, 0], [0, 0]);
+	const run: { error: string | null } = value.cases[0].arms.with[1];
+	run.error = "sandbox timed out";
+	const out = cli("diff", skillDir, writeResult(value));
+	expect(out.code).toBe(0);
+	expect(out.stdout).toContain("Non-steady cases: none");
 });
 
 test("diff still compares a result filtered with --case", () => {
