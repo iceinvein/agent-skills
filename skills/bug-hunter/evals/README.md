@@ -58,7 +58,17 @@ The run directory is `.bug-hunter/<date>-<slug>/` and the slug is the skill's
 choice. Only `file_exists` resolves a glob; a `regex` or `llm` grader pointed at
 a file needs its exact path and throws on a glob. So:
 
-- `findings-written` checks the file exists, by glob.
+- `findings-written` and `intent-written` read the harness's `files` target,
+  one created path per line, and match
+  `.bug-hunter/<YYYY-MM-DD>-<slug>/findings.json` (or `intent.md`) there. A
+  `file_exists` glob would accept a directory with no date; this holds the
+  prefix to the shape SKILL.md states, though not to the day the run ran.
+- `written-with-write-tool` (in `silent-spec-is-an-ambiguity` and
+  `correct-code-has-no-bugs`) fails a Bash command that redirects or tees into
+  `intent.md`, `findings.json` or `report.md` under `.bug-hunter/`, which is
+  what holds the Write-tool rule: the content graders below read a heredoc's
+  JSON as readily as a Write call's. A script that opens the file itself
+  (`python3`, `node -e`) is not caught by it; the content graders fail that.
 - Every grader that reads the *content* of `findings.json` reads the trace
   instead: the Write tool call, or the shell command, that created it. The
   regex graders (`bugs-empty`, `cap-is-an-ambiguity`) need the JSON to appear
@@ -78,10 +88,15 @@ a file needs its exact path and throws on a glob. So:
   run the repro; "fails in the fixture" is judged against the fixture's code,
   which the rubric quotes. Its rubric also says to judge only the last write.
 - `tree-unchanged` cannot run `git status --porcelain`. It reads the harness's
-  `files` target, the list of paths the run created or changed in its working
-  directory, and fails on any path outside `.bug-hunter/` or `.git/`. It is
-  stricter than porcelain (a file `.gitignore` hides still counts). A run that
-  writes nothing passes it, which is why the case also has `bug-hunter-fired`.
+  `files` target, the list of paths the run created in its working directory,
+  and fails on any path outside `.bug-hunter/` or `.git/`. A file `.gitignore`
+  hides still counts. The `files` target never lists a file the run only
+  modified, so on its own it passes an edit to the scaffold's files.
+  `source-unchanged` fails if the buggy line in `src/backoff.js` was
+  rewritten, and `tests-unchanged` if `tests/backoff.test.js` gained a test.
+  An edit to `package.json` or `SPEC.md` is still unseen. A run that writes
+  nothing passes all three, which is why the case also has
+  `bug-hunter-fired`.
 - `bug-cites-the-spec` in `bug-cites-intent-from-spec` is an `llm` judge over
   the trace, with the same window and last-write limits as
   `bug-cites-the-limit`. It resolves the bug's `claim` through the `intent`
