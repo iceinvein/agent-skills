@@ -27,12 +27,23 @@ bash <skill-dir>/scripts/status.sh resume
 bash <skill-dir>/scripts/status.sh line --full
 bash <skill-dir>/scripts/status.sh close
 bash <skill-dir>/scripts/status.sh route deep
+bash <skill-dir>/scripts/status.sh verify -- bun test
+bash <skill-dir>/scripts/status.sh verify --none "docs only, nothing executes them"
 ```
 
 `route` is the odd one out: it reads and writes no state, and prints
 `sluice: <channel> channel` so the channel lands in the transcript as a tool
 input, which is kept as written where the announcement's prose may not be.
 `references/meter.md` says why that matters.
+
+`verify` is the other exception: it needs no run and serves every channel but `bypass`.
+`verify -- <cmd>` runs the check from the tree's top level and exits with its
+code, and on a pass writes the tree's content digest to `.sluice/verified`;
+`verify --none "<reason>"` writes the digest with no check and prints the
+reason. It reads the tree it was called in, never the one the run lives in: a
+check passed in an implementer's worktree says nothing about the controller's.
+The Stop hook compares that record with the tree at a `fast` or `main` handback,
+and `references/verify.md` says when `--none` is honest and what the gate does.
 
 `--dir <path>` reads another tree, which is what the statusline uses. A tree
 with a run of its own is read as itself; one with none resolves to the main

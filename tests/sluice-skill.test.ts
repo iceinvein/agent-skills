@@ -839,3 +839,40 @@ describe("sluice verification gates in the router", () => {
 		expect(hunt).toMatch(/before the final review/);
 	});
 });
+
+// The router's gate lines point here, and these files are read on friction, so
+// each one has to carry the part of its gate the router line leaves out.
+describe("sluice verification gates in the references", () => {
+	const VERIFY = readFileSync(join(dir, "references", "verify.md"), "utf8");
+	const REVIEW = readFileSync(join(dir, "references", "review.md"), "utf8");
+
+	test("verify.md names the recorded check and the --none escape", () => {
+		expect(VERIFY).toContain("status.sh verify --");
+		expect(VERIFY).toContain('--none "<reason>"');
+	});
+
+	test("review.md says a missing bug-hunter at the announcement and again at the merge", () => {
+		const para = REVIEW.split("\n\n")
+			.map((p) => p.replace(/\s+/g, " "))
+			.find((p) => /bug-hunter/.test(p) && /not installed/.test(p));
+		expect(para).toBeDefined();
+		expect(para).toMatch(/announcement/);
+		expect(para).toMatch(/merge/);
+	});
+
+	test("deep-channel.md puts the hunt section before the final review section", () => {
+		const hunt = DEEP.indexOf("\n## The hunt\n");
+		const final = DEEP.indexOf("\n## The final review\n");
+		expect(hunt).toBeGreaterThan(-1);
+		expect(final).toBeGreaterThan(-1);
+		expect(hunt).toBeLessThan(final);
+	});
+
+	test("finish.md stops on an open proven bug before the three options", () => {
+		const flat = FINISH.replace(/\s+/g, " ");
+		const stop = flat.indexOf("proven bug");
+		const options = flat.indexOf("put exactly three options");
+		expect(stop).toBeGreaterThan(-1);
+		expect(stop).toBeLessThan(options);
+	});
+});

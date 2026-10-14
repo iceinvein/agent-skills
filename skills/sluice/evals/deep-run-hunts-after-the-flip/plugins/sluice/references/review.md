@@ -49,6 +49,32 @@ only for substantial logic changes. While you are the one coordinating,
 findings are not yours to fix: your patch would be the single patch nobody
 reviews, and it spends context the plan still needs.
 
+## The hunt in `main`
+
+Review is opinion; the hunt is proof. Once the code is green and before the
+reviewer goes out, read the intent agreed in the message for a checkable claim:
+a limit, a boundary, an invariant, a stated result. With one, invoke bug-hunter
+on the working diff and give it that message as the request it collects intent
+from. Without one, say so in one line ("no checkable claim in the request, so
+no hunt") and go straight to review. Guessing a claim the message never made
+hunts against your reading of the work, which is the self-review this file
+exists to avoid.
+
+A proven bug is fixed here, before review, and test-first: its repro, promoted
+into the tree, is the red test, the fix turns it green, and the repro is run
+again to confirm it, not the whole hunt. An ambiguity is a question for your
+partner, carried to the handback rather than answered by your pick. The
+reviewer's brief carries the path of the hunt's `report.md` beside the diff, so
+the review reads what was proved and does not repeat it. Nothing merges while a
+proven bug is open.
+
+When bug-hunter is not installed, or this session has no Skill tool to invoke
+it with, the gate is not skipped in silence. Say it as a missing reviewer is
+said below: once in the routing announcement, while it is still a decision
+("Main channel, new interface. bug-hunter is not installed, so a checkable
+claim here goes unhunted unless you install it"), and once more at the merge,
+beside the three options. Not between.
+
 ## When you cannot dispatch
 
 Separate the two cases before you say anything. A session that grants subagents

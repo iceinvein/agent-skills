@@ -14,6 +14,11 @@ result stops the process; there is no menu after a failure. A pass from
 earlier in the session doesn't count: the tree has changed since, and
 only a run against what's here now proves anything.
 
+A proven bug still open stops it the same way. Where a hunt ran, in `main`
+(`references/review.md`) or `deep` (`references/deep-channel.md`), every bug it
+proved is fixed with its repro green before any choice goes to your
+partner. A green suite says nothing about a bug whose repro is not in it yet.
+
 Confirm the base branch instead of assuming it; untangling a wrong merge
 costs far more than asking would have.
 

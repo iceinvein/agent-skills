@@ -395,7 +395,12 @@ reads the run state rather than the plan: it sees what has actually landed.
   to serial there spends the parallelism pre-flight bought. The rule below
   against cutting by hand is about the worktree this session works in, which
   a hand-cut one cannot move it into; an implementer's worktree is one the
-  session never enters.
+  session never enters. It needs a controller outside worktree mode: a
+  session that entered its own worktree through the harness's worktree tool
+  caps every agent it dispatches to that one tree, so an implementer cannot
+  write in a hand-cut worktree, and switching into one by path with the
+  worktree tool is refused too. From a controller in worktree mode, run the
+  implementers serially.
 - **The flip runs alone.** Nothing goes concurrent with the task carrying
   `Flips`. The invariant it establishes is what later tasks are checked
   against, and whatever landed beside it was checked against nothing.
@@ -618,6 +623,25 @@ later tasks have already built against, it has stopped being a finding and
 become a plan change, which is your partner's call rather than something to
 absorb into the next task's brief.
 
+## The hunt
+
+The per-task reviews read each task against its own text, and the final review
+reads the plan as a whole, but neither runs the code against what the spec
+promised. Once the flip has landed and every task is `done`, and before the
+final review goes out, invoke bug-hunter on `<base>..HEAD`, the whole plan's
+diff, with `docs/specs/<topic>.md` as its request. It is the controller's
+work, like the final review, so it takes no row and no `run.json` field.
+
+Each proven bug becomes one fix, test-first: its repro, promoted into the tree,
+is the red test, and the fix goes to an implementer like any task, since a
+finding is not yours to fix while you coordinate. Re-run that repro once the fix
+lands, not the whole hunt. Record the hunt in the run record under a `## Hunt`
+section: the path of its `report.md`, each proven bug with the claim it broke
+and the commit that fixed it, and each ambiguity, which goes to your partner at
+the handback. The final review reads that section and the report. When
+bug-hunter is not available, say so as `references/review.md` says it for
+`main`: once at the announcement and once at the merge.
+
 ## The final review
 
 It runs once every task is `done` and every per-task review is back, and it
@@ -628,10 +652,11 @@ clears, so `show` and `close` report it done rather than pending; the per-task
 marks cannot stand in for it, because they count dispatches the tier table owed
 and this one is owed by the plan as a whole.
 
-It covers cross-task integration and everything the record accumulated, not
-lines a per-task review already cleared. It is a dispatch, on this session's
-model and effort and never a downshifted one, and it gets the whole-plan diff
-and the deferred findings as a list.
+It covers cross-task integration and everything the record accumulated, the
+`## Hunt` section and the report it names included, not lines a per-task review
+already cleared. It is a dispatch, on this session's model and effort and
+never a downshifted one, and it gets the whole-plan diff and the deferred
+findings as a list.
 
 Size the brief to what it is actually carrying, and say which of two things it
 is. After nine per-task reviews cleared, it is an integration check. When
