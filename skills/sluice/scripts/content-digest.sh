@@ -4,9 +4,10 @@
 #
 # Usage: content-digest.sh <tree>
 # Exit 0 printed a digest, non-zero the tree could not be read. Prints nothing
-# on failure, and a caller that cannot read the tree has no comparison to make
-# rather than a change to report: an interrupted index, a lock held by another
-# git, or a rebase in flight are all "unknown", never "changed".
+# on stdout on failure, and a caller that cannot read the tree has no comparison
+# to make rather than a change to report: an interrupted index or a file git
+# cannot open are "unknown", never "changed". git's own error goes to stderr,
+# so status.sh verify can say why it recorded nothing; the hook discards it.
 #
 # It lives in its own file because two scripts compute it at two different
 # moments, and a difference between two copies would not read as a bug, it
@@ -46,8 +47,8 @@ if [ -f "$index" ]; then
 	cp "$index" "$scratch/index" 2>/dev/null || exit 1
 fi
 
-GIT_INDEX_FILE="$scratch/index" git add -A 2>/dev/null || exit 1
-digest="$(GIT_INDEX_FILE="$scratch/index" git write-tree 2>/dev/null)" || exit 1
+GIT_INDEX_FILE="$scratch/index" git add -A >/dev/null || exit 1
+digest="$(GIT_INDEX_FILE="$scratch/index" git write-tree)" || exit 1
 [ -n "$digest" ] || exit 1
 
 printf '%s\n' "$digest"

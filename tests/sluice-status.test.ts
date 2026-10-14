@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -2039,6 +2039,20 @@ describe("verify", () => {
 	test("--none with an empty reason is refused and records nothing", () => {
 		const dir = gitRepo();
 		expect(verify(dir, "--none", "").code).toBe(4);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
+	// A file git cannot read stops the digest, and a refusal that drops git's
+	// own words leaves the partner nothing to act on. Root reads a mode-000
+	// file anyway, so there is no unreadable file to make as root.
+	test.skipIf(process.getuid?.() === 0)("a tree git cannot read says why and records nothing", () => {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "locked.txt"), "secret\n");
+		chmodSync(join(dir, "locked.txt"), 0o000);
+		const r = verify(dir, "--", "true");
+		chmodSync(join(dir, "locked.txt"), 0o644);
+		expect(r.code).toBe(1);
+		expect(r.err).toContain("locked.txt");
 		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
 	});
 
