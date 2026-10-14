@@ -21,8 +21,8 @@ has to be taken back.
 |---------|--------|-------|-----|
 | `bypass` | No code change: a question, an explanation, a read | none | nothing, just answer |
 | `fast` | Existing interfaces, one subsystem (a new flag on an existing command still counts as existing) | test-first, verify | "Fast channel, existing interfaces. Test first, then implement." |
-| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." |
-| `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
+| `main` | Adds an interface, or crosses subsystems | + agree intent, hunt a checkable claim, review before merge | "Main channel, new interface. Agreeing the shape first." |
+| `deep` | Several subsystems, or a plan was asked for | + written design and plan, hunt after the flip | "Deep channel, several subsystems. Design before code." |
 
 Two subsystems is `main`; the third is what makes it `deep`.
 
@@ -91,8 +91,10 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
   the message states a checkable claim (a limit, a boundary, an invariant, a
   stated result), run bug-hunter on the diff; otherwise say in one line there
   was none and skip it. Fix each proven bug test-first; ambiguities go to your
-  partner at the handback. No bug-hunter? Say so in the announcement and again
-  at the merge. `references/review.md`
+  partner at the handback. Record the check last, `status.sh verify --` after
+  the hunt and any fix, since the hunt's report lands in the tree. No
+  bug-hunter? Say so in the announcement and again at the merge.
+  `references/review.md`
 - **Hunt** in `deep`, after the flip, once every task is done and before the
   final review: bug-hunter on `<base>..HEAD` against the spec, each proven bug
   one fix, test-first. `references/deep-channel.md`

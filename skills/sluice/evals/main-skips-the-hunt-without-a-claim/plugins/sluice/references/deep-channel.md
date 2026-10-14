@@ -636,10 +636,10 @@ diff, with `docs/specs/<topic>.md` as its request. The hunt itself is the
 controller's work, like the final review, so it takes no row and no `run.json`
 field.
 
-Each proven bug becomes one fix, test-first, and each fix does take a row: add
-it as a task, `status.sh task <id> --name "<fix>"`, dispatch it to an
-implementer and review it at its tier, since a finding is not yours to fix
-while you coordinate. Its repro, promoted into the tree, is the red test.
+Each proven bug becomes one fix, test-first, and each fix does take a row:
+add it as a task, `status.sh task <id> --name "<fix>" --tier <n>`, dispatch
+it to an implementer and review it at its tier, since a finding is not yours
+to fix while you coordinate. Its repro, promoted into the tree, is the red test.
 Re-run that repro once the fix lands, not the whole hunt. Record the hunt in
 the run record under a `## Hunt` section: the path of its `report.md`, each
 proven bug with the claim it broke and the commit that fixed it, and each

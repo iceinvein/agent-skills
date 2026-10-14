@@ -357,7 +357,21 @@ mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, def
 # tree the run state lives in.
 if [ "$SUB" = "verify" ]; then
 	TREE="$(git -C "$ORIG_DIR" rev-parse --show-toplevel 2>/dev/null)"
-	[ -n "$TREE" ] || { err "verify needs a git work tree, and $ORIG_DIR is not in one"; exit 4; }
+	if [ -z "$TREE" ]; then
+		# Asked again only to say why: a git that fails on every call (the xcrun
+		# shim in a sandbox) is not a directory outside a repo, and reading it
+		# as one sends the reader looking for a repo they are standing in. C
+		# locale so git's own wording is the one matched.
+		GIT_ERR="$(LC_ALL=C git -C "$ORIG_DIR" rev-parse --show-toplevel 2>&1 >/dev/null)"
+		case "$GIT_ERR" in
+			*"not a git repository"* | *"must be run in a work tree"*)
+				err "verify needs a git work tree, and $ORIG_DIR is not in one"
+				exit 4
+				;;
+		esac
+		err "verify could not ask git where the tree is: git failed: $GIT_ERR"
+		exit 1
+	fi
 	REASON=""
 	case "${1-}" in
 		--)

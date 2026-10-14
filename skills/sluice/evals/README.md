@@ -56,6 +56,14 @@ and halves the cost, and `--runs 1` drops the repeats. Traces are deleted when a
 ends, so a failing `llm` grader cannot be read back afterwards; add
 `--keep-temp` to any run whose failures you will need to diagnose.
 
+The verification gate is not in the case-local plugin copies: they register no
+hook, and the Stop hook a run meets is the globally installed one
+(`~/.claude/skills/sluice/scripts/stop-guard.sh`, wired by your settings). So
+the gate is measured only once this sluice version is installed. Once it is, a
+`fast` or `main` case that never calls `status.sh verify` takes one refusal
+turn before it stops, and a judge reading the last message reads the one
+written after that refusal.
+
 To gate CI, pick a floor and let a miss fail the job:
 
 ```bash

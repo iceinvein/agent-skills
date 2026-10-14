@@ -68,6 +68,12 @@ reviewer's brief carries the path of the hunt's `report.md` beside the diff, so
 the review reads what was proved and does not repeat it. Nothing merges while a
 proven bug is open.
 
+Record the check last, after the hunt and any fix: `status.sh verify -- <cmd>`
+once nothing else will touch the tree. bug-hunter writes its report under
+`.bug-hunter/` at the repo root, untracked, and the digest counts untracked
+content, so a check recorded before the hunt no longer matches the tree at the
+handback, even when the hunt proved nothing.
+
 When bug-hunter is not installed, or this session has no Skill tool to invoke
 it with, the gate is not skipped in silence. Say it as a missing reviewer is
 said below: once in the routing announcement, while it is still a decision

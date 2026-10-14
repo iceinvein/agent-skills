@@ -833,6 +833,16 @@ describe("sluice verification gates in the router", () => {
 		expect(hunt).toMatch(/checkable claim/);
 	});
 
+	// bug-hunter writes its report into the tree, untracked, and the digest
+	// counts untracked content, so a check recorded before the hunt is stale at
+	// the handback even when the hunt found nothing.
+	test("the main hunt line puts the recorded check after the hunt", () => {
+		const hunt = rule(/^\*\*Hunt\*\* in `main`/);
+		const at = hunt.indexOf("status.sh verify");
+		expect(at).toBeGreaterThan(hunt.indexOf("bug-hunter"));
+		expect(hunt).toMatch(/last/);
+	});
+
 	test("the deep hunt comes after the flip and before the final review", () => {
 		const hunt = rule(/^\*\*Hunt\*\* in `deep`/);
 		expect(hunt).toMatch(/after the flip/);
@@ -858,6 +868,12 @@ describe("sluice verification gates in the references", () => {
 		expect(para).toBeDefined();
 		expect(para).toMatch(/announcement/);
 		expect(para).toMatch(/merge/);
+	});
+
+	test("review.md's hunt section records the check last, after the hunt and any fix", () => {
+		const hunt = section(REVIEW, "The hunt in `main`").replace(/\s+/g, " ");
+		expect(hunt).toContain("status.sh verify");
+		expect(hunt).toMatch(/after the hunt and any fix/);
 	});
 
 	test("deep-channel.md puts the hunt section before the final review section", () => {

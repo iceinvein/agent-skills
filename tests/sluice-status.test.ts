@@ -2063,6 +2063,32 @@ describe("verify", () => {
 		expect(existsSync(join(dir, ".sluice"))).toBe(false);
 	});
 
+	test("a directory outside any git tree is told it is not in a work tree", () => {
+		const dir = repo();
+		const r = verify(dir, "--", "true");
+		expect(r.err).toBe(`status.sh: verify needs a git work tree, and ${dir} is not in one\n`);
+	});
+
+	// In the eval sandbox a bare `git` is Apple's xcrun shim, which fails on
+	// every call. Reported as "not in a work tree", that sends the reader to
+	// look for a repo they are already standing in.
+	test("a git that fails is reported as git failing, with its own words", () => {
+		const dir = gitRepo();
+		const bin = mkdtempSync(join(tmpdir(), "sluice-fakegit-"));
+		writeFileSync(join(bin, "git"), "#!/bin/sh\necho 'xcrun: error: cannot be used within an App Sandbox.' >&2\nexit 1\n");
+		chmodSync(join(bin, "git"), 0o755);
+		const proc = Bun.spawnSync({
+			cmd: ["bash", SCRIPT, "--dir", dir, "verify", "--", "true"],
+			env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+			timeout: 10000,
+		});
+		expect(proc.exitCode).toBe(1);
+		expect(proc.stderr.toString()).toBe(
+			"status.sh: verify could not ask git where the tree is: git failed: xcrun: error: cannot be used within an App Sandbox.\n",
+		);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
 	test("the record stays out of git status", () => {
 		const dir = gitRepo();
 		verify(dir, "--", "true");

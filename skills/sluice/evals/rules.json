@@ -155,7 +155,7 @@
     },
     {
       "id": "deep-hunts-after-the-flip",
-      "states": "references/deep-channel.md: The final review",
+      "states": "references/deep-channel.md: The hunt",
       "origin": "docs/specs/2026-10-14-verification-gates.md",
       "cases": [
         "deep-run-hunts-after-the-flip"
@@ -347,7 +347,8 @@
     "deep-run-finishes-every-task",
     "deep-run-hunts-after-the-flip",
     "deep-run-survives-a-milestone",
-    "deep-run-waits-for-a-running-agent"
+    "deep-run-waits-for-a-running-agent",
+    "fast-verifies-before-handback"
   ],
   "vacuousWithout": [
     "superpowers-conflict-stands-down"
