@@ -83,7 +83,19 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
   `references/root-cause.md`
 - **Verify** before claiming. Run the command in this turn and read its
   output; the claim comes after that, never before. How sure you feel is not
-  something anyone else can check. `references/verify.md`
+  something anyone else can check, so record the check: `status.sh verify --
+  <cmd>` notes the tree it passed on, or `--none "<reason>"` where no check
+  can cover the change. In `fast` and `main` a Stop hook refuses, once per
+  turn, a handback whose tree has moved since. `references/verify.md`
+- **Hunt** in `main`, once green and before review: when the intent agreed in
+  the message states a checkable claim (a limit, a boundary, an invariant, a
+  stated result), run bug-hunter on the diff; otherwise say in one line there
+  was none and skip it. Fix each proven bug test-first; ambiguities go to your
+  partner at the handback. No bug-hunter? Say so in the announcement and again
+  at the merge. `references/review.md`
+- **Hunt** in `deep`, after the flip, once every task is done and before the
+  final review: bug-hunter on `<base>..HEAD` against the spec, each proven bug
+  one fix, test-first. `references/deep-channel.md`
 - **Review** before merge. Dispatch a reviewer with fresh context and put the
   diff on disk for it to read, so those bytes fill their context instead of
   yours. A session that dispatches only when asked has not refused you one, so

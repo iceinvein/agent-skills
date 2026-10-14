@@ -771,7 +771,8 @@ describe("stop-guard.sh entry check", () => {
 						{
 							type: "tool_use",
 							name: "Bash",
-							input: { command: "bash ~/.claude/skills/sluice/scripts/status.sh route fast" },
+							// Deep: a fast or main route on a moved, unverified tree is refused by the verification gate, and this is about the entry check reading the route call.
+							input: { command: "bash ~/.claude/skills/sluice/scripts/status.sh route deep" },
 						},
 					],
 				},
@@ -805,7 +806,8 @@ describe("stop-guard.sh entry check", () => {
 						{
 							type: "tool_use",
 							name: "Bash",
-							input: { command: 'bash "/Users/a b/.claude/skills/sluice/scripts/status.sh" route fast; ls' },
+							// Deep: a fast or main route on a moved, unverified tree is refused by the verification gate, and this is about the entry check reading the route call.
+							input: { command: 'bash "/Users/a b/.claude/skills/sluice/scripts/status.sh" route deep; ls' },
 						},
 					],
 				},
@@ -914,5 +916,115 @@ describe("stop-guard.sh entry check", () => {
 			cfg,
 		);
 		expect(r.out).toBe("");
+	});
+
+	// A fast or main handback used to rest on a prose rule to run the check.
+	// The gate makes it a record: a passing check written against the tree as
+	// it stands, or the handback is refused once and told how to make one.
+	describe("verification gate", () => {
+		/** A transcript whose assistant messages each make one route call, in order. */
+		function routedTranscript(...channels: string[]): string {
+			const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+			const lines = channels.map((channel) =>
+				JSON.stringify({
+					type: "assistant",
+					message: {
+						role: "assistant",
+						content: [
+							{
+								type: "tool_use",
+								name: "Bash",
+								input: { command: `bash ~/.claude/skills/sluice/scripts/status.sh route ${channel}` },
+							},
+						],
+					},
+				}),
+			);
+			writeFileSync(path, `${lines.join("\n")}\n`);
+			return path;
+		}
+
+		function verify(dir: string) {
+			return Bun.spawnSync({ cmd: ["bash", STATUS, "verify", "--dir", dir, "--", "true"], timeout: 5000 });
+		}
+
+		/** A session routed through `channels` whose tree gained a file after it opened. */
+		function movedSession(sid: string, ...channels: string[]) {
+			const cfg = configDir();
+			const dir = gitRepo();
+			stamp(cfg, sid, dir);
+			writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+			const input = { cwd: dir, session_id: sid, transcript_path: routedTranscript(...channels), stop_hook_active: false };
+			return { cfg, dir, input };
+		}
+
+		test("refuses a fast session's handback when the moved tree has no recorded check", () => {
+			const { cfg, input } = movedSession("v1", "fast");
+
+			const r = entryGuard(input, cfg);
+			expect(r.code).toBe(0);
+			expect(decision(r.out)).toBe("block");
+		});
+
+		test("the refusal names the recorded check and the no-check escape", () => {
+			const { cfg, input } = movedSession("v2", "fast");
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(reason).toContain("status.sh verify --");
+			expect(reason).toContain("--none");
+		});
+
+		test("refuses a main session's handback when the moved tree has no recorded check", () => {
+			const { cfg, input } = movedSession("v3", "main");
+
+			expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		});
+
+		test("lets a verified tree hand back", () => {
+			const { cfg, dir, input } = movedSession("v4", "fast");
+			expect(verify(dir).exitCode).toBe(0);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("refuses a tree edited after its check was recorded", () => {
+			const { cfg, dir, input } = movedSession("v5", "main");
+			expect(verify(dir).exitCode).toBe(0);
+			// A tracked file: tree-snapshot.sh lists untracked paths without hashing them.
+			writeFileSync(join(dir, "README.md"), "edited after the check\n");
+
+			expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		});
+
+		test("leaves a deep session to the run guard", () => {
+			const { cfg, input } = movedSession("v6", "deep");
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("reads the last route: a fast session rerouted to deep is not refused", () => {
+			const { cfg, input } = movedSession("v7", "fast", "deep");
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("does not refuse a session whose tree did not move", () => {
+			const cfg = configDir();
+			const dir = gitRepo();
+			writeFileSync(join(dir, "pre-existing.ts"), "export const y = 2;\n");
+			stamp(cfg, "v8", dir);
+
+			const r = entryGuard(
+				{ cwd: dir, session_id: "v8", transcript_path: routedTranscript("fast"), stop_hook_active: false },
+				cfg,
+			);
+			expect(r.out).toBe("");
+		});
+
+		test("lets the stop through once a stop hook already fired this turn", () => {
+			const { cfg, input } = movedSession("v9", "fast");
+
+			expect(entryGuard({ ...input, stop_hook_active: true }, cfg).out).toBe("");
+		});
 	});
 });

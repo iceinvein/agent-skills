@@ -16,6 +16,11 @@
 # fired this turn, which is what keeps this from looping. One refusal per turn, then:
 # a nudge with the state in it rather than a wall.
 #
+# Two checks run ahead of the run guard, both keyed on the tree having moved
+# since the session opened: an entry check for a session that never routed,
+# and a verification gate refusing a fast or main handback with no passing
+# check recorded against the tree as it stands (see their own sections).
+#
 # Reads the harness's stop JSON on stdin for `cwd` and `stop_hook_active`. To
 # refuse, prints {"decision":"block","reason":...} on stdout. Always exits 0.
 
@@ -58,6 +63,48 @@ fi
 [ "$active" = "true" ] && exit 0
 [ -d "$cwd" ] || exit 0
 
+# ---- did the tree move -----------------------------------------------------
+# The entry check and the verification gate both start from one question,
+# whether the tree moved while this session held it, so it is answered once
+# here rather than by reading git twice at the end of every turn. Sets
+# moved_tree and moved_now (the tree and its digest now) only when it moved;
+# both stay empty when it did not or when that cannot be told.
+moved_tree=""
+moved_now=""
+read_moved() {
+	local stamp tree line_tree line_digest now
+	[ -n "$sid" ] || return 0
+	case "$sid" in */* | .*) return 0 ;; esac
+	stamp="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/sluice/stamps/$sid"
+	[ -f "$stamp" ] || return 0
+
+	tree="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 0
+	[ -n "$tree" ] || return 0
+
+	line_tree="$(sed -n '1p' "$stamp" 2>/dev/null)"
+	line_digest="$(sed -n '2p' "$stamp" 2>/dev/null)"
+	[ -n "$line_tree" ] && [ -n "$line_digest" ] || return 0
+	# A session that moved trees carries a baseline for the one it left, and
+	# reading this tree's changes against it would be reading someone else's.
+	[ "$line_tree" = "$tree" ] || return 0
+
+	# A tree that cannot be read is unknown, not moved. Losing git's exit
+	# status here would turn a held lock or a rebase in flight into a refused
+	# turn over a tree nobody touched.
+	now="$(bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
+	[ -n "$now" ] || return 0
+	[ "$now" = "$line_digest" ] && return 0
+
+	moved_tree="$tree"
+	moved_now="$now"
+}
+read_moved
+
+# A copy of run-stats.sh's `route` pattern, byte for byte, kept in step with
+# that file by hand: both checks below read route calls, and a route the meter
+# counts has to be a route here too. One copy in this file, used by both.
+route_def='def route: "(?:^|[;&|(])[[:space:]]*(?:(?:bash|sh|zsh)[[:space:]]+)?(?:\"[^\"]*|\u0027[^\u0027]*|[^[:space:];&|\"\u0027]*)status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)(?:[[:space:];&|]|$)";'
+
 # ---- entry check --------------------------------------------------------
 # The run guard below only arms once .sluice/run.json exists, and that file
 # only exists once the skill has been invoked. So the session that never
@@ -82,34 +129,13 @@ fi
 # bounded: one refusal per session, and a reason that offers "not mine" as an
 # answer and takes it.
 entry_nudge() {
-	local stamps tree line_tree line_digest now
-	[ -n "$sid" ] || return 0
-	case "$sid" in */* | .*) return 0 ;; esac
+	[ -n "$moved_tree" ] || return 0
 
 	# Two directories rather than one name and one suffixed name: sharing a
 	# namespace means a session id ending in `.nudged` silently disarms the
 	# session whose id is its prefix.
 	local root="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/sluice"
-	stamps="$root/stamps"
-	[ -f "$stamps/$sid" ] || return 0
 	[ -f "$root/nudged/$sid" ] && return 0
-
-	tree="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 0
-	[ -n "$tree" ] || return 0
-
-	line_tree="$(sed -n '1p' "$stamps/$sid" 2>/dev/null)"
-	line_digest="$(sed -n '2p' "$stamps/$sid" 2>/dev/null)"
-	[ -n "$line_tree" ] && [ -n "$line_digest" ] || return 0
-	# A session that moved trees carries a baseline for the one it left, and
-	# reading this tree's changes against it would be reading someone else's.
-	[ "$line_tree" = "$tree" ] || return 0
-
-	# A tree that cannot be read is unknown, not moved. Losing git's exit
-	# status here would turn a held lock or a rebase in flight into a refused
-	# turn over a tree nobody touched.
-	now="$(bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
-	[ -n "$now" ] || return 0
-	[ "$now" = "$line_digest" ] && return 0
 
 	# Whether the session routed is read exactly the way run-stats.sh reads it,
 	# from a copy of its `marker`, `lead` and `route` patterns and its
@@ -122,10 +148,9 @@ entry_nudge() {
 	# last line is regularly half written. Slurping would fail on that whole
 	# file and read a routed session as an unrouted one.
 	[ -f "$transcript" ] || return 0
-	jq -e -n -R '
+	jq -e -n -R "$route_def"'
 		def marker: "^[*_#>[:space:]]*(fast|main|deep)[[:space:]]+channel";
 		def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(fast|main|deep)[[:space:]]+channel";
-		def route: "(?:^|[;&|(])[[:space:]]*(?:(?:bash|sh|zsh)[[:space:]]+)?(?:\"[^\"]*|\u0027[^\u0027]*|[^[:space:];&|\"\u0027]*)status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)(?:[[:space:];&|]|$)";
 		def texts: [ .message.content[]? | select(.type == "text") | .text ] | join("\n");
 		def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
 			| (.input.command // "") | select(test(route)) ];
@@ -155,6 +180,51 @@ entry_nudge() {
 }
 
 if ! entry_nudge; then
+	exit 0
+fi
+
+# ---- verification gate ----------------------------------------------------
+# A fast or main handback is the end of the work, and until now what proved it
+# was a prose rule to run the check and read the output, which nothing could
+# tell had happened. `status.sh verify` turns that into a record: the tree's
+# digest, written only when the check passed. A stop is refused when the tree
+# moved this session and the record is missing or names a tree that has moved
+# on since, which is also the edit made after the tests went green.
+#
+# The channel is the session's last route call, not its first: a session
+# rerouted to deep is answered for by the run guard below and `finish`'s full
+# suite, and refusing it here as well would hand one turn two refusals. Bypass
+# never routes, so it never reaches this. Once per turn comes from the
+# `stop_hook_active` exit at the top; a turn that answers the refusal by
+# saying why it cannot check is let through on the next attempt.
+verify_gate() {
+	local channel recorded
+	[ -n "$moved_tree" ] || return 0
+	[ -f "$transcript" ] || return 0
+
+	# Unparseable lines are dropped for the reason the entry check gives: the
+	# harness is still appending to the transcript as this reads it.
+	channel="$(jq -r -n -R "$route_def"'
+		[ inputs | fromjson? // empty
+			| select((.type == "assistant") and (((.isMeta == true) or (.isSidechain == true)) | not))
+			| .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+			| (.input.command // "") | match(route; "g") | .captures[0].string ]
+		| last // empty
+	' "$transcript" 2>/dev/null)" || return 0
+	case "$channel" in fast | main) ;; *) return 0 ;; esac
+
+	recorded=""
+	[ -f "$moved_tree/.sluice/verified" ] && recorded="$(sed -n '1p' "$moved_tree/.sluice/verified" 2>/dev/null)"
+	[ "$recorded" = "$moved_now" ] && return 0
+
+	jq -n --arg channel "$channel" '{
+		decision: "block",
+		reason: ("sluice: this \($channel) session has changed the tree and no passing check is recorded against it as it stands now, so the handback would carry a change nothing has proved. Run the check that proves it through the recorder: status.sh verify -- <cmd> (the tests, the build, whatever exercises this change). If no check can cover it (docs, config), record why: status.sh verify --none \"<reason>\". Then hand back.")
+	}'
+	return 1
+}
+
+if ! verify_gate; then
 	exit 0
 fi
 

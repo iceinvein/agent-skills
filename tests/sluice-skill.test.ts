@@ -810,3 +810,32 @@ describe("sluice never ends a turn mid-run", () => {
 		expect(flat).toMatch(/question to your partner about a dispatch/);
 	});
 });
+
+// Each channel's gate is one line in the router, and the reference behind it
+// is read only on friction. So what triggers a gate, and where in the run it
+// sits, has to be on the line itself or it is not read at the moment it applies.
+describe("sluice verification gates in the router", () => {
+	function rule(lead: RegExp): string {
+		const found = section(SKILL, "The rules")
+			.split("\n- ")
+			.find((b) => lead.test(b));
+		expect(found).toBeDefined();
+		return (found as string).replace(/\n\s*/g, " ");
+	}
+
+	test("the verify rule names the recorded check", () => {
+		expect(rule(/^\*\*Verify\*\*/)).toContain("status.sh verify --");
+	});
+
+	test("the main hunt fires on a checkable claim in the agreed intent", () => {
+		const hunt = rule(/^\*\*Hunt\*\* in `main`/);
+		expect(hunt).toMatch(/bug-hunter/);
+		expect(hunt).toMatch(/checkable claim/);
+	});
+
+	test("the deep hunt comes after the flip and before the final review", () => {
+		const hunt = rule(/^\*\*Hunt\*\* in `deep`/);
+		expect(hunt).toMatch(/after the flip/);
+		expect(hunt).toMatch(/before the final review/);
+	});
+});
