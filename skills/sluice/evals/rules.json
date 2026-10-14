@@ -85,9 +85,8 @@
       "id": "escalate-out-loud",
       "states": "SKILL.md: Changing channel",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
-      "cases": [
-        "announcement-reaches-the-ledger"
-      ]
+      "cases": [],
+      "unpinned": "Opus 5.5 reads a fixture this small in full before routing, so a staged reason to escalate is found up front and the first route is already right. Pinning a mid-turn escalation needs a trigger that only exists at runtime."
     },
     {
       "id": "explicit-instruction-collapses-to-fast",
