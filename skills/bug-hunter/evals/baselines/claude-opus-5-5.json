@@ -1,9 +1,9 @@
 {
   "model": "claude-opus-5-5",
   "judgeModel": "claude-opus-5-5",
-  "claudeVersion": "2.1.296",
+  "claudeVersion": "2.1.299",
   "skillVersion": "0.4.0",
-  "date": "2026-10-13T09:54:28.052Z",
+  "date": "2026-10-14T09:53:47.596Z",
   "cases": {
     "bug-cites-intent-from-spec": {
       "with": [
