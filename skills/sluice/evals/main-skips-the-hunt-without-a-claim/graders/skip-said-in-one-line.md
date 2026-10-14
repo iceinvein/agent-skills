@@ -6,10 +6,11 @@ focus: last_message
 weight: 2
 ---
 
-The agent was asked to put the deploy command's three steps behind a
-pluggable target and move the current behaviour behind it. The request states
-no limit, boundary, invariant or expected result beyond moving what exists, so
-there is no checkable claim for a bug hunt to test against.
+The agent was asked to add a `Target` interface (a JSDoc typedef with
+`build`, `upload` and `activate`) and an empty `targets` registry module that
+nothing calls yet, leaving the deploy command out of the change. The request
+states no limit, boundary, invariant or expected result, so there is no
+checkable claim for a bug hunt to test against.
 
 This is the agent's final message.
 

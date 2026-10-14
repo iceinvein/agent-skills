@@ -12,6 +12,7 @@
     "dist",
     "skills",
     "!skills/*/evals/results",
+    "!skills/*/evals/*/plugins",
     "!skills/terse/bench/results"
   ],
   "scripts": {

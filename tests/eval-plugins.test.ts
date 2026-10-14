@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { copyDrift, pluginCopies, syncPluginCopies } from "../scripts/eval-plugins";
@@ -64,6 +64,52 @@ describe("syncPluginCopies", () => {
 	test("refuses a copy whose skill does not exist", () => {
 		const { root } = treeWithCopy("ghost", {}, {});
 		expect(() => syncPluginCopies(root)).toThrow("skills/ghost");
+	});
+
+	test("copies the files.supporting paths a skill installs beside its prompt", () => {
+		const supporting = JSON.stringify({ name: "router", files: { supporting: ["agents/worker.md"] } });
+		const { root, copyDir } = treeWithCopy(
+			"router",
+			{ "SKILL.md": "# router\n", "skill.json": supporting, "agents/worker.md": "# worker\n" },
+			{},
+		);
+		syncPluginCopies(root);
+		expect(readFileSync(join(copyDir, "agents", "worker.md"), "utf8")).toBe("# worker\n");
+	});
+
+	test("refuses a bundle.include path outside the skill", () => {
+		const escaping = JSON.stringify({ name: "hunter", bundle: { include: ["../host"] } });
+		const { root } = treeWithCopy("hunter", { "SKILL.md": "# hunter\n", "skill.json": escaping }, {});
+		expect(() => syncPluginCopies(root)).toThrow("outside");
+	});
+
+	test("refuses a files.supporting path outside the skill", () => {
+		const escaping = JSON.stringify({ name: "router", files: { supporting: ["../host/evals/hunt/case.yaml"] } });
+		const { root } = treeWithCopy("router", { "SKILL.md": "# router\n", "skill.json": escaping }, {});
+		expect(() => syncPluginCopies(root)).toThrow("outside");
+	});
+});
+
+describe("copyDrift", () => {
+	const source = { "SKILL.md": "# hunter\n", "skill.json": bundled, "references/catalog.md": "scenarios\n" };
+
+	test("names a shipped file whose copy differs", () => {
+		const { root, copyDir } = treeWithCopy("hunter", source, { ...source, "references/catalog.md": "stale\n" });
+		expect(copyDrift(join(root, "skills", "hunter"), copyDir)).toEqual(["references/catalog.md"]);
+	});
+
+	test("names a file in the copy the source does not ship", () => {
+		const { root, copyDir } = treeWithCopy("hunter", source, { ...source, "references/extra.md": "extra\n" });
+		expect(copyDrift(join(root, "skills", "hunter"), copyDir)).toEqual(["references/extra.md"]);
+	});
+
+	test("names a shipped file whose copy lost its executable bit", () => {
+		const scripted = JSON.stringify({ name: "router", bundle: { include: ["scripts"] } });
+		const files = { "SKILL.md": "# router\n", "skill.json": scripted, "scripts/run.sh": "echo run\n" };
+		const { root, copyDir } = treeWithCopy("router", files, files);
+		chmodSync(join(root, "skills", "router", "scripts", "run.sh"), 0o755);
+		chmodSync(join(copyDir, "scripts", "run.sh"), 0o644);
+		expect(copyDrift(join(root, "skills", "router"), copyDir)).toEqual(["scripts/run.sh"]);
 	});
 });
 

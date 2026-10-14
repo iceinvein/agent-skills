@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 // A case's `plugins` list replaces the plugin under test, and every entry must
 // sit inside the case's own directory, so a case that needs two skills loaded
@@ -15,22 +15,35 @@ function filesUnder(dir: string): string[] {
 	});
 }
 
-/** Paths, relative to the skill, of what an install ships: SKILL.md, skill.json and each bundle.include path. */
+/**
+ * Paths, relative to the skill, of what an install ships: SKILL.md, skill.json,
+ * each files.supporting path and each bundle.include path.
+ */
 export function shippedFiles(skillDir: string): string[] {
 	const manifestPath = join(skillDir, "skill.json");
 	if (!existsSync(join(skillDir, "SKILL.md")) || !existsSync(manifestPath)) {
 		throw new Error(`${skillDir} has no SKILL.md and skill.json to copy`);
 	}
-	const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { bundle?: { include?: string[] } };
-	const files = ["SKILL.md", "skill.json"];
-	for (const include of manifest.bundle?.include ?? []) {
-		const path = join(skillDir, include);
-		if (!existsSync(path)) throw new Error(`${manifestPath} bundles ${include}, which does not exist`);
+	const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+		files?: { supporting?: string[] };
+		bundle?: { include?: string[] };
+	};
+	const files = new Set(["SKILL.md", "skill.json"]);
+	for (const listed of [...(manifest.files?.supporting ?? []), ...(manifest.bundle?.include ?? [])]) {
+		const path = resolve(skillDir, listed);
+		const inside = relative(skillDir, path);
+		if (inside === "" || inside.split(sep)[0] === ".." || isAbsolute(inside)) {
+			throw new Error(`${manifestPath} lists ${listed}, which is outside the skill`);
+		}
+		if (!existsSync(path)) throw new Error(`${manifestPath} lists ${listed}, which does not exist`);
 		const found = statSync(path).isDirectory() ? filesUnder(path) : [path];
-		files.push(...found.map((file) => relative(skillDir, file)));
+		for (const file of found) files.add(relative(skillDir, file));
 	}
-	return files.sort();
+	return [...files].sort();
 }
+
+const sameFile = (a: string, b: string): boolean =>
+	statSync(a).mode === statSync(b).mode && readFileSync(a).equals(readFileSync(b));
 
 /** Every skills/<skill>/evals/<case>/plugins/<name>/ under root, paired with skills/<name>/. */
 export function pluginCopies(root: string): PluginCopy[] {
@@ -61,7 +74,7 @@ export function copyDrift(source: string, copy: string): string[] {
 	const drift = present.filter((path) => !shipped.includes(path));
 	for (const path of shipped) {
 		const copied = join(copy, path);
-		if (!existsSync(copied) || !readFileSync(copied).equals(readFileSync(join(source, path)))) drift.push(path);
+		if (!existsSync(copied) || !sameFile(copied, join(source, path))) drift.push(path);
 	}
 	return drift.sort();
 }
