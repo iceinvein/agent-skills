@@ -14,7 +14,7 @@ no longer which channel but whether the run keeps going.
 | `deep-plan-asks-the-fork` | The same plan with nothing saying where the counters can live | One question with a recommendation before any design; no spec yet |
 | `explicit-instruction-collapses-to-fast` | Main-shaped work plus "just do it" | Collapses to fast; no design, no proposal |
 | `superpowers-conflict-stands-down` | Repo mandates the superpowers sequence | Stands down once, names no channel |
-| `announcement-reaches-the-ledger` | A flag that a repo rule turns into a new export | `status.sh route fast`, then `status.sh route main` once the rule is read |
+| `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
 | `fast-reads-the-unmentioned-convention` | Flags live in a table the prompt never names | The flag lands in the registry table and the generated `--help` |
 
 Execution, where the run is already past both stops:
@@ -87,7 +87,11 @@ case regressed, 1 when one did, and 2 on bad input (a missing flag value, an
 unreadable result or a malformed manifest). `run` also exits 2 when the eval
 writes no result. `accept` exits 2 on a result filtered with `--case`, since a
 baseline needs a full run, and on a result with any errored run. `diff` lists
-errored runs after the report without changing its exit code. `run` passes
+errored runs after the report without changing its exit code, and leaves them
+out of every mean, since an errored run's score says nothing about the skill; a
+case with no finished with-arm run is left out of the report. `diff` exits 2
+when `--against` names a model with no baseline, where a missing baseline for
+the result's own model only reads as "against no baseline". `run` passes
 `--no-publish`, so the HTML report stays local.
 
 A run cut short by a timeout, a quota limit or a closed session needs only
@@ -110,8 +114,9 @@ merge the first clean rerun.
 
 The diff gives each case its verdicts. `regressed` means the with-arm mean
 dropped below the baseline by more than `--tolerance` (default 0.1).
-`redundant` means the bare model matches the skill at 1.0. `flaky` means the
-runs disagree. `sandbox` is a drop past the tolerance on a case listed in
+`redundant` means the bare model matches the skill at 1.0. `skill-worse` means
+the without-arm mean beats the with-arm mean by more than the tolerance, so the
+skill is costing score. `flaky` means the runs disagree. `sandbox` is a drop past the tolerance on a case listed in
 `sandboxSensitive`, and it replaces `regressed` there, because the drop is read
 as the harness (see "Git inside the eval sandbox" below). `new` is a case the
 baseline does not have, and `steady` is a case none of the others apply to. A
@@ -123,7 +128,7 @@ such cases never reads "at risk", on this machine or any other.
 
 `vacuousWithout` lists cases whose graders, leaving out the `tool_used: Skill`
 grader the no-plugin arm drops, can pass when the model does nothing the rule
-asks for; those cases are never called redundant. `unclaimed` lists cases that
+asks for; those cases are never called redundant or skill-worse. `unclaimed` lists cases that
 pin no rule SKILL.md states, each with its reason.
 
 ## Scoring notes
@@ -154,6 +159,27 @@ cases that use it rather than shared, because `context.scaffold_script` reads
 only from the case's own directory.
 
 ## Verification status
+
+The accepted baseline is `baselines/claude-opus-5-5.json`; what follows is the
+history that led to it.
+
+### Opus 5.5, 2026-10-14
+
+CLI 2.1.296 and then 2.1.299, `eval:fresh` with both arms and three runs per
+case, judged by Opus 5.5. The first baseline (skill 0.23.2, CLI 2.1.296) left
+three cases reading the harness or the fixture rather than the skill, each
+fixed and then measured in the 2.1.299 baseline (skill 0.23.4):
+
+| Case | With / without before | With / without after | Fix |
+|---|---|---|---|
+| `deep-run-survives-a-milestone` | below the without arm | 1.00 / 1.00 | The fixture's Task 5 timed steps it never ran, so the reviewer rightly blocked on 0 ms timings; it now runs them through `runStep` |
+| `deep-run-fans-out` | 0.62 / 0.90 | 1.00 / 0.90 | The harness refuses Agent worktree isolation; `references/deep-channel.md` now cuts each implementer's worktree by hand under `.claude/worktrees/` |
+| `announcement-reaches-the-ledger` | 0.40 / 0.40 | 1.00 / 0.40 | Opus 5.5 reads a fixture this small whole before routing, so the staged fast-then-main escalation never happened; the case now pins routing main first, and `escalate-out-loud` is unpinned |
+
+Git in the sandbox failed differently this time: `/opt/homebrew/bin/git` is a
+link into the Cellar, which the sandbox cannot read, so the shell fell back to
+the xcrun shim. A one-line wrapper at `/usr/local/bin/git` that execs Homebrew's
+git fixed it on this machine; another machine needs the same.
 
 ### Opus 5.5, 2026-09-23
 
