@@ -515,6 +515,23 @@ describe("run-stats: the ledger", () => {
 		expect(out.trim()).toBe("");
 	});
 
+	// A commit message or a heredoc that describes the call carries it as prose
+	// inside an argument, where it is a word in a sentence and not a command.
+	test("a route call named inside a command's argument does not move the trail", async () => {
+		const path = writeTranscript([
+			userPrompt("2026-08-08T09:00:00.000Z", "tweak the parser"),
+			assistant("2026-08-08T09:00:10.000Z", "Fast channel, existing interfaces."),
+			assistant("2026-08-08T09:01:00.000Z", null, [
+				toolUse("t1", "Bash", {
+					command: 'git commit -qm "fix: the grader now requires status.sh route main before any write"',
+				}),
+			]),
+			assistant("2026-08-08T09:02:00.000Z", "Done."),
+		]);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toMatch(/channel\s+fast$/m);
+	});
+
 	test("counts time spent waiting on the partner", async () => {
 		const path = writeTranscript([
 			userPrompt("2026-08-08T09:00:00.000Z", "build it"),

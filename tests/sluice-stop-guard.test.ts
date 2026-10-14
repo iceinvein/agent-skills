@@ -853,6 +853,37 @@ describe("stop-guard.sh entry check", () => {
 		expect(decision(r.out)).toBe("block");
 	});
 
+	test("a route call named inside a command's argument is not routing", () => {
+		const cfg = configDir();
+		const dir = gitRepo();
+		stamp(cfg, "d10", dir);
+		writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+
+		const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+		writeFileSync(
+			path,
+			`${JSON.stringify({
+				type: "assistant",
+				message: {
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							name: "Bash",
+							input: { command: 'git commit -qm "the grader now requires status.sh route main before any write"' },
+						},
+					],
+				},
+			})}\n`,
+		);
+
+		const r = entryGuard(
+			{ cwd: dir, session_id: "d10", transcript_path: path, stop_hook_active: false },
+			cfg,
+		);
+		expect(decision(r.out)).toBe("block");
+	});
+
 	// Both hooks must survive an environment with no HOME: they run wherever
 	// the harness was launched from, and exiting non-zero breaks the contract
 	// that a stop hook always exits 0.

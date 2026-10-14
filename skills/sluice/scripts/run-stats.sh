@@ -110,14 +110,15 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
   # which is what keeps a session reviewing sluice from starting a run per quote.
   def lead: "^[^.!?\n]{0,100}[:=][[:space:]]*[*_]*(?<c>fast|main|deep)[[:space:]]+channel";
   # A model that routes in its thinking writes no announcing text at all, so the
-  # route call is the announcement that survives. The script has to be invoked:
-  # a mention quoted from the script name on misses the leading anchor. A quote
-  # after the script name is a quoted path, which a skill directory with a space
-  # in it needs, and the channel may be followed by a separator when the call is
-  # chained, but never by a quote: a search for the documented call by its path
-  # ends in one, and reading that as a call would start a run nobody routed.
+  # route call is the announcement that survives. The script has to be invoked,
+  # so it must stand where a command does: at a line start or after a separator,
+  # bare or behind a shell. A commit message or a grep that names the call puts
+  # it mid-argument, and reading that as a call would start a run nobody routed.
+  # A quote around the path is one a skill directory with a space in it needs,
+  # and the channel may be followed by a separator when the call is chained,
+  # but never by a quote: a search for the documented call ends in one.
   # stop-guard.sh reads the same pattern and must stay equal.
-  def route: "(^|[[:space:]/])status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)([[:space:];&|]|$)";
+  def route: "(?:^|[;&|(])[[:space:]]*(?:(?:bash|sh|zsh)[[:space:]]+)?(?:\"[^\"]*|\u0027[^\u0027]*|[^[:space:];&|\"\u0027]*)status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)(?:[[:space:];&|]|$)";
   def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
                 | (.input.command // "") | select(test(route)) ];
   def announces: (.type == "assistant") and (is_meta | not)
@@ -127,7 +128,7 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
   def chan: ((if (texts | test(marker; "i")) then (texts | capture(marker; "i") | .c)
               elif (texts | test(lead; "i")) then (texts | capture(lead; "i") | .c)
               else empty end),
-             (routes[] | match(route).captures[1].string))
+             (routes[] | match(route).captures[0].string))
             | ascii_downcase;
   def invokes_sluice: (.type == "assistant") and (is_meta | not) and ([
       .message.content[]? | select(.type == "tool_use" and .name == "Skill")
