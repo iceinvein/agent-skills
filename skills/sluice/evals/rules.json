@@ -214,6 +214,14 @@
       ]
     },
     {
+      "id": "hand-cut-worktrees-merge-back",
+      "states": "references/deep-channel.md: Dispatch rules",
+      "origin": "commit:5302676",
+      "cases": [
+        "deep-run-fans-out"
+      ]
+    },
+    {
       "id": "unannounced-change-is-stopped-once",
       "states": "SKILL.md: Route first",
       "origin": "commit:bee6042",

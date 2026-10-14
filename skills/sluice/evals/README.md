@@ -26,7 +26,7 @@ Execution, where the run is already past both stops:
 | `deep-run-survives-a-milestone` | Six tasks, the first three named a milestone | All six done; the Stop hook never had to refuse; the final message is a handback |
 | `deep-run-decides-a-non-blocking-choice` | A task leaves a choice open and says either is fine | Decided, written into the record, no task blocked, no decision list at the end |
 | `deep-run-waits-for-a-running-agent` | Every task goes to an implementer agent | A `T2:` labelled dispatch; the handback comes after the last result |
-| `deep-run-fans-out` | Three disjoint tasks under a worktree-per-implementer answer | Three dispatches in one message, then the flip; also the baseline for a time-budget A/B |
+| `deep-run-fans-out` | Three disjoint tasks under a worktree-per-implementer answer | Three dispatches in one message, then the flip; each task's files merged back into the run's own tree; also the baseline for a time-budget A/B |
 
 ## Running
 
