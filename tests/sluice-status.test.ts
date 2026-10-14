@@ -1930,11 +1930,11 @@ describe("route", () => {
 	});
 });
 
-// The Stop hook recomputes the digest with tree-snapshot.sh and compares, so the
-// recorded line has to be that script's output byte for byte: anything else
-// reads as the tree having moved since the check passed.
+// The Stop hook recomputes the digest with content-digest.sh and compares, so
+// the recorded line has to be that script's output byte for byte: anything else
+// reads as the tree having changed since the check passed.
 describe("verify", () => {
-	const SNAPSHOT = join(import.meta.dir, "..", "skills", "sluice", "scripts", "tree-snapshot.sh");
+	const DIGEST = join(import.meta.dir, "..", "skills", "sluice", "scripts", "content-digest.sh");
 
 	// --dir goes ahead of the subcommand here, because everything after `--` is
 	// the command and `run` appends --dir at the end.
@@ -1943,18 +1943,18 @@ describe("verify", () => {
 		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
 	}
 
-	function snapshot(tree: string): string {
-		return Bun.spawnSync({ cmd: ["bash", SNAPSHOT, tree], timeout: 10000 }).stdout.toString();
+	function digest(tree: string): string {
+		return Bun.spawnSync({ cmd: ["bash", DIGEST, tree], timeout: 10000 }).stdout.toString();
 	}
 
 	function verified(dir: string): string {
 		return readFileSync(join(dir, ".sluice", "verified"), "utf8");
 	}
 
-	test("a passing command records the tree's snapshot as the one line", () => {
+	test("a passing command records the tree's content digest as the one line", () => {
 		const dir = gitRepo();
 		expect(verify(dir, "--", "true").code).toBe(0);
-		const line = snapshot(dir);
+		const line = digest(dir);
 		expect(line).toMatch(/^[^\n]+\n$/);
 		expect(verified(dir)).toBe(line);
 	});
@@ -1977,21 +1977,21 @@ describe("verify", () => {
 		const dir = gitRepo();
 		mkdirSync(join(dir, "sub"));
 		expect(verify(join(dir, "sub"), "--", "true").code).toBe(0);
-		expect(verified(dir)).toBe(snapshot(dir));
+		expect(verified(dir)).toBe(digest(dir));
 		expect(existsSync(join(dir, "sub", ".sluice", "verified"))).toBe(false);
 	});
 
-	test("a dirty tree with a live run records the snapshot it stands at", () => {
+	test("a dirty tree with a live run records the content digest it stands at", () => {
 		const dir = gitRepo();
 		run(dir, "init", "--topic", "widget", "--channel", "deep");
 		writeFileSync(join(dir, "README.md"), "changed\n");
 		writeFileSync(join(dir, "new.txt"), "new\n");
 		expect(verify(dir, "--", "true").code).toBe(0);
-		expect(verified(dir)).toBe(snapshot(dir));
+		expect(verified(dir)).toBe(digest(dir));
 	});
 
 	// Recorded while git can still see it, the file itself moves the tree, and
-	// the line could never match a fresh snapshot again.
+	// the line could never match a fresh digest again.
 	test("a .sluice whose own ignore file does not cover the record is refused", () => {
 		const dir = gitRepo();
 		mkdirSync(join(dir, ".sluice"));
@@ -2022,12 +2022,12 @@ describe("verify", () => {
 		expect(verified(dir)).toBe("earlier\n");
 	});
 
-	test("--none records the snapshot and prints the reason", () => {
+	test("--none records the content digest and prints the reason", () => {
 		const dir = gitRepo();
 		const r = verify(dir, "--none", "docs only");
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("sluice: verified with no check: docs only\n");
-		expect(verified(dir)).toBe(snapshot(dir));
+		expect(verified(dir)).toBe(digest(dir));
 	});
 
 	test("--none with the reason missing is refused and records nothing", () => {
@@ -2063,7 +2063,7 @@ describe("verify", () => {
 		const main = gitRepo();
 		const wt = worktree(main, "verify-wt");
 		expect(verify(wt, "--", "true").code).toBe(0);
-		expect(verified(wt)).toBe(snapshot(wt));
+		expect(verified(wt)).toBe(digest(wt));
 		expect(existsSync(join(main, ".sluice", "verified"))).toBe(false);
 	});
 });

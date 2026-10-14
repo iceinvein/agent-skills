@@ -348,10 +348,10 @@ mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, def
 	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
 }
 
-# Records that a check passed against the tree as it stands now, for the Stop
-# hook to compare with where the tree stands when the session ends. The digest
-# comes from tree-snapshot.sh because the hook recomputes it with that script,
-# and any other computation would read as the tree having moved. It needs no
+# Records that a check passed against the content the tree holds now, for the
+# Stop hook to compare with the content there when the session ends. The digest
+# comes from content-digest.sh because the hook recomputes it with that script,
+# and any other computation would read as the tree having changed. It needs no
 # run, so it sits ahead of the jq check. It reads ORIG_DIR, not the resolved
 # DIR: a check run in an implementer's worktree says nothing about the main
 # tree the run state lives in.
@@ -385,9 +385,9 @@ if [ "$SUB" = "verify" ]; then
 		err "$TREE/.sluice/.gitignore does not ignore verified, so the record would move the tree it records; add * to it"
 		exit 1
 	}
-	SNAP="$(bash "$(dirname "$0")/tree-snapshot.sh" "$TREE")"
-	[ -n "$SNAP" ] || { err "could not read where $TREE stands, so nothing was recorded"; exit 1; }
-	printf '%s\n' "$SNAP" >"$TREE/.sluice/verified" || { err "could not write $TREE/.sluice/verified"; exit 1; }
+	DIGEST="$(bash "$(dirname "$0")/content-digest.sh" "$TREE")"
+	[ -n "$DIGEST" ] || { err "could not read the content of $TREE, so nothing was recorded"; exit 1; }
+	printf '%s\n' "$DIGEST" >"$TREE/.sluice/verified" || { err "could not write $TREE/.sluice/verified"; exit 1; }
 	[ -z "$REASON" ] || echo "sluice: verified with no check: $REASON"
 	exit 0
 fi

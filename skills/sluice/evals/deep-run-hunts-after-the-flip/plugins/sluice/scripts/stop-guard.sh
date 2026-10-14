@@ -67,10 +67,9 @@ fi
 # The entry check and the verification gate both start from one question,
 # whether the tree moved while this session held it, so it is answered once
 # here rather than by reading git twice at the end of every turn. Sets
-# moved_tree and moved_now (the tree and its digest now) only when it moved;
-# both stay empty when it did not or when that cannot be told.
+# moved_tree only when it moved; it stays empty when it did not or when that
+# cannot be told.
 moved_tree=""
-moved_now=""
 read_moved() {
 	local stamp tree line_tree line_digest now
 	[ -n "$sid" ] || return 0
@@ -96,7 +95,6 @@ read_moved() {
 	[ "$now" = "$line_digest" ] && return 0
 
 	moved_tree="$tree"
-	moved_now="$now"
 }
 read_moved
 
@@ -186,10 +184,12 @@ fi
 # ---- verification gate ----------------------------------------------------
 # A fast or main handback is the end of the work, and until now what proved it
 # was a prose rule to run the check and read the output, which nothing could
-# tell had happened. `status.sh verify` turns that into a record: the tree's
-# digest, written only when the check passed. A stop is refused when the tree
-# moved this session and the record is missing or names a tree that has moved
-# on since, which is also the edit made after the tests went green.
+# tell had happened. `status.sh verify` turns that into a record: the content
+# digest of the tree, from content-digest.sh, written only when the check
+# passed. A stop is refused when the tree moved this session and the record is
+# missing or names content the tree no longer holds, which is also the edit
+# made after the tests went green, to a tracked file or a new one. A commit of
+# the checked content is not a change of content, so it passes.
 #
 # The channel is the session's last route call, not its first: a session
 # rerouted to deep is answered for by the run guard below and `finish`'s full
@@ -198,7 +198,7 @@ fi
 # `stop_hook_active` exit at the top; a turn that answers the refusal by
 # saying why it cannot check is let through on the next attempt.
 verify_gate() {
-	local channel recorded
+	local channel recorded now
 	[ -n "$moved_tree" ] || return 0
 	[ -f "$transcript" ] || return 0
 
@@ -213,9 +213,12 @@ verify_gate() {
 	' "$transcript" 2>/dev/null)" || return 0
 	case "$channel" in fast | main) ;; *) return 0 ;; esac
 
+	# Unreadable content is unknown, not changed, as for the entry check.
+	now="$(bash "$here/content-digest.sh" "$moved_tree" 2>/dev/null)" || return 0
+	[ -n "$now" ] || return 0
 	recorded=""
 	[ -f "$moved_tree/.sluice/verified" ] && recorded="$(sed -n '1p' "$moved_tree/.sluice/verified" 2>/dev/null)"
-	[ "$recorded" = "$moved_now" ] && return 0
+	[ "$recorded" = "$now" ] && return 0
 
 	jq -n --arg channel "$channel" '{
 		decision: "block",

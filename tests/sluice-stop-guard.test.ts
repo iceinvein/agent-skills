@@ -996,6 +996,27 @@ describe("stop-guard.sh entry check", () => {
 			expect(decision(entryGuard(input, cfg).out)).toBe("block");
 		});
 
+		// fast and main's common shape is a new module plus its test, so the file
+		// edited after the check is as often untracked as not.
+		test("refuses a file the session created and edited after its check was recorded", () => {
+			const { cfg, dir, input } = movedSession("v10", "fast");
+			expect(verify(dir).exitCode).toBe(0);
+			writeFileSync(join(dir, "feature.ts"), "export const x = 2;\n");
+
+			expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		});
+
+		// Test, commit, hand back is the ordinary end of a fast turn, and the
+		// commit changes where HEAD sits, not what was checked.
+		test("lets a commit of the verified content hand back", () => {
+			const { cfg, dir, input } = movedSession("v11", "main");
+			expect(verify(dir).exitCode).toBe(0);
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "feature"], timeout: 10000 });
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
 		test("leaves a deep session to the run guard", () => {
 			const { cfg, input } = movedSession("v6", "deep");
 
