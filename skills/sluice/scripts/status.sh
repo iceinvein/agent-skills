@@ -22,6 +22,7 @@
 #   status.sh line [--full]
 #   status.sh close
 #   status.sh route <fast|main|deep>
+#   status.sh verify -- <cmd> [args...] | verify --none <reason>
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
 # <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. A tree the
@@ -34,7 +35,8 @@
 # already live (here, or at move's destination), 4 bad arguments, 5 jq missing,
 # 6 the state file is unreadable.
 # `line` is exempt and always exits 0 in silence, because a statusline renders
-# on every keystroke and has nowhere to put an error.
+# on every keystroke and has nowhere to put an error. `verify -- <cmd>` exits
+# with the command's own code, so a failing check reads as that failure.
 #
 # A flag value may not begin with `--`: unchecked, an omitted value silently
 # becomes the next flag and the field holds a flag name.
@@ -85,11 +87,16 @@ in_set() {
 }
 
 # --dir may arrive anywhere in the line, so it is stripped before the
-# subcommand's own flag loop ever sees it.
+# subcommand's own flag loop ever sees it. Everything after `--` is verify's
+# command, kept verbatim: a `--dir` in it belongs to that command, not to us.
 DIR="$PWD"
 ARGS=()
 while [ $# -gt 0 ]; do
 	case "$1" in
+		--)
+			ARGS+=("$@")
+			break
+			;;
 		--dir)
 			need_value --dir $# "${2-}"
 			[ -n "$2" ] || { err "--dir needs a path"; exit 4; }
@@ -330,6 +337,55 @@ if [ "$SUB" = "route" ]; then
 	exit 0
 fi
 
+# The run state is working state, not history: the run record is what gets
+# committed. So the directory ignores itself, rather than every repo sluice ever
+# runs in having to add a line to its own .gitignore. `*` matches the .gitignore
+# file too, so the whole directory drops out of `git status`. An existing file is
+# left alone, and a tree that refuses the write still gets its run.
+mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, default $DIR>]
+	mkdir -p "$1" || { err "could not create $1"; exit 1; }
+	local ignore="${2:-$DIR}/.sluice/.gitignore"
+	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
+}
+
+# Records that a check passed against the tree as it stands now, for the Stop
+# hook to compare with where the tree stands when the session ends. The digest
+# comes from tree-snapshot.sh because the hook recomputes it with that script,
+# and any other computation would read as the tree having moved. It needs no
+# run, so it sits ahead of the jq check. It reads ORIG_DIR, not the resolved
+# DIR: a check run in an implementer's worktree says nothing about the main
+# tree the run state lives in.
+if [ "$SUB" = "verify" ]; then
+	TREE="$(git -C "$ORIG_DIR" rev-parse --show-toplevel 2>/dev/null)"
+	[ -n "$TREE" ] || { err "verify needs a git work tree, and $ORIG_DIR is not in one"; exit 4; }
+	REASON=""
+	case "${1-}" in
+		--)
+			shift
+			[ $# -gt 0 ] || { err "verify -- needs a command to run"; exit 4; }
+			(cd "$TREE" && "$@")
+			CODE=$?
+			[ "$CODE" -eq 0 ] || exit "$CODE"
+			;;
+		--none)
+			need_value --none $# "${2-}"
+			REASON="$2"
+			[ -n "$REASON" ] || { err "verify --none needs a reason"; exit 4; }
+			[ $# -eq 2 ] || { err "verify --none takes one reason; quote it"; exit 4; }
+			;;
+		*)
+			err "verify needs -- <cmd> [args...] or --none <reason>"
+			exit 4
+			;;
+	esac
+	mk_dir "$TREE/.sluice" "$TREE"
+	SNAP="$(bash "$(dirname "$0")/tree-snapshot.sh" "$TREE")"
+	[ -n "$SNAP" ] || { err "could not read where $TREE stands, so nothing was recorded"; exit 1; }
+	printf '%s\n' "$SNAP" >"$TREE/.sluice/verified" || { err "could not write $TREE/.sluice/verified"; exit 1; }
+	[ -z "$REASON" ] || echo "sluice: verified with no check: $REASON"
+	exit 0
+fi
+
 command -v jq >/dev/null 2>&1 || { err "jq is required"; exit 5; }
 
 require_run() {
@@ -343,17 +399,6 @@ require_readable() {
 		err "cannot parse $STATE (repair it, or archive it with: status.sh close)"
 		exit 6
 	}
-}
-
-# The run state is working state, not history: the run record is what gets
-# committed. So the directory ignores itself, rather than every repo sluice ever
-# runs in having to add a line to its own .gitignore. `*` matches the .gitignore
-# file too, so the whole directory drops out of `git status`. An existing file is
-# left alone, and a tree that refuses the write still gets its run.
-mk_dir() { # <directory to create under .sluice> [<tree whose .sluice it is, default $DIR>]
-	mkdir -p "$1" || { err "could not create $1"; exit 1; }
-	local ignore="${2:-$DIR}/.sluice/.gitignore"
-	[ -e "$ignore" ] || printf '*\n' >"$ignore" 2>/dev/null || true
 }
 
 # Where the set's run went, written at the main tree for resolution to follow.

@@ -1929,3 +1929,108 @@ describe("route", () => {
 		expect(proc.stdout.toString()).toBe("sluice: main channel\n");
 	});
 });
+
+// The Stop hook recomputes the digest with tree-snapshot.sh and compares, so the
+// recorded line has to be that script's output byte for byte: anything else
+// reads as the tree having moved since the check passed.
+describe("verify", () => {
+	const SNAPSHOT = join(import.meta.dir, "..", "skills", "sluice", "scripts", "tree-snapshot.sh");
+
+	// --dir goes ahead of the subcommand here, because everything after `--` is
+	// the command and `run` appends --dir at the end.
+	function verify(dir: string, ...args: string[]) {
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "--dir", dir, "verify", ...args], timeout: 10000 });
+		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
+	}
+
+	function snapshot(tree: string): string {
+		return Bun.spawnSync({ cmd: ["bash", SNAPSHOT, tree], timeout: 10000 }).stdout.toString();
+	}
+
+	function verified(dir: string): string {
+		return readFileSync(join(dir, ".sluice", "verified"), "utf8");
+	}
+
+	test("a passing command records the tree's snapshot as the one line", () => {
+		const dir = gitRepo();
+		expect(verify(dir, "--", "true").code).toBe(0);
+		const line = snapshot(dir);
+		expect(line).toMatch(/^[^\n]+\n$/);
+		expect(verified(dir)).toBe(line);
+	});
+
+	test("the command's stdout, stderr and exit code pass through", () => {
+		const r = verify(gitRepo(), "--", "sh", "-c", "echo out; echo oops >&2; exit 3");
+		expect(r.out).toBe("out\n");
+		expect(r.err).toBe("oops\n");
+		expect(r.code).toBe(3);
+	});
+
+	test("the command runs at the top of the tree", () => {
+		const dir = gitRepo();
+		mkdirSync(join(dir, "sub"));
+		const r = verify(join(dir, "sub"), "--", "pwd");
+		expect(r.out).toBe(`${realpathSync(dir)}\n`);
+	});
+
+	test("words after -- reach the command verbatim, --dir included", () => {
+		const r = verify(gitRepo(), "--", "echo", "--dir", "elsewhere", "--none");
+		expect(r.out).toBe("--dir elsewhere --none\n");
+		expect(r.code).toBe(0);
+	});
+
+	test("a failing command exits with its code and records nothing", () => {
+		const dir = gitRepo();
+		const r = verify(dir, "--", "false");
+		expect(r.code).toBe(1);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
+	test("a failing command leaves an earlier record's line unchanged", () => {
+		const dir = gitRepo();
+		mkdirSync(join(dir, ".sluice"));
+		writeFileSync(join(dir, ".sluice", "verified"), "earlier\n");
+		expect(verify(dir, "--", "false").code).toBe(1);
+		expect(verified(dir)).toBe("earlier\n");
+	});
+
+	test("--none records the snapshot and prints the reason", () => {
+		const dir = gitRepo();
+		const r = verify(dir, "--none", "docs only");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: verified with no check: docs only\n");
+		expect(verified(dir)).toBe(snapshot(dir));
+	});
+
+	test("--none without a reason is refused and records nothing", () => {
+		const dir = gitRepo();
+		expect(verify(dir, "--none").code).toBe(4);
+		expect(verify(dir, "--none", "").code).toBe(4);
+		expect(existsSync(join(dir, ".sluice", "verified"))).toBe(false);
+	});
+
+	test("a directory outside any git tree is refused and records nothing", () => {
+		const dir = repo();
+		const r = verify(dir, "--", "true");
+		expect(r.code).toBe(4);
+		expect(existsSync(join(dir, ".sluice"))).toBe(false);
+	});
+
+	test("the record stays out of git status", () => {
+		const dir = gitRepo();
+		verify(dir, "--", "true");
+		expect(readFileSync(join(dir, ".sluice", ".gitignore"), "utf8")).toBe("*\n");
+		const status = Bun.spawnSync({ cmd: ["git", "-C", dir, "status", "--porcelain"], timeout: 10000 });
+		expect(status.stdout.toString()).toBe("");
+	});
+
+	// An implementer verifies in its own worktree, and the check it ran says
+	// nothing about the main tree the run state resolves to.
+	test("a linked worktree records in itself, not in the main tree", () => {
+		const main = gitRepo();
+		const wt = worktree(main, "verify-wt");
+		expect(verify(wt, "--", "true").code).toBe(0);
+		expect(verified(wt)).toBe(snapshot(wt));
+		expect(existsSync(join(main, ".sluice", "verified"))).toBe(false);
+	});
+});
