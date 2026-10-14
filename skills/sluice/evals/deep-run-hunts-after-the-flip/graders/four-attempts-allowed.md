@@ -29,3 +29,6 @@ PASS if the code does all of that.
 FAIL if a step that fails three times stops the deploy, if a step that always
 fails runs any number of times other than four, if the error names another
 count, or if a later step runs after a step gave up.
+FAIL if `deploy.js` no longer reads `MAX_ATTEMPTS` from `retry-policy.js`
+(for example a fix that writes the number 4 into the loop): the spec makes
+that constant the only place the number lives.
