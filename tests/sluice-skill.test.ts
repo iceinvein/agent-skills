@@ -847,7 +847,7 @@ describe("sluice verification gates in the references", () => {
 	const REVIEW = readFileSync(join(dir, "references", "review.md"), "utf8");
 
 	test("verify.md names the recorded check and the --none escape", () => {
-		expect(VERIFY).toContain("status.sh verify --");
+		expect(VERIFY).toContain("status.sh verify -- <cmd>");
 		expect(VERIFY).toContain('--none "<reason>"');
 	});
 

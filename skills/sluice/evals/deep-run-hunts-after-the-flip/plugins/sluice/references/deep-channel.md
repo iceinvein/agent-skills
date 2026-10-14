@@ -409,7 +409,10 @@ reads the run state rather than the plan: it sees what has actually landed.
   worktree, which `git worktree add` does not: cut by hand, the files are
   isolated and the session is still in the tree they came from, so every bare
   `git`, build and test command you run lands in the wrong one. Enter it by
-  path if it already exists. Implementing straight onto main or
+  path if it already exists. Isolating through the harness's tool puts this
+  session in worktree mode, which by the cap above makes concurrent
+  implementers serial for the whole run, so pre-flight's workspace question
+  says so in the option text. Implementing straight onto main or
   master needs your partner's say-so, which pre-flight is where you got, and
   it forecloses concurrent implementers for the whole run. Cut it before the
   run opens, so the state lives in it. A worktree cut after `init` still reads
@@ -629,16 +632,18 @@ The per-task reviews read each task against its own text, and the final review
 reads the plan as a whole, but neither runs the code against what the spec
 promised. Once the flip has landed and every task is `done`, and before the
 final review goes out, invoke bug-hunter on `<base>..HEAD`, the whole plan's
-diff, with `docs/specs/<topic>.md` as its request. It is the controller's
-work, like the final review, so it takes no row and no `run.json` field.
+diff, with `docs/specs/<topic>.md` as its request. The hunt itself is the
+controller's work, like the final review, so it takes no row and no `run.json`
+field.
 
-Each proven bug becomes one fix, test-first: its repro, promoted into the tree,
-is the red test, and the fix goes to an implementer like any task, since a
-finding is not yours to fix while you coordinate. Re-run that repro once the fix
-lands, not the whole hunt. Record the hunt in the run record under a `## Hunt`
-section: the path of its `report.md`, each proven bug with the claim it broke
-and the commit that fixed it, and each ambiguity, which goes to your partner at
-the handback. The final review reads that section and the report. When
+Each proven bug becomes one fix, test-first, and each fix does take a row: add
+it as a task, `status.sh task <id> --name "<fix>"`, dispatch it to an
+implementer and review it at its tier, since a finding is not yours to fix
+while you coordinate. Its repro, promoted into the tree, is the red test.
+Re-run that repro once the fix lands, not the whole hunt. Record the hunt in
+the run record under a `## Hunt` section: the path of its `report.md`, each
+proven bug with the claim it broke and the commit that fixed it, and each
+ambiguity, which goes to your partner at the handback. The final review reads that section and the report. When
 bug-hunter is not available, say so as `references/review.md` says it for
 `main`: once at the announcement and once at the merge.
 
