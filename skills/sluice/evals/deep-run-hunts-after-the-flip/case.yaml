@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: deep-run-hunts-after-the-flip
+plugins: ["plugins/sluice", "plugins/bug-hunter"]
+context:
+  scaffold_script: fixture.sh
