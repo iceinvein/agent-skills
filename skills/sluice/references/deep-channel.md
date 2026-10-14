@@ -383,7 +383,19 @@ reads the run state rather than the plan: it sees what has actually landed.
   in one tree contend on the git index and on `HEAD` even when their files
   never meet. One worktree per concurrent implementer, or run them serially.
   Those worktrees cost something, which is why pre-flight asks rather than
-  assumes.
+  assumes. Where the Agent tool refuses its own worktree isolation, cut each
+  one yourself, `git worktree add -b <plan-branch>-t<n>
+  .claude/worktrees/<topic>-t<n> <plan-branch>`, name the path in that task's
+  brief as the only tree it works in, and merge each branch back once its task
+  lands. Keep them under `.claude/worktrees/` in the repo, where the harness
+  cuts its own: permissions scoped to the project cover that path, and a
+  sibling directory outside it can leave the implementer's Write and Edit
+  denied. A refused isolation flag has not
+  taken the worktree away, only the tool's way of cutting it, so falling back
+  to serial there spends the parallelism pre-flight bought. The rule below
+  against cutting by hand is about the worktree this session works in, which
+  a hand-cut one cannot move it into; an implementer's worktree is one the
+  session never enters.
 - **The flip runs alone.** Nothing goes concurrent with the task carrying
   `Flips`. The invariant it establishes is what later tasks are checked
   against, and whatever landed beside it was checked against nothing.
