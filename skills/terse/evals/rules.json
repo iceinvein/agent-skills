@@ -1,0 +1,161 @@
+{
+  "rules": [
+    {
+      "id": "no-preamble",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:b97a080",
+      "cases": [
+        "explanation-has-no-recap",
+        "short-answer-stays-short"
+      ]
+    },
+    {
+      "id": "no-question-echo",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:b97a080",
+      "cases": [
+        "explanation-has-no-recap"
+      ]
+    },
+    {
+      "id": "no-trailing-summary",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:b97a080",
+      "cases": [
+        "explanation-has-no-recap",
+        "fix-reports-the-cause"
+      ]
+    },
+    {
+      "id": "no-narration-before-tool-calls",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:a9eb959",
+      "cases": [],
+      "unpinned": "Opus 5.5 writes no text between tool calls in either arm, so a trace grader has nothing to read; fix-reports-the-cause judges only the handback."
+    },
+    {
+      "id": "short-answer-never-padded",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:217fdbb",
+      "cases": [
+        "short-answer-stays-short",
+        "recommendation-leads-and-holds"
+      ]
+    },
+    {
+      "id": "caveats-name-the-condition",
+      "states": "SKILL.md: What to Eliminate",
+      "origin": "commit:b97a080",
+      "cases": [
+        "recommendation-leads-and-holds"
+      ]
+    },
+    {
+      "id": "recommendation-in-first-sentence",
+      "states": "SKILL.md: Semantic Preservation",
+      "origin": "commit:217fdbb",
+      "cases": [
+        "recommendation-leads-and-holds"
+      ]
+    },
+    {
+      "id": "compression-keeps-the-conclusion",
+      "states": "SKILL.md: Semantic Preservation",
+      "origin": "commit:217fdbb",
+      "cases": [
+        "recommendation-leads-and-holds",
+        "plain-register",
+        "sharp-compresses-structure"
+      ]
+    },
+    {
+      "id": "tradeoff-reply-is-verdict-and-reasons",
+      "states": "SKILL.md: Semantic Preservation",
+      "origin": "commit:bbf58f0",
+      "cases": [
+        "recommendation-leads-and-holds"
+      ]
+    },
+    {
+      "id": "keep-the-catch-in-the-recommended-option",
+      "states": "SKILL.md: Semantic Preservation",
+      "origin": "commit:4cb0cab",
+      "cases": [],
+      "unpinned": "`keeps-a-real-caveat` passes a reply with no caveat at all, so no grader fails a reply that drops the catch in SQLite."
+    },
+    {
+      "id": "persists-every-response",
+      "states": "SKILL.md: Persistence",
+      "origin": "commit:b97a080",
+      "cases": [],
+      "unpinned": "Every case is a single turn; the runner takes earlier turns only as a resumed transcript and no case carries one."
+    },
+    {
+      "id": "drop-filler-words",
+      "states": "SKILL.md: Filler Words: Always Drop",
+      "origin": "commit:b97a080",
+      "cases": [],
+      "unpinned": "No grader bans the filler list in the body of a reply; no-preamble catches only a few of those words as the opener."
+    },
+    {
+      "id": "plain-register-at-the-default-level",
+      "states": "SKILL.md: Register: Every Level",
+      "origin": "commit:3b193e2",
+      "cases": [
+        "plain-register"
+      ]
+    },
+    {
+      "id": "tight-swaps-for-shorter-words",
+      "states": "SKILL.md: Intensity Levels",
+      "origin": "commit:b97a080",
+      "cases": [
+        "plain-register"
+      ]
+    },
+    {
+      "id": "sharp-uses-arrows-for-causality",
+      "states": "SKILL.md: Intensity Levels",
+      "origin": "commit:b97a080",
+      "cases": [
+        "sharp-compresses-structure"
+      ]
+    },
+    {
+      "id": "sharp-keeps-only-the-top-points",
+      "states": "SKILL.md: Intensity Levels",
+      "origin": "commit:217fdbb",
+      "cases": [],
+      "unpinned": "No case asks for a list longer than five items; the 120-word cap in sharp-compresses-structure pins brevity, not the list limit."
+    },
+    {
+      "id": "security-warnings-drop-compression",
+      "states": "SKILL.md: Auto-Clarity",
+      "origin": "commit:b97a080",
+      "cases": [
+        "security-warning-survives-sharp"
+      ]
+    },
+    {
+      "id": "ordered-steps-and-errors-drop-compression",
+      "states": "SKILL.md: Auto-Clarity",
+      "origin": "commit:b97a080",
+      "cases": [],
+      "unpinned": "No case asks for a multi-step sequence, quotes an error message or repeats a question."
+    },
+    {
+      "id": "artefacts-written-normally",
+      "states": "SKILL.md: Boundaries",
+      "origin": "commit:b97a080",
+      "cases": [
+        "commit-message-written-normally"
+      ]
+    }
+  ],
+  "sandboxSensitive": [],
+  "vacuousWithout": [
+    "commit-message-written-normally",
+    "security-warning-survives-sharp"
+  ],
+  "unclaimed": []
+}

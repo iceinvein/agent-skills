@@ -32,6 +32,22 @@ for this skill the delta is the result, because a capable model already avoids
 some of what terse cuts, and a case that scores 1.00 in both arms is measuring
 the model rather than the skill.
 
+To check the skill against its last accepted baseline, use `eval:fresh`:
+
+```bash
+bun run eval:fresh run skills/terse --model claude-opus-5-5
+bun run eval:fresh diff skills/terse <result.json> [--against <model>]
+bun run eval:fresh accept skills/terse <result.json>
+```
+
+`rules.json` maps each rule the skill states to the cases that pin it, or says
+why none does; `diff` reads it to name rules at risk or ready to expire. What
+each verdict means is in `skills/sluice/evals/README.md`. No baseline has been
+accepted yet. `commit-message-written-normally` and
+`security-warning-survives-sharp` are listed in `vacuousWithout`: without terse
+there is no compression for the artefact or security rule to hold back, so the
+no-plugin arm passes them by default and they are never called redundant.
+
 ## Grader notes
 
 Length is pinned with a word-count regex on the last message, `(\S+\s+){N}`

@@ -1,0 +1,160 @@
+{
+  "rules": [
+    {
+      "id": "resume-reads-status-and-never-inits",
+      "states": "SKILL.md: Starting",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "resume-reads-status-first"
+      ]
+    },
+    {
+      "id": "probe-asks-for-the-target-before-init",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "probe-asks-for-the-target"
+      ]
+    },
+    {
+      "id": "low-q-seam-escalates-to-the-owner",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "seam-low-q-escalates"
+      ]
+    },
+    {
+      "id": "vertical-slice-offered-never-picked",
+      "states": "references/phases/seam.md: Procedure",
+      "origin": "commit:dc245b9",
+      "cases": [
+        "seam-low-q-escalates"
+      ]
+    },
+    {
+      "id": "shared-element-queued-in-no-capability",
+      "states": "references/phases/seam.md: Procedure",
+      "origin": "commit:02cf0e4",
+      "cases": [
+        "seam-shared-element-queued"
+      ]
+    },
+    {
+      "id": "queue-item-filed-in-the-pass-that-names-it",
+      "states": "SKILL.md: 3. Extract",
+      "origin": "commit:f2620ca",
+      "cases": [
+        "extract-files-queue-in-same-pass"
+      ]
+    },
+    {
+      "id": "disposition-written-back-by-import",
+      "states": "SKILL.md: 3. Extract",
+      "origin": "commit:13a517e",
+      "cases": [
+        "extract-files-queue-in-same-pass"
+      ]
+    },
+    {
+      "id": "sub-high-rubric-parity-carries-a-filed-queue-id",
+      "states": "SKILL.md: 4. Parity",
+      "origin": "commit:f2620ca",
+      "cases": [],
+      "unpinned": "No case runs the parity phase."
+    },
+    {
+      "id": "review-sheet-before-any-ruling",
+      "states": "SKILL.md: 6. Adjudicate",
+      "origin": "commit:5a3dd21",
+      "cases": [
+        "adjudicate-drafts-not-decides"
+      ]
+    },
+    {
+      "id": "adjudication-drafts-and-the-owner-rules",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "adjudicate-drafts-not-decides"
+      ]
+    },
+    {
+      "id": "ruling-consequence-goes-through-import",
+      "states": "SKILL.md: 6. Adjudicate",
+      "origin": "commit:5a3dd21",
+      "cases": [],
+      "unpinned": "The only adjudicate case stops before any ruling is approved, so no consequence is ever imported."
+    },
+    {
+      "id": "blocked-handoff-reports-its-blockers",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "handoff-blocked-reports-blockers"
+      ]
+    },
+    {
+      "id": "forecast-assumptions-are-the-owners",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "forecast-refuses-without-attestation"
+      ]
+    },
+    {
+      "id": "live-lock-is-never-forced",
+      "states": "SKILL.md: Where you stop",
+      "origin": "docs/specs/2026-10-04-migrate-evals-and-gates.md",
+      "cases": [
+        "stale-lock-not-forced"
+      ]
+    },
+    {
+      "id": "check-after-every-batch",
+      "states": "SKILL.md: Checking as you go",
+      "origin": "commit:9148961",
+      "cases": [],
+      "unpinned": "`extract-files-queue-in-same-pass` checks that migrate check ran at least once, not once per batch."
+    },
+    {
+      "id": "mapped-means-plain-check-passes",
+      "states": "SKILL.md: Checking as you go",
+      "origin": "commit:9148961",
+      "cases": [
+        "done-means-plain-check"
+      ]
+    },
+    {
+      "id": "read-the-phase-manual-before-dispatching",
+      "states": "SKILL.md: Phase walkthrough",
+      "origin": "commit:9148961",
+      "cases": [],
+      "unpinned": "No grader checks which reference files a run read."
+    },
+    {
+      "id": "fan-out-one-agent-per-unit",
+      "states": "SKILL.md: Phase walkthrough",
+      "origin": "commit:9148961",
+      "cases": [],
+      "unpinned": "No grader counts Task dispatches, and the extract case asks for a single capability."
+    },
+    {
+      "id": "commit-after-every-import",
+      "states": "references/run-ops.md: The batch checkpoint loop",
+      "origin": "commit:7efe061",
+      "cases": [],
+      "unpinned": "The child's git fails in the eval sandbox, so fixtures make every commit and no grader asks the run to commit."
+    },
+    {
+      "id": "env-file-never-committed",
+      "states": "SKILL.md: Aborting",
+      "origin": "commit:9148961",
+      "cases": [],
+      "unpinned": "No fixture has a runtime lens write .migrate/.env, and no run can commit in the sandbox."
+    }
+  ],
+  "sandboxSensitive": [],
+  "vacuousWithout": [],
+  "unclaimed": []
+}

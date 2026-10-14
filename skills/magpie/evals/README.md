@@ -48,6 +48,19 @@ claude plugin eval skills/magpie --scaffold --allow-tools Bash Write Edit \
   --trust-plugin --threshold 0.8
 ```
 
+To check the skill against its last accepted baseline, use `eval:fresh`:
+
+```bash
+bun run eval:fresh run skills/magpie --model claude-opus-5-5
+bun run eval:fresh diff skills/magpie <result.json> [--against <model>]
+bun run eval:fresh accept skills/magpie <result.json>
+```
+
+`rules.json` maps each rule the skill states to the cases that pin it, or says
+why none does; `diff` reads it to name rules at risk or ready to expire. What
+each verdict means is in `skills/sluice/evals/README.md`. No baseline has been
+accepted yet.
+
 ## How the fixtures fake the pipeline
 
 The eval child runs in a sandbox that refuses to execute anything outside it, so

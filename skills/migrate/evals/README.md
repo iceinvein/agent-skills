@@ -41,6 +41,19 @@ From a session isolated in a worktree, the worktree guard refuses
 `claude plugin eval` because it reads the word as a shell `eval`. Run the suite
 from a session that is not isolated.
 
+To check the skill against its last accepted baseline, use `eval:fresh`:
+
+```bash
+bun run eval:fresh run skills/migrate --model claude-opus-5-5
+bun run eval:fresh diff skills/migrate <result.json> [--against <model>]
+bun run eval:fresh accept skills/migrate <result.json>
+```
+
+`rules.json` maps each rule the skill states to the cases that pin it, or says
+why none does; `diff` reads it to name rules at risk or ready to expire. What
+each verdict means is in `skills/sluice/evals/README.md`. No baseline has been
+accepted yet.
+
 ## How the fixtures build a store
 
 The cases run the real CLI, not a fake. magpie's evals fake their binaries

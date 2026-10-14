@@ -1,0 +1,192 @@
+{
+  "rules": [
+    {
+      "id": "check-list-runs-before-minting-a-run",
+      "states": "SKILL.md: 0. Identify the PR",
+      "origin": "commit:63d0fb1",
+      "cases": [
+        "resume-finds-active-run"
+      ]
+    },
+    {
+      "id": "setup-failure-surfaces-stderr-and-stops",
+      "states": "SKILL.md: 1. Setup",
+      "origin": "commit:5040cc1",
+      "cases": [],
+      "unpinned": "Every case starts past setup, and the one that could reach it is graded on never calling setup at all."
+    },
+    {
+      "id": "missing-brief-logs-context-skipped",
+      "states": "SKILL.md: 3. Context",
+      "origin": "commit:dbe295e",
+      "cases": [],
+      "unpinned": "No case starts at the context stage, so no scout runs and none returns without a brief."
+    },
+    {
+      "id": "specialist-prompts-from-the-reference-verbatim",
+      "states": "SKILL.md: 4. Specialists",
+      "origin": "commit:e49534b",
+      "cases": [],
+      "unpinned": "The only case at stage 4 stops before dispatch, so no specialist prompt is ever written for a grader to read."
+    },
+    {
+      "id": "shard-gate-asks-above-four-shards",
+      "states": "SKILL.md: 4. Specialists",
+      "origin": "commit:a744cc2",
+      "cases": [
+        "shard-gate-stops-and-asks"
+      ]
+    },
+    {
+      "id": "sharded-dispatch-one-shard-per-wave",
+      "states": "SKILL.md: 4. Specialists",
+      "origin": "commit:a744cc2",
+      "cases": [],
+      "unpinned": "The sharded case stops at the gate, and no case proceeds past it to dispatch waves."
+    },
+    {
+      "id": "every-focus-shard-pair-confirmed-before-dedupe",
+      "states": "SKILL.md: 4. Specialists",
+      "origin": "commit:e49534b",
+      "cases": [],
+      "unpinned": "No case reaches the end of stage 4 with a findings file missing for a re-dispatch to fill."
+    },
+    {
+      "id": "critic-subagents-run-the-prompt-files-verbatim",
+      "states": "SKILL.md: 6. Critic",
+      "origin": "commit:773467d",
+      "cases": [],
+      "unpinned": "Every case past stage 5 starts after the critic, and none runs critic-prompt."
+    },
+    {
+      "id": "critic-apply-failure-redispatches-named-batches-once",
+      "states": "SKILL.md: 6. Critic",
+      "origin": "commit:ec1ca71",
+      "cases": [],
+      "unpinned": "No case runs critic-apply, so no non-zero exit is ever seen."
+    },
+    {
+      "id": "peer-review-always-runs-on-a-fallback",
+      "states": "SKILL.md: 7. Peer review",
+      "origin": "commit:f55276f",
+      "cases": [
+        "codex-missing-falls-back"
+      ]
+    },
+    {
+      "id": "claude-fallback-carries-the-independence-preamble",
+      "states": "SKILL.md: 7. Peer review",
+      "origin": "commit:f55276f",
+      "cases": [
+        "codex-missing-falls-back"
+      ]
+    },
+    {
+      "id": "codex-failure-never-logged-as-error",
+      "states": "SKILL.md: 7. Peer review",
+      "origin": "commit:1762265",
+      "cases": [],
+      "unpinned": "`codex-missing-falls-back` removes codex, so codex never exits non-zero; its no-error grader reads the missing-binary path, not this one."
+    },
+    {
+      "id": "peer-batches-keep-one-id-counter-and-merge-once",
+      "states": "SKILL.md: 7. Peer review",
+      "origin": "commit:a744cc2",
+      "cases": [],
+      "unpinned": "The fallback case carries three findings, one batch, so neither the id counter across batches nor the single peer.json write is exercised."
+    },
+    {
+      "id": "report-stage-logged-done",
+      "states": "SKILL.md: 8. Report",
+      "origin": "commit:1762265",
+      "cases": [
+        "report-ends-the-turn"
+      ]
+    },
+    {
+      "id": "report-ends-the-turn-without-posting",
+      "states": "SKILL.md: 8. Report",
+      "origin": "commit:5040cc1",
+      "cases": [
+        "report-ends-the-turn"
+      ]
+    },
+    {
+      "id": "post-folds-events-last-event-wins",
+      "states": "SKILL.md: 9. Post",
+      "origin": "commit:1762265",
+      "cases": [
+        "post-folds-selection-events"
+      ]
+    },
+    {
+      "id": "empty-selection-asks-instead-of-posting",
+      "states": "SKILL.md: 9. Post",
+      "origin": "commit:63d0fb1",
+      "cases": [],
+      "unpinned": "The post case's events always leave two findings selected."
+    },
+    {
+      "id": "post-stage-logged-done",
+      "states": "SKILL.md: 9. Post",
+      "origin": "commit:1762265",
+      "cases": [
+        "post-folds-selection-events"
+      ]
+    },
+    {
+      "id": "report-re-rendered-after-posting",
+      "states": "SKILL.md: 9. Post",
+      "origin": "commit:5040cc1",
+      "cases": [
+        "post-folds-selection-events"
+      ]
+    },
+    {
+      "id": "cleanup-surfaces-the-view-later-line",
+      "states": "SKILL.md: 10. Cleanup",
+      "origin": "commit:e49534b",
+      "cases": [],
+      "unpinned": "No case runs cleanup, and the fakes have no cleanup subcommand."
+    },
+    {
+      "id": "resumable-means-log-not-server-info",
+      "states": "SKILL.md: Resuming a crashed run",
+      "origin": "commit:63d0fb1",
+      "cases": [
+        "resume-finds-active-run"
+      ]
+    },
+    {
+      "id": "resume-confirms-before-rerunning-a-failed-stage",
+      "states": "SKILL.md: Resuming a crashed run",
+      "origin": "commit:63d0fb1",
+      "cases": [],
+      "unpinned": "No fixture's log carries an error entry."
+    },
+    {
+      "id": "resume-redispatches-only-missing-pairs",
+      "states": "SKILL.md: Resuming a crashed run",
+      "origin": "commit:a744cc2",
+      "cases": [],
+      "unpinned": "The stage-4 resume has no findings files at all, so there is no partial set to re-dispatch around."
+    },
+    {
+      "id": "resume-restarts-the-server",
+      "states": "SKILL.md: Resuming a crashed run",
+      "origin": "commit:e49534b",
+      "cases": [],
+      "unpinned": "No grader checks for a serve call, and the shard-gate rubric is told to ignore one."
+    },
+    {
+      "id": "abort-runs-cleanup",
+      "states": "SKILL.md: Aborting",
+      "origin": "commit:5040cc1",
+      "cases": [],
+      "unpinned": "No case has the user type abort."
+    }
+  ],
+  "sandboxSensitive": [],
+  "vacuousWithout": [],
+  "unclaimed": []
+}
