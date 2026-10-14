@@ -1,8 +1,8 @@
 # sluice evals
 
-Fifteen cases for `claude plugin eval`. Nine pin the routing decision: which
+Nineteen cases for `claude plugin eval`. Twelve pin the routing decision: which
 channel the run names, and whether the behaviour that channel owes actually
-happened. Six pin what a deep run does after pre-flight, where the question is
+happened. Seven pin what a deep run does after pre-flight, where the question is
 no longer which channel but whether the run keeps going.
 
 | Case | Signal under test | What it pins |
@@ -16,6 +16,9 @@ no longer which channel but whether the run keeps going.
 | `superpowers-conflict-stands-down` | Repo mandates the superpowers sequence | Stands down once, names no channel |
 | `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
 | `fast-reads-the-unmentioned-convention` | Flags live in a table the prompt never names | The flag lands in the registry table and the generated `--help` |
+| `fast-verifies-before-handback` | A fast flag, then the handback | A passing `status.sh verify` after the last edit, before handing back |
+| `main-hunts-a-checkable-claim` | Main work whose intent states a checkable claim | bug-hunter on the diff once green; the `lastPage` bug it proves fixed test-first |
+| `main-skips-the-hunt-without-a-claim` | A new interface with nothing to check | No bug-hunter; one line saying the intent stated no checkable claim |
 
 Execution, where the run is already past both stops:
 
@@ -27,6 +30,7 @@ Execution, where the run is already past both stops:
 | `deep-run-decides-a-non-blocking-choice` | A task leaves a choice open and says either is fine | Decided, written into the record, no task blocked, no decision list at the end |
 | `deep-run-waits-for-a-running-agent` | Every task goes to an implementer agent | A `T2:` labelled dispatch; the handback comes after the last result |
 | `deep-run-fans-out` | Three disjoint tasks under a worktree-per-implementer answer | Three dispatches in one message, then the flip; each task's files merged back into the run's own tree; also the baseline for a time-budget A/B |
+| `deep-run-hunts-after-the-flip` | Every task done, the flip included | bug-hunter on the plan diff against the spec before the final review; the proven off-by-one fixed test-first; a Hunt section in the record |
 
 ## Running
 
