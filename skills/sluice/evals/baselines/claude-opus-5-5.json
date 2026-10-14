@@ -1,15 +1,15 @@
 {
   "model": "claude-opus-5-5",
   "judgeModel": "claude-opus-5-5",
-  "claudeVersion": "2.1.296",
-  "skillVersion": "0.23.2",
-  "date": "2026-10-14T02:09:35.806Z",
+  "claudeVersion": "2.1.299",
+  "skillVersion": "0.23.4",
+  "date": "2026-10-14T08:35:29.009Z",
   "cases": {
     "announcement-reaches-the-ledger": {
       "with": [
-        0.4,
-        0.4,
-        0.4
+        1,
+        1,
+        1
       ],
       "without": [
         0.4,
@@ -31,8 +31,8 @@
     },
     "deep-plan-across-subsystems": {
       "with": [
-        0.7142857142857143,
-        0.7142857142857143,
+        1,
+        1,
         1
       ],
       "without": [
@@ -55,13 +55,13 @@
     },
     "deep-run-blocks-on-a-real-decision": {
       "with": [
-        0.2727272727272727,
+        1,
         1,
         1
       ],
       "without": [
-        1,
         0.7272727272727273,
+        1,
         1
       ]
     },
@@ -79,13 +79,13 @@
     },
     "deep-run-fans-out": {
       "with": [
-        0.5714285714285714,
-        0.7142857142857143,
-        0.5714285714285714
+        1,
+        1,
+        1
       ],
       "without": [
-        0.7142857142857143,
         1,
+        0.7142857142857143,
         1
       ]
     },
@@ -122,7 +122,7 @@
       "without": [
         0.75,
         0.75,
-        0.5
+        0.75
       ]
     },
     "explicit-instruction-collapses-to-fast": {
@@ -141,7 +141,7 @@
       "with": [
         1,
         1,
-        1
+        0.7142857142857143
       ],
       "without": [
         0.2857142857142857,
@@ -163,9 +163,9 @@
     },
     "main-new-interface": {
       "with": [
-        0.6666666666666666,
         1,
-        0.6666666666666666
+        1,
+        1
       ],
       "without": [
         0.3333333333333333,
