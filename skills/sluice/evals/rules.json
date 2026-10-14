@@ -130,6 +130,30 @@
       ]
     },
     {
+      "id": "verified-before-handback",
+      "states": "SKILL.md: The rules",
+      "origin": "docs/specs/2026-10-14-verification-gates.md",
+      "cases": [
+        "fast-verifies-before-handback"
+      ]
+    },
+    {
+      "id": "main-hunts-a-checkable-claim",
+      "states": "SKILL.md: The rules",
+      "origin": "docs/specs/2026-10-14-verification-gates.md",
+      "cases": [
+        "main-hunts-a-checkable-claim"
+      ]
+    },
+    {
+      "id": "main-skips-the-hunt-without-a-claim",
+      "states": "SKILL.md: The rules",
+      "origin": "docs/specs/2026-10-14-verification-gates.md",
+      "cases": [
+        "main-skips-the-hunt-without-a-claim"
+      ]
+    },
+    {
       "id": "review-before-merge",
       "states": "references/review.md",
       "origin": "docs/specs/2026-08-07-sluice-design.md",

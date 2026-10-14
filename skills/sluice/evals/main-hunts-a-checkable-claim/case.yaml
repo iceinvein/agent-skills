@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: main-hunts-a-checkable-claim
+plugins: ["plugins/sluice", "plugins/bug-hunter"]
+context:
+  scaffold_script: fixture.sh

@@ -1,0 +1,218 @@
+---
+name: sluice
+description: Use at the start of any request that changes code. Routes the work into one of four channels (bypass, fast, main, deep) by change shape, and applies only the rules that channel needs. Also use when asked to work faster or with less process.
+---
+
+# Sluice
+
+A sluice sorts material by size into channels and meters what flows through.
+Same here: pick the channel the change needs, pay for nothing else.
+
+## Route first
+
+Pick a channel from the change's shape, state it in one line, then proceed. The
+announcement is how your partner redirects you without being asked. If the
+repo's own instructions (`CLAUDE.md`, `AGENTS.md`) mandate a process, that rules
+this router out (`Conflicts`), so know what they say before naming a channel:
+read them if they are not already in context, because a channel named first
+has to be taken back.
+
+| Channel | Signal | Rules | Say |
+|---------|--------|-------|-----|
+| `bypass` | No code change: a question, an explanation, a read | none | nothing, just answer |
+| `fast` | Existing interfaces, one subsystem (a new flag on an existing command still counts as existing) | test-first, verify | "Fast channel, existing interfaces. Test first, then implement." |
+| `main` | Adds an interface, or crosses subsystems | + agree intent, review before merge | "Main channel, new interface. Agreeing the shape first." |
+| `deep` | Several subsystems, or a plan was asked for | + written design and plan | "Deep channel, several subsystems. Design before code." |
+
+Two subsystems is `main`; the third is what makes it `deep`.
+
+`bypass`, `fast`, and `main` proceed without stopping for approval; only
+`deep` stops: once for design sign-off before code, once for the plan and
+pre-flight together before Task 1. A stop ends your turn.
+
+A choice that is your partner's to make goes to them through `AskUserQuestion`
+wherever the harness has it, at a stop or between them: options to pick from,
+your recommendation first, not a paragraph or a lettered list to reply to.
+Asking is not itself a stop, however many options it carried, because the
+answer comes back to you and the run never left your hands. So at a stop, ask
+with the tool, then end the turn once the answers are in.
+
+Name the channel and the signal that actually routed you there. The strings above
+are examples, not fixed copy, and a channel with a two-part signal should say
+which part applied. One thing is fixed: the words `<channel> channel` open the
+message or follow a label such as `Sluice:`, because the meter finds the run by
+them and an announcement worded otherwise reports as `not announced`. Run
+`bash <skill-dir>/scripts/status.sh route <channel>` in the same message: prose
+between tool calls can reach the transcript only as a paraphrase, and a tool
+input is kept as written. `bypass` says nothing and routes nothing, because a
+question that gets announced stops being a question.
+
+A session that changes the tree without ever announcing is stopped once and
+asked to route, because nothing else catches it: the run state that everything
+else reads is written by the channels, so a session that skipped the router
+leaves nothing behind to notice it skipped. The stop names no channel for you.
+Route what you have already done and say which one it was.
+
+**`root-cause`, `finish`, `meter` and `show-or-say` are not channel-assigned.**
+The code misbehaving triggers the first: a bug report, a red test, behaviour you
+cannot account for. An integration event, merging, pushing, or opening a PR,
+triggers the second. Handing the work back triggers the third, whether or not it
+ever reaches an integration event. A question that turns on how something looks
+rather than on what it means triggers the fourth: say it where a sentence would
+settle it, show it where the candidates have to sit side by side for an eye to
+compare them. `references/show-or-say.md`
+
+The first, second and fourth fire in every channel, `bypass` included, and
+`bypass` is where the fourth comes up most. `meter` does not, because `bypass`
+announces nothing to measure from.
+
+## The rules
+
+One line each. Read the reference only on friction: the moment you notice
+yourself wanting to skip the rule, or arguing that this one is the exception.
+
+- **Agree intent** before building. One question at a time, through
+  `AskUserQuestion`. Propose approaches with a recommendation, not a survey.
+  `main` agrees in a message, `deep` writes it down. `references/intent.md`
+- **Test first.** The test comes before the code; run it while it should
+  still be failing, then write the least code that turns it green. Skip that
+  watching step and a green result is only an unchecked guess. A test no
+  plausible change could turn red is not one you owe. `references/test-first.md`
+- **Root cause** before fix. A fix that only hides the symptom has not fixed
+  anything. Three failed fixes point at the design, not your guesswork.
+  `references/root-cause.md`
+- **Verify** before claiming. Run the command in this turn and read its
+  output; the claim comes after that, never before. How sure you feel is not
+  something anyone else can check. `references/verify.md`
+- **Review** before merge. Dispatch a reviewer with fresh context and put the
+  diff on disk for it to read, so those bytes fill their context instead of
+  yours. A session that dispatches only when asked has not refused you one, so
+  ask rather than announce that you cannot. Genuinely without one? Say so in
+  the announcement and again at the merge, and nowhere in between.
+  `references/review.md`
+- **Finish** deliberately. Green suite first, then let your partner pick
+  merge, PR, or leave it. Never pick for them. `references/finish.md`
+- **Meter the run** as you hand it back. `scripts/run-stats.sh` reads the
+  ledger out of the session transcript: elapsed, tools, tokens, and what each
+  dispatched agent cost. A summary you assemble from memory is the one that
+  flatters you. `references/meter.md`
+
+## Changing channel
+
+Escalate out loud. A `fast` task that turns out to need a new interface becomes
+`main`, and you say so with another `status.sh route` call in that message.
+Finishing quietly in the wrong channel is the failure this prevents; the same
+goes for dropping to a shallower one. Explicit instruction wins: "just do it"
+collapses to `fast`.
+
+## Deep channel
+
+Design to `docs/specs/YYYY-MM-DD-<topic>.md`, plan to
+`docs/plans/YYYY-MM-DD-<topic>.md`, unless the repo has a convention or
+your partner states a preference. Get the design signed off before code. When
+the design's shape turns on a fork only your partner can settle, ask that one
+question through `AskUserQuestion`, with your recommendation, before the design
+is written. `references/deep-channel.md` has the test for what counts.
+
+Take the design stop through the harness's plan mode where there is one. Its
+gate is enforced rather than requested and it holds edits shut while it is open,
+so nothing gets built against a design nobody signed. It carries the first stop
+only; pre-flight still wants answers, and an approval is not one. Where there is
+no plan mode, nothing is holding the draft: write the design to its file before
+you end the turn on it, because a design that lives only in the message you just
+sent is gone at the next compaction.
+
+The run's state goes in `.sluice/run.json`, written a command at a time by
+`scripts/status.sh`. That is what makes the breakdown readable from outside the
+session running it: a statusline segment while it runs, `status.sh show` after a
+compaction, and neither costing your partner a turn to ask. `references/status.md`
+
+**Read `references/deep-channel.md` before you write the plan.** It carries the
+plan format, the pre-flight questions, the run record, the dispatch rules and
+the review tiers, and none of those are derivable from what is on this page.
+Take the plan file's first character as the trigger, not this sentence's
+position: design sign-off can be days and a context window away from here, by
+which point this paragraph is a thousand messages back and reads as something
+already handled. A plan written without that file comes out as prose with a
+sequencing note, which reads fine to its author and cannot be dispatched,
+reviewed or resumed.
+
+The skeleton it fills in, so that a plan written without it is at least still a
+plan:
+
+```
+# Plan: <topic>
+## Ground Rules
+- <exact value>
+### Task N: <name>
+**Contract:** Needs: <sig> | Offers: <sig>
+**Touches:** <path> (new) | <path> (edit) | <path> (test)
+**Flips:** <what changes, from what, or omit>
+**Review:** <reason, or omit>
+**Effort:** <low, and why the work is mechanical, or omit>
+- [ ] <action> -> <proof>
+```
+
+Read that as a graph rather than a list. `Needs` and `Offers` are dependency
+edges and `Touches` says what cannot overlap, so which tasks may run at once is
+derivable rather than guessed. Fan out wherever that graph allows; serial is the
+fallback for where it doesn't, not the default.
+
+The second stop is the plan's, whoever executes it. Dispatched agents each see
+only their own task, so nobody reads it whole; executing it yourself is the
+weaker case rather than the exempt one, because then nobody reads it but its
+author.
+
+Order the plan so the tasks that change nothing come first, and mark the one
+task that turns the new behaviour on with `Flips`. Then a late re-baseline,
+re-blessed snapshots, regenerated fixtures, attributes to that one point
+instead of to the branch at large.
+
+Pre-flight rides in that same stop: which flagged tasks get a reviewer, which
+mechanical ones the plan marked for low effort, and whether the work runs
+in a worktree. Ask them through `AskUserQuestion`, one question each with the
+counts in the options, never as a paragraph or a lettered list, then end the
+turn on the answers. Task 1 opens on their next
+instruction, and an answer that already carries one is that instruction. A
+session that dispatches only when asked has not ruled dispatch out, it has made
+this question the place to ask; genuine unavailability is the tool not being
+there at all, which `references/deep-channel.md` handles separately. Review that
+turns out to be missing is only actionable while the plan can still change.
+
+All three answers go into `run.json` and the run record before Task 1's first
+edit, the answer in the first and the reason in the second, and both files
+open inside the worktree once it is cut, not in the main tree before it
+exists. Those rows are what
+discharge pre-flight, not the approval: one reply arrives for several
+obligations, so a "yes" with no rows behind it signed off the plan and nothing
+else.
+
+Four from that file that catch people out: concurrent implementers need a
+worktree each and the flip runs alone, review is tiered rather than automatic,
+a `deep` run that cannot dispatch has to replace the review tier with
+something, not quietly ship without one, and the run ends: `status.sh final`
+when the plan's own review clears, `status.sh close` once the work is no longer
+yours to act on, after a local merge, when the branch is left as it stands, or
+when an open PR lands, not when it opens. A run left open reads as live to the
+statusline and blocks the next one. The SessionStart hook prints a live run at
+every session start, compaction and resume included, so a run you did not
+start is one you were shown, not one you have to remember. A Stop hook refuses,
+once per turn, to end a turn while a `deep` run in this tree is past pre-flight
+with tasks still to go, nothing `blocked` or paused, and no task `active` or in
+`review`:
+`references/deep-channel.md` says why a run never ends a turn between
+pre-flight and the handback and names the four early stops that look like a
+place to end and are not, and `status.sh pause --reason` is how one stands
+still on purpose.
+
+## Conflicts
+
+Sluice cannot run alongside the superpowers pipeline. Superpowers requires its
+own fixed sequence up front for anything that adds to or changes what the
+software does, not just code edits, and that sequence overrides this router
+outright.
+
+The test is whether that pipeline governs the work in front of you, not whether
+a plugin is installed. A repo whose own instructions mandate the sequence rules
+this router out exactly as the plugin does, with the plugin disabled or absent.
+Stand down and say so once, in the same breath you would have named a channel.
