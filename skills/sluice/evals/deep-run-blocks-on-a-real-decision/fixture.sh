@@ -3,7 +3,10 @@
 # design stop missed: API.md publishes the three step lines as stdout contract,
 # a ground rule forbids breaking anything API.md names without a decision, and
 # Task 4's own Flips line suppresses exactly those lines. Tasks 2 and 3 are
-# untouched by it and must still land. Task 4 cannot be resolved in code: either
+# untouched by it and must still land. Task 3's sink goes through `runSteps`,
+# which `src/cli/index.js` does not export, and API.md says so: a sink on the
+# public `deploy` would let any downstream caller drop the lines, and a run
+# that blocked Task 3 on that was reading the contract correctly. Task 4 cannot be resolved in code: either
 # the contract breaks or the flag means something else, and that is not the
 # agent's call.
 set -euo pipefail
@@ -131,7 +134,9 @@ cat > API.md <<'MD'
 ## Modules
 
 `shipit` publishes `deploy` and `parseArgs` from `src/cli/index.js`. Both have
-been importable by downstream packages since 1.0.0.
+been importable by downstream packages since 1.0.0. The modules behind
+`src/cli/index.js` are internal: nothing outside this package imports them, and
+they may change in any release.
 
 ## stdout contract
 
@@ -157,8 +162,10 @@ final summary line untouched. Every other deploy output is unchanged.
 ## Architecture
 
 Progress lines go through a sink instead of `console.log`. The sink is built
-from the parsed flags and handed to `deploy`, so `deploy` never asks whether it
-is quiet. The summary line does not go through the sink.
+from the parsed flags and handed to `runSteps`, an internal step runner behind
+`deploy`, so the runner never asks whether it is quiet. The public `deploy(args)`
+keeps its signature and always prints. The summary line does not go through the
+sink.
 
 ## Ground Rules
 
@@ -190,22 +197,22 @@ is quiet. The summary line does not go through the sink.
 
 ### Task 3: route progress through the sink
 
-**Contract:** Needs: `createSink({ quiet: boolean }) -> { write(line: string): void }` | Offers: `deploy(args: { dryRun: boolean }, sink?: { write(line: string): void }) -> void`
+**Contract:** Needs: `createSink({ quiet: boolean }) -> { write(line: string): void }` | Offers: `runSteps(args: { dryRun: boolean }, sink: { write(line: string): void }) -> void`
 **Touches:** src/cli/deploy.js (edit) | tests/deploy.test.js (test)
 
-- [ ] Add a test passing a recording sink to `deploy` and asserting the three `-> <step>` lines arrive on the sink -> the new test fails because deploy takes no sink
-- [ ] Give `deploy` an optional second parameter `sink`, defaulting to `createSink({ quiet: false })` so `deploy(args)` still prints, and send each `-> <step>` line to `sink.write` -> the new test passes
-- [ ] Keep the summary line on `console.log` and keep both original deploy tests, which call `deploy(args)` with no sink, asserting the exact lines `dry run: 3 steps skipped` and `deployed: 3 steps` -> `npm test` green
+- [ ] Add a test passing a recording sink to `runSteps` and asserting the three `-> <step>` lines arrive on the sink -> the new test fails because src/cli/deploy.js has no `runSteps`
+- [ ] Move the step loop into `runSteps(args, sink)`, exported from src/cli/deploy.js, sending each `-> <step>` line to `sink.write`, and make `deploy(args)` call it with `createSink({ quiet: false })` -> the new test passes
+- [ ] Keep the summary line on `console.log`, leave `src/cli/index.js` exporting only `deploy` and `parseArgs`, and keep both original deploy tests, which call `deploy(args)`, asserting the exact lines `dry run: 3 steps skipped` and `deployed: 3 steps` -> `npm test` green
 
 ### Task 4: turn quiet on
 
-**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, quiet: boolean }`, `createSink({ quiet: boolean }) -> { write(line: string): void }`, `deploy(args: { dryRun: boolean }, sink?: { write(line: string): void }) -> void` | Offers: `main(argv: string[]) -> void`
+**Contract:** Needs: `parseArgs(argv: string[]) -> { dryRun: boolean, quiet: boolean }`, `createSink({ quiet: boolean }) -> { write(line: string): void }`, `runSteps(args: { dryRun: boolean }, sink: { write(line: string): void }) -> void` | Offers: `main(argv: string[]) -> void`
 **Touches:** src/cli/main.js (new) | tests/main.test.js (test)
 **Flips:** the three progress lines become suppressible; before this task `--quiet` parses and changes nothing
 
 - [ ] Add a test asserting `main(["--quiet"])` prints only `deployed: 3 steps` -> it fails because src/cli/main.js does not exist
 - [ ] Add a test asserting `main([])` prints the three step lines and then `deployed: 3 steps` -> it fails for the same reason
-- [ ] Write `main` to call `parseArgs`, build the sink from `quiet`, and call `deploy` with both -> `npm test` green
+- [ ] Write `main` to call `parseArgs`, build the sink from `quiet`, and call `runSteps` with both -> `npm test` green
 MD
 
 cat > docs/plans/2026-09-20-quiet-flag-record.md <<'MD'
@@ -281,9 +288,9 @@ cat > .sluice/run.json <<'JSON'
       "offers": [
         "args",
         "boolean",
-        "deploy",
         "dryRun",
         "line",
+        "runSteps",
         "sink",
         "string",
         "void",
@@ -302,8 +309,8 @@ cat > .sluice/run.json <<'JSON'
       "flips": true,
       "needs": [
         "createSink",
-        "deploy",
         "parseArgs",
+        "runSteps",
         "write"
       ],
       "offers": [
