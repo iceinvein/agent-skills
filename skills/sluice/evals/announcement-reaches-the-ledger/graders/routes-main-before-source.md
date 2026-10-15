@@ -6,7 +6,9 @@ type: regex
 # status.sh route main, refusing any Write or Edit under src/ or any fast or
 # deep route on the way. Anchored as the announces graders are, so a quoted
 # mention such as grep 'status.sh route main' does not count.
-pattern: '^(?:(?!"name":"(?:Write|Edit)","input":\{"file_path":"[^"]*/src/|"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+(?:fast|deep)(?:\s|\\[nt]|[;&|]|"))[\s\S])*?"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+main(?:\s|\\[nt]|[;&|]|")'
+# file_path is found wherever it sits in the input: an Edit's opens with
+# replace_all, so anchoring on file_path first let an early Edit through.
+pattern: '^(?:(?!"name":"(?:Write|Edit|MultiEdit)","input":\{(?:"(?:[^"\\]|\\.)*"|[^"{}])*?"file_path":"[^"]*/src/|"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+(?:fast|deep)(?:\s|\\[nt]|[;&|]|"))[\s\S])*?"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+route(?:\s|\\[nt])+main(?:\s|\\[nt]|[;&|]|")'
 target: trace
 weight: 3
 ---
