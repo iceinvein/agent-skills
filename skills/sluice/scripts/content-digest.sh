@@ -30,21 +30,32 @@
 
 set -uo pipefail
 
-tree="${1-}"
-[ -n "$tree" ] || exit 1
-cd "$tree" 2>/dev/null || exit 1
-git rev-parse --show-toplevel >/dev/null 2>&1 || exit 1
-index="$(git rev-parse --git-path index 2>/dev/null)" || exit 1
-[ -n "$index" ] || exit 1
+# Every refusal names its step on stderr: status.sh verify passes it through,
+# and "could not read the content" with no cause sends the reader guessing.
+fail() {
+	printf 'content-digest: %s\n' "$1" >&2
+	exit 1
+}
 
-scratch="$(mktemp -d 2>/dev/null)" || exit 1
+tree="${1-}"
+[ -n "$tree" ] || fail "needs a tree"
+cd "$tree" 2>/dev/null || fail "cannot enter $tree"
+git rev-parse --show-toplevel >/dev/null 2>&1 || fail "$tree is not inside a git work tree"
+index="$(git rev-parse --git-path index 2>/dev/null)" || fail "git could not name the index of $tree"
+[ -n "$index" ] || fail "git could not name the index of $tree"
+
+# The scratch index lives in the git dir rather than the temp dir: a sandbox
+# that lets a run write its own tree can refuse the temp dir (the eval sandbox
+# did), and git add has to be able to write the git dir in any case.
+gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" || fail "git could not name the git dir of $tree"
+scratch="$(mktemp -d "$gitdir/sluice-digest.XXXXXX" 2>/dev/null)" || fail "could not make a scratch directory under $gitdir"
 trap 'rm -rf "$scratch"' EXIT
 
 # A repo with no index yet is one nothing has been staged in, and starting
 # from no index is exactly that. An empty file would not be: git reads it as a
 # corrupt index.
 if [ -f "$index" ]; then
-	cp "$index" "$scratch/index" 2>/dev/null || exit 1
+	cp "$index" "$scratch/index" 2>/dev/null || fail "could not copy $index into $scratch"
 fi
 
 GIT_INDEX_FILE="$scratch/index" git add -A >/dev/null || exit 1

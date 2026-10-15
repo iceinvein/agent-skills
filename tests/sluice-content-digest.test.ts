@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,9 +21,9 @@ function gitRepo(): string {
 	return dir;
 }
 
-function digest(tree: string) {
-	const proc = Bun.spawnSync({ cmd: ["bash", DIGEST, tree], timeout: 10000 });
-	return { code: proc.exitCode, out: proc.stdout.toString() };
+function digest(tree: string, env: Record<string, string> = {}) {
+	const proc = Bun.spawnSync({ cmd: ["bash", DIGEST, tree], timeout: 10000, env: { ...process.env, ...env } });
+	return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
 }
 
 // The Stop hook asks whether the content a check passed on is still the content
@@ -74,6 +74,20 @@ describe("content-digest.sh", () => {
 		const r = digest(dir);
 		expect(r.code).toBe(0);
 		expect(r.out).toMatch(/^[0-9a-f]{40}([0-9a-f]{24})?\n$/);
+	});
+
+	// status.sh verify passes this script's stderr through, so a step that
+	// fails silently leaves the session with "could not read" and no cause.
+	test("a directory outside any git tree says so on stderr", () => {
+		const dir = mkdtempSync(join(tmpdir(), "sluice-digest-plain-"));
+		expect(digest(dir).err).toContain("not inside a git work tree");
+	});
+
+	test("leaves no scratch directory in the git dir", () => {
+		const tree = gitRepo();
+		writeFileSync(join(tree, "new.ts"), "export const x = 1;\n");
+		expect(digest(tree).code).toBe(0);
+		expect(readdirSync(join(tree, ".git")).filter((name) => name.startsWith("sluice-digest"))).toEqual([]);
 	});
 
 	test("a directory outside any git tree prints nothing and fails", () => {
