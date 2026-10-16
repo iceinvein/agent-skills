@@ -257,6 +257,13 @@ test("run exits 2 when the eval fails and writes no result", () => {
 	expect(out.stderr).toContain("wrote no result");
 });
 
+test("run exits 2 naming the filter when the eval ran no cases", () => {
+	const empty = { ...result([], []), suite: { ...result([], []).suite, caseFilter: "nothing-*" }, cases: [] };
+	const out = runWithFake(empty, "--model", "opus", "--case", "nothing-*");
+	expect(out.code).toBe(2);
+	expect(out.stderr).toContain("eval result holds no cases (--case nothing-* matched none)");
+});
+
 test("run hands the result to diff, printing the report and exiting 1 on a regression", () => {
 	writeBaseline("opus");
 	const out = runWithFake(result([0, 0], [0, 0]), "--model", "opus");

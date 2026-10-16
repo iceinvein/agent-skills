@@ -65,6 +65,12 @@ export function reduce(result: unknown, skillVersion: string): Baseline {
 	if (typeof result.claudeVersion !== "string") throw new Error("eval result has no claudeVersion");
 	if (typeof result.startedAt !== "string") throw new Error("eval result has no startedAt");
 	if (!Array.isArray(result.cases)) throw new Error("eval result has no cases");
+	// The CLI writes an empty result and exits 0 when --case matches nothing,
+	// and an empty result diffs as "no regressions", which reads as a pass.
+	if (result.cases.length === 0) {
+		const filter = typeof suite.caseFilter === "string" ? ` (--case ${suite.caseFilter} matched none)` : "";
+		throw new Error(`eval result holds no cases${filter}`);
+	}
 
 	const cases: Record<string, CaseRecord> = {};
 	for (const [i, entry] of result.cases.entries()) {
