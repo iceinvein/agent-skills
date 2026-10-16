@@ -1,0 +1,69 @@
+{
+  "model": "claude-opus-5-5",
+  "judgeModel": "claude-opus-5-5",
+  "claudeVersion": "2.1.300",
+  "skillVersion": "0.13.0",
+  "date": "2026-10-15T14:11:31.564Z",
+  "cases": {
+    "codex-missing-falls-back": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "post-folds-selection-events": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.7777777777777778,
+        0.7777777777777778,
+        0.7777777777777778
+      ]
+    },
+    "report-ends-the-turn": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.4,
+        0.8,
+        0.4
+      ]
+    },
+    "resume-finds-active-run": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "shard-gate-stops-and-asks": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    }
+  }
+}

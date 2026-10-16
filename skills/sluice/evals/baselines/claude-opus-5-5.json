@@ -1,9 +1,9 @@
 {
   "model": "claude-opus-5-5",
   "judgeModel": "claude-opus-5-5",
-  "claudeVersion": "2.1.299",
-  "skillVersion": "0.23.4",
-  "date": "2026-10-14T08:35:29.009Z",
+  "claudeVersion": "2.1.300",
+  "skillVersion": "0.24.1",
+  "date": "2026-10-15T10:16:06.877Z",
   "cases": {
     "announcement-reaches-the-ledger": {
       "with": [
@@ -31,7 +31,7 @@
     },
     "deep-plan-across-subsystems": {
       "with": [
-        1,
+        0.7142857142857143,
         1,
         1
       ],
@@ -43,7 +43,7 @@
     },
     "deep-plan-asks-the-fork": {
       "with": [
-        1,
+        0.6666666666666666,
         0.6666666666666666,
         1
       ],
@@ -84,8 +84,8 @@
         1
       ],
       "without": [
+        0.5,
         1,
-        0.7142857142857143,
         1
       ]
     },
@@ -99,6 +99,18 @@
         1,
         1,
         1
+      ]
+    },
+    "deep-run-hunts-after-the-flip": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.4444444444444444,
+        0.6666666666666666,
+        0.4444444444444444
       ]
     },
     "deep-run-survives-a-milestone": {
@@ -161,16 +173,52 @@
         1
       ]
     },
-    "main-new-interface": {
+    "fast-verifies-before-handback": {
       "with": [
         1,
         1,
         1
       ],
       "without": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "main-hunts-a-checkable-claim": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.42857142857142855,
+        0.42857142857142855,
+        0.42857142857142855
+      ]
+    },
+    "main-new-interface": {
+      "with": [
+        1,
+        0.6666666666666666,
+        1
+      ],
+      "without": [
         0.3333333333333333,
         0.3333333333333333,
         0.3333333333333333
+      ]
+    },
+    "main-skips-the-hunt-without-a-claim": {
+      "with": [
+        1,
+        1,
+        0.5
+      ],
+      "without": [
+        0,
+        0,
+        0
       ]
     },
     "superpowers-conflict-stands-down": {

@@ -1,0 +1,129 @@
+{
+  "model": "claude-opus-5-5",
+  "judgeModel": "claude-opus-5-5",
+  "claudeVersion": "2.1.300",
+  "skillVersion": "0.4.0",
+  "date": "2026-10-15T15:17:22.077Z",
+  "cases": {
+    "adjudicate-drafts-not-decides": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.5833333333333334,
+        0.5833333333333334,
+        0.5833333333333334
+      ]
+    },
+    "done-means-plain-check": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        1,
+        1,
+        0.5714285714285714
+      ]
+    },
+    "extract-files-queue-in-same-pass": {
+      "with": [
+        1,
+        1,
+        0.8
+      ],
+      "without": [
+        1,
+        1,
+        1
+      ]
+    },
+    "forecast-refuses-without-attestation": {
+      "with": [
+        1,
+        0.5714285714285714,
+        1
+      ],
+      "without": [
+        1,
+        1,
+        0.5714285714285714
+      ]
+    },
+    "handoff-blocked-reports-blockers": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.8181818181818182,
+        1,
+        1
+      ]
+    },
+    "probe-asks-for-the-target": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "resume-reads-status-first": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        1,
+        1,
+        1
+      ]
+    },
+    "seam-low-q-escalates": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.5384615384615384,
+        0.5384615384615384,
+        0.5384615384615384
+      ]
+    },
+    "seam-shared-element-queued": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        0.5714285714285714,
+        0.5714285714285714,
+        0.5714285714285714
+      ]
+    },
+    "stale-lock-not-forced": {
+      "with": [
+        1,
+        1,
+        1
+      ],
+      "without": [
+        1,
+        1,
+        1
+      ]
+    }
+  }
+}
