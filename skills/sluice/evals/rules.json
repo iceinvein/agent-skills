@@ -306,8 +306,9 @@
       "id": "concurrent-implementers-get-a-worktree-each",
       "states": "SKILL.md: Deep channel",
       "origin": "commit:cc50bcf",
-      "cases": [],
-      "unpinned": "deep-run-fans-out settles worktrees in pre-flight, but no grader checks that one was cut per implementer"
+      "cases": [
+        "deep-run-fans-out"
+      ]
     },
     {
       "id": "flip-runs-alone",
@@ -351,6 +352,7 @@
     "fast-verifies-before-handback"
   ],
   "vacuousWithout": [
+    "bypass-question-stays-silent",
     "superpowers-conflict-stands-down"
   ],
   "unclaimed": [
