@@ -123,3 +123,33 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
   `claude -p` exit 1, `is_error true`, empty stderr. That matches the earlier usage-limit
   failure. No result files. Run paused. Resume: re-run T7 with the same commands, then T6,
   then T8. T6 must wait for T7, because T6 edits SKILL.md, which the replay reads live.
+
+## After (T7)
+
+| Run | Full shards | Contracts-only | Kept | Missed-recall | Label prec / recall | Cost |
+|---|---|---|---|---|---|---|
+| pr-50 before | 6/7 | none | 44 | 1/14 (miss-10) | 0.00 / 0.00 | $32.63 |
+| pr-50 after | 5/7 | 6, 7 | 56 (22 contracts) | 1/14 (miss-2) | 0.25 / 0.17 | $37.26 |
+| pr-70 before | 6/6 | none | 21 | 1/5 (miss-1) | 1.00 / 0.11 | $13.30 |
+| pr-70 after | 3/6 | 6 (3, 5 skipped) | 14 (4 contracts) | 1/5 (miss-1, by contracts) | - / 0.00 | $16.63 |
+
+Results: `2026-10-17T17-07-49-558Z-full-pr-50-1789099641.json`,
+`2026-10-17T17-24-30-512Z-full-pr-70-1790391863.json`.
+
+- Pooled missed-recall is 2/19 before and 2/19 after. No measurable gain.
+- The comparison is confounded by rationing. Even at the scaled caps, the after-run agents
+  hit the budget and used the new contracts-only gate option on their own: pr-50 shards 6-7,
+  and pr-70 shard 6, with shards 3 and 5 skipped outright. So the after runs had less full
+  coverage than the baseline. `shardCoverageCount` counts a contracts-only shard as reviewed
+  (review finding N3), so the printed `shards 7/7` overstates pr-50's coverage.
+- The fairest signal is misses sitting in shards that got full review in both runs, where
+  the new text targets them directly. pr-50 misses 6, 7 and 8 (test harness, shard 4) and
+  pr-70 miss-3 (failure as pending, shard 4) were missed both times. The test-correctness and
+  state-outlives-call sections did not catch them.
+- What the change did do:
+  - contracts caught pr-70 miss-1 (architecture caught it in the baseline);
+  - architecture caught pr-50 miss-2 (docs saying unimplemented);
+  - contracts was the largest domain on pr-50 (22 kept). Many of those are stale doc comments
+    in scenario files, the low-value risk review N6 flagged, and the critic dropped none of them.
+- Run-to-run variance is large: the caught set swapped between runs on pr-50.
+- Total replay spend so far: about $122.
