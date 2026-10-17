@@ -118,7 +118,7 @@ the worktree, so cost grows with candidate count. The results file records the
 ## Full replay
 
 ```
-bun evals/quality/replay-full.ts --corpus <runId> --repo <path-to-local-clone> [--max-cost-usd N]
+bun evals/quality/replay-full.ts --corpus <runId> --repo <path-to-local-clone> [--max-cost-usd N] [--judge-model M]
 ```
 
 Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.patch`:
@@ -132,10 +132,70 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
    is written. Serve, peer review, report, post and cleanup are skipped.
 3. Matches the new kept findings to `findings.final.json` with `matchFindings` and scores
    them; unmatched findings count as `unlabelled` and stay out of precision. Writes
-   `results/<ts>-full-<runId>.json`.
+   `results/<ts>-full-<runId>.json` with `recall`, `recallVerdicts`, `judgeModel` and
+   `judgeCostUsd` all null.
+4. When the run has a recall set (see [Recall](#recall)), judges the new kept findings
+   against it, scores them, and rewrites the same result file with those four fields
+   filled. The printed line gains `, missed-recall <caught>/<misses>`. Without a recall
+   set the fields stay null and nothing extra is printed. A judge failure exits 1 and
+   names the result file, which already holds the scored replay.
 
 **Cost:** a whole review: a scout, five specialists per shard, and the critic batches.
 `--max-cost-usd` (default 10) is passed to Claude as `--max-budget-usd`, the CLI's own
 spend cap; `claude -p` has no `--max-cost-usd` flag. Hitting the cap stops the session,
 and the replay then fails without scoring, on Claude's error result or on the missing
 `findings.kept.json`.
+
+## Recall
+
+The labels above only score findings magpie raised. The recall set scores the other side:
+defects a human found in a reviewed PR that no kept finding raised. It lives at
+`~/.magpie/corpus/misses/<runId>.json`, outside the repo for the same reason as the
+corpus, and is written by hand; corpus rebuilds do not touch it.
+
+Each file is a JSON array of misses:
+
+```json
+{
+  "id": "miss-1",
+  "file": "src/handler.ts",
+  "line": 42,
+  "title": "Retry loop never gives up",
+  "summary": "What the defect is and why it matters.",
+  "ownerDomain": "architecture",
+  "bugClass": "spec/intent mismatch",
+  "outsideDiff": false,
+  "preExisting": false,
+  "source": "https://github.com/<owner>/<repo>/pull/50#discussion_r123"
+}
+```
+
+`ownerDomain` is the specialist domain that should have caught it, `outsideDiff` marks a
+defect in code the diff did not touch, `preExisting` one that predates the PR, and
+`source` is the reviewer comment URL or the fixing commit. `line` may be null. Every
+other field is required; a missing or mistyped one fails `loadMisses`, naming the file
+and index.
+
+The set was seeded from the 2026-10-17 miss analysis, which collected defects from three
+sources per run: reviewer comments magpie had not raised, commits pushed after the review
+that fixed something, and follow-up fix PRs.
+
+`replay-full.ts` hands the misses and the replay's kept findings to a judge: one
+`claude -p` with no tools and no MCP servers, which reads only the prompt and names, for
+each miss, the kept finding that describes the same defect wherever it is anchored, or
+null. `scoreRecall` turns the verdicts into `caught` over `misses`, broken down by owner
+domain and bug class, plus the same figure excluding pre-existing defects. The judge model
+is pinned to `claude-sonnet-5-5` (`DEFAULT_JUDGE_MODEL` in `recall.ts`) so scores stay
+comparable across replays; `--judge-model` overrides it.
+
+**Cost:** one tool-less call per replay, small next to the replay itself. The result file
+records it as `judgeCostUsd`.
+
+**Confounds:**
+
+- **Small set.** 30 misses across 6 runs, so one verdict moves a run's figure a lot.
+- **PR 50 dominates.** Its run holds 14 of the 30, so pooled recall is mostly PR 50's.
+- **Judge nondeterminism.** The same findings can draw different verdicts on another call,
+  most often on partial overlaps. Treat a change of one or two caught misses as noise.
+- **Missing clones.** 3 of the 6 runs (`pr-38`, `pr-231`, `pr-232`) are against repos not
+  cloned on this machine, so only `pr-46`, `pr-50` and `pr-70` can be replayed here.

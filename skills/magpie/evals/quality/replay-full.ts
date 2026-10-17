@@ -15,6 +15,14 @@ import {
   readFindings,
   resolveCorpusRoot,
 } from './corpus.ts'
+import {
+  DEFAULT_JUDGE_MODEL,
+  judgeRecall,
+  loadMisses,
+  type RecallScore,
+  type RecallVerdict,
+  scoreRecall,
+} from './recall.ts'
 import { claudeFailureMessage, worktreeRemoveCommand } from './replay-critic.ts'
 import {
   formatRatio,
@@ -28,6 +36,28 @@ import {
 const SKILL_DIR = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
 const MAGPIE_BIN = join(SKILL_DIR, 'bin', 'magpie.ts')
 const DEFAULT_MAX_COST_USD = 10
+
+export function replaySummary(input: {
+  runId: string
+  kept: number
+  unlabelled: number
+  precision: number | null
+  recall: number | null
+  costUsd: number | null
+  missedRecall: { caught: number; misses: number } | null
+  outPath: string
+}): string {
+  const missed =
+    input.missedRecall === null
+      ? ''
+      : `, missed-recall ${input.missedRecall.caught}/${input.missedRecall.misses}`
+  return (
+    `${input.runId}: kept ${input.kept} (${input.unlabelled} unlabelled), ` +
+    `precision ${formatRatio(input.precision)}, recall ${formatRatio(input.recall)}, ` +
+    `cost ${input.costUsd === null ? 'unreported' : `$${input.costUsd.toFixed(2)}`}${missed}\n` +
+    `wrote ${input.outPath}\n`
+  )
+}
 
 async function exec(
   cmd: string[],
@@ -72,13 +102,15 @@ This is an unattended evaluation run:
 }
 
 async function main(argv: string[]): Promise<number> {
-  const flags = parseFlags(argv, ['corpus', 'repo', 'out', 'max-cost-usd'])
+  const flags = parseFlags(argv, ['corpus', 'repo', 'out', 'max-cost-usd', 'judge-model'])
   if (!flags.corpus || !flags.repo) {
     throw new Error(
-      'usage: replay-full.ts --corpus <runId> --repo <path> [--max-cost-usd N] [--out <corpus-dir>]',
+      'usage: replay-full.ts --corpus <runId> --repo <path> [--max-cost-usd N] ' +
+        '[--judge-model M] [--out <corpus-dir>]',
     )
   }
   const maxCostUsd = positiveNumberFlag(flags, 'max-cost-usd') ?? DEFAULT_MAX_COST_USD
+  const judgeModel = flags['judge-model'] ?? DEFAULT_JUDGE_MODEL
   const corpusRoot = resolveCorpusRoot(flags)
   const run = await loadCorpusRun(join(corpusRoot, flags.corpus))
   const sha = headRefOid(run)
@@ -156,12 +188,46 @@ async function main(argv: string[]): Promise<number> {
       matches: Object.fromEntries(matches),
       newKept,
       score,
+      recall: null as RecallScore | null,
+      recallVerdicts: null as RecallVerdict[] | null,
+      judgeModel: null as string | null,
+      judgeCostUsd: null as number | null,
     }
+    // Written before the judge runs so a judge failure cannot lose a paid replay.
     await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+
+    try {
+      const misses = await loadMisses(join(corpusRoot, 'misses', `${run.runId}.json`))
+      if (misses !== null) {
+        const judged = await judgeRecall({
+          misses,
+          findings: newKept,
+          model: judgeModel,
+          cwd: scratch,
+        })
+        result.recall = scoreRecall(misses, judged.verdicts)
+        result.recallVerdicts = judged.verdicts
+        result.judgeModel = judgeModel
+        result.judgeCostUsd = judged.costUsd
+        await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+      }
+    } catch (err) {
+      throw new Error(
+        `${err instanceof Error ? err.message : err} (replay result already written to ${outPath})`,
+      )
+    }
+
     process.stdout.write(
-      `${run.runId}: kept ${score.kept} (${unlabelled} unlabelled), ` +
-        `precision ${formatRatio(score.precision)}, recall ${formatRatio(score.recall)}, ` +
-        `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\nwrote ${outPath}\n`,
+      replaySummary({
+        runId: run.runId,
+        kept: score.kept,
+        unlabelled,
+        precision: score.precision,
+        recall: score.recall,
+        costUsd,
+        missedRecall: result.recall,
+        outPath,
+      }),
     )
     return 0
   } finally {
