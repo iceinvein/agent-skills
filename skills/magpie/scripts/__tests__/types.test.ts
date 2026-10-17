@@ -17,6 +17,7 @@ test('FOCUS_IDS contains the LLM focuses plus the deterministic tests domain', (
     'performance',
     'code-smells',
     'architecture',
+    'contracts',
     'tests',
   ])
 })
@@ -36,6 +37,20 @@ test('parseFinding accepts a minimal finding', () => {
   const parsed: ReviewFinding = parseFinding(raw)
   expect(parsed.title).toBe('oops')
   expect(parsed.domain).toBe('bugs')
+})
+
+test('parseFinding accepts a contracts finding', () => {
+  const focus: FocusId = 'contracts'
+  const raw = {
+    id: 'c1',
+    file: 'src/routes/orders.ts',
+    line: 42,
+    risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+    title: 'sibling route skips the ownership check',
+    description: 'detail',
+    domain: focus,
+  }
+  expect(parseFinding(raw).domain).toBe('contracts')
 })
 
 const RISK_HIGH = {

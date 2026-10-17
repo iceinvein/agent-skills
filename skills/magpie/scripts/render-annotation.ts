@@ -10,6 +10,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   performance: 'Perf',
   'code-smells': 'Smells',
   architecture: 'Arch',
+  contracts: 'Contracts',
 }
 
 const SEVERITY_LABEL: Record<string, string> = {

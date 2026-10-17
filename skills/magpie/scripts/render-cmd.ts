@@ -59,6 +59,7 @@ function summarizeStages(log: Array<Record<string, unknown>>): {
     performance: {},
     'code-smells': {},
     architecture: {},
+    contracts: {},
   }
   for (const entry of log) {
     const stage = entry.stage as string

@@ -240,7 +240,14 @@ test('runDedupe logs evidence drop and re-anchor counts', async () => {
   expect(done?.evidence).toEqual({ skipped: false, dropped: 1, reanchored: 1 })
 })
 
-const LLM_FOCUSES = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
+const LLM_FOCUSES = [
+  'security',
+  'bugs',
+  'performance',
+  'code-smells',
+  'architecture',
+  'contracts',
+] as const
 
 /** A manifest with `count` shards, shaped like the one `shardDiff` writes. */
 async function writeManifest(count: number): Promise<void> {
@@ -303,9 +310,9 @@ test('runDedupe reports nothing missing when every (focus, shard) file is presen
   const { exit, stdout } = await dedupeCapturingStdout()
   expect(exit).toBe(0)
   expect(stdout).not.toContain('missing')
-  expect(stdout).toContain('15')
+  expect(stdout).toContain('18')
   const done = await dedupeLogEntry('done')
-  expect(done?.coverage).toEqual({ expected: 15, missing: [] })
+  expect(done?.coverage).toEqual({ expected: 18, missing: [] })
 })
 
 test('runDedupe names the (focus, shard) pairs that have no findings file', async () => {
@@ -330,8 +337,8 @@ test('runDedupe names the (focus, shard) pairs that have no findings file', asyn
   expect(stdout).toContain('bugs.shard-2.json')
   const done = await dedupeLogEntry('done')
   expect(done?.coverage).toEqual({
-    expected: 10,
-    missing: ['security.shard-2.json', 'bugs.shard-2.json'],
+    expected: 12,
+    missing: ['security.shard-2.json', 'bugs.shard-2.json', 'contracts.shard-2.json'],
   })
 })
 
@@ -348,7 +355,7 @@ test('a single-shard manifest expects the unsharded findings filenames', async (
   // has no shard suffix.
   expect(stdout).toContain('architecture.json')
   const done = await dedupeLogEntry('done')
-  expect(done?.coverage).toEqual({ expected: 5, missing: ['architecture.json'] })
+  expect(done?.coverage).toEqual({ expected: 6, missing: ['architecture.json', 'contracts.json'] })
 })
 
 test('runDedupe without a manifest reports no coverage at all', async () => {

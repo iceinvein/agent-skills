@@ -1,4 +1,8 @@
 import { expect, test } from 'bun:test'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { runRender } from '../render-cmd.ts'
 import { renderProgressHtml } from '../render-progress.ts'
 
 test('renderProgressHtml shows all stages with status classes and PR header', () => {
@@ -91,7 +95,7 @@ test('each pipeline stage exposes a short sublabel so first-timers can learn wha
     specialistCounts: {},
   })
   expect(html).toContain('class="hint"')
-  expect(html).toContain('five reviewers in parallel')
+  expect(html).toContain('six reviewers in parallel')
   expect(html).toContain('independent second opinion')
 })
 
@@ -176,7 +180,7 @@ test('progress names the shard count while specialists run', () => {
     specialistCounts: {},
     shardCount: 6,
   })
-  expect(html).toContain('Five reviewers across 6 shards')
+  expect(html).toContain('Six reviewers across 6 shards')
 })
 
 test('progress keeps the single-shard wording when there is one shard', () => {
@@ -197,5 +201,34 @@ test('progress keeps the single-shard wording when there is one shard', () => {
     specialistCounts: {},
     shardCount: 1,
   })
-  expect(html).toContain('Five reviewers reading the diff in parallel')
+  expect(html).toContain('Six reviewers reading the diff in parallel')
+})
+
+test('progress shows a contracts count once a contracts specialist reports', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-progress-'))
+  try {
+    await mkdir(join(runDir, 'screen'), { recursive: true })
+    await writeFile(
+      join(runDir, 'pr.json'),
+      JSON.stringify({ number: 7, headRefName: 'feature-x', headRefOid: 'abc123abc123' }),
+    )
+    await writeFile(
+      join(runDir, 'log.jsonl'),
+      [
+        JSON.stringify({ stage: 'specialists', status: 'running' }),
+        JSON.stringify({
+          stage: 'specialist',
+          focus: 'contracts',
+          shard: 1,
+          status: 'done',
+          findings: 3,
+        }),
+      ].join('\n'),
+    )
+    expect(await runRender(runDir, 'progress')).toBe(0)
+    const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
+    expect(html).toContain('contracts <span class="count">3</span>')
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
 })
