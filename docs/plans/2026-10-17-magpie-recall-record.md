@@ -78,3 +78,17 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
   same moment. No result files were written. Run paused. Resume by re-running T4 at the
   raised caps (commands in the plan's Ground Rules). Nothing in `skills/magpie` has changed
   since T9, so the baseline will still measure the pre-flip prompts.
+
+## Baseline (T4, final)
+
+| Run | Shards | Kept | Missed-recall | Label precision / recall | Cost | Result |
+|---|---|---|---|---|---|---|
+| pr-50 | 6/7 (cap cut shard 7) | 44 | 1/14 | 0.00 / 0.00 | $32.63 | `2026-10-17T12-20-55-298Z-full-pr-50-1789099641.json` |
+| pr-70 | 6/6 | 21 | 1/5 | 1.00 / 0.11 | $13.30 | `2026-10-17T12-32-21-670Z-full-pr-70-1790391863.json` |
+
+- Caught at baseline: pr-50 miss-10 (stale partial ids, by bugs-s6-2) and pr-70 miss-1 (uuid
+  namespace, by architecture-s4-2). Pooled: 2/19.
+- Label precision and recall are near zero on pr-50 because most replay findings are
+  unlabelled (fresh wording does not Dice-match the labelled titles). Read them as weak.
+- T7 caps are scaled by the extra specialist (6/5): $48 for pr-50 and $18 for pr-70, so that
+  the after run is not rationed harder than the baseline. Compare shard coverage alongside recall.
