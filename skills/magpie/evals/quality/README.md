@@ -121,6 +121,9 @@ the worktree, so cost grows with candidate count. The results file records the
 bun evals/quality/replay-full.ts --corpus <runId> --repo <path-to-local-clone> [--max-cost-usd N] [--judge-model M]
 ```
 
+Pass `--corpus` as a bare run id: a trailing slash empties the run id, and recall is then
+skipped silently.
+
 Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.patch`:
 
 1. Scaffolds a scratch run dir: worktree at the PR head as above, `pr.json` and
@@ -181,9 +184,10 @@ sources per run: reviewer comments magpie had not raised, commits pushed after t
 that fixed something, and follow-up fix PRs.
 
 `replay-full.ts` hands the misses and the replay's kept findings to a judge: one
-`claude -p` with no tools and no MCP servers, which reads only the prompt and names, for
-each miss, the kept finding that describes the same defect wherever it is anchored, or
-null. `scoreRecall` turns the verdicts into `caught` over `misses`, broken down by owner
+`claude -p` with tools and MCP servers turned off, which names, for each miss, the kept
+finding that describes the same defect wherever it is anchored, or null. User settings
+still load, so `~/.claude/CLAUDE.md` and hooks reach the judge as they would any session.
+`scoreRecall` turns the verdicts into `caught` over `misses`, broken down by owner
 domain and bug class, plus the same figure excluding pre-existing defects. The judge model
 is pinned to `claude-sonnet-5-5` (`DEFAULT_JUDGE_MODEL` in `recall.ts`) so scores stay
 comparable across replays; `--judge-model` overrides it.
@@ -197,5 +201,8 @@ records it as `judgeCostUsd`.
 - **PR 50 dominates.** Its run holds 14 of the 30, so pooled recall is mostly PR 50's.
 - **Judge nondeterminism.** The same findings can draw different verdicts on another call,
   most often on partial overlaps. Treat a change of one or two caught misses as noise.
-- **Missing clones.** 3 of the 6 runs (`pr-38`, `pr-231`, `pr-232`) are against repos not
-  cloned on this machine, so only `pr-46`, `pr-50` and `pr-70` can be replayed here.
+- **Replay coverage.** Only `pr-50-1789099641` and `pr-70-1790391863` can be replayed
+  here, which covers 19 of the 30 misses. `pr-46` and `pr-38` have no corpus run, since
+  nothing was posted on them and so they have no labels; their misses can never be scored
+  by a replay (and `pr-38` has no local clone either). `pr-231` and `pr-232` are corpus
+  runs, but their repo (INX-Software/WorkforceManagement) is not cloned here.
