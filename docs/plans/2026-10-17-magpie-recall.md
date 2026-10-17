@@ -21,7 +21,8 @@ and the after replay (T7) build on the flip.
 - Recall set path: `<corpusRoot>/misses/<runId>.json`.
 - Judge default model: `claude-sonnet-5-5`, overridable with `--judge-model`.
 - Replay runs: `pr-50-1789099641`, `pr-70-1790391863`, against the clone at
-  `~/Documents/projects/workings`, `--max-cost-usd 10` each. (pr-46 was dropped: it has no
+  `~/Documents/projects/workings`, `--max-cost-usd 40` for pr-50 and `15` for pr-70 (raised
+  from 10 on 2026-10-17; see the run record). (pr-46 was dropped: it has no
   corpus run, see the run record.)
 - Match the file you are in: naming, error style, layout. No new dependencies. No `any`,
   `@ts-ignore` or `biome-ignore`. Fail loudly on malformed input, and never default missing data.

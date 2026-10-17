@@ -44,3 +44,37 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
   bare-run-id note for `--corpus`.
 - T4 and T7 run controller-side. Each is one CLI invocation whose output is a summary line
   and a result JSON, so a dispatch would buy no context saving.
+
+## Baseline (T4, first pass)
+
+- pr-50: kept 8 (all unlabelled), label recall 0/6, missed-recall 0/14, cost $6.65, result
+  `2026-10-17T07-31-28-555Z-full-pr-50-1789099641.json`.
+- pr-70: kept 22 (20 unlabelled), precision 1.00, label recall 0.22, missed-recall 1/5
+  (miss-1, the uuid namespace collision, caught by architecture-s4-2), cost $8.00, result
+  `2026-10-17T07-43-18-768Z-full-pr-70-1790391863.json`. Judge about $0.06 per call.
+- pr-50 looks broken: the 8 kept findings sit in 3 of the 76 diff files (the original run
+  kept 58). Shard coverage cannot be checked, because replay-full deletes the scratch dir.
+  Fix task T9 adds the replay's log, manifest, findings files, deduped count and critic drops
+  to the result. Then pr-50's baseline is re-run before the flip. T4 stays active until
+  that re-run lands.
+- T9 review: blocking. The controller's T9 brief said that a non-JSON `log.jsonl` line
+  throws. The model writes most log lines, and status/render already tolerate bad lines, so
+  throwing would lose a paid replay. The brief was corrected in the fix round: such a line is
+  recorded as `{unparsed, line}`. The test pinning the throw was written in this same task
+  from the wrong brief, so it is rewritten to the corrected spec, not loosened. The fix round
+  also captures evidence-dropped, threshold-dropped and the stored shard coverage.
+- pr-50 baseline re-run (`2026-10-17T07-53-30-871Z-full-pr-50-1789099641.json`, $7.35):
+  `shards 2/7`. Root cause, from the stored log: the replay agent rationed its own work
+  against `--max-budget-usd 10`. It logged `shard-coverage partial`, reviewed [1, 6], and
+  skipped [2, 3, 4, 5, 7] with reason "USD budget cap", which also left 3 focus pairs
+  unreviewed on shard 6. A 7-shard PR needs 35 specialist agents, which does not fit in $10.
+  So neither pr-50 baseline measures the pipeline. pr-70 ran before T9, so its coverage is
+  unverified. The run is paused for a spend decision from the user.
+- Spend decision (user): raise caps to $40 per side for pr-50 and $15 per side for pr-70,
+  about $120 more (about $140 total against the $70 first approved). Both baselines re-run
+  with diagnostics. The first-pass baselines above are superseded.
+- Raised-cap re-runs failed: both `claude -p` calls exited 1 with `is_error true, subtype
+  success` and empty stderr. That is probably the account usage limit, which was hit at the
+  same moment. No result files were written. Run paused. Resume by re-running T4 at the
+  raised caps (commands in the plan's Ground Rules). Nothing in `skills/magpie` has changed
+  since T9, so the baseline will still measure the pre-flip prompts.
