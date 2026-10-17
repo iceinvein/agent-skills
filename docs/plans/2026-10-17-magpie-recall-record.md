@@ -92,3 +92,16 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
   unlabelled (fresh wording does not Dice-match the labelled titles). Read them as weak.
 - T7 caps are scaled by the extra specialist (6/5): $48 for pr-50 and $18 for pr-70, so that
   the after run is not rationed harder than the baseline. Compare shard coverage alongside recall.
+
+## Flip (T5)
+
+- The implementer stopped before committing: 6 existing tests outside Touches pin five
+  focuses (3 in `dedupe-cmd.test.ts`, expected-pair counts; 3 in `render-cmd.test.ts`,
+  "Five reviewers"). The user approved updating only those expectations, and both files were
+  added to T5's Touches.
+- Deviations the implementer reported:
+  - rules.json `origin` uses the spec path, because the freshness linter rejects `spec:`;
+  - the plan's block-count grep counts 7, because the prose also names the pattern (6 fenced
+    blocks, which is correct);
+  - stage 4 prose was tightened to stay under the skill-lint 3000-word cap;
+  - README line 52's "all five focus domains" refers to the preview fixture and is left as is.
