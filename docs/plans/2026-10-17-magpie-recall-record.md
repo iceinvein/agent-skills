@@ -119,3 +119,7 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
     (50-12) lives in `.claude/skills/rust-backend-standards/SKILL.md`, which the scout never
     reads, and the deep-channel rule (50-3) is in the root CLAUDE.md, already read;
   - negative-control re-bless (50-4), and 38-1/2/3/5 and 50-9, get nothing from the new text.
+- T5 fix round eb77e73 landed, and T5 is done. T7 after replays (caps $48/$18) failed at once:
+  `claude -p` exit 1, `is_error true`, empty stderr. That matches the earlier usage-limit
+  failure. No result files. Run paused. Resume: re-run T7 with the same commands, then T6,
+  then T8. T6 must wait for T7, because T6 edits SKILL.md, which the replay reads live.
