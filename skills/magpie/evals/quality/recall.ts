@@ -116,14 +116,23 @@ export function recallPrompt(misses: Miss[], findings: ReviewFinding[]): string 
   ].join('\n')
 }
 
-const FENCED_JSON = /```json\s*\n([\s\S]*?)```/
+const FENCED = /```(?:json)?\s*\n([\s\S]*?)```/
+
+/** The verdict array from a fence if there is one, else the outermost [...] in the reply. */
+function verdictText(text: string): string {
+  const fenced = FENCED.exec(text)?.[1]
+  if (fenced !== undefined) return fenced.trim()
+  const start = text.indexOf('[')
+  const end = text.lastIndexOf(']')
+  return start === -1 || end < start ? text.trim() : text.slice(start, end + 1)
+}
 
 export function parseRecallVerdicts(
   text: string,
   misses: Miss[],
   findings: ReviewFinding[],
 ): RecallVerdict[] {
-  const body = (FENCED_JSON.exec(text)?.[1] ?? text).trim()
+  const body = verdictText(text)
   let raw: unknown
   try {
     raw = JSON.parse(body)
@@ -157,7 +166,23 @@ export function parseRecallVerdicts(
   return verdicts
 }
 
-/** One `claude -p` with no tools: the judge reads only what the prompt gives it. */
+// `--strict-mcp-config` with no config loads no MCP servers, whose tools
+// `--tools ""` would not remove.
+export function recallJudgeCommand(model: string): string[] {
+  return [
+    'claude',
+    '-p',
+    '--model',
+    model,
+    '--output-format',
+    'json',
+    '--strict-mcp-config',
+    '--tools',
+    '',
+  ]
+}
+
+/** One `claude -p` with no tools or MCP servers: the judge reads only what the prompt gives it. */
 export async function judgeRecall(input: {
   misses: Miss[]
   findings: ReviewFinding[]
@@ -165,15 +190,12 @@ export async function judgeRecall(input: {
   cwd: string
 }): Promise<{ verdicts: RecallVerdict[]; costUsd: number | null }> {
   const label = 'recall judge'
-  const proc = Bun.spawn(
-    ['claude', '-p', '--model', input.model, '--output-format', 'json', '--tools', ''],
-    {
-      cwd: input.cwd,
-      stdin: new Blob([recallPrompt(input.misses, input.findings)]),
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  )
+  const proc = Bun.spawn(recallJudgeCommand(input.model), {
+    cwd: input.cwd,
+    stdin: new Blob([recallPrompt(input.misses, input.findings)]),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   const [stdout, stderr, exit] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

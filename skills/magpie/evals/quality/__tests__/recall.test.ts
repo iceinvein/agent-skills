@@ -9,6 +9,7 @@ import {
   type Miss,
   parseRecallVerdicts,
   type RecallVerdict,
+  recallJudgeCommand,
   recallPrompt,
   scoreRecall,
 } from '../recall.ts'
@@ -63,6 +64,56 @@ test('a verdict array inside a fenced json block is accepted', () => {
   expect(parseRecallVerdicts(text, misses, findings)).toEqual([
     { missId: 'm1', findingId: null, reason: 'No match.' },
     { missId: 'm2', findingId: 'security-2', reason: 'Same defect.' },
+  ])
+})
+
+test('a verdict array inside an untagged fence is accepted', () => {
+  const text =
+    '```\n[{"missId":"m1","findingId":"bugs-1","reason":"Same defect."},' +
+    '{"missId":"m2","findingId":null,"reason":"No match."}]\n```'
+  expect(parseRecallVerdicts(text, misses, findings)).toEqual([
+    { missId: 'm1', findingId: 'bugs-1', reason: 'Same defect.' },
+    { missId: 'm2', findingId: null, reason: 'No match.' },
+  ])
+})
+
+test('a verdict array wrapped in prose without a fence is accepted', () => {
+  const text =
+    'Verdicts follow. [{"missId":"m1","findingId":null,"reason":"No match [none]."},' +
+    '{"missId":"m2","findingId":"security-2","reason":"Same defect."}] That is all.'
+  expect(parseRecallVerdicts(text, misses, findings)).toEqual([
+    { missId: 'm1', findingId: null, reason: 'No match [none].' },
+    { missId: 'm2', findingId: 'security-2', reason: 'Same defect.' },
+  ])
+})
+
+test('a verdict with no findingId is rejected', () => {
+  const text = JSON.stringify([
+    { missId: 'm1', reason: 'No match.' },
+    { missId: 'm2', findingId: null, reason: 'No match.' },
+  ])
+  expect(() => parseRecallVerdicts(text, misses, findings)).toThrow('[0]')
+})
+
+test('a verdict whose reason is not a string is rejected', () => {
+  const text = JSON.stringify([
+    { missId: 'm1', findingId: null, reason: 'No match.' },
+    { missId: 'm2', findingId: null, reason: 7 },
+  ])
+  expect(() => parseRecallVerdicts(text, misses, findings)).toThrow('[1]')
+})
+
+test('the recall judge runs with no MCP servers and no tools', () => {
+  expect(recallJudgeCommand('claude-sonnet-5-5')).toEqual([
+    'claude',
+    '-p',
+    '--model',
+    'claude-sonnet-5-5',
+    '--output-format',
+    'json',
+    '--strict-mcp-config',
+    '--tools',
+    '',
   ])
 })
 
