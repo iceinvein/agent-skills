@@ -18,7 +18,7 @@ export type RunDedupeOptions = {
 }
 
 /**
- * The five focuses a specialist subagent writes. `tests` is a `FOCUS_IDS` entry
+ * The six focuses a specialist subagent writes. `tests` is a `FOCUS_IDS` entry
  * too, but setup writes `findings/tests.json` once for the whole run with no
  * subagent, so it is never expected per shard.
  */

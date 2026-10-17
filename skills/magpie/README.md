@@ -49,7 +49,7 @@ magpie preview --no-open --out /tmp/magpie-ui   # write files only
 magpie preview --list-stages                    # see all stage presets
 ```
 
-The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + post-status.json) and covers all four severities, all five focus domains, every section combination (with/without suggestion code block, with/without verification, raw-prose fallback), and a mix of posted / failed / fresh badges.
+The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + post-status.json) and covers all four severities, the five original focus domains, every section combination (with/without suggestion code block, with/without verification, raw-prose fallback), and a mix of posted / failed / fresh badges.
 
 ## Layout
 
