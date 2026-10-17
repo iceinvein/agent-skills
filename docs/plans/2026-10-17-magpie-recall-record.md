@@ -105,3 +105,17 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
     blocks, which is correct);
   - stage 4 prose was tightened to stay under the skill-lint 3000-word cap;
   - README line 52's "all five focus domains" refers to the preview fixture and is left as is.
+- T5 committed c6eb453. Tier 3 review: nothing blocking. A fix round goes before T7 because
+  T7 measures these prompts. It covers:
+  - the shard header contradicting contracts anchoring (N5);
+  - SKILL.md file-check and resume wording for contracts-only shards (N1, N2);
+  - leftover five/35 text (N4);
+  - over-broad access-control, stale-doc and missing-resource wording (N6);
+  - architecture/contracts boundary (N7);
+  - absent-fix docs case (miss 50-1).
+- Gaps the review found outside the design, which go to the handback and are not fixed here:
+  - base-branch drift (miss 231-2): no specialist compares against the current base;
+  - the parent-dir scout change reaches none of the recorded misses: the parking_lot rule
+    (50-12) lives in `.claude/skills/rust-backend-standards/SKILL.md`, which the scout never
+    reads, and the deep-channel rule (50-3) is in the root CLAUDE.md, already read;
+  - negative-control re-bless (50-4), and 38-1/2/3/5 and 50-9, get nothing from the new text.
