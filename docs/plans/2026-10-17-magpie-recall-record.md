@@ -19,3 +19,28 @@ Spec: `docs/specs/2026-10-17-magpie-recall.md`. Plan: `docs/plans/2026-10-17-mag
 
 - T5 gained `Needs: baselineResults` after validation, so that the flip cannot land
   before the baseline replay measures the pre-flip prompts.
+- T1 seeded 30 misses, not 29: 29 never raised plus the one PR 50 issue the critic dropped,
+  which the plan's filter includes. The spec's "29" counted only the never-raised ones. Files:
+  `~/.magpie/corpus/misses/`, generator at the session scratchpad `seed_misses.py`. No commit
+  (nothing in the repo changed). `preExisting` is true only where the analysis set the field
+  (PR 70 miss-2..4).
+- Typecheck gate: `bun run typecheck` exits 127 (`tsc` not installed in the main tree or the
+  worktree; pre-existing, not caused by this plan). This run uses
+  `bunx -p typescript tsc --noEmit` from `skills/magpie` as the typecheck gate. Fixing the
+  script is out of scope and goes to the handback.
+- T2 review (tier 1) cleared with no blockers. A fix round (2ed5550) took two non-blocking
+  findings: `--strict-mcp-config` so the judge loads no MCP servers, and fence-tolerant
+  verdict parsing, so a formatting slip cannot waste a paid replay. It added an export,
+  `recallJudgeCommand(model)`, that is not in the Contract.
+- T3 brief settles a choice the plan left open: replay-full writes its result file before
+  the judge runs (recall fields null) and rewrites it with recall afterwards. A judge failure
+  then exits 1 naming the saved result instead of losing a $10 replay.
+- Replay set narrowed to `pr-50-1789099641` and `pr-70-1790391863` for T4 and T7. PR 46 has
+  no `post-status.json` (nothing was posted), so it is not a corpus run and has no labels.
+  Inventing labels for it would fabricate data. The narrowed set covers 19 of the 30 misses
+  (14 + 5) and lowers spend; PR 46's two platform/shell misses go unmeasured.
+- T3 review (tier 2) cleared with no blockers. A fix round (8de426e) corrected the README's
+  replay-coverage notes, said that the judge still loads user settings, and added the
+  bare-run-id note for `--corpus`.
+- T4 and T7 run controller-side. Each is one CLI invocation whose output is a summary line
+  and a result JSON, so a dispatch would buy no context saving.

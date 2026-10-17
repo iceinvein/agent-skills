@@ -20,8 +20,9 @@ and the after replay (T7) build on the flip.
   Nothing derived from client code is written inside the git repo.
 - Recall set path: `<corpusRoot>/misses/<runId>.json`.
 - Judge default model: `claude-sonnet-5-5`, overridable with `--judge-model`.
-- Replay runs: `pr-46-1787748571`, `pr-50-1789099641`, `pr-70-1790391863`, against the clone
-  at `~/Documents/projects/workings`, `--max-cost-usd 10` each.
+- Replay runs: `pr-50-1789099641`, `pr-70-1790391863`, against the clone at
+  `~/Documents/projects/workings`, `--max-cost-usd 10` each. (pr-46 was dropped: it has no
+  corpus run, see the run record.)
 - Match the file you are in: naming, error style, layout. No new dependencies. No `any`,
   `@ts-ignore` or `biome-ignore`. Fail loudly on malformed input, and never default missing data.
 - Tests assert observable behaviour with hand-written expected values.
