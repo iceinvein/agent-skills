@@ -112,10 +112,12 @@ test('diagnostics carry the log, manifest, findings files, deduped count and cri
     findingsFiles: ['bugs.shard-1.json', 'security.shard-2.json'],
     dedupedCount: 3,
     criticDropped: [{ id: 'b', reason: 'speculative' }],
+    evidenceDropped: null,
+    thresholdDropped: null,
   })
 })
 
-test('diagnostics report absent manifest, deduped and critic files as null', async () => {
+test('diagnostics report absent manifest, deduped and drop files as null', async () => {
   const dir = await scratchRunDir()
   await writeFile(join(dir, 'log.jsonl'), '{"stage":"setup","status":"done"}\n')
 
@@ -125,16 +127,33 @@ test('diagnostics report absent manifest, deduped and critic files as null', asy
     findingsFiles: [],
     dedupedCount: null,
     criticDropped: null,
+    evidenceDropped: null,
+    thresholdDropped: null,
   })
 })
 
-test('a log line that is not JSON fails naming its line number', async () => {
+test('a log line that is not a JSON object is kept raw in its place with its line number', async () => {
   const dir = await scratchRunDir()
   await writeFile(
     join(dir, 'log.jsonl'),
-    '{"stage":"setup","status":"done"}\n{"stage":"shard"\n{"stage":"critic"}\n',
+    '{"stage":"setup","status":"done"}\n{"stage":"shard"\n[1,2]\n{"stage":"critic"}\n',
   )
-  await expect(replayDiagnostics(dir)).rejects.toThrow('log.jsonl line 2')
+  expect((await replayDiagnostics(dir)).log).toEqual([
+    { stage: 'setup', status: 'done' },
+    { unparsed: '{"stage":"shard"', line: 2 },
+    { unparsed: '[1,2]', line: 3 },
+    { stage: 'critic' },
+  ])
+})
+
+test('diagnostics carry the evidence and threshold drops when the run wrote them', async () => {
+  const dir = await scratchRunDir()
+  await writeFile(join(dir, 'log.jsonl'), '{"stage":"setup","status":"done"}\n')
+  await writeFile(join(dir, 'evidence-dropped.json'), '[{"id":"e1","reason":"quote not in diff"}]')
+  await writeFile(join(dir, 'threshold-dropped.json'), '[{"id":"t1","confidence":0.2}]')
+  const diagnostics = await replayDiagnostics(dir)
+  expect(diagnostics.evidenceDropped).toEqual([{ id: 'e1', reason: 'quote not in diff' }])
+  expect(diagnostics.thresholdDropped).toEqual([{ id: 't1', confidence: 0.2 }])
 })
 
 test('a deduped findings file that is not an array is rejected', async () => {

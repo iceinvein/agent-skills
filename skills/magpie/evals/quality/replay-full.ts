@@ -44,6 +44,8 @@ export type ReplayDiagnostics = {
   findingsFiles: string[]
   dedupedCount: number | null
   criticDropped: unknown | null
+  evidenceDropped: unknown | null
+  thresholdDropped: unknown | null
 }
 
 async function readJsonIfPresent(path: string): Promise<unknown | null> {
@@ -56,24 +58,24 @@ async function readJsonIfPresent(path: string): Promise<unknown | null> {
 }
 
 /** What the scratch run dir says about the session, read before the dir is deleted:
- *  without it a thin result cannot be told apart as missed shards or critic drops. */
+ *  without it a thin result cannot be told apart as missed shards or critic drops.
+ *  The model writes most log lines by hand, so a line that is not a JSON object is
+ *  kept raw in its place rather than failing a replay that has already been paid for. */
 export async function replayDiagnostics(runDir: string): Promise<ReplayDiagnostics> {
-  const logPath = join(runDir, 'log.jsonl')
   const log: Array<Record<string, unknown>> = []
-  for (const [i, line] of (await readFile(logPath, 'utf8')).split('\n').entries()) {
+  for (const [i, line] of (await readFile(join(runDir, 'log.jsonl'), 'utf8')).split('\n').entries()) {
     if (line.trim() === '') continue
     let entry: unknown
     try {
       entry = JSON.parse(line)
-    } catch (err) {
-      throw new Error(
-        `${logPath} line ${i + 1} is not valid JSON: ${err instanceof Error ? err.message : err}`,
-      )
+    } catch {
+      entry = null
     }
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw new Error(`${logPath} line ${i + 1} is not a JSON object`)
+      log.push({ unparsed: line, line: i + 1 })
+    } else {
+      log.push(entry as Record<string, unknown>)
     }
-    log.push(entry as Record<string, unknown>)
   }
 
   const dedupedPath = join(runDir, 'findings.deduped.json')
@@ -88,6 +90,8 @@ export async function replayDiagnostics(runDir: string): Promise<ReplayDiagnosti
     findingsFiles: (await readdir(join(runDir, 'findings'))).sort(),
     dedupedCount: deduped === null ? null : deduped.length,
     criticDropped: await readJsonIfPresent(join(runDir, 'critic-dropped.json')),
+    evidenceDropped: await readJsonIfPresent(join(runDir, 'evidence-dropped.json')),
+    thresholdDropped: await readJsonIfPresent(join(runDir, 'threshold-dropped.json')),
   }
 }
 
@@ -262,6 +266,7 @@ async function main(argv: string[]): Promise<number> {
     })
 
     const diagnostics = await replayDiagnostics(scratch)
+    const shardCoverage = shardCoverageCount(diagnostics.shardManifest, diagnostics.findingsFiles)
 
     const resultsDir = join(corpusRoot, 'results')
     await mkdir(resultsDir, { recursive: true })
@@ -281,6 +286,7 @@ async function main(argv: string[]): Promise<number> {
       judgeModel: null as string | null,
       judgeCostUsd: null as number | null,
       ...diagnostics,
+      shardCoverage,
     }
     // Written before the judge runs so a judge failure cannot lose a paid replay.
     await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
@@ -315,7 +321,7 @@ async function main(argv: string[]): Promise<number> {
         recall: score.recall,
         costUsd,
         missedRecall: result.recall,
-        coverage: shardCoverageCount(diagnostics.shardManifest, diagnostics.findingsFiles),
+        coverage: shardCoverage,
         outPath,
       }),
     )

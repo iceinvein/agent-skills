@@ -136,8 +136,9 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
 3. Matches the new kept findings to `findings.final.json` with `matchFindings` and scores
    them; unmatched findings count as `unlabelled` and stay out of precision. Writes
    `results/<ts>-full-<runId>.json` with `recall`, `recallVerdicts`, `judgeModel` and
-   `judgeCostUsd` all null, plus `log`, `shardManifest`, `findingsFiles`, `dedupedCount`
-   and `criticDropped` read from the scratch run dir before it is deleted.
+   `judgeCostUsd` all null, plus `log`, `shardManifest`, `findingsFiles`, `dedupedCount`,
+   `criticDropped`, `evidenceDropped`, `thresholdDropped` and `shardCoverage` read from the
+   scratch run dir before it is deleted.
 4. When the run has a recall set (see [Recall](#recall)), judges the new kept findings
    against it, scores them, and rewrites the same result file with those four fields
    filled. The printed line gains `, missed-recall <caught>/<misses>`. Without a recall
