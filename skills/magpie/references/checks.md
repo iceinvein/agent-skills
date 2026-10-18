@@ -48,8 +48,9 @@ that existing checks rely on:
    could not confirm is not a finding.
 
 Report a check only when it is weaker than its purpose in a way that would let a real
-regression through. A check that is merely thin, or tests a constant, is not a finding
-unless something depends on it catching more.
+regression through, or when it can fail for a reason unrelated to its purpose (the clock,
+shared state, load), which teaches people to ignore it. A check that is merely thin, or
+tests a constant, is not a finding unless something depends on it catching more.
 
 ## Findings
 

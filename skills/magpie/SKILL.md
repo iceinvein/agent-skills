@@ -261,7 +261,8 @@ magpie status "$RUN_DIR"
 
 The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
-- `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3. Re-dispatch only the checks pass if `findings/checks.json` is missing.
+- `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
+- Any resume: re-dispatch the checks pass when `findings/checks.json` is missing and no `checks: skipped` is logged.
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
