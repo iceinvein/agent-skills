@@ -150,6 +150,14 @@
       "unpinned": "No case runs cleanup, and the fakes have no cleanup subcommand."
     },
     {
+      "id": "local-mode-hands-back-via-handoff",
+      "states": "SKILL.md: Local mode",
+      "origin": "commit:082893a",
+      "cases": [
+        "local-mode-hands-back"
+      ]
+    },
+    {
       "id": "resumable-means-log-not-server-info",
       "states": "SKILL.md: Resuming a crashed run",
       "origin": "commit:63d0fb1",
