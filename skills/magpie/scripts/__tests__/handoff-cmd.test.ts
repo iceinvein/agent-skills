@@ -43,7 +43,18 @@ const consider: ReviewFinding = {
   domain: null,
 }
 
-const findings = [shouldFix, consider, mustFix]
+const optional: ReviewFinding = {
+  id: 'f-optional',
+  file: 'src/c.ts',
+  line: 3,
+  severity: 'low',
+  risk: { impact: 'low', likelihood: 'edge-case', confidence: 'low', action: 'optional' },
+  title: 'Name the constant',
+  description: 'Observation: the magic number has no name.',
+  domain: null,
+}
+
+const findings = [shouldFix, consider, mustFix, optional]
 
 function render(stale: boolean): string {
   return formatHandoff({
@@ -60,8 +71,8 @@ test('formatHandoff opens with the target header', () => {
   )
 })
 
-test('formatHandoff counts consider as optional', () => {
-  expect(render(false)).toContain('1 must-fix, 1 should-fix, 1 optional')
+test('formatHandoff counts consider and optional together as optional', () => {
+  expect(render(false)).toContain('1 must-fix, 1 should-fix, 2 optional')
 })
 
 test('formatHandoff names the run dir', () => {
@@ -73,17 +84,41 @@ test('formatHandoff numbers actionable findings by risk, then suggestions', () =
   const first = out.indexOf('1. [must-fix] src/a.ts:10: Token leaks into the log')
   const second = out.indexOf('2. [should-fix] src/b.ts:20: Retry count is off by one')
   const third = out.indexOf('3. [consider] README.md: Mention the new flag')
+  const fourth = out.indexOf('4. [optional] src/c.ts:3: Name the constant')
   expect(first).toBeGreaterThan(-1)
   expect(second).toBeGreaterThan(first)
   expect(third).toBeGreaterThan(second)
+  expect(fourth).toBeGreaterThan(third)
 })
 
 test('formatHandoff renders each description as markdown sections', () => {
   expect(render(false)).toContain('**Observation:** the bearer token is written to stdout.')
 })
 
-test('formatHandoff fences the suggestion body', () => {
-  expect(render(false)).toContain('```\nlog.info(redact(token))\n```')
+test('formatHandoff fences the suggestion body under a single-line label', () => {
+  expect(render(false)).toContain(
+    'Suggested replacement for line 10:\n```\nlog.info(redact(token))\n```',
+  )
+})
+
+function renderOne(suggestion: ReviewFinding['suggestion']): string {
+  return formatHandoff({
+    target: 't',
+    runDir: '/runs/r1',
+    findings: [{ ...mustFix, suggestion }],
+    stale: false,
+  })
+}
+
+test('formatHandoff labels a multi-line suggestion with its line range', () => {
+  expect(renderOne({ body: 'a()\nb()', startLine: 4, endLine: 5 })).toContain(
+    'Suggested replacement for lines 4-5:\n```\na()\nb()\n```',
+  )
+})
+
+test('formatHandoff fences a body holding backticks one backtick longer', () => {
+  const body = 'doc = `\n```\n`'
+  expect(renderOne({ body, startLine: 1, endLine: 3 })).toContain(`\`\`\`\`\n${body}\n\`\`\`\``)
 })
 
 test('formatHandoff ends with the footer', () => {
@@ -101,9 +136,7 @@ test('formatHandoff omits the stale warning when fresh', () => {
 
 test('formatHandoff with no findings prints only the header and No findings.', () => {
   const out = formatHandoff({ target: 't', runDir: '/runs/r1', findings: [], stale: false })
-  expect(out).toContain('# magpie local review: t')
-  expect(out).toContain('No findings.')
-  expect(out).not.toContain(FOOTER)
+  expect(out).toBe('# magpie local review: t\n\nNo findings.\n')
 })
 
 let repo: string
@@ -233,4 +266,31 @@ test('runHandoff returns 4 when local.json is missing', async () => {
   await writeLocalRun()
   await rm(join(runDir, 'local.json'))
   expect(await runHandoff(runDir)).toBe(4)
+})
+
+test('runHandoff reports a failed recompute as stale', async () => {
+  await writeLocalRun()
+  const meta = JSON.parse(await readFile(join(runDir, 'local.json'), 'utf8'))
+  await writeFile(join(runDir, 'local.json'), JSON.stringify({ ...meta, baseRef: 'no-such-ref' }))
+  expect(await runHandoff(runDir)).toBe(0)
+  expect(stdout).toContain(WARNING)
+})
+
+test('runHandoff reports a diff-source.json without diffSha256 as stale', async () => {
+  await writeLocalRun()
+  const source = JSON.parse(await readFile(join(runDir, 'diff-source.json'), 'utf8'))
+  delete source.diffSha256
+  await writeFile(join(runDir, 'diff-source.json'), JSON.stringify(source))
+  expect(await runHandoff(runDir)).toBe(0)
+  expect(stdout).toContain(WARNING)
+})
+
+test('runHandoff still prints, stale, when the review root is gone', async () => {
+  await writeLocalRun()
+  const gone = await mkdtemp(join(tmpdir(), 'magpie-handoff-gone-'))
+  await rm(gone, { recursive: true, force: true })
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: gone }))
+  expect(await runHandoff(runDir)).toBe(0)
+  expect(stdout).toContain(WARNING)
+  expect(stderr).toContain('magpie: handoff: could not recompute the diff: ')
 })

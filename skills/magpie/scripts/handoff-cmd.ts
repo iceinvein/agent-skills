@@ -5,7 +5,7 @@ import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import { diffSha256, localBranchDiff } from './local-diff.ts'
 import { rankActionable } from './render-issues-list.ts'
 import { readTarget } from './target.ts'
-import { isSuggestion, parseFinding, type ReviewFinding } from './types.ts'
+import { isSuggestion, parseFinding, type ReviewFinding, type Suggestion } from './types.ts'
 
 async function logLine(runDir: string, entry: Record<string, unknown>): Promise<void> {
   const line = `${JSON.stringify({ ...entry, ts: Date.now() })}\n`
@@ -19,12 +19,25 @@ export type FormatHandoffInput = {
   stale: boolean
 }
 
+/** A fence longer than any backtick run in the body, so the body cannot close it early. */
+function fenceFor(body: string): string {
+  const longestRun = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length))
+  return '`'.repeat(Math.max(3, longestRun + 1))
+}
+
+function formatSuggestion(s: Suggestion): string {
+  const lines =
+    s.startLine === s.endLine ? `line ${s.startLine}` : `lines ${s.startLine}-${s.endLine}`
+  const fence = fenceFor(s.body)
+  return `Suggested replacement for ${lines}:\n${fence}\n${s.body}\n${fence}`
+}
+
 function formatItem(n: number, f: ReviewFinding): string {
   const anchor = f.line === null ? f.file : `${f.file}:${f.line}`
   const parts = [`${n}. [${f.risk.action}] ${anchor}: ${f.title}`]
   const body = formatFindingDescriptionMarkdown(f.description)
   if (body) parts.push(body)
-  if (f.suggestion) parts.push(`\`\`\`\n${f.suggestion.body}\n\`\`\``)
+  if (f.suggestion) parts.push(formatSuggestion(f.suggestion))
   return parts.join('\n\n')
 }
 
@@ -100,9 +113,16 @@ export async function runHandoff(runDir: string, opts: { gitBin?: string } = {})
   const meta = await readLocalMeta(metaPath)
 
   const recorded = await recordedDiffSha(runDir)
-  const current = await localBranchDiff({ gitBin, repoPath: target.root, baseRef: meta.baseRef })
   // A failed recompute proves nothing about the tree, so it is reported as stale.
-  const stale = recorded === null || !current.ok || diffSha256(current.diff) !== recorded
+  let currentSha: string | null = null
+  try {
+    const current = await localBranchDiff({ gitBin, repoPath: target.root, baseRef: meta.baseRef })
+    if (current.ok) currentSha = diffSha256(current.diff)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    process.stderr.write(`magpie: handoff: could not recompute the diff: ${message}\n`)
+  }
+  const stale = recorded === null || currentSha === null || currentSha !== recorded
 
   const subject = meta.branch === null ? 'detached HEAD' : `local branch ${meta.branch}`
   process.stdout.write(
