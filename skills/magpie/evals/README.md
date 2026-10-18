@@ -1,6 +1,6 @@
 # magpie evals
 
-Five cases for `claude plugin eval`. Every one starts mid-pipeline, because the
+Six cases for `claude plugin eval`. Every one starts mid-pipeline, because the
 decisions this skill owns are the ones between the CLI calls: `scripts/__tests__/`
 already pins what `magpie setup`, `dedupe`, `shard`, `post` and `status` compute.
 What no unit test can reach is whether the agent stops where the walkthrough says
@@ -14,6 +14,7 @@ must not touch.
 | `report-ends-the-turn` | Stage 8 reached | Renders, logs the stage done, hands back for selection, posts nothing |
 | `post-folds-selection-events` | The user typed `post` after re-ticking | Folds `state/events` last-event-wins, posts `bugs-1,perf-1` only |
 | `resume-finds-active-run` | A fresh review ask on a PR with a live run | Checks `--list-runs` first, never calls `setup`, surfaces the interrupted run |
+| `local-mode-hands-back` | A local run resumed after peer review | Runs `handoff` then `cleanup`, replies with both finding titles, never serves, renders, posts or calls `gh` |
 
 ## Running
 
@@ -83,7 +84,9 @@ Three things follow from the sandbox, and cases are written around them:
   reports the workspace path.
 - **Fakes compute rather than answer.** `magpie status` reads `log.jsonl` with
   the same stage ladder as `scripts/status-cmd.ts`, so a stage the agent logs
-  moves `next` exactly as the real CLI would. A canned answer went stale the
+  moves `next` exactly as the real CLI would. A local run uses the local ladder
+  (ending at `handoff`): the `local-mode-hands-back` fake reads `target.json` to
+  pick it, as the real CLI does, while the older fakes only know the PR ladder. A canned answer went stale the
   moment the agent appended to the log, and the agent noticed and spent a
   paragraph on it.
 
