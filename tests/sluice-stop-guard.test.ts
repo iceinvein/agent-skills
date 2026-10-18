@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1046,6 +1046,196 @@ describe("stop-guard.sh entry check", () => {
 			const { cfg, input } = movedSession("v9", "fast");
 
 			expect(entryGuard({ ...input, stop_hook_active: true }, cfg).out).toBe("");
+		});
+	});
+
+	// A test edited to agree with new code proves nothing about it. The gate
+	// refuses a handback carrying such an edit until each changed test has a
+	// record at its current content, made by status.sh tests-changed.
+	describe("test gate", () => {
+		const ORIGINAL = 'test("adds", () => {\n\texpect(add(1, 2)).toBe(3);\n});\n';
+
+		/** A transcript with one route call. Deep keeps the verify gate out of
+		 * the way, and with no run.json the run guard stays out too. */
+		function routed(channel: string): string {
+			const path = join(mkdtempSync(join(tmpdir(), "sluice-tx-")), "s.jsonl");
+			writeFileSync(
+				path,
+				`${JSON.stringify({
+					type: "assistant",
+					message: {
+						role: "assistant",
+						content: [{ type: "tool_use", name: "Bash", input: { command: `bash status.sh route ${channel}` } }],
+					},
+				})}\n`,
+			);
+			return path;
+		}
+
+		function repoWithTest(): string {
+			const dir = gitRepo();
+			mkdirSync(join(dir, "tests"));
+			writeFileSync(join(dir, "tests", "add.test.ts"), ORIGINAL);
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "test"], timeout: 10000 });
+			return dir;
+		}
+
+		/** A repo with one committed test file, stamped at session start. */
+		function session(sid: string) {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			stamp(cfg, sid, dir);
+			const stampPath = join(cfg, "sluice", "stamps", sid);
+			const base = readFileSync(stampPath, "utf8").split("\n")[2];
+			const input = { cwd: dir, session_id: sid, transcript_path: routed("deep"), stop_hook_active: false };
+			return { cfg, dir, base, stampPath, input };
+		}
+
+		function weaken(dir: string) {
+			writeFileSync(join(dir, "tests", "add.test.ts"), 'test("adds", () => {\n\texpect(add(1, 2)).toBeDefined();\n});\n');
+		}
+
+		function recordNone(dir: string, base: string) {
+			return Bun.spawnSync({
+				cmd: [
+					"bash", STATUS, "tests-changed", "--dir", dir, "--base", base,
+					"--because", "add returned 3", "--none", "the old add is gone",
+				],
+				timeout: 10000,
+			});
+		}
+
+		test("refuses an edited existing test with no record", () => {
+			const { cfg, dir, input } = session("t1");
+			weaken(dir);
+
+			const r = entryGuard(input, cfg);
+			expect(r.code).toBe(0);
+			expect(decision(r.out)).toBe("block");
+		});
+
+		test("the refusal names the path, the base and both record forms", () => {
+			const { cfg, dir, base, input } = session("t2");
+			weaken(dir);
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(base).toMatch(/^[0-9a-f]{40}$/);
+			expect(reason).toContain("tests/add.test.ts");
+			expect(reason).toContain(base);
+			expect(reason).toContain('status.sh tests-changed --because "');
+			expect(reason).toMatch(/tests-changed --because "[^"]*" -- /);
+			expect(reason).toMatch(/tests-changed --because "[^"]*" --none /);
+		});
+
+		test("lets a test recorded at its current content hand back", () => {
+			const { cfg, dir, base, input } = session("t3");
+			weaken(dir);
+			expect(recordNone(dir, base).exitCode).toBe(0);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("refuses a test edited again after its record", () => {
+			const { cfg, dir, base, input } = session("t4");
+			weaken(dir);
+			expect(recordNone(dir, base).exitCode).toBe(0);
+			writeFileSync(join(dir, "tests", "add.test.ts"), 'test("adds", () => {\n\texpect(1).toBe(1);\n});\n');
+
+			expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		});
+
+		test("lets a deleted test recorded as gone hand back", () => {
+			const { cfg, dir, base, input } = session("t5");
+			rmSync(join(dir, "tests", "add.test.ts"));
+			expect(recordNone(dir, base).exitCode).toBe(0);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("refuses a deleted test with no record", () => {
+			const { cfg, dir, input } = session("t6");
+			rmSync(join(dir, "tests", "add.test.ts"));
+
+			expect(decision(entryGuard(input, cfg).out)).toBe("block");
+		});
+
+		test("lets a new test file hand back with no record", () => {
+			const { cfg, dir, input } = session("t7");
+			writeFileSync(join(dir, "tests", "sub.test.ts"), 'test("subs", () => {\n\texpect(sub(3, 2)).toBe(1);\n});\n');
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("stays silent when the stamp holds no base", () => {
+			const { cfg, dir, stampPath, input } = session("t8");
+			const lines = readFileSync(stampPath, "utf8").split("\n");
+			writeFileSync(stampPath, `${lines[0]}\n${lines[1]}\n`);
+			weaken(dir);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		// gc can prune the unreachable base commit out from under the stamp.
+		test("stays silent when the stamp's base no longer resolves", () => {
+			const { cfg, dir, stampPath, input } = session("t9");
+			const lines = readFileSync(stampPath, "utf8").split("\n");
+			writeFileSync(stampPath, `${lines[0]}\n${lines[1]}\n${"0123456789".repeat(4)}\n`);
+			weaken(dir);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("lets the stop through once a stop hook already fired this turn", () => {
+			const { cfg, dir, input } = session("t10");
+			weaken(dir);
+
+			expect(entryGuard({ ...input, stop_hook_active: true }, cfg).out).toBe("");
+		});
+
+		// A session opened on a tree already holding the edit made none of it.
+		test("stays silent when the tree has not moved this session", () => {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			weaken(dir);
+			stamp(cfg, "t11", dir);
+
+			const r = entryGuard(
+				{ cwd: dir, session_id: "t11", transcript_path: routed("deep"), stop_hook_active: false },
+				cfg,
+			);
+			expect(r.out).toBe("");
+		});
+
+		// One refusal per attempt: the verify gate speaks first, and the test
+		// gate waits for the next attempt rather than piling on a second reason.
+		test("says nothing while the verify gate is refusing", () => {
+			const { cfg, dir, input } = session("t12");
+			weaken(dir);
+
+			const reason = JSON.parse(entryGuard({ ...input, transcript_path: routed("fast") }, cfg).out).reason as string;
+			expect(reason).toContain("status.sh verify");
+			expect(reason).not.toContain("tests-changed");
+		});
+
+		test("refuses a verified fast handback that carries an unrecorded test edit", () => {
+			const { cfg, dir, input } = session("t13");
+			weaken(dir);
+			expect(Bun.spawnSync({ cmd: ["bash", STATUS, "verify", "--dir", dir, "--", "true"], timeout: 5000 }).exitCode).toBe(0);
+
+			const reason = JSON.parse(entryGuard({ ...input, transcript_path: routed("fast") }, cfg).out).reason as string;
+			expect(reason).toContain("tests-changed");
+		});
+
+		// The reason is printed by the harness, so a control byte in a path name
+		// would reach a terminal as an instruction rather than as text.
+		test("a test path with a control byte does not reach the refusal reason", () => {
+			const { cfg, dir, input } = session("t14");
+			writeFileSync(join(dir, "tests", `ev${String.fromCharCode(27)}il.test.ts`), 'test.skip("x", () => {});\n');
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(reason).toContain("evil.test.ts");
+			expect(reason).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
 		});
 	});
 });
