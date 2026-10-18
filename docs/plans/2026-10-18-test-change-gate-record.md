@@ -195,3 +195,18 @@ at the handback: one edited non-test file under a test path (a fixture under
 and no way to name a subset, the real updated test can then only be cleared
 with `--none`. Fails safe, never open, but common enough to decide on.
 `.bug-hunter/` left untracked, as in the main tree.
+
+## Handback decisions (partner)
+
+- Finish: merge to master, then bump sluice (0.25.0), nothing pushed.
+- `--none` after a failed proof: kept as the escape hatch.
+- Fixtures: `tests-changed --only <path>` added as T11 before the merge.
+- `content-digest.sh` timestamp race: fixed now as a separate fast-channel
+  commit on master after the merge.
+- Not yet decided, left in the handback: S4b (untracked test edited alone is
+  not gated), S15 (subdirectory commands run at the root), the gate's lack of
+  a "not mine" exit, magpie's stale index entry.
+- T11 (e0642e5): `--only <path>` landed; review found no blocking. The
+  controller reworded "carries neither" in test-first.md (44e7283). Known:
+  once a fixture is recorded with `--none --only`, later proofs still need
+  `--only <test>`, since the fixture stays flagged.
