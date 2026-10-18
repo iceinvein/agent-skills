@@ -3,6 +3,9 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { killServer, runCleanup } from '../cleanup-cmd.ts'
+import { runSetup } from '../setup-cmd.ts'
+
+const FAKE_GH = new URL('../../fixtures/fake-gh.sh', import.meta.url).pathname
 
 let repo: string
 let runDir: string
@@ -11,6 +14,14 @@ async function sh(cwd: string, ...cmd: string[]): Promise<void> {
   const proc = Bun.spawn(cmd, { cwd, stdout: 'pipe', stderr: 'pipe' })
   const exit = await proc.exited
   if (exit !== 0) throw new Error(`${cmd.join(' ')} exit ${exit}`)
+}
+
+async function gitOut(cwd: string, ...args: string[]): Promise<string> {
+  const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  const out = await new Response(proc.stdout).text()
+  const exit = await proc.exited
+  if (exit !== 0) throw new Error(`git ${args.join(' ')} exit ${exit}`)
+  return out
 }
 
 beforeEach(async () => {
@@ -150,4 +161,56 @@ test('runCleanup logs kill outcome to log.jsonl', async () => {
   const log = await readFile(join(parent, archived as string, 'log.jsonl'), 'utf8')
   expect(log).toContain('"stage":"cleanup"')
   expect(log).toContain('"outcome":"no-server-info"')
+})
+
+test('cleanup after a local setup archives the run and leaves the repo as it was', async () => {
+  // The shared fixture adds a worktree; a local run has none, so it gets its own repo and run dir.
+  const localRepo = await mkdtemp(join(tmpdir(), 'magpie-cleanup-local-repo-'))
+  const localRun = await mkdtemp(join(tmpdir(), 'magpie-cleanup-local-run-'))
+  try {
+    await sh(localRepo, 'git', 'init', '-q', '-b', 'main')
+    await sh(localRepo, 'git', 'config', 'user.email', 't@t.t')
+    await sh(localRepo, 'git', 'config', 'user.name', 't')
+    await sh(localRepo, 'git', 'config', 'commit.gpgsign', 'false')
+    await writeFile(join(localRepo, 'a.txt'), 'a\n')
+    await sh(localRepo, 'git', 'add', '.')
+    await sh(localRepo, 'git', 'commit', '-q', '-m', 'init')
+    await sh(localRepo, 'git', 'checkout', '-q', '-b', 'feature-x')
+    await writeFile(join(localRepo, 'b.txt'), 'b\n')
+    await sh(localRepo, 'git', 'add', 'b.txt')
+    await sh(localRepo, 'git', 'commit', '-q', '-m', 'add b')
+    await writeFile(join(localRepo, 'a.txt'), 'a\nedited\n')
+    await writeFile(join(localRepo, 'new.txt'), 'untracked\n')
+
+    const setupExit = await runSetup({
+      mode: 'local',
+      runDir: localRun,
+      repoPath: localRepo,
+      baseRef: 'main',
+      deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+    })
+    expect(setupExit).toBe(0)
+
+    const exit = await runCleanup({ runDir: localRun, repoPath: localRepo, gitBin: 'git' })
+    expect(exit).toBe(0)
+
+    const parent = dirname(localRun)
+    const archived = (await readdir(parent)).find((e) =>
+      e.startsWith(`${basename(localRun)}.archived-`),
+    )
+    if (!archived) throw new Error('expected an archived run dir')
+    const target = JSON.parse(await readFile(join(parent, archived, 'target.json'), 'utf8'))
+    await rm(join(parent, archived), { recursive: true, force: true })
+    expect(target).toEqual({ mode: 'local', root: localRepo })
+
+    expect(await readFile(join(localRepo, 'a.txt'), 'utf8')).toBe('a\nedited\n')
+    expect(await readFile(join(localRepo, 'new.txt'), 'utf8')).toBe('untracked\n')
+    const status = await gitOut(localRepo, 'status', '--porcelain')
+    expect(status).toBe(' M a.txt\n?? new.txt\n')
+    const worktrees = await gitOut(localRepo, 'worktree', 'list')
+    expect(worktrees.trim().split('\n')).toHaveLength(1)
+  } finally {
+    await rm(localRepo, { recursive: true, force: true })
+    await rm(localRun, { recursive: true, force: true })
+  }
 })

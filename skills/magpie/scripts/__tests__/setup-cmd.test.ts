@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { diffSha256, localBranchDiff } from '../local-diff.ts'
 import { runSetup } from '../setup-cmd.ts'
 
 const FAKE_GH = new URL('../../fixtures/fake-gh.sh', import.meta.url).pathname
@@ -42,6 +43,7 @@ afterEach(async () => {
 
 test('runSetup completes happy path: writes pr.json, diff.patch, worktree', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -52,10 +54,13 @@ test('runSetup completes happy path: writes pr.json, diff.patch, worktree', asyn
   expect(contents).toContain('pr.json')
   expect(contents).toContain('diff.patch')
   expect(contents).toContain('worktree')
+  const target = JSON.parse(await readFile(join(runDir, 'target.json'), 'utf8'))
+  expect(target).toEqual({ mode: 'pr', root: join(runDir, 'worktree') })
 })
 
 test('runSetup with missing dep returns non-zero and cleans up', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -68,6 +73,7 @@ test('runSetup with missing dep returns non-zero and cleans up', async () => {
 
 test('runSetup filters excluded files by default and preserves raw diff', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -93,6 +99,7 @@ test('runSetup filters excluded files by default and preserves raw diff', async 
 
 test('runSetup with no excludable files does not write filter sidecars', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -107,6 +114,7 @@ test('runSetup with no excludable files does not write filter sidecars', async (
 test('runSetup honors .magpie.json useDefaults=false', async () => {
   await writeFile(join(repo, '.magpie.json'), JSON.stringify({ useDefaults: false, exclude: [] }))
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -129,6 +137,7 @@ test('runSetup writes incremental.json when a prior run for the same PR exists',
   process.env.MAGPIE_HOME = magpieHome
   try {
     const exit = await runSetup({
+      mode: 'pr',
       runDir,
       prNumber: 1234,
       repoPath: repo,
@@ -152,6 +161,7 @@ test('runSetup omits incremental.json when no prior run exists', async () => {
   process.env.MAGPIE_HOME = magpieHome
   try {
     const exit = await runSetup({
+      mode: 'pr',
       runDir,
       prNumber: 1234,
       repoPath: repo,
@@ -169,6 +179,7 @@ test('runSetup omits incremental.json when no prior run exists', async () => {
 
 test('runSetup with failing gh removes any partial state', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -178,10 +189,12 @@ test('runSetup with failing gh removes any partial state', async () => {
   const contents = await readdir(runDir).catch(() => [])
   expect(contents).not.toContain('worktree')
   expect(contents).not.toContain('pr.json')
+  expect(contents).not.toContain('target.json')
 })
 
 test('runSetup shards the filtered diff and logs the result', async () => {
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -210,6 +223,7 @@ test('runSetup cleans up a populated shards/ when worktree creation fails after 
   await writeFile(join(runDir, 'worktree', 'occupied'), 'x')
 
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -230,6 +244,7 @@ test('runSetup cleans up a populated shards/ when worktree creation fails after 
   const contents = await readdir(runDir).catch(() => [])
   expect(contents).not.toContain('shards')
   expect(contents).not.toContain('worktree')
+  expect(contents).not.toContain('target.json')
 })
 
 test('runSetup treats a shardDiff throw as a hard stop: logs, cleans up, exits 6', async () => {
@@ -242,6 +257,7 @@ test('runSetup treats a shardDiff throw as a hard stop: logs, cleans up, exits 6
   await writeFile(join(runDir, 'shards'), 'not a directory')
 
   const exit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,
@@ -260,4 +276,135 @@ test('runSetup treats a shardDiff throw as a hard stop: logs, cleans up, exits 6
 
   const contents = await readdir(runDir).catch(() => [])
   expect(contents.filter((c) => c !== 'log.jsonl')).toHaveLength(0)
+})
+
+const LOCAL_DEPS = { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' }
+
+async function prepareLocalBranch(): Promise<void> {
+  await sh(repo, 'git', 'checkout', '-q', 'feature-x')
+  await writeFile(join(repo, 'b.txt'), 'two\n')
+  await sh(repo, 'git', 'add', 'b.txt')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'add b')
+  await writeFile(join(repo, 'a.txt'), 'one\nedited\n')
+  await writeFile(join(repo, 'new.txt'), 'untracked\n')
+}
+
+async function readLog(): Promise<Array<Record<string, unknown>>> {
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  return log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+}
+
+test('local setup writes the diff, its sidecars and a target rooted at the repo', async () => {
+  await prepareLocalBranch()
+  const exit = await runSetup({
+    mode: 'local',
+    runDir,
+    repoPath: repo,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(0)
+  const contents = await readdir(runDir)
+  expect(contents).not.toContain('pr.json')
+  expect(contents).not.toContain('incremental.json')
+  expect(contents).not.toContain('worktree')
+
+  const diff = await readFile(join(runDir, 'diff.patch'), 'utf8')
+  expect(diff).toContain('+++ b/b.txt')
+  expect(diff).toContain('+edited')
+  expect(diff).toContain('+++ b/new.txt')
+
+  const source = JSON.parse(await readFile(join(runDir, 'diff-source.json'), 'utf8'))
+  expect(source.source).toBe('local')
+  expect(source.baseRef).toBe('main')
+  expect(source.mergeBase).toMatch(/^[0-9a-f]{40}$/)
+  expect(source.head).toMatch(/^[0-9a-f]{40}$/)
+  expect(source.diffSha256).toMatch(/^[0-9a-f]{64}$/)
+
+  const meta = JSON.parse(await readFile(join(runDir, 'local.json'), 'utf8'))
+  expect(meta.branch).toBe('feature-x')
+  expect(meta.baseRef).toBe('main')
+  expect(meta.dirty).toBe(true)
+  expect(meta.intentFile).toBeNull()
+
+  const target = JSON.parse(await readFile(join(runDir, 'target.json'), 'utf8'))
+  expect(target).toEqual({ mode: 'local', root: repo })
+
+  expect((await readLog()).find((e) => e.stage === 'setup')).toMatchObject({
+    status: 'done',
+    root: repo,
+  })
+})
+
+test('local setup hashes the raw diff, not the path-filtered patch', async () => {
+  await sh(repo, 'git', 'checkout', '-q', 'feature-x')
+  await writeFile(join(repo, 'bun.lock'), 'lock\n')
+  await writeFile(join(repo, 'src.ts'), 'export const x = 1\n')
+  await sh(repo, 'git', 'add', '.')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'lock and src')
+
+  const exit = await runSetup({
+    mode: 'local',
+    runDir,
+    repoPath: repo,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(0)
+  const filtered = await readFile(join(runDir, 'diff.patch'), 'utf8')
+  expect(filtered).not.toContain('bun.lock')
+
+  const raw = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!raw.ok) throw new Error(raw.error)
+  const source = JSON.parse(await readFile(join(runDir, 'diff-source.json'), 'utf8'))
+  expect(source.diffSha256).toBe(diffSha256(raw.diff))
+})
+
+test('local setup with an unresolvable base logs the error and keeps only the log', async () => {
+  await prepareLocalBranch()
+  const exit = await runSetup({
+    mode: 'local',
+    runDir,
+    repoPath: repo,
+    baseRef: 'nope',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(4)
+  expect((await readLog()).find((e) => e.stage === 'local-diff')).toMatchObject({
+    status: 'error',
+  })
+  expect(await readdir(runDir)).toEqual(['log.jsonl'])
+})
+
+test('local setup with a missing intent file fails naming the path', async () => {
+  await prepareLocalBranch()
+  const missing = join(runDir, 'no-such-intent.md')
+  const errs: string[] = []
+  const origWrite = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    errs.push(s)
+    return true
+  }) as typeof process.stderr.write
+  let exit: number
+  try {
+    exit = await runSetup({
+      mode: 'local',
+      runDir,
+      repoPath: repo,
+      baseRef: 'main',
+      intentFile: missing,
+      deps: LOCAL_DEPS,
+    })
+  } finally {
+    process.stderr.write = origWrite
+  }
+  expect(exit).not.toBe(0)
+  expect(errs.join('')).toContain(`magpie: intent file ${missing} does not exist`)
+  expect((await readLog()).find((e) => e.stage === 'local-diff')).toMatchObject({
+    status: 'error',
+  })
+  expect(await readdir(runDir)).toEqual(['log.jsonl'])
 })
