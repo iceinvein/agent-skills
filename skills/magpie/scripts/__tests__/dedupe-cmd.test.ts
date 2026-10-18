@@ -460,6 +460,13 @@ describe('with target.json naming a review root outside the run dir', () => {
     expect(kept.map((x: ReviewFinding) => x.id)).toEqual(['bugs-1'])
   })
 
+  test('fails without writing findings when a local root does not exist', async () => {
+    await rm(root, { recursive: true, force: true })
+    const exit = await runDedupe(runDir, { threshold: 0 })
+    expect(exit).not.toBe(0)
+    expect(await Bun.file(join(runDir, 'findings.deduped.json')).exists()).toBe(false)
+  })
+
   test('drops the finding as hallucinated-file when that root lacks the file', async () => {
     expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
     const evidence = JSON.parse(await readFile(join(runDir, 'evidence-dropped.json'), 'utf8'))

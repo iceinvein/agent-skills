@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readTarget, reviewRoot, writeTarget } from '../target.ts'
@@ -43,6 +43,25 @@ test('an unknown mode throws naming target.json', async () => {
 test('a non-string root throws naming target.json', async () => {
   await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: 7 }))
   await expect(readTarget(runDir)).rejects.toThrow(/target\.json.*root/)
+})
+
+test('an empty root throws as not absolute', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: '' }))
+  await expect(readTarget(runDir)).rejects.toThrow(
+    `${join(runDir, 'target.json')}: root must be an absolute path`,
+  )
+})
+
+test('a relative root throws as not absolute', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: 'repo' }))
+  await expect(readTarget(runDir)).rejects.toThrow(
+    `${join(runDir, 'target.json')}: root must be an absolute path`,
+  )
+})
+
+test('a target.json that cannot be read for a reason other than absence rejects', async () => {
+  await mkdir(join(runDir, 'target.json'))
+  await expect(readTarget(runDir)).rejects.toThrow(/EISDIR/)
 })
 
 test('unparseable target.json throws naming the file', async () => {

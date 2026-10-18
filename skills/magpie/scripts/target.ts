@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
 /** What a run reviews: a PR checked out in the run's worktree, or a local branch in place. */
 export type ReviewTarget = { mode: 'pr' | 'local'; root: string }
@@ -34,6 +34,8 @@ export async function readTarget(runDir: string): Promise<ReviewTarget> {
   if (typeof root !== 'string') {
     throw new Error(`${path}: root must be a string, got ${JSON.stringify(root)}`)
   }
+  // A relative root would resolve against whichever cwd a command runs in.
+  if (!isAbsolute(root)) throw new Error(`${path}: root must be an absolute path`)
   return { mode, root }
 }
 
