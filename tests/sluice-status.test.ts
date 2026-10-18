@@ -2107,3 +2107,231 @@ describe("verify", () => {
 		expect(existsSync(join(main, ".sluice", "verified"))).toBe(false);
 	});
 });
+
+describe("tests-changed", () => {
+	const GREET_TEST = (expected: string) =>
+		`const test = require("node:test");\nconst assert = require("node:assert");\nconst greet = require("../greet.js");\ntest("greets", () => { assert.strictEqual(greet(), "${expected}"); });\n`;
+	const LOOSE_TEST =
+		'const test = require("node:test");\nconst assert = require("node:assert");\nconst greet = require("../greet.js");\ntest("greets", () => { assert.ok(typeof greet() === "string"); });\n';
+
+	function git(dir: string, ...args: string[]): string {
+		return Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 }).stdout.toString().trim();
+	}
+
+	function blob(content: string): string {
+		const proc = Bun.spawnSync({ cmd: ["git", "hash-object", "--stdin"], stdin: Buffer.from(content), timeout: 10000 });
+		return proc.stdout.toString().trim();
+	}
+
+	/** A repo whose base commit greets "hi", pinned by a node --test suite. */
+	function greetRepo(): string {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hi";\n');
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "greet");
+		return dir;
+	}
+
+	/** A stamp for session `sid` whose line 3 is `base`, under a fresh config dir. */
+	function stamp(dir: string, base: string, sid = "sess-1"): string {
+		const config = mkdtempSync(join(tmpdir(), "sluice-config-"));
+		mkdirSync(join(config, "sluice", "stamps"), { recursive: true });
+		writeFileSync(join(config, "sluice", "stamps", sid), `${dir}\nsomedigest\n${base}\n`);
+		return config;
+	}
+
+	function tc(dir: string, env: Record<string, string>, ...args: string[]) {
+		const inherited = { ...process.env };
+		delete inherited.CLAUDE_CODE_SESSION_ID;
+		delete inherited.CLAUDE_CONFIG_DIR;
+		const proc = Bun.spawnSync({
+			cmd: ["bash", SCRIPT, "--dir", dir, "tests-changed", ...args],
+			env: { ...inherited, ...env },
+			timeout: 30000,
+		});
+		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
+	}
+
+	function session(dir: string): Record<string, string> {
+		return { CLAUDE_CONFIG_DIR: stamp(dir, git(dir, "rev-parse", "HEAD")), CLAUDE_CODE_SESSION_ID: "sess-1" };
+	}
+
+	const RECORD = (dir: string) => join(dir, ".sluice", "tests-changed");
+
+	function pinned(dir: string) {
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hello"));
+	}
+
+	function loosened(dir: string) {
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "greet.test.js"), LOOSE_TEST);
+	}
+
+	/**
+	 * A base whose suite needs an ignored dependency that only the main tree
+	 * holds, with the source and its test since changed to add a "!". A relative
+	 * vendor path rather than node_modules: the scratch worktree sits inside the
+	 * main tree's git dir, and node's upward node_modules search would find the
+	 * main tree's copy with no --with at all.
+	 */
+	function depRepo(): string {
+		const dir = gitRepo();
+		writeFileSync(join(dir, ".gitignore"), "vendor/\n");
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => require("./vendor/dep.js");\n');
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "greet");
+		mkdirSync(join(dir, "vendor"));
+		writeFileSync(join(dir, "vendor", "dep.js"), 'module.exports = "hi";\n');
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => require("./vendor/dep.js") + "!";\n');
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi!"));
+		return dir;
+	}
+
+	function scratchLeft(dir: string): string[] {
+		const extraTrees = git(dir, "worktree", "list", "--porcelain")
+			.split("\n")
+			.filter((l) => l.startsWith("worktree "))
+			.slice(1);
+		const dirs = Bun.spawnSync({ cmd: ["ls", "-a", join(dir, ".git")] })
+			.stdout.toString()
+			.split("\n")
+			.filter((n) => n.startsWith("sluice-tc."));
+		return [...extraTrees, ...dirs];
+	}
+
+	test("a test edited to pin new behaviour, with the source changed to match, records proved lines", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("a test loosened so it passes on old code exits 7 and records nothing", () => {
+		const dir = greetRepo();
+		loosened(dir);
+		const r = tc(dir, session(dir), "--because", "looser", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a suite that fails on the base before any change exits 8, suggests --with, and records nothing", () => {
+		const dir = depRepo();
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(r.err).toContain("--with");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--with makes an ignored dependency in the main tree resolvable on the base", () => {
+		const dir = depRepo();
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--with", "vendor", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hi!"))}\ttests/greet.test.js\tproved\tgreeting gains a bang\n`,
+		);
+	});
+
+	test("--none records unproven lines carrying the reason, with no run", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--none", "no node here");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tunproven\tgreeting is now hello (unproven: no node here)\n`,
+		);
+	});
+
+	test("a deleted test is recorded with - for its blob", () => {
+		const dir = greetRepo();
+		rmSync(join(dir, "tests", "greet.test.js"));
+		const r = tc(dir, session(dir), "--because", "greeting retired", "--none", "nothing left to run");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			"-\ttests/greet.test.js\tunproven\tgreeting retired (unproven: nothing left to run)\n",
+		);
+	});
+
+	test("with no flagged test it says so, exits 0 and writes nothing", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "extra.test.js"), 'require("node:test")("extra", () => {});\n');
+		const r = tc(dir, session(dir), "--because", "more tests", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: no changed test needs a record\n");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--base overrides a stamp whose base no longer resolves", () => {
+		const dir = greetRepo();
+		const head = git(dir, "rev-parse", "HEAD");
+		pinned(dir);
+		const env = { CLAUDE_CONFIG_DIR: stamp(dir, "0".repeat(40)), CLAUDE_CODE_SESSION_ID: "sess-1" };
+		const r = tc(dir, env, "--because", "greeting is now hello", "--base", head, "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("a stamp base that no longer resolves, with no --base, exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const env = { CLAUDE_CONFIG_DIR: stamp(dir, "0".repeat(40)), CLAUDE_CODE_SESSION_ID: "sess-1" };
+		const r = tc(dir, env, "--because", "x", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("no session id and no --base exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, {}, "--because", "x", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a missing --because exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("no scratch worktree remains after a recorded run", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(0);
+		expect(scratchLeft(dir)).toEqual([]);
+	});
+
+	test("no scratch worktree remains after a run that passes on old code", () => {
+		const dir = greetRepo();
+		loosened(dir);
+		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(7);
+		expect(scratchLeft(dir)).toEqual([]);
+	});
+
+	test("no scratch worktree remains after a failed control run", () => {
+		const dir = depRepo();
+		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(8);
+		expect(scratchLeft(dir)).toEqual([]);
+	});
+
+	test("a record git can see is refused as verify refuses it", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		mkdirSync(join(dir, ".sluice"));
+		writeFileSync(join(dir, ".sluice", ".gitignore"), "archive/\n");
+		const r = tc(dir, session(dir), "--because", "x", "--none", "y");
+		expect(r.code).toBe(1);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+});
