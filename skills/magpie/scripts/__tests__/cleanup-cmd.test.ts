@@ -73,6 +73,25 @@ test('cleanup prints a view-later hint line with the archived id', async () => {
   expect(text).toMatch(/magpie open \S+\.archived-\d+/)
 })
 
+test('cleanup of a local run prints the archive path but no view-later hint', async () => {
+  await sh(repo, 'git', 'worktree', 'remove', '--force', join(runDir, 'worktree'))
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: repo }))
+  const out: string[] = []
+  const origWrite = process.stdout.write.bind(process.stdout)
+  process.stdout.write = ((s: string) => {
+    out.push(s)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  } finally {
+    process.stdout.write = origWrite
+  }
+  const text = out.join('')
+  expect(text).toContain('archived to ')
+  expect(text).not.toContain('view later')
+})
+
 test('killServer reports no-server-info when state/server-info missing', async () => {
   const result = await killServer(runDir, 100)
   expect(result.outcome).toBe('no-server-info')

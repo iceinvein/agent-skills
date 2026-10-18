@@ -4,7 +4,7 @@ Stage 3 of the walkthrough dispatches one subagent from this file, before the fi
 specialists. Send the fenced `magpie-scout` block below as the agent's entire task,
 with `<<RUN_DIR>>`, `<<WORKTREE>>` and `<<TARGET>>` replaced by the real values first:
 `<<WORKTREE>>` is what `magpie target "$RUN_DIR"` prints, and `<<TARGET>>` is `PR #<n>`
-or, on a local run, `local branch <branch> against <baseRef>` (`local detached HEAD
+or, on a local run, `local branch <branch> against <baseRef>` (`detached HEAD
 against <baseRef>` when HEAD has no branch). The subagent has no shell variables from
 your session, so an unexpanded path means it writes the brief where nothing will read it.
 

@@ -15,7 +15,7 @@ Stop reading and follow these steps in order. Do not skip stages. Use the exact 
 
 ### 0. Identify the PR
 
-A request with no PR that asks to review the current branch, the working tree, or work in progress is local mode: follow "Local mode" below in place of this step and stage 1, then come back for stage 3.
+A request with no PR that asks to review the current branch, the working tree, or work in progress is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written.
 
 Parse the user's request for a PR number, URL, or "this PR" (current branch). If ambiguous, ask one clarifying terminal question. Capture the PR number into `$PR_NUMBER` and the repo path into `$REPO` (default: the current working directory).
 
@@ -257,9 +257,9 @@ The archived `findings.html` is self-contained and auto-switches to read-only "a
 
 ## Local mode
 
-Reviews the current branch's diff in session, for an implementing or orchestrating agent that wants findings before a PR exists. Nothing is posted, served or rendered. Deltas from the walkthrough:
+Reviews the current branch's diff for an agent that wants findings before a PR exists. Nothing is posted, served or rendered. Deltas from the walkthrough:
 
-Run id: `local-<branch-slug>-<unix-ts>`, the slug being the branch with every run of characters outside `[A-Za-z0-9._-]` replaced by `-`, or `detached` with no branch. An `active` `local-<branch-slug>-*` id in `magpie --list-runs` is an interrupted run: resume it. Otherwise:
+`REPO` is the repo root the caller is working in (default: the current working directory). Resume an `active` run from `magpie --list-runs` only when its id is exactly `local-<slug>-<digits>` and `branch` in its `local.json` is the current branch. Otherwise:
 
 ```
 SLUG=$(git -C "$REPO" branch --show-current | sed -E 's/[^A-Za-z0-9._-]+/-/g')
@@ -267,14 +267,14 @@ RUN_DIR="$HOME/.magpie/local-${SLUG:-detached}-$(date +%s)"
 magpie setup "$RUN_DIR" --local --repo "$REPO" [--base <ref>] [--intent-file <path>]
 ```
 
-Setup diffs the merge base with `<ref>` (default `origin/HEAD`) against the working tree, uncommitted and untracked files included, gitignored excluded, nothing fetched. When `origin/HEAD` is not the branch the work will merge into, pass `--base` naming it; an unresolvable ref fails setup rather than being guessed. Pass `--intent-file` when the caller has a spec or plan. It writes `local.json` and `target.json` but no `pr.json` or worktree, and refuses a run dir inside the repo.
+On a non-zero exit, show stderr verbatim to the caller and stop. The diff runs from the merge base with `<ref>` to the working tree, untracked files included. `<ref>` defaults to `origin/HEAD`; when that is not the branch the work merges into, pass `--base` naming it (setup fails on an unresolvable ref rather than guessing). Pass `--intent-file` for the caller's spec or plan.
 
-- `WORKTREE=$(magpie target "$RUN_DIR")` is the repo itself. `TARGET` is `local branch <branch> against <baseRef>` (`local detached HEAD against <baseRef>` when `branch` is null), from `local.json`. Use both in every prompt.
-- Skip stage 2 and every `magpie render`. Run stages 3 to 7 as written; peer review uses the "Local runs" list in `references/peer-review.md`.
-- Stage 8 is `magpie handoff "$RUN_DIR"`. Relay its stdout verbatim as the reply to the caller.
-- Then `magpie cleanup "$RUN_DIR" --repo "$REPO"` at once, and end the turn.
+- `WORKTREE=$(magpie target "$RUN_DIR")` is the repo itself. `TARGET` is `local branch <branch> against <baseRef>` (`detached HEAD against <baseRef>` when `branch` is null), from `local.json`.
+- Skip every `magpie render`. Peer review uses the "Local runs" list in `references/peer-review.md`. The stage 4 shard question goes to whoever asked for the review, which may be an orchestrating agent.
+- Stage 8: `magpie handoff "$RUN_DIR"`. On exit 4 (`findings.final.json` or `local.json` missing) or 2 (not a local run), show stderr to the caller and stop.
+- Then `magpie cleanup "$RUN_DIR" --repo "$REPO"` at once. Reply to the caller with the handoff stdout verbatim, then one line `Run archived at <path>`, `<path>` from cleanup's `archived to <path>`. End the turn.
 
-Do not edit the tree while the run is in flight: anchors and evidence are read from it live. The pipeline needs the Agent tool; a session that cannot dispatch subagents stops and says so rather than reviewing single-handed. On resume, `magpie status` walks `setup, context, specialists, dedupe, critic, peer-review, handoff`, then `cleanup`, and there is no server to restart.
+Do not edit the tree mid-run: anchors and evidence are read from it live. Without the Agent tool, stop and say so rather than reviewing single-handed. The local ladder ends at handoff, then cleanup; there is no server to restart.
 
 ## Resuming a crashed run
 
@@ -288,7 +288,9 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
 - `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
 - Any resume: re-dispatch the checks pass when `findings/checks.json` is missing and no `checks: skipped` is logged.
+- Any stage after context: first set `WORKTREE` and `TARGET` as in stage 3.
 - Any other stage: run it as written in the walkthrough.
+- Local run at `next: cleanup`: if the caller has not been sent the findings, re-run `magpie handoff` first (it only reads files).
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
   read `shards/manifest.json`, and re-dispatch only the pairs with no

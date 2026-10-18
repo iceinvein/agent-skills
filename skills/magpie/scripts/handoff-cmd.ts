@@ -14,7 +14,6 @@ async function logLine(runDir: string, entry: Record<string, unknown>): Promise<
 
 export type FormatHandoffInput = {
   target: string
-  runDir: string
   findings: ReviewFinding[]
   stale: boolean
 }
@@ -42,7 +41,7 @@ function formatItem(n: number, f: ReviewFinding): string {
 }
 
 export function formatHandoff(input: FormatHandoffInput): string {
-  const { target, runDir, findings, stale } = input
+  const { target, findings, stale } = input
   const header = [`# magpie local review: ${target}`]
   if (stale) {
     header.push('Warning: the tree changed since this review began; line anchors may be off.')
@@ -58,7 +57,7 @@ export function formatHandoff(input: FormatHandoffInput): string {
 
   const sections = [
     header.join('\n'),
-    `${mustFix} must-fix, ${shouldFix} should-fix, ${optional} optional\nRun: ${runDir}`,
+    `${mustFix} must-fix, ${shouldFix} should-fix, ${optional} optional`,
     ...ordered.map((f, i) => formatItem(i + 1, f)),
     'Address every must-fix and should-fix, or say why not. The rest are optional.',
   ]
@@ -126,7 +125,7 @@ export async function runHandoff(runDir: string, opts: { gitBin?: string } = {})
 
   const subject = meta.branch === null ? 'detached HEAD' : `local branch ${meta.branch}`
   process.stdout.write(
-    formatHandoff({ target: `${subject} against ${meta.baseRef}`, runDir, findings, stale }),
+    formatHandoff({ target: `${subject} against ${meta.baseRef}`, findings, stale }),
   )
   await logLine(runDir, { stage: 'handoff', status: 'done', findings: findings.length })
   return 0

@@ -29,7 +29,7 @@ Replace each `<<NAME>>` placeholder in the block below:
 
 **Local runs.** A local run has no `pr.json`. Take these four from `local.json` instead; the rest are unchanged:
 
-- `<<PR_TITLE>>`: `Local branch <branch>`, with `<branch>` from the `<<PR_HEAD_BRANCH>>` line below
+- `<<PR_TITLE>>`: `Local branch <branch>`, with `<branch>` from `jq -r .branch < $RUN_DIR/local.json`, or `Local detached HEAD` when that is null
 - `<<PR_AUTHOR>>`: `jq -r .author < $RUN_DIR/local.json`
 - `<<PR_HEAD_BRANCH>>`: `jq -r '.branch // "detached HEAD"' < $RUN_DIR/local.json`
 - `<<PR_BASE_BRANCH>>`: `jq -r .baseRef < $RUN_DIR/local.json`

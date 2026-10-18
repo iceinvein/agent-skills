@@ -59,7 +59,6 @@ const findings = [shouldFix, consider, mustFix, optional]
 function render(stale: boolean): string {
   return formatHandoff({
     target: 'local branch feat/x against main',
-    runDir: '/runs/r1',
     findings,
     stale,
   })
@@ -75,8 +74,10 @@ test('formatHandoff counts consider and optional together as optional', () => {
   expect(render(false)).toContain('1 must-fix, 1 should-fix, 2 optional')
 })
 
-test('formatHandoff names the run dir', () => {
-  expect(render(false)).toContain('/runs/r1')
+test('formatHandoff goes straight from the counts to the first finding', () => {
+  expect(render(false)).toContain(
+    '1 must-fix, 1 should-fix, 2 optional\n\n1. [must-fix] src/a.ts:10: Token leaks into the log',
+  )
 })
 
 test('formatHandoff numbers actionable findings by risk, then suggestions', () => {
@@ -104,7 +105,6 @@ test('formatHandoff fences the suggestion body under a single-line label', () =>
 function renderOne(suggestion: ReviewFinding['suggestion']): string {
   return formatHandoff({
     target: 't',
-    runDir: '/runs/r1',
     findings: [{ ...mustFix, suggestion }],
     stale: false,
   })
@@ -135,7 +135,7 @@ test('formatHandoff omits the stale warning when fresh', () => {
 })
 
 test('formatHandoff with no findings prints only the header and No findings.', () => {
-  const out = formatHandoff({ target: 't', runDir: '/runs/r1', findings: [], stale: false })
+  const out = formatHandoff({ target: 't', findings: [], stale: false })
   expect(out).toBe('# magpie local review: t\n\nNo findings.\n')
 })
 

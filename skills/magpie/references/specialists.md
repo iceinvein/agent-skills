@@ -70,7 +70,7 @@ finding in your domain when the rule bears on it, citing the rule's source.
 
 Replace every `<RUN_DIR>`, `<WORKTREE>` and `<TARGET>` with the real values before
 sending. `<WORKTREE>` is what `magpie target "$RUN_DIR"` prints. `<TARGET>` is `PR #<n>`,
-or on a local run `local branch <branch> against <baseRef>` (`local detached HEAD
+or on a local run `local branch <branch> against <baseRef>` (`detached HEAD
 against <baseRef>` when HEAD has no branch). The subagent has no shell variables from
 your session, so an unexpanded path means it writes its findings where nothing will
 read them. Leave `<focus>` as written; the contract tells the subagent to substitute it.

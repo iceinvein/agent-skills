@@ -1,6 +1,7 @@
 import { appendFile, readFile, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeLabels } from './labels-cmd.ts'
+import { readTarget } from './target.ts'
 import { removeWorktree } from './worktree.ts'
 
 export type RunCleanupInput = {
@@ -90,12 +91,14 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
   if (await Bun.file(join(input.runDir, 'findings.final.json')).exists()) {
     await writeLabels(input.runDir)
   }
+  // A local run renders no report, so there is nothing for magpie open to show.
+  const { mode } = await readTarget(input.runDir)
 
   const target = `${input.runDir}.archived-${Date.now()}`
   await rename(input.runDir, target)
   process.stdout.write(`archived to ${target}\n`)
   const archivedId = target.split('/').filter(Boolean).pop()
-  if (archivedId) {
+  if (archivedId && mode !== 'local') {
     process.stdout.write(`view later: magpie open ${archivedId}\n`)
   }
   if (kill.outcome === 'failed') {
