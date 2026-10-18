@@ -247,3 +247,10 @@ User decisions: keep the SKILL.md word cap at 3500; handoff labels by action, as
 shipped (A2); the split-index mtime bump is acceptable and documented in the spec (A1);
 leave the branch as it stands, unmerged and unpushed, to run the eval fixture and a live
 local review first.
+
+Fixture run (after handback, outside worktree mode): `fixture.sh` scaffolds cleanly (exit
+0). Walking it as Local mode does: `--list-runs` active, `status` next handoff, `handoff`
+prints both findings in the real format, `status` next cleanup, `cleanup` archives,
+`--list-runs` archived; the calls log holds no serve, render, post or `gh`. With HOME
+inside the workspace, `git status` shows `home/` untracked; the scaffolded diff is
+unaffected. Still not run: the case under `claude plugin eval` (paid).
