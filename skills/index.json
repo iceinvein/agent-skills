@@ -225,9 +225,9 @@
   },
   {
     "name": "magpie",
-    "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
+    "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request, or to self-review the current branch diff before a PR exists, typically requested by an implementing or orchestrating agent, with findings handed back in the terminal. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
     "type": "prompt",
-    "version": "0.13.2"
+    "version": "0.14.0"
   },
   {
     "name": "migrate",
@@ -295,7 +295,7 @@
     "name": "sluice",
     "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries nine rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment, one status command and a SessionStart hook can answer where the run is (the hook prints a live run at every session start, compaction included), and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Claude Code only; stands down where the superpowers pipeline governs the repo.",
     "type": "prompt",
-    "version": "0.24.3"
+    "version": "0.25.0"
   },
   {
     "name": "temporal-coupling-detector",
