@@ -86,9 +86,9 @@ Three things follow from the sandbox, and cases are written around them:
   the same stage ladder as `scripts/status-cmd.ts`, so a stage the agent logs
   moves `next` exactly as the real CLI would. A local run uses the local ladder
   (ending at `handoff`): the `local-mode-hands-back` fake reads `target.json` to
-  pick it, as the real CLI does, while the older fakes only know the PR ladder. A canned answer went stale the
-  moment the agent appended to the log, and the agent noticed and spent a
-  paragraph on it.
+  pick it, as the real CLI does, while the older fakes only know the PR ladder.
+  A canned answer went stale the moment the agent appended to the log, and the
+  agent noticed and spent a paragraph on it.
 
 Each fake also appends its argv to `.magpie-calls.log` in the workspace. That
 file is what most of the graders read: "posted exactly these ids", "never ran

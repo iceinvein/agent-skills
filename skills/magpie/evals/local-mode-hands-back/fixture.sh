@@ -96,6 +96,17 @@ for name in ('findings.final.json', 'local.json'):
 findings = json.loads((run / 'findings.final.json').read_text())
 meta = json.loads((run / 'local.json').read_text())
 subject = 'detached HEAD' if meta['branch'] is None else f"local branch {meta['branch']}"
+# The labels the fixture's findings use, bolded as formatFindingDescriptionMarkdown does.
+LABELS = ('Observation', 'Why it matters', 'Suggested direction')
+
+
+def markdown(description):
+    paragraphs = description.split('\n\n')
+    for label in LABELS:
+        paragraphs = [f'**{label}:**' + p[len(label) + 1:] if p.startswith(f'{label}:') else p for p in paragraphs]
+    return '\n\n'.join(paragraphs)
+
+
 rank = {'must-fix': 0, 'should-fix': 1}
 actionable = sorted((f for f in findings if f['risk']['action'] in rank), key=lambda f: rank[f['risk']['action']])
 optional = [f for f in findings if f['risk']['action'] not in rank]
@@ -106,7 +117,7 @@ sections = [
 ]
 for n, f in enumerate(actionable + optional, 1):
     anchor = f['file'] if f.get('line') is None else f"{f['file']}:{f['line']}"
-    sections.append(f"{n}. [{f['risk']['action']}] {anchor}: {f['title']}\n\n{f['description']}")
+    sections.append(f"{n}. [{f['risk']['action']}] {anchor}: {f['title']}\n\n{markdown(f['description'])}")
 sections.append('Address every must-fix and should-fix, or say why not. The rest are optional.')
 print('\n\n'.join(sections))
 with (run / 'log.jsonl').open('a') as log:
@@ -137,7 +148,9 @@ chmod +x "$HOME/shims/gh"
 
 # The repo under review: main holds the cache without a reader, the branch adds
 # put/get and a cached load. The run's own files stay out of the diff.
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 git init -q -b main .
+git config commit.gpgsign false
 printf 'runs/\narchive/\n.magpie-calls.log\n' >> .git/info/exclude
 export GIT_AUTHOR_NAME="Asha Platform" GIT_AUTHOR_EMAIL="asha@example.com"
 export GIT_COMMITTER_NAME="Asha Platform" GIT_COMMITTER_EMAIL="asha@example.com"
@@ -209,7 +222,7 @@ git add src
 git commit -q -m "feat: cache tenant settings in the request path" \
   -m "Settings are read on every request; keep them in memory per tenant."
 HEAD_OID=$(git rev-parse HEAD)
-git diff "$MERGE_BASE" > "$RUN_DIR/diff.patch"
+git diff --no-color --no-ext-diff "$MERGE_BASE" > "$RUN_DIR/diff.patch"
 DIFF_SHA=$(shasum -a 256 "$RUN_DIR/diff.patch" | cut -d' ' -f1)
 
 cat > "$RUN_DIR/target.json" <<JSON
