@@ -455,10 +455,19 @@ if [ "$SUB" = "tests-changed" ]; then
 	# code. Compared after resolving symlinks, since git reports physical paths
 	# (/private/var on macOS) and a caller usually passes logical ones.
 	if [ "$RUN" -eq 1 ]; then
-		COMMON="$(git -C "$TREE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-		[ -n "$COMMON" ] || { err "could not find the git dir of $TREE"; exit 1; }
-		ROOTS="$(cd "$TREE" && pwd -P)
-$(cd "$(dirname "$COMMON")" && pwd -P)"
+		ROOTS="$(cd "$TREE" && pwd -P)"
+		# The first entry of the list is the main checkout, unless the repo is
+		# bare: then it is the git dir, and its parent holds no checkout at all.
+		FIRST="$(git -C "$TREE" worktree list --porcelain 2>/dev/null | sed '/^$/q')"
+		[ -n "$FIRST" ] || { err "could not list the worktrees of $TREE"; exit 1; }
+		case $'\n'"$FIRST"$'\n' in
+			*$'\n'bare$'\n'*) ;;
+			*)
+				MAIN_ROOT="$(printf '%s\n' "$FIRST" | sed -n '1s/^worktree //p')"
+				[ -d "$MAIN_ROOT" ] && ROOTS="$ROOTS
+$(cd "$MAIN_ROOT" && pwd -P)"
+				;;
+		esac
 		for a in "$@"; do
 			case "$a" in
 				/*) ;;
@@ -560,14 +569,31 @@ $(cd "$(dirname "$COMMON")" && pwd -P)"
 		# so a proof run's failure is that path's. Bringing them all forward at
 		# once let any new test that fails on old code prove every flagged path.
 		# The unit is the file: one file that loosens an assertion and adds a new
-		# failing test is still proved.
-		while IFS= read -r p; do
-			[ -n "$p" ] || continue
-			case $'\n'"$FLAGGED"$'\n' in
-				*$'\n'"$p"$'\n'*) continue ;;
-			esac
-			overlay "$p"
-		done <<<"$LISTED"
+		# failing test is still proved, and so is a flagged test that newly imports
+		# source the base lacks, since it fails on the base for that alone.
+		#
+		# Rebuilt from the base before every run, because a run writes into the
+		# worktree (fixtures, databases, caches) and what one leaves would decide
+		# the next. -x takes ignored residue too; the --with links are kept.
+		control_tree() {
+			local excludes=() w listed
+			for w in "${WITH[@]+"${WITH[@]}"}"; do
+				excludes+=(-e "/$w")
+			done
+			git -C "$WT" checkout -q HEAD -- . && git -C "$WT" clean -fdxq "${excludes[@]+"${excludes[@]}"}" || {
+				err "could not reset the scratch worktree to $BASE_SHA"
+				exit 1
+			}
+			while IFS= read -r listed; do
+				[ -n "$listed" ] || continue
+				case $'\n'"$FLAGGED"$'\n' in
+					*$'\n'"$listed"$'\n'*) continue ;;
+				esac
+				overlay "$listed"
+			done <<<"$LISTED"
+		}
+
+		control_tree
 
 		# Without this a suite that cannot run on the base at all (a missing
 		# dependency, a new test for code the base lacks, a test already red there)
@@ -578,17 +604,11 @@ $(cd "$(dirname "$COMMON")" && pwd -P)"
 		fi
 
 		while IFS= read -r p; do
+			control_tree
 			overlay "$p"
 			if (cd "$WT" && "$@"); then
 				err "$p passes on $BASE_SHA, the code it was changed against, so it does not pin the change. Nothing was recorded"
 				exit 7
-			fi
-			# Back to its base version, so the next proof differs from the control
-			# run by its own path alone.
-			if git -C "$WT" cat-file -e "HEAD:$p" 2>/dev/null; then
-				git -C "$WT" checkout -q HEAD -- "$p" || { err "could not restore $p on the base"; exit 1; }
-			else
-				rm -f "$WT/$p" || { err "could not delete $p from the base"; exit 1; }
 			fi
 		done <<<"$FLAGGED"
 	fi

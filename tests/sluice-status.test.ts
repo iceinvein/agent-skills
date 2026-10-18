@@ -2426,6 +2426,46 @@ describe("tests-changed", () => {
 		expect(existsSync(RECORD(dir))).toBe(false);
 	});
 
+	test("a file one proof run leaves behind does not prove a later loosened test", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hi"));
+		writeFileSync(
+			join(dir, "tests", "b.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")().length, 2);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "a and b");
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "a.test.js"),
+			'require("node:fs").writeFileSync("marker", "");\n' + GREET_TEST("hello"),
+		);
+		writeFileSync(
+			join(dir, "tests", "b.test.js"),
+			'const assert = require("node:assert");\nassert.ok(!require("node:fs").existsSync("marker"));\nassert.ok(require("../greet.js")().length > 0);\n',
+		);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/b.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	// With a bare repo hosting the worktrees, the git dir's parent is no
+	// checkout at all, just the directory the repo sits in.
+	test("a worktree of a bare repo accepts an absolute argument outside every checkout", () => {
+		const src = greetRepo();
+		const parent = mkdtempSync(join(tmpdir(), "sluice-bare-"));
+		Bun.spawnSync({ cmd: ["git", "clone", "-q", "--bare", src, join(parent, "x.git")], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", join(parent, "x.git"), "worktree", "add", "-q", join(parent, "wt")], timeout: 10000 });
+		const wt = join(parent, "wt");
+		pinned(wt);
+		const r = tc(wt, session(wt), "--because", "greeting is now hello", "--", "sh", "-c", "node --test", join(parent, "outside"));
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(wt), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
 	test("a node dependency in node_modules is not reachable on the base without --with", () => {
 		const dir = depRepo("node_modules");
 		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--", "node", "--test");
