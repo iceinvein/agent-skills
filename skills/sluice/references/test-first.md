@@ -65,14 +65,16 @@ When the request or the agreed plan replaces the behaviour a test pins, the
 red is the change showing up where it should, and the agreement already
 exists. Update the test to the new behaviour, expected value written by hand,
 and name it in your reply; do not ask again. Ask only when the red reaches
-behaviour nobody said would change. Then make the update earn its standing:
-`status.sh tests-changed --because "<behaviour>" -- <suite scoped to the
-changed tests>` runs each updated test against the session's starting code
-and records it only if it fails there, because a new expectation the old code
-already met replaced nothing. Where the tests cannot run on that code, and
-always for a deletion, `--none "<reason>"` records why instead, and the Stop
-hook refuses a handback that carries neither. The proof is per file, so a
-loosened assertion sharing a file with a new failing test still passes it.
+behaviour nobody said would change. An updated test still has to earn its
+standing: `status.sh tests-changed --because "<behaviour>" -- <suite scoped
+to the changed tests>` runs each one in a scratch worktree of the session's
+starting code (so a node suite needs `--with node_modules`) and records them
+only if each fails there, because a new expectation the old code already met
+replaced nothing. Prove the edited tests first, then use `--none "<reason>"`
+for a deletion or a test that cannot run on that code, since it records every
+changed test still unrecorded, edits included; the Stop hook refuses a
+handback that carries neither. The proof is per file, so a loosened assertion
+sharing a file with a new failing test still passes it.
 
 Two friction lines, one in each direction:
 
