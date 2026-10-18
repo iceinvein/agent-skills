@@ -27,6 +27,13 @@ Replace each `<<NAME>>` placeholder in the block below:
   `severity` is left out on purpose: it is derived from `risk.impact`, so a reviewer who wants to change how bad a finding is changes `risk`.
 - `<<DIFF_EXCERPT>>` — the diff hunks containing the kept findings. For small PRs, the full `diff.patch` is fine. For larger PRs, narrow to the files referenced by `findings.kept.json`.
 
+**Local runs.** A local run has no `pr.json`. Take these four from `local.json` instead; the rest are unchanged:
+
+- `<<PR_TITLE>>`: `Local branch <branch>`, with `<branch>` from `jq -r .branch < $RUN_DIR/local.json`, or `Local detached HEAD` when that is null
+- `<<PR_AUTHOR>>`: `jq -r .author < $RUN_DIR/local.json`
+- `<<PR_HEAD_BRANCH>>`: `jq -r '.branch // "detached HEAD"' < $RUN_DIR/local.json`
+- `<<PR_BASE_BRANCH>>`: `jq -r .baseRef < $RUN_DIR/local.json`
+
 ````magpie-peer-review
 You are the second-opinion reviewer for a PR review. <<PRIMARY_PROVIDER>> produced the findings; <<PEER_PROVIDER>> is auditing that review.
 

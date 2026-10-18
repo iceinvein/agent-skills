@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,6 +10,8 @@ let runDir: string
 beforeEach(async () => {
   runDir = await mkdtemp(join(tmpdir(), 'magpie-dedupe-'))
   await mkdir(join(runDir, 'findings'), { recursive: true })
+  // setup's first write; without it the dir does not read as a run.
+  await writeFile(join(runDir, 'log.jsonl'), '')
 })
 
 afterEach(async () => {
@@ -427,4 +429,51 @@ test('runDedupe still skips files it cannot map to a focus', async () => {
     .map((l) => JSON.parse(l))
     .filter((e) => e.status === 'skip' && e.reason === 'unknown-focus')
   expect(skips.map((s) => s.file).sort()).toEqual(['nonsense.json', 'security.shard-x.json'])
+})
+
+describe('with target.json naming a review root outside the run dir', () => {
+  let root: string
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'magpie-dedupe-root-'))
+    await writeFile(
+      join(runDir, 'target.json'),
+      `${JSON.stringify({ mode: 'local', root }, null, 2)}\n`,
+    )
+    await writeFile(
+      join(runDir, 'findings', 'bugs.json'),
+      JSON.stringify([
+        {
+          ...f('bugs-1', 'a.ts', 2, 'secret read without a fallback', 'bugs'),
+          evidence: 'const secret = process.env.KEY',
+        },
+      ]),
+    )
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  test('keeps a finding whose file and evidence are in that root', async () => {
+    await writeFile(join(root, 'a.ts'), '// line 1\nconst secret = process.env.KEY\n')
+    expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+    const kept = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+    expect(kept.map((x: ReviewFinding) => x.id)).toEqual(['bugs-1'])
+  })
+
+  test('fails without writing findings when a local root does not exist', async () => {
+    await rm(root, { recursive: true, force: true })
+    const exit = await runDedupe(runDir, { threshold: 0 })
+    expect(exit).not.toBe(0)
+    expect(await Bun.file(join(runDir, 'findings.deduped.json')).exists()).toBe(false)
+  })
+
+  test('drops the finding as hallucinated-file when that root lacks the file', async () => {
+    expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+    const evidence = JSON.parse(await readFile(join(runDir, 'evidence-dropped.json'), 'utf8'))
+    expect(evidence.dropped).toEqual([
+      { id: 'bugs-1', reason: 'hallucinated-file', file: 'a.ts', line: 2 },
+    ])
+  })
 })

@@ -121,7 +121,7 @@ Skills that compose the other audit skills into higher-level workflows.
 | Skill | What it does |
 |-------|--------------|
 | **improve-my-codebase** | Runs every applicable audit skill in parallel against your codebase, ranks findings by convergence (multiple audits agreeing) and per-file rollup, and writes a prioritized improvement report. Default sweeps everything; positional args switch modes (`quick`, `diff`, `interactive`) or narrow scope (`focus <area>`, `module <path>`). |
-| **magpie** | Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via `codex exec`, and serves an interactive HTML report for selecting findings to post via `gh`. |
+| **magpie** | Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via `codex exec`, and serves an interactive HTML report for selecting findings to post via `gh`. A local mode reviews the current branch diff before a PR exists and hands the findings back in the terminal. |
 
 ## Commands
 

@@ -27,6 +27,8 @@ If you cloned this repo and want to run from source, you can also invoke `./inst
 
 Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads SKILL.md and walks the pipeline; the CLI runs as `magpie setup`, `magpie serve`, etc.
 
+An implementing or orchestrating agent can also ask for a review of its own branch before a PR exists: local mode (`magpie setup <run-dir> --local [--base <ref>]`) reviews the merge base to working tree diff in place and hands the ranked findings back as terminal text via `magpie handoff`, with no server, report or posting.
+
 ## Development
 
 ```
@@ -66,4 +68,4 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 
 ## Run directory layout
 
-Each invocation creates `~/.magpie/pr-<n>-<ts>/` with `pr.json`, `diff.patch`, `findings/`, `findings.deduped.json`, `merge-candidates.json`, `critic-prompt.md` and `critic.json` (numbered per batch when there is more than one), `findings.kept.json`, `critic-dropped.json`, `findings.final.json`, `labels.json`, `screen/`, `state/`, `log.jsonl`. On completion the directory is renamed to `<run-dir>.archived-<timestamp>` rather than deleted, so logs survive for postmortem.
+Each invocation creates `~/.magpie/pr-<n>-<ts>/` (`~/.magpie/local-<branch-slug>-<ts>/` for a local run, with `local.json` and `target.json`, no `pr.json` and no worktree) with `pr.json`, `diff.patch`, `findings/`, `findings.deduped.json`, `merge-candidates.json`, `critic-prompt.md` and `critic.json` (numbered per batch when there is more than one), `findings.kept.json`, `critic-dropped.json`, `findings.final.json`, `labels.json`, `screen/`, `state/`, `log.jsonl`. On completion the directory is renamed to `<run-dir>.archived-<timestamp>` rather than deleted, so logs survive for postmortem.

@@ -1,6 +1,7 @@
 import { appendFile, readFile, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeLabels } from './labels-cmd.ts'
+import { readTarget } from './target.ts'
 import { removeWorktree } from './worktree.ts'
 
 export type RunCleanupInput = {
@@ -67,6 +68,9 @@ export async function killServer(
 }
 
 export async function runCleanup(input: RunCleanupInput): Promise<number> {
+  // Read before any side effect, so a malformed target.json leaves the run untouched.
+  // Local mode promises the caller no report, so its cleanup does not point at one.
+  const { mode } = await readTarget(input.runDir)
   const worktreePath = join(input.runDir, 'worktree')
   const worktreeExists = await stat(worktreePath)
     .then(() => true)
@@ -95,7 +99,7 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
   await rename(input.runDir, target)
   process.stdout.write(`archived to ${target}\n`)
   const archivedId = target.split('/').filter(Boolean).pop()
-  if (archivedId) {
+  if (archivedId && mode !== 'local') {
     process.stdout.write(`view later: magpie open ${archivedId}\n`)
   }
   if (kill.outcome === 'failed') {

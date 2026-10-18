@@ -53,3 +53,47 @@ test('error stage halts progression', async () => {
   expect(result.lastCompleted).toBe('setup')
   expect(result.error).toBe('context')
 })
+
+function logLines(entries: [string, string][]): string {
+  return entries.map(([stage, status]) => `${JSON.stringify({ stage, status })}\n`).join('')
+}
+
+const throughPeerReview: [string, string][] = [
+  ['setup', 'done'],
+  ['context', 'done'],
+  ['specialists', 'done'],
+  ['dedupe', 'done'],
+  ['critic', 'done'],
+  ['peer-review', 'done'],
+]
+
+test('a local run after peer-review resumes at handoff', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('peer-review')
+  expect(result.next).toBe('handoff')
+})
+
+test('a local run with handoff done goes to cleanup', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines([...throughPeerReview, ['handoff', 'done']]))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('handoff')
+  expect(result.next).toBe('cleanup')
+})
+
+test('a PR or archived run with no target.json resumes at report after peer-review', async () => {
+  await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('peer-review')
+  expect(result.next).toBe('report')
+})
+
+test('a PR run with target.json resumes at report after peer-review', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'pr', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('peer-review')
+  expect(result.next).toBe('report')
+})

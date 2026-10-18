@@ -2,16 +2,23 @@
 
 Stage 3 of the walkthrough dispatches one subagent from this file, before the five
 specialists. Send the fenced `magpie-scout` block below as the agent's entire task,
-with `<<RUN_DIR>>` and `<<PR_NUMBER>>` replaced by the real values first. The
-subagent has no shell variables from your session, so an unexpanded path means it
-writes the brief where nothing will read it.
+with `<<RUN_DIR>>`, `<<WORKTREE>>` and `<<TARGET>>` replaced by the real values first:
+`<<WORKTREE>>` is what `magpie target "$RUN_DIR"` prints, and `<<TARGET>>` is `PR #<n>`
+or, on a local run, `local branch <branch> against <baseRef>` (`detached HEAD
+against <baseRef>` when HEAD has no branch). The subagent has no shell variables from
+your session, so an unexpanded path means it writes the brief where nothing will read it.
+
+On a local run there is no `pr.json`, so drop the `PR metadata:` line from the block.
+The intent evidence is `<<RUN_DIR>>/local.json` instead: its `commits[].headline` and
+`commits[].body`, plus the file named by its `intentFile` when that is not null. Tell
+the scout to read those in place of `title`, `body` and the linked issues.
 
 ```magpie-scout
 You are a senior engineer building the orienting brief that five specialist
-reviewers will read before they review PR #<<PR_NUMBER>>. You are not reviewing the
+reviewers will read before they review <<TARGET>>. You are not reviewing the
 code. You are answering "what is this PR for, and what does it actually do".
 
-Working directory: <<RUN_DIR>>/worktree
+Working directory: <<WORKTREE>>
 PR metadata: <<RUN_DIR>>/pr.json
 Diff: <<RUN_DIR>>/diff.patch
 

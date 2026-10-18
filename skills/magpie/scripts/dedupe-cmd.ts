@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { appendFile, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { annotateChangedLines } from './changed-lines.ts'
@@ -5,6 +6,7 @@ import { deduplicateFindings, findMergeCandidates } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
 import { namespaceId, parseFindingsFilename } from './findings-files.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
+import { readTarget } from './target.ts'
 import { FOCUS_IDS, parseFinding, type ReviewFinding } from './types.ts'
 
 async function logLine(runDir: string, entry: Record<string, unknown>): Promise<void> {
@@ -62,6 +64,13 @@ async function reconcileCoverage(runDir: string, present: Set<string>): Promise<
 }
 
 export async function runDedupe(runDir: string, options: RunDedupeOptions = {}): Promise<number> {
+  const target = await readTarget(runDir)
+  // A missing PR worktree means an archived run and evidence checks are skipped; a
+  // missing local root means the caller's repo moved or was mistyped.
+  if (target.mode === 'local' && !existsSync(target.root)) {
+    process.stderr.write(`magpie: dedupe: review root ${target.root} does not exist\n`)
+    return 1
+  }
   const threshold = options.threshold ?? DEFAULT_THRESHOLD
   const findingsDir = join(runDir, 'findings')
   const collected: ReviewFinding[] = []
@@ -124,7 +133,7 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
 
   const deduped = deduplicateFindings(collected)
   const scored = deduped.map((f) => ({ ...f, score: scoreRisk(f.risk) }))
-  const evidence = await verifyEvidence(scored, join(runDir, 'worktree'))
+  const evidence = await verifyEvidence(scored, target.root)
   let diff = ''
   try {
     diff = await readFile(join(runDir, 'diff.patch'), 'utf8')

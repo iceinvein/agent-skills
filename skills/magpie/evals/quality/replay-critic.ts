@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Subprocess } from 'bun'
+import { writeTarget } from '../../scripts/target.ts'
 import { originalSelection } from './baseline.ts'
 import {
   copyCorpusFiles,
@@ -127,6 +128,8 @@ async function main(argv: string[]): Promise<number> {
       'merge-candidates.json',
       'brief.json',
     ])
+    // magpie refuses a dir with neither target.json nor log.jsonl as not a run.
+    await writeTarget(scratch, { mode: 'pr', root: worktree })
 
     const batches = (await exec(['bun', MAGPIE_BIN, 'critic-prompt', scratch]))
       .split('\n')

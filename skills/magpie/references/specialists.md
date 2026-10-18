@@ -9,16 +9,16 @@ them is instruction to you, not text for the specialist.
 2. The run header, with the placeholders filled in. Unsharded:
 
 ```
-You are reviewing PR #<PR_NUMBER>.
-Working directory: <RUN_DIR>/worktree
+You are reviewing <TARGET>.
+Working directory: <WORKTREE>
 Diff: <RUN_DIR>/diff.patch
 ```
 
 When stage 4 is fanning this focus across shards, use instead:
 
 ```
-You are reviewing PR #<PR_NUMBER>.
-Working directory: <RUN_DIR>/worktree
+You are reviewing <TARGET>.
+Working directory: <WORKTREE>
 Shard: <n> of <N>
 Diff: <RUN_DIR>/shards/shard-<n>.patch
 
@@ -68,10 +68,12 @@ review rule is a convention the maintainers wrote down: a change that breaks one
 finding in your domain when the rule bears on it, citing the rule's source.
 ```
 
-Replace every `<RUN_DIR>` and `<PR_NUMBER>` with the real values before sending: the
-subagent has no shell variables from your session, so an unexpanded path means it
-writes its findings where nothing will read them. Leave `<focus>` as written; the
-contract tells the subagent to substitute it.
+Replace every `<RUN_DIR>`, `<WORKTREE>` and `<TARGET>` with the real values before
+sending. `<WORKTREE>` is what `magpie target "$RUN_DIR"` prints. `<TARGET>` is `PR #<n>`,
+or on a local run `local branch <branch> against <baseRef>` (`detached HEAD
+against <baseRef>` when HEAD has no branch). The subagent has no shell variables from
+your session, so an unexpanded path means it writes its findings where nothing will
+read them. Leave `<focus>` as written; the contract tells the subagent to substitute it.
 
 Parts 1, 2, and 3 go every time. The contract is what makes the output parseable by
 `magpie dedupe`, and the focus blocks are what keep the five reviews from collapsing

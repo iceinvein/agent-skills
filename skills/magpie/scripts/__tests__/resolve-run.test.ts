@@ -32,6 +32,34 @@ test('resolveRunDir returns the latest run when no id given', async () => {
   expect(r.archived).toBe(false)
 })
 
+test('resolveRunDir skips a newer archived local run when no id given', async () => {
+  await makeRun('pr-1-1000.archived-2000', 0)
+  await new Promise((r) => setTimeout(r, 20))
+  await makeRun('local-release-1.2-rc-2000.archived-3000', 0)
+  const r = await resolveRunDir(undefined, home)
+  expect(r).toEqual({
+    id: 'pr-1-1000.archived-2000',
+    path: join(home, 'pr-1-1000.archived-2000'),
+    archived: true,
+  })
+})
+
+test('resolveRunDir rejects an explicit local run id', async () => {
+  await makeRun('local-feature-x-2000.archived-3000', 0)
+  await expect(resolveRunDir('local-feature-x-2000.archived-3000', home)).rejects.toThrow(
+    'local-feature-x-2000.archived-3000 is a local run; local runs have no report',
+  )
+})
+
+test('resolveRunDir rejects a path to a run whose target is local', async () => {
+  await makeRun('custom-run', 0)
+  const path = join(home, 'custom-run')
+  await Bun.write(join(path, 'target.json'), JSON.stringify({ mode: 'local', root: '/repo' }))
+  await expect(resolveRunDir(path, home)).rejects.toThrow(
+    `${path} is a local run; local runs have no report`,
+  )
+})
+
 test('resolveRunDir picks an archived run as latest if it is newest', async () => {
   await makeRun('pr-1-1000', 0)
   await new Promise((r) => setTimeout(r, 20))

@@ -12,6 +12,8 @@ let stderr: string
 
 beforeEach(async () => {
   runDir = await mkdtemp(join(tmpdir(), 'magpie-critic-'))
+  // setup's first write; without it the dir does not read as a run.
+  await writeFile(join(runDir, 'log.jsonl'), '')
   stdout = ''
   stderr = ''
   spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
@@ -86,6 +88,22 @@ test('critic-prompt writes the prompt file from the magpie-critic block and prin
   expect(prompt).toContain(`Worktree: ${join(runDir, 'worktree')}\n`)
   expect(prompt).toContain(`Diff: ${join(runDir, 'diff.patch')}\n`)
   expect(prompt).toContain(`Write to: ${outputPath}`)
+})
+
+test('critic-prompt points <<WORKTREE>> at the review root named in target.json', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+  await writeFile(
+    join(runDir, 'target.json'),
+    `${JSON.stringify({ mode: 'local', root: '/repos/caller' }, null, 2)}\n`,
+  )
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain('Worktree: /repos/caller\n')
 })
 
 test('critic-prompt writes one numbered prompt per batch', async () => {

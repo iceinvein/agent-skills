@@ -1,6 +1,6 @@
 ---
 name: magpie
-description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"). Interactive PR review pipeline; five parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
+description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"), or to self-review the current branch diff before a PR exists, typically requested by an implementing or orchestrating agent, with findings handed back in the terminal. Interactive PR review pipeline; five parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
 ---
 
 # Magpie
@@ -14,6 +14,8 @@ The skill pre-flights `bun`, `gh`, `git` (required) and `codex` (optional). A mi
 Stop reading and follow these steps in order. Do not skip stages. Use the exact Bash invocations below.
 
 ### 0. Identify the PR
+
+A request with no PR that asks to review the current branch, the working tree, or work in progress is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written, taking `TARGET` from Local mode.
 
 Parse the user's request for a PR number, URL, or "this PR" (current branch). If ambiguous, ask one clarifying terminal question. Capture the PR number into `$PR_NUMBER` and the repo path into `$REPO` (default: the current working directory).
 
@@ -82,7 +84,9 @@ magpie render "$RUN_DIR" progress
 
 Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage never aborts the run.
 
-Read `references/scout.md` and `references/checks.md`, then dispatch two subagents (Agent tool, `general-purpose`) in one message: the scout, carrying the `magpie-scout` block with `<<RUN_DIR>>` and `<<PR_NUMBER>>` substituted, which writes `$RUN_DIR/brief.json`; and the checks pass, built as `references/checks.md` says, which writes `$RUN_DIR/findings/checks.json` once for the run.
+Set `WORKTREE=$(magpie target "$RUN_DIR")`, the directory findings are anchored against (the run's own `worktree/` checkout on a PR run), and `TARGET` to `PR #$PR_NUMBER`. Every prompt from here on takes both.
+
+Read `references/scout.md` and `references/checks.md`, then dispatch two subagents (Agent tool, `general-purpose`) in one message: the scout, carrying the `magpie-scout` block with `<<RUN_DIR>>`, `<<WORKTREE>>` and `<<TARGET>>` substituted, which writes `$RUN_DIR/brief.json`; and the checks pass, built as `references/checks.md` says, which writes `$RUN_DIR/findings/checks.json` once for the run.
 
 Append `{stage: context, status: done}` and re-render progress. If the scout wrote no `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read. If the checks pass wrote no `checks.json`, append `{stage: checks, status: skipped}`; nothing downstream needs it.
 
@@ -145,7 +149,7 @@ If every specialist fails (no findings files written), log
 magpie dedupe "$RUN_DIR" [--threshold <0-10>]
 ```
 
-`magpie dedupe` also checks evidence against the worktree, dropping an anchored finding whose file is missing (`hallucinated-file`), whose line is out of range (`invented-line`), that has no `evidence` snippet (`missing-evidence`), or whose snippet is not near its line (`evidence-not-found`); a snippet found exactly once elsewhere in the file re-anchors it. Both go to `$RUN_DIR/evidence-dropped.json` as `{dropped, reanchored}`, written only when non-empty, so no file is normal. The check is skipped when the worktree is gone (archived run replay).
+`magpie dedupe` also checks evidence against `$WORKTREE`, dropping an anchored finding whose file is missing (`hallucinated-file`), whose line is out of range (`invented-line`), that has no `evidence` snippet (`missing-evidence`), or whose snippet is not near its line (`evidence-not-found`); a snippet found exactly once elsewhere in the file re-anchors it. Both go to `$RUN_DIR/evidence-dropped.json` as `{dropped, reanchored}`, written only when non-empty, so no file is normal. The check is skipped when the worktree is gone (archived run replay).
 
 It always writes `$RUN_DIR/merge-candidates.json`: ids from different domains anchored close together in one file, for the critic to merge or keep apart.
 
@@ -155,7 +159,7 @@ Re-render progress.
 
 ### 6. Critic
 
-The critic runs as worktree-reading subagents. The CLI fills its prompt from `references/critic.md`; substitute nothing by hand. Append `{stage: critic, status: running}` to `$RUN_DIR/log.jsonl`, re-render progress, then:
+The critic runs as subagents that read `$WORKTREE`. The CLI fills its prompt from `references/critic.md`; substitute nothing by hand. Append `{stage: critic, status: running}` to `$RUN_DIR/log.jsonl`, re-render progress, then:
 
 ```
 magpie critic-prompt "$RUN_DIR"
@@ -251,6 +255,27 @@ The archived `findings.html` is self-contained and auto-switches to read-only "a
 - `magpie serve <id>` re-spins the Bun server against an archived run for the live interactive surface (posts still work: `pr.json` retains the head SHA).
 - `magpie --list-runs` enumerates all runs in `~/.magpie/`.
 
+## Local mode
+
+Reviews the current branch's diff for an agent that wants findings before a PR exists. Nothing is posted, served or rendered. Deltas from the walkthrough:
+
+`REPO` is the repo root the caller is working in (default: the current working directory). Resume an `active` run from `magpie --list-runs` only when its id is exactly `local-<slug>-<digits>` and `branch` in its `local.json` is the current branch. Otherwise:
+
+```
+SLUG=$(git -C "$REPO" branch --show-current | sed -E 's/[^A-Za-z0-9._-]+/-/g')
+RUN_DIR="$HOME/.magpie/local-${SLUG:-detached}-$(date +%s)"
+magpie setup "$RUN_DIR" --local --repo "$REPO" [--base <ref>] [--intent-file <path>]
+```
+
+On a non-zero exit, show stderr verbatim to the caller and stop. The diff runs from the merge base with `<ref>` to the working tree, untracked files included. `<ref>` defaults to `origin/HEAD`; when that is not the branch the work merges into, pass `--base` naming it (setup fails on an unresolvable ref rather than guessing). Pass `--intent-file` for the caller's spec or plan.
+
+- `WORKTREE=$(magpie target "$RUN_DIR")` is the repo itself. `TARGET` is `local branch <branch> against <baseRef>` (`detached HEAD against <baseRef>` when `branch` is null), from `local.json`.
+- Skip every `magpie render`. Peer review uses the "Local runs" list in `references/peer-review.md`. The stage 4 shard question goes to whoever asked for the review, which may be an orchestrating agent.
+- Stage 8: `magpie handoff "$RUN_DIR"`. On exit 4 (`findings.final.json` or `local.json` missing) or 2 (not a local run), show stderr to the caller and stop.
+- Then `magpie cleanup "$RUN_DIR" --repo "$REPO"` at once. Reply to the caller with the handoff stdout verbatim, then one line `Run archived at <path>`, `<path>` from cleanup's `archived to <path>`. End the turn.
+
+Do not edit the tree mid-run: anchors and evidence are read from it live. Without the Agent tool, stop and say so rather than reviewing single-handed. The local ladder ends at handoff, then cleanup; there is no server to restart.
+
 ## Resuming a crashed run
 
 A run is resumable while `$RUN_DIR/log.jsonl` exists and the run has not been archived. Do not test for `state/server-info`: the server deletes it whenever it stops, so a perfectly resumable run fails that check. Step 0 finds the run directory via `magpie --list-runs` when you don't already have it in `$RUN_DIR`.
@@ -263,7 +288,9 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
 - `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
 - Any resume: re-dispatch the checks pass when `findings/checks.json` is missing and no `checks: skipped` is logged.
+- Any stage after context: first set `WORKTREE` and `TARGET` as in stage 3 (on a local run, as in Local mode).
 - Any other stage: run it as written in the walkthrough.
+- Local run at `next: cleanup`: if the caller has not been sent the findings, re-run `magpie handoff` first (it only reads files).
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
   read `shards/manifest.json`, and re-dispatch only the pairs with no

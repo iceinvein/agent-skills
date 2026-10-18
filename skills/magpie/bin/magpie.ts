@@ -8,6 +8,11 @@ const USAGE = `Usage: magpie <subcommand> [args]
 
 Subcommands:
   setup <run-dir> --pr <n>   Pre-flight, fetch PR, create worktree
+  setup <run-dir> --local [--base <ref>] [--intent-file <path>]
+                             Review the current branch in place against <ref>
+                             (default origin/HEAD), committed and uncommitted
+  target <run-dir>           Print the directory findings are anchored against
+  handoff <run-dir>          Print local review findings as a ranked list
   serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
   critic-prompt <run-dir> [--batch-size N]
@@ -57,20 +62,84 @@ const HANDLERS: Record<string, Handler> = {
   setup: async (args) => {
     const runDir = args[0]
     const prFlag = args.indexOf('--pr')
-    const prValue = prFlag !== -1 ? args[prFlag + 1] : undefined
-    const repoFlag = args.indexOf('--repo')
-    if (!runDir || prFlag === -1 || !prValue) {
-      process.stderr.write('setup: missing <run-dir> --pr <n> [--repo <path>]\n')
+    const isLocal = args.includes('--local')
+    // A flag in the run-dir slot is usually an unset, unquoted $RUN_DIR.
+    if (!runDir || runDir.startsWith('-')) {
+      process.stderr.write(
+        'setup: missing <run-dir> (--pr <n> | --local [--base <ref>] [--intent-file <path>]) [--repo <path>]\n',
+      )
       return 2
     }
+    if ((prFlag !== -1) === isLocal) {
+      process.stderr.write('setup: pass exactly one of --pr <n> or --local\n')
+      return 2
+    }
+    const flagValue = (name: string): string | undefined | null => {
+      const idx = args.indexOf(name)
+      if (idx === -1) return undefined
+      const value = args[idx + 1]
+      if (!value || value.startsWith('--')) {
+        process.stderr.write(`setup: ${name} needs a value\n`)
+        return null
+      }
+      return value
+    }
+    const repoValue = flagValue('--repo')
+    if (repoValue === null) return 2
+    const repoPath = repoValue ?? process.cwd()
+    const { runSetup } = await import('../scripts/setup-cmd.ts')
+    if (isLocal) {
+      const baseRef = flagValue('--base')
+      if (baseRef === null) return 2
+      const intentFile = flagValue('--intent-file')
+      if (intentFile === null) return 2
+      return runSetup({
+        mode: 'local',
+        runDir,
+        repoPath,
+        ...(baseRef !== undefined ? { baseRef } : {}),
+        ...(intentFile !== undefined ? { intentFile } : {}),
+      })
+    }
+    const prValue = flagValue('--pr')
+    if (prValue === null || prValue === undefined) return 2
     const prNumber = Number(prValue)
     if (!Number.isFinite(prNumber)) {
       process.stderr.write(`setup: invalid PR number ${prValue}\n`)
       return 2
     }
-    const repoPath = (repoFlag !== -1 ? args[repoFlag + 1] : undefined) ?? process.cwd()
-    const { runSetup } = await import('../scripts/setup-cmd.ts')
-    return runSetup({ runDir, prNumber, repoPath })
+    return runSetup({ mode: 'pr', runDir, prNumber, repoPath })
+  },
+  target: async (args) => {
+    const runDir = args[0]
+    if (!runDir || runDir.startsWith('-')) {
+      process.stderr.write('target: missing <run-dir>\n')
+      return 2
+    }
+    const { reviewRoot } = await import('../scripts/target.ts')
+    try {
+      process.stdout.write(`${await reviewRoot(runDir)}\n`)
+    } catch (err) {
+      process.stderr.write(`target: ${err instanceof Error ? err.message : String(err)}\n`)
+      return 2
+    }
+    return 0
+  },
+  handoff: async (args) => {
+    const runDir = args[0]
+    if (!runDir || runDir.startsWith('-')) {
+      process.stderr.write('handoff: missing <run-dir>\n')
+      return 2
+    }
+    const { readTarget } = await import('../scripts/target.ts')
+    try {
+      await readTarget(runDir)
+    } catch (err) {
+      process.stderr.write(`handoff: ${err instanceof Error ? err.message : String(err)}\n`)
+      return 2
+    }
+    const { runHandoff } = await import('../scripts/handoff-cmd.ts')
+    return runHandoff(runDir, { gitBin: process.env.MAGPIE_GIT_BIN || 'git' })
   },
   serve: async (args) => {
     const idOrPath = args[0]
@@ -273,6 +342,13 @@ const HANDLERS: Record<string, Handler> = {
     const runDir = args[0]
     if (!runDir) {
       process.stderr.write('status: missing <run-dir>\n')
+      return 2
+    }
+    const { readTarget } = await import('../scripts/target.ts')
+    try {
+      await readTarget(runDir)
+    } catch (err) {
+      process.stderr.write(`status: ${err instanceof Error ? err.message : String(err)}\n`)
       return 2
     }
     const { runStatus } = await import('../scripts/status-cmd.ts')

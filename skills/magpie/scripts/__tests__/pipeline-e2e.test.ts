@@ -41,6 +41,7 @@ afterEach(async () => {
 
 test('setup -> dedupe -> render(progress) -> render(findings) -> cleanup composes', async () => {
   const setupExit = await runSetup({
+    mode: 'pr',
     runDir,
     prNumber: 1234,
     repoPath: repo,

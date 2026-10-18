@@ -7,6 +7,7 @@ import {
   DEFAULT_BATCH_SIZE,
   parseCriticVerdicts,
 } from './critic.ts'
+import { reviewRoot } from './target.ts'
 import { parseBrief, parseFinding, type ReviewFinding, type ReviewRule } from './types.ts'
 
 const DEFAULT_TEMPLATE_PATH = new URL('../references/critic.md', import.meta.url).pathname
@@ -84,7 +85,7 @@ export async function runCriticPrompt(
       candidates: await readCandidates(runDir),
       mergeCandidates: await readMergeCandidates(runDir),
       reviewRules: await readReviewRules(runDir),
-      worktree: join(runDir, 'worktree'),
+      worktree: await reviewRoot(runDir),
       diffPath: join(runDir, 'diff.patch'),
       runDir,
       batchSize: options.batchSize ?? DEFAULT_BATCH_SIZE,
