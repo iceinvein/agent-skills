@@ -520,20 +520,62 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		exit 1
 	}
 
+	# Hashed path-aware, so filters apply, the way the stop gate hashes it.
+	current_blob() { # <path>: its blob, or - when it is gone
+		local sha
+		if [ -e "$TREE/$1" ]; then
+			sha="$(git -C "$TREE" hash-object -- "$1" 2>/dev/null)"
+			[ -n "$sha" ] || { err "could not read $TREE/$1, so nothing was recorded"; exit 1; }
+			printf '%s\n' "$sha"
+		else
+			printf '%s\n' "-"
+		fi
+	}
+
 	STATUS=proved
 	WHY="$BECAUSE"
+	SKIPPED=""
 	if [ "$NONE" -eq 1 ]; then
 		STATUS=unproven
 		WHY="$BECAUSE (unproven: $REASON)"
+		# A path already recorded at its current content needs nothing more, so
+		# --none after a proof adds only the deletions, and a repeat adds nothing.
+		UNRECORDED=""
+		while IFS= read -r p; do
+			sha="$(current_blob "$p")" || exit 1
+			found=""
+			if [ -f "$TREE/.sluice/tests-changed" ]; then
+				while IFS=$'\t' read -r rec_sha rec_path rest; do
+					if [ "$rec_sha" = "$sha" ] && [ "$rec_path" = "$p" ]; then
+						found=1
+						break
+					fi
+				done <"$TREE/.sluice/tests-changed"
+			fi
+			[ -n "$found" ] || UNRECORDED="$UNRECORDED$p"$'\n'
+		done <<<"$FLAGGED"
+		FLAGGED="${UNRECORDED%$'\n'}"
+		if [ -z "$FLAGGED" ]; then
+			echo "sluice: every flagged test already has a record at its current content"
+			exit 0
+		fi
 	else
 		# Removing a test can only make a suite pass, and a command naming the
-		# missing file fails on "not found", so no run can prove a deletion.
+		# missing file fails on "not found", so no run can prove a deletion. The
+		# deletions are left for --none and the edits beside them proved as usual.
+		REMAINING=""
 		while IFS= read -r p; do
-			[ -e "$TREE/$p" ] || [ -L "$TREE/$p" ] || {
-				err "$p was deleted, and no run can prove a deletion; record it with --none <reason>. Nothing was recorded"
-				exit 4
-			}
+			if [ -e "$TREE/$p" ]; then
+				REMAINING="$REMAINING$p"$'\n'
+			else
+				SKIPPED="$SKIPPED${SKIPPED:+, }$p"
+			fi
 		done <<<"$FLAGGED"
+		FLAGGED="${REMAINING%$'\n'}"
+		if [ -z "$FLAGGED" ]; then
+			err "every flagged test was deleted ($SKIPPED), and no run can prove a deletion; record them with --none <reason>. Nothing was recorded"
+			exit 4
+		fi
 		LISTED="$(bash "$TEST_CHANGES" --list "$TREE" "$BASE_SHA")" || {
 			err "could not list the changed tests in $TREE against $BASE_SHA, so nothing was recorded"
 			exit 1
@@ -616,18 +658,14 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 	LINES=""
 	COUNT=0
 	while IFS= read -r p; do
-		if [ -e "$TREE/$p" ]; then
-			SHA="$(git -C "$TREE" hash-object -- "$p" 2>/dev/null)"
-			[ -n "$SHA" ] || { err "could not read $TREE/$p, so nothing was recorded"; exit 1; }
-		else
-			SHA="-"
-		fi
+		SHA="$(current_blob "$p")" || exit 1
 		LINES="$LINES$SHA	$p	$STATUS	$WHY
 "
 		COUNT=$((COUNT + 1))
 	done <<<"$FLAGGED"
 	printf '%s' "$LINES" >>"$TREE/.sluice/tests-changed" || { err "could not write $TREE/.sluice/tests-changed"; exit 1; }
 	echo "sluice: recorded $COUNT changed test(s) as $STATUS"
+	[ -z "$SKIPPED" ] || echo "sluice: not recorded, since no run can prove a deletion: $SKIPPED; record it with --none <reason>"
 	exit 0
 fi
 

@@ -290,7 +290,7 @@ test_gate() {
 		decision: "block",
 		reason: ("sluice: this session changed existing tests in a way that asks less of the code (an edited or removed assertion, a deleted test, a skip or focus marker), and nothing records why: "
 			+ ($paths | split("\n") | map(select(. != "") | gsub("[\u0000-\u001f\u007f]"; "")) | join(", "))
-			+ ". A test bent to fit new code proves nothing about it, so each one needs a record against the session base \($base). Prove it fails on the old code: status.sh tests-changed --because \"<the behaviour the change replaces>\" -- <the suite, scoped to these files>. If it cannot run on the old code, record why: status.sh tests-changed --because \"<the behaviour the change replaces>\" --none \"<why it cannot run on the old code>\". A deleted test always takes --none. Then name each changed test, and why it changed, in your reply.")
+			+ ". A test bent to fit new code proves nothing about it, so each one needs a record against the session base \($base). Prove it fails on the old code: status.sh tests-changed --because \"<the behaviour the change replaces>\" -- <the suite, scoped to these files> (the run is in a scratch worktree of the base, so a node suite usually needs --with node_modules). If it cannot run on the old code, record why: status.sh tests-changed --because \"<the behaviour the change replaces>\" --none \"<why it cannot run on the old code>\". No run can prove a deleted test, so prove the edited ones first, then record each deletion with --none. Then name each changed test, and why it changed, in your reply.")
 	}'
 	return 1
 }

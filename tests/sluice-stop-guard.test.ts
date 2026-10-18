@@ -1160,6 +1160,40 @@ describe("stop-guard.sh entry check", () => {
 			expect(decision(entryGuard(input, cfg).out)).toBe("block");
 		});
 
+		test("lets an edit proved and a deletion recorded with --none hand back", () => {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			writeFileSync(join(dir, "tests", "old.test.ts"), 'test("old", () => {});\n');
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "old"], timeout: 10000 });
+			stamp(cfg, "t15", dir);
+			const base = readFileSync(join(cfg, "sluice", "stamps", "t15"), "utf8").split("\n")[2];
+			weaken(dir);
+			rmSync(join(dir, "tests", "old.test.ts"));
+
+			// Red on the base, where the assertion was still exact.
+			const proof = Bun.spawnSync({
+				cmd: [
+					"bash", STATUS, "tests-changed", "--dir", dir, "--base", base, "--because", "add returned 3",
+					"--", "sh", "-c", "! grep -q toBeDefined tests/add.test.ts",
+				],
+				timeout: 10000,
+			});
+			expect(proof.exitCode).toBe(0);
+			expect(recordNone(dir, base).exitCode).toBe(0);
+
+			const input = { cwd: dir, session_id: "t15", transcript_path: routed("deep"), stop_hook_active: false };
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("the refusal says a node suite usually needs --with node_modules", () => {
+			const { cfg, dir, input } = session("t16");
+			weaken(dir);
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(reason).toContain("--with node_modules");
+		});
+
 		test("lets a new test file hand back with no record", () => {
 			const { cfg, dir, input } = session("t7");
 			writeFileSync(join(dir, "tests", "sub.test.ts"), 'test("subs", () => {\n\texpect(sub(3, 2)).toBe(1);\n});\n');

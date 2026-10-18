@@ -2416,6 +2416,52 @@ describe("tests-changed", () => {
 		expect(existsSync(RECORD(dir))).toBe(false);
 	});
 
+	/** greetRepo with a second test at the base, since deleted, and the greet test pinned to hello. */
+	function editedAndDeleted(): string {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "old.test.js"), 'require("node:assert").ok(true);\n');
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "old");
+		pinned(dir);
+		rmSync(join(dir, "tests", "old.test.js"));
+		return dir;
+	}
+
+	test("a proof beside a deletion records the edited test and names the deletion as still needing --none", () => {
+		const dir = editedAndDeleted();
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+		expect(r.out).toContain("sluice: not recorded, since no run can prove a deletion: tests/old.test.js; record it with --none <reason>\n");
+	});
+
+	test("--none after a proof records only the deletion", () => {
+		const dir = editedAndDeleted();
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--", "node", "--test").code).toBe(0);
+		const r = tc(dir, env, "--because", "old test retired", "--none", "it tested nothing");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n` +
+				"-\ttests/old.test.js\tunproven\told test retired (unproven: it tested nothing)\n",
+		);
+	});
+
+	test("--none twice records each flagged test once and says nothing was left", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--none", "no node here").code).toBe(0);
+		const r = tc(dir, env, "--because", "greeting is now hello", "--none", "no node here");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: every flagged test already has a record at its current content\n");
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tunproven\tgreeting is now hello (unproven: no node here)\n`,
+		);
+	});
+
 	// Named by absolute path, the file the command runs is the tree's, not the
 	// scratch worktree's, so both runs would run the new code.
 	test("a command naming a path in the tree by absolute path exits 4", () => {
