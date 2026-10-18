@@ -4,7 +4,8 @@
 // the labelled ones, and scores them. Spends real money: the whole review runs
 // again, capped by --max-cost-usd.
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { detectMissingTests } from '../../scripts/tests-check.ts'
@@ -15,6 +16,14 @@ import {
   readFindings,
   resolveCorpusRoot,
 } from './corpus.ts'
+import {
+  DEFAULT_JUDGE_MODEL,
+  judgeRecall,
+  loadMisses,
+  type RecallScore,
+  type RecallVerdict,
+  scoreRecall,
+} from './recall.ts'
 import { claudeFailureMessage, worktreeRemoveCommand } from './replay-critic.ts'
 import {
   formatRatio,
@@ -28,6 +37,117 @@ import {
 const SKILL_DIR = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
 const MAGPIE_BIN = join(SKILL_DIR, 'bin', 'magpie.ts')
 const DEFAULT_MAX_COST_USD = 10
+
+export type ReplayDiagnostics = {
+  log: Array<Record<string, unknown>>
+  shardManifest: unknown | null
+  findingsFiles: string[]
+  dedupedCount: number | null
+  criticDropped: unknown | null
+  evidenceDropped: unknown | null
+  thresholdDropped: unknown | null
+}
+
+async function readJsonIfPresent(path: string): Promise<unknown | null> {
+  if (!existsSync(path)) return null
+  try {
+    return JSON.parse(await readFile(path, 'utf8'))
+  } catch (err) {
+    throw new Error(`${path} is not valid JSON: ${err instanceof Error ? err.message : err}`)
+  }
+}
+
+/** What the scratch run dir says about the session, read before the dir is deleted:
+ *  without it a thin result cannot be told apart as missed shards or critic drops.
+ *  The model writes most log lines by hand, so a line that is not a JSON object is
+ *  kept raw in its place rather than failing a replay that has already been paid for. */
+export async function replayDiagnostics(runDir: string): Promise<ReplayDiagnostics> {
+  const log: Array<Record<string, unknown>> = []
+  for (const [i, line] of (await readFile(join(runDir, 'log.jsonl'), 'utf8')).split('\n').entries()) {
+    if (line.trim() === '') continue
+    let entry: unknown
+    try {
+      entry = JSON.parse(line)
+    } catch {
+      entry = null
+    }
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      log.push({ unparsed: line, line: i + 1 })
+    } else {
+      log.push(entry as Record<string, unknown>)
+    }
+  }
+
+  const dedupedPath = join(runDir, 'findings.deduped.json')
+  const deduped = await readJsonIfPresent(dedupedPath)
+  if (deduped !== null && !Array.isArray(deduped)) {
+    throw new Error(`${dedupedPath} is not a JSON array`)
+  }
+
+  return {
+    log,
+    shardManifest: await readJsonIfPresent(join(runDir, 'shards', 'manifest.json')),
+    findingsFiles: (await readdir(join(runDir, 'findings'))).sort(),
+    dedupedCount: deduped === null ? null : deduped.length,
+    criticDropped: await readJsonIfPresent(join(runDir, 'critic-dropped.json')),
+    evidenceDropped: await readJsonIfPresent(join(runDir, 'evidence-dropped.json')),
+    thresholdDropped: await readJsonIfPresent(join(runDir, 'threshold-dropped.json')),
+  }
+}
+
+/** Shards some specialist wrote a findings file for, out of the manifest's shards.
+ *  A single-shard run takes the unsharded path, so its files are `<focus>.json`;
+ *  `tests.json` is the deterministic setup finding and proves no specialist ran. */
+export function shardCoverageCount(
+  manifest: unknown | null,
+  findingsFiles: string[],
+): { reviewed: number; total: number } {
+  if (manifest === null) return { reviewed: 0, total: 0 }
+  const shards =
+    typeof manifest === 'object' && 'shards' in manifest ? manifest.shards : undefined
+  if (!Array.isArray(shards)) throw new Error('shard manifest has no shards array')
+  if (shards.length <= 1) {
+    const reviewed = findingsFiles.some((f) => /^[^.]+\.json$/.test(f) && f !== 'tests.json')
+    return { reviewed: reviewed && shards.length === 1 ? 1 : 0, total: shards.length }
+  }
+  const ids = new Set(
+    shards.map((s, i) => {
+      const id = typeof s === 'object' && s !== null && 'id' in s ? s.id : undefined
+      if (typeof id !== 'number') throw new Error(`shard manifest shards[${i}] has no numeric id`)
+      return id
+    }),
+  )
+  const reviewed = new Set<number>()
+  for (const f of findingsFiles) {
+    const m = /^[^.]+\.shard-(\d+)\.json$/.exec(f)
+    if (m && ids.has(Number(m[1]))) reviewed.add(Number(m[1]))
+  }
+  return { reviewed: reviewed.size, total: shards.length }
+}
+
+export function replaySummary(input: {
+  runId: string
+  kept: number
+  unlabelled: number
+  precision: number | null
+  recall: number | null
+  costUsd: number | null
+  missedRecall: { caught: number; misses: number } | null
+  coverage: { reviewed: number; total: number }
+  outPath: string
+}): string {
+  const missed =
+    input.missedRecall === null
+      ? ''
+      : `, missed-recall ${input.missedRecall.caught}/${input.missedRecall.misses}`
+  return (
+    `${input.runId}: kept ${input.kept} (${input.unlabelled} unlabelled), ` +
+    `precision ${formatRatio(input.precision)}, recall ${formatRatio(input.recall)}, ` +
+    `cost ${input.costUsd === null ? 'unreported' : `$${input.costUsd.toFixed(2)}`}${missed}, ` +
+    `shards ${input.coverage.reviewed}/${input.coverage.total}\n` +
+    `wrote ${input.outPath}\n`
+  )
+}
 
 async function exec(
   cmd: string[],
@@ -72,13 +192,15 @@ This is an unattended evaluation run:
 }
 
 async function main(argv: string[]): Promise<number> {
-  const flags = parseFlags(argv, ['corpus', 'repo', 'out', 'max-cost-usd'])
+  const flags = parseFlags(argv, ['corpus', 'repo', 'out', 'max-cost-usd', 'judge-model'])
   if (!flags.corpus || !flags.repo) {
     throw new Error(
-      'usage: replay-full.ts --corpus <runId> --repo <path> [--max-cost-usd N] [--out <corpus-dir>]',
+      'usage: replay-full.ts --corpus <runId> --repo <path> [--max-cost-usd N] ' +
+        '[--judge-model M] [--out <corpus-dir>]',
     )
   }
   const maxCostUsd = positiveNumberFlag(flags, 'max-cost-usd') ?? DEFAULT_MAX_COST_USD
+  const judgeModel = flags['judge-model'] ?? DEFAULT_JUDGE_MODEL
   const corpusRoot = resolveCorpusRoot(flags)
   const run = await loadCorpusRun(join(corpusRoot, flags.corpus))
   const sha = headRefOid(run)
@@ -143,6 +265,9 @@ async function main(argv: string[]): Promise<number> {
       newKept,
     })
 
+    const diagnostics = await replayDiagnostics(scratch)
+    const shardCoverage = shardCoverageCount(diagnostics.shardManifest, diagnostics.findingsFiles)
+
     const resultsDir = join(corpusRoot, 'results')
     await mkdir(resultsDir, { recursive: true })
     const outPath = join(resultsDir, `${resultTimestamp(new Date())}-full-${run.runId}.json`)
@@ -156,12 +281,49 @@ async function main(argv: string[]): Promise<number> {
       matches: Object.fromEntries(matches),
       newKept,
       score,
+      recall: null as RecallScore | null,
+      recallVerdicts: null as RecallVerdict[] | null,
+      judgeModel: null as string | null,
+      judgeCostUsd: null as number | null,
+      ...diagnostics,
+      shardCoverage,
     }
+    // Written before the judge runs so a judge failure cannot lose a paid replay.
     await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+
+    try {
+      const misses = await loadMisses(join(corpusRoot, 'misses', `${run.runId}.json`))
+      if (misses !== null) {
+        const judged = await judgeRecall({
+          misses,
+          findings: newKept,
+          model: judgeModel,
+          cwd: scratch,
+        })
+        result.recall = scoreRecall(misses, judged.verdicts)
+        result.recallVerdicts = judged.verdicts
+        result.judgeModel = judgeModel
+        result.judgeCostUsd = judged.costUsd
+        await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+      }
+    } catch (err) {
+      throw new Error(
+        `${err instanceof Error ? err.message : err} (replay result already written to ${outPath})`,
+      )
+    }
+
     process.stdout.write(
-      `${run.runId}: kept ${score.kept} (${unlabelled} unlabelled), ` +
-        `precision ${formatRatio(score.precision)}, recall ${formatRatio(score.recall)}, ` +
-        `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\nwrote ${outPath}\n`,
+      replaySummary({
+        runId: run.runId,
+        kept: score.kept,
+        unlabelled,
+        precision: score.precision,
+        recall: score.recall,
+        costUsd,
+        missedRecall: result.recall,
+        coverage: shardCoverage,
+        outPath,
+      }),
     )
     return 0
   } finally {

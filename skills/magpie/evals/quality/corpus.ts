@@ -154,8 +154,11 @@ export async function loadCorpusRun(dir: string): Promise<CorpusRun> {
   }
 }
 
+// Directories beside the runs that hold eval output and recall sets, not runs.
+const NON_RUN_DIRS = ['results', 'misses']
+
 export async function listCorpusRuns(corpusRoot: string): Promise<string[]> {
-  const names = (await readdir(corpusRoot)).filter((n) => n !== 'results').sort()
+  const names = (await readdir(corpusRoot)).filter((n) => !NON_RUN_DIRS.includes(n)).sort()
   const runs: string[] = []
   for (const name of names) {
     if ((await stat(join(corpusRoot, name))).isDirectory()) runs.push(name)
