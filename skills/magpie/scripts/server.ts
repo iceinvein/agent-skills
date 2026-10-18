@@ -15,6 +15,12 @@ export type StartServerInput = {
   host?: string
 }
 
+const FINDINGS_HTML_RE = /^findings(-v\d+)?\.html$/
+
+/**
+ * Once a findings page exists it is what the user came for, so it wins even
+ * though stage 8 re-renders progress after it; until then the newest page does.
+ */
 async function newestScreenPath(runDir: string): Promise<string | null> {
   const dir = join(runDir, 'screen')
   let entries: string[]
@@ -23,9 +29,11 @@ async function newestScreenPath(runDir: string): Promise<string | null> {
   } catch {
     return null
   }
+  const findings = entries.filter((name) => FINDINGS_HTML_RE.test(name))
+  const candidates = findings.length > 0 ? findings : entries
   let bestPath: string | null = null
   let bestMtime = -Infinity
-  for (const name of entries) {
+  for (const name of candidates) {
     if (!name.endsWith('.html')) continue
     const path = join(dir, name)
     const s = await stat(path)

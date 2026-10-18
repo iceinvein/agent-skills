@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ServerHandle, startServer } from '../server.ts'
@@ -35,6 +35,35 @@ test('serves the newest HTML file verbatim (HTML is self-contained at render tim
   const html = await fetchHtml(server)
   expect(html).toContain('<h1>Two</h1>')
   expect(html).toContain('inline-helper')
+})
+
+/** Writes a screen page with an explicit mtime, in seconds since the epoch. */
+async function writeScreen(name: string, body: string, mtime: number): Promise<void> {
+  const path = join(runDir, 'screen', name)
+  await writeFile(path, body)
+  await utimes(path, mtime, mtime)
+}
+
+test('a progress page rendered after the findings page does not replace it', async () => {
+  await writeScreen('findings.html', '<h1>Findings</h1>', 1000)
+  await writeScreen('progress-v9.html', '<h1>Progress, report done</h1>', 2000)
+  server = await startServer({ runDir, idleMs: 60_000 })
+  expect(await fetchHtml(server)).toContain('<h1>Findings</h1>')
+})
+
+test('before any findings page exists, the newest progress page is served', async () => {
+  await writeScreen('progress.html', '<h1>Progress one</h1>', 1000)
+  await writeScreen('progress-v2.html', '<h1>Progress two</h1>', 2000)
+  server = await startServer({ runDir, idleMs: 60_000 })
+  expect(await fetchHtml(server)).toContain('<h1>Progress two</h1>')
+})
+
+test('the newest findings version is served when several exist', async () => {
+  await writeScreen('findings.html', '<h1>Findings one</h1>', 1000)
+  await writeScreen('findings-v2.html', '<h1>Findings two</h1>', 2000)
+  await writeScreen('progress-v5.html', '<h1>Progress</h1>', 3000)
+  server = await startServer({ runDir, idleMs: 60_000 })
+  expect(await fetchHtml(server)).toContain('<h1>Findings two</h1>')
 })
 
 test('POST /events appends a JSON line to state/events', async () => {
