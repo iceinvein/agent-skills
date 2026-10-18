@@ -67,7 +67,7 @@ exists. Update the test to the new behaviour, expected value written by hand,
 and name it in your reply; do not ask again. Ask only when the red reaches
 behaviour nobody said would change. An updated test still has to earn its
 standing: `status.sh tests-changed --because "<behaviour>" -- <suite scoped
-to the changed tests>` runs each one in a scratch worktree of the session's
+to the updated tests>` runs each one in a scratch worktree of the session's
 starting code (so a node suite needs `--with node_modules`) and records them
 only if each fails there, because a new expectation the old code already met
 replaced nothing. Prove the edited tests first, then use `--none "<reason>"`

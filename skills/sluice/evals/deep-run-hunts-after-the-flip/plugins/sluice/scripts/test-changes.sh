@@ -6,9 +6,10 @@
 # Without --list, prints each test path needing a record, one per line, sorted;
 # empty output means none does. With --list, prints every test path that
 # differs from base (added, modified, deleted, and both ends of a rename), for
-# the proof run to copy or, where the path is gone now, delete. Exit 0 printed the answer, exit 1 the tree or base
-# could not be read, and then nothing is printed: an unreadable tree is
-# "unknown", never "changed", and the caller stays silent.
+# the proof run to copy or, where the path is gone now, delete. Exit 0 printed
+# the answer, exit 1 the tree or base could not be read, and then nothing is
+# printed: an unreadable tree is "unknown", never "changed", and the caller
+# stays silent.
 #
 # A test that only grows is a test that only asks more of the code, so it
 # passes. What needs a record is a test that asks less, or asks nothing:
