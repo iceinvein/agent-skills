@@ -639,8 +639,11 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 
 		# Without this a suite that cannot run on the base at all (a missing
 		# dependency, a new test for code the base lacks, a test already red there)
-		# would fail every proof run and read as proved.
-		if ! (cd "$WT" && "$@"); then
+		# would fail every proof run and read as proved. Every run's stdin is
+		# /dev/null: the proof loop's list arrives on stdin, so a command that
+		# reads it would swallow the paths still to be proved, and a runner
+		# waiting on input would hang the call.
+		if ! (cd "$WT" && "$@") </dev/null; then
 			err "the command failed on $BASE_SHA with the flagged tests left as they were, so it cannot prove anything here; link an ignored dependency with --with <path>, narrow the command to the flagged files, or record with --none <reason>. Nothing was recorded"
 			exit 8
 		fi
@@ -648,7 +651,7 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		while IFS= read -r p; do
 			control_tree
 			overlay "$p"
-			if (cd "$WT" && "$@"); then
+			if (cd "$WT" && "$@") </dev/null; then
 				err "$p passes on $BASE_SHA, the code it was changed against, so it does not pin the change. Nothing was recorded"
 				exit 7
 			fi

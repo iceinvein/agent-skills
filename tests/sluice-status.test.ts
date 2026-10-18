@@ -2496,6 +2496,21 @@ describe("tests-changed", () => {
 		expect(existsSync(RECORD(dir))).toBe(false);
 	});
 
+	test("a command that reads stdin cannot skip a later flagged test's proof", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hi"));
+		writeFileSync(join(dir, "tests", "b.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "a and b");
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hello"));
+		writeFileSync(join(dir, "tests", "b.test.js"), LOOSE_TEST);
+		const r = tc(dir, session(dir), "--because", "x", "--", "sh", "-c", "cat >/dev/null; node --test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/b.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
 	// With a bare repo hosting the worktrees, the git dir's parent is no
 	// checkout at all, just the directory the repo sits in.
 	test("a worktree of a bare repo accepts an absolute argument outside every checkout", () => {
