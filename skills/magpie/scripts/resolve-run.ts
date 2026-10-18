@@ -1,6 +1,8 @@
+import { existsSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { reviewHome } from './housekeeping-cmd.ts'
+import { readTarget } from './target.ts'
 
 export type ResolvedRun = {
   id: string
@@ -8,10 +10,15 @@ export type ResolvedRun = {
   archived: boolean
 }
 
-// Local slugs may contain dots and dashes, so an archived local id also matches
-// ACTIVE_PATTERN: test ARCHIVED_PATTERN first.
-const ACTIVE_PATTERN = /^(?:pr-\d+|local-[A-Za-z0-9._-]+)-\d+$/
-const ARCHIVED_PATTERN = /^(?:pr-(\d+)|local-[A-Za-z0-9._-]+)-\d+\.archived-(\d+)$/
+// open and serve render the HTML report, which local runs never get, so only PR
+// runs are candidates here. --list-runs still lists local runs for resume.
+const ACTIVE_PATTERN = /^pr-\d+-\d+$/
+const ARCHIVED_PATTERN = /^pr-(\d+)-\d+\.archived-(\d+)$/
+const LOCAL_PATTERN = /^local-[A-Za-z0-9._-]+-\d+(?:\.archived-\d+)?$/
+
+function localRunError(idOrPath: string): Error {
+  return new Error(`${idOrPath} is a local run; local runs have no report`)
+}
 
 type Entry = { id: string; path: string; archived: boolean; mtimeMs: number }
 
@@ -52,11 +59,16 @@ export async function resolveRunDir(
     if (!(await isReviewDir(path))) {
       throw new Error(`Not a magpie run directory: ${path}`)
     }
+    // Without target.json the run predates local mode, so it is a PR run.
+    if (existsSync(join(path, 'target.json')) && (await readTarget(path)).mode === 'local') {
+      throw localRunError(path)
+    }
     const id = path.split('/').filter(Boolean).pop() ?? path
     return { id, path, archived: ARCHIVED_PATTERN.test(id) }
   }
 
   if (idOrPath) {
+    if (LOCAL_PATTERN.test(idOrPath)) throw localRunError(idOrPath)
     const path = join(root, idOrPath)
     if (!(await isReviewDir(path))) {
       throw new Error(`Run id not found: ${idOrPath} (looked in ${root})`)

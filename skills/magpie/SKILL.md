@@ -15,7 +15,7 @@ Stop reading and follow these steps in order. Do not skip stages. Use the exact 
 
 ### 0. Identify the PR
 
-A request with no PR that asks to review the current branch, the working tree, or work in progress is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written.
+A request with no PR that asks to review the current branch, the working tree, or work in progress is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written, taking `TARGET` from Local mode.
 
 Parse the user's request for a PR number, URL, or "this PR" (current branch). If ambiguous, ask one clarifying terminal question. Capture the PR number into `$PR_NUMBER` and the repo path into `$REPO` (default: the current working directory).
 
@@ -288,7 +288,7 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
 - `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
 - Any resume: re-dispatch the checks pass when `findings/checks.json` is missing and no `checks: skipped` is logged.
-- Any stage after context: first set `WORKTREE` and `TARGET` as in stage 3.
+- Any stage after context: first set `WORKTREE` and `TARGET` as in stage 3 (on a local run, as in Local mode).
 - Any other stage: run it as written in the walkthrough.
 - Local run at `next: cleanup`: if the caller has not been sent the findings, re-run `magpie handoff` first (it only reads files).
 - If a specialist focus has no findings file but its sibling stages are done,
