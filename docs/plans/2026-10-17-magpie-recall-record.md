@@ -153,3 +153,14 @@ Results: `2026-10-17T17-07-49-558Z-full-pr-50-1789099641.json`,
     in scenario files, the low-value risk review N6 flagged, and the critic dropped none of them.
 - Run-to-run variance is large: the caught set swapped between runs on pr-50.
 - Total replay spend so far: about $122.
+
+## Decision: revert the flip, probe
+
+- User decision (2026-10-18): keep the recall eval and replay diagnostics (T1-T3, T9),
+  revert T5. Reverted as 6e38efe and b15ec91. Gates green afterwards (643 pass, lint, tsc).
+- T6 (builds on the flip's `contractsOnly` shape) and T8 (eval:fresh for the flip) are
+  cancelled and not built. Their rows stay `todo` in run.json, marked cancelled here.
+- Probe: run one specialist on one shard with the pre-flip (base) and the flip bugs prompt,
+  2 repeats each, on pr-50 shard 4 (misses 4, 6, 7, 8) and pr-70 shard 4 (miss-3). Each run is
+  judged with `judgeRecall` against the misses in that shard. The harness is
+  `scratchpad/probe/probe.ts`, an experiment kept outside the repo.
