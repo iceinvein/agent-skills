@@ -164,3 +164,26 @@ Results: `2026-10-17T17-07-49-558Z-full-pr-50-1789099641.json`,
   2 repeats each, on pr-50 shard 4 (misses 4, 6, 7, 8) and pr-70 shard 4 (miss-3). Each run is
   judged with `judgeRecall` against the misses in that shard. The harness is
   `scratchpad/probe/probe.ts`, an experiment kept outside the repo.
+
+## Probe results
+
+| Shard | Prompt | Runs that wrote findings | Caught |
+|---|---|---|---|
+| pr-50 s4 (misses 4, 6, 7, 8) | base | 2 of 2 (2 findings each) | 0/4, 0/4 |
+| pr-50 s4 | flip | 1 of 2 (5 findings) | 0/4 |
+| pr-70 s4 (miss-3) | base | 1 of 2 (0 findings) | 0/1 |
+| pr-70 s4 | flip | 0 of 2 | - |
+
+- Four runs ended without writing `findings/bugs.shard-4.json` (cost spent, nothing to
+  score). The cause is not investigated. A specialist that skips the file on zero findings
+  would match it, and the contract says to write `[]`.
+- Even when isolated on the exact shard, the flip's bugs text does not raise the
+  test-harness misses. Every finding lands on the Rust files, none on
+  `scenarios/run-all-scenarios.sh`, where misses 4, 7 and 8 live. The closest finding (the
+  scenario redirect leaving the in-memory index on the real account) is a sibling of miss-6,
+  and the judge did not count it.
+- Reading: these misses need an understanding of what the scenario harness is for (the
+  negative control, the guard semantics). A domain reviewer had that, from the record and
+  procedure review comment. More prompt bullets did not supply it. The recall gap here is
+  not mainly an instruction gap.
+- Probe spend: about $9.
