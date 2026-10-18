@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { diffSha256, localBranchDiff, localBranchMeta } from '../local-diff.ts'
@@ -163,6 +163,77 @@ test('localBranchMeta fails naming user.name when it is unset', async () => {
       else process.env[k] = v
     }
   }
+})
+
+test('localBranchDiff keeps a/ b/ headers and real content despite user diff config', async () => {
+  await makeFeatureBranch()
+  await sh(repo, 'git', 'config', 'diff.noprefix', 'true')
+  await sh(repo, 'git', 'config', 'diff.external', '/usr/bin/true')
+  const r = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!r.ok) throw new Error(r.error)
+  expect(r.diff).toContain('diff --git a/a.txt b/a.txt')
+  expect(r.diff).toContain('+two')
+  expect(r.diff).toContain('diff --git a/new.txt b/new.txt')
+  expect(r.diff).toContain('+fresh')
+})
+
+test('localBranchDiff and localBranchMeta leave .git/index unwritten', async () => {
+  await makeFeatureBranch()
+  const future = new Date(Date.now() + 60_000)
+  await utimes(join(repo, 'a.txt'), future, future)
+  const indexPath = join(repo, '.git', 'index')
+  const before = await stat(indexPath)
+  const bytesBefore = await readFile(indexPath)
+  const d = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!d.ok) throw new Error(d.error)
+  const m = await localBranchMeta({
+    gitBin: 'git',
+    repoPath: repo,
+    baseRef: d.baseRef,
+    mergeBase: d.mergeBase,
+    head: d.head,
+    intentFile: null,
+  })
+  expect(m.ok).toBe(true)
+  expect((await stat(indexPath)).mtimeMs).toBe(before.mtimeMs)
+  expect(Buffer.compare(await readFile(indexPath), bytesBefore)).toBe(0)
+})
+
+test('localBranchDiff writes non-ASCII paths unquoted', async () => {
+  await writeFile(join(repo, 'naïve.txt'), 'old\n')
+  await sh(repo, 'git', 'add', 'naïve.txt')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'add naive')
+  await makeFeatureBranch()
+  await writeFile(join(repo, 'naïve.txt'), 'new\n')
+  await writeFile(join(repo, 'café.txt'), 'latte\n')
+  const r = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!r.ok) throw new Error(r.error)
+  expect(r.diff).toContain('diff --git a/café.txt b/café.txt')
+  expect(r.diff).toContain('diff --git a/naïve.txt b/naïve.txt')
+})
+
+test('localBranchMeta lists commits up to the given head, not HEAD', async () => {
+  await makeFeatureBranch()
+  const d = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!d.ok) throw new Error(d.error)
+  const r = await localBranchMeta({
+    gitBin: 'git',
+    repoPath: repo,
+    baseRef: d.baseRef,
+    mergeBase: d.mergeBase,
+    head: d.mergeBase,
+    intentFile: null,
+  })
+  if (!r.ok) throw new Error(r.error)
+  expect(r.meta.commits).toEqual([])
+})
+
+test('localBranchDiff refuses a repoPath that is not the repository root', async () => {
+  await makeFeatureBranch()
+  await mkdir(join(repo, 'sub'))
+  const r = await localBranchDiff({ gitBin: 'git', repoPath: join(repo, 'sub'), baseRef: 'main' })
+  expect(r.ok).toBe(false)
+  if (!r.ok) expect(r.error).toContain(join(repo, 'sub'))
 })
 
 test('diffSha256 hashes the UTF-8 bytes as lowercase hex', () => {

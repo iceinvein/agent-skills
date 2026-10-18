@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { realpath } from 'node:fs/promises'
 
 export type LocalBranchDiffInput = {
   gitBin: string
@@ -38,18 +39,32 @@ async function git(
   args: string[],
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
   // Bun.spawn snapshots the env at startup unless given one, so pass the live
-  // env to honour GIT_CONFIG_* or HOME set after launch.
-  const proc = Bun.spawn([gitBin, ...args], {
+  // env to honour GIT_CONFIG_* or HOME set after launch. GIT_OPTIONAL_LOCKS=0
+  // stops diff/status refreshing the caller's index. quotePath=false keeps
+  // non-ASCII paths readable by the downstream header parsers.
+  const proc = Bun.spawn([gitBin, '-c', 'core.quotePath=false', ...args], {
     cwd,
-    env: { ...process.env },
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
     stdout: 'pipe',
     stderr: 'pipe',
   })
-  const stdout = await new Response(proc.stdout).text()
-  const stderr = await new Response(proc.stderr).text()
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
   const exit = await proc.exited
   return { exit, stdout, stderr }
 }
+
+// Pin the patch format against user config (noprefix, mnemonicPrefix, external
+// diff drivers, textconv) so the downstream parsers always see git's default.
+const DIFF_FORMAT = [
+  '--no-color',
+  '--no-ext-diff',
+  '--no-textconv',
+  '--src-prefix=a/',
+  '--dst-prefix=b/',
+]
 
 async function resolveCommit(gitBin: string, cwd: string, ref: string): Promise<string | null> {
   const r = await git(gitBin, cwd, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
@@ -67,6 +82,15 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
   const { gitBin, repoPath } = input
   const baseRef = input.baseRef ?? 'origin/HEAD'
 
+  const top = await git(gitBin, repoPath, ['rev-parse', '--show-toplevel'])
+  if (top.exit !== 0) {
+    return { ok: false, error: `${repoPath} is not a git repository: ${top.stderr.trim()}` }
+  }
+  const toplevel = top.stdout.trim()
+  if ((await realpath(toplevel)) !== (await realpath(repoPath))) {
+    return { ok: false, error: `${repoPath} is not the repository root (${toplevel})` }
+  }
+
   const base = await resolveCommit(gitBin, repoPath, baseRef)
   if (!base) return { ok: false, error: `cannot resolve base ref ${baseRef} to a commit` }
 
@@ -79,7 +103,7 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
     return { ok: false, error: `no merge base between ${baseRef} and HEAD: ${mb.stderr.trim()}` }
   }
 
-  const tracked = await git(gitBin, repoPath, ['diff', '--no-color', '--find-renames', mergeBase])
+  const tracked = await git(gitBin, repoPath, ['diff', ...DIFF_FORMAT, '--find-renames', mergeBase])
   if (tracked.exit !== 0) {
     return { ok: false, error: `git diff ${mergeBase} failed: ${tracked.stderr.trim()}` }
   }
@@ -95,7 +119,7 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
     // `--no-index` exits 1 when the files differ, which is always the case here.
     const r = await git(gitBin, repoPath, [
       'diff',
-      '--no-color',
+      ...DIFF_FORMAT,
       '--no-index',
       '--',
       '/dev/null',
@@ -136,7 +160,7 @@ export async function localBranchMeta(input: LocalBranchMetaInput): Promise<Loca
   const log = await git(gitBin, repoPath, [
     'log',
     '--format=%H%x1f%s%x1f%b%x1e',
-    `${mergeBase}..HEAD`,
+    `${mergeBase}..${head}`,
   ])
   if (log.exit !== 0) return { ok: false, error: `git log failed: ${log.stderr.trim()}` }
   const commits: LocalMeta['commits'] = []
