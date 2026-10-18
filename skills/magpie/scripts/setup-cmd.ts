@@ -24,13 +24,26 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
   const deps = input.deps ?? defaultDeps()
   // Absolute so target.json and every git call agree on the repo whatever the cwd.
   const repoPath = resolve(input.repoPath)
-  // Local mode reviews the repo in place, so a run dir inside it would be
-  // written to and its rollback would delete the caller's files.
-  if (input.mode === 'local' && (await isWithin(input.runDir, repoPath))) {
-    process.stderr.write(
-      `magpie: run dir ${input.runDir} is inside the repository under review ${repoPath}\n`,
-    )
-    return 2
+  if (input.mode === 'local') {
+    // Checked before any mkdir: a --repo below the root would otherwise let a
+    // run dir elsewhere in the repo pass the guard below and be created there.
+    const top = await gitToplevel(deps.git, repoPath)
+    if (!top.ok) {
+      process.stderr.write(`magpie: ${top.error}\n`)
+      return 2
+    }
+    if ((await realpath(repoPath)) !== (await realpath(top.root))) {
+      process.stderr.write(`magpie: --repo ${repoPath} is not the repository root ${top.root}\n`)
+      return 2
+    }
+    // Local mode reviews the repo in place, so a run dir inside it would be
+    // written to and its rollback would delete the caller's files.
+    if (await isWithin(input.runDir, top.root)) {
+      process.stderr.write(
+        `magpie: run dir ${input.runDir} is inside the repository under review ${repoPath}\n`,
+      )
+      return 2
+    }
   }
   await mkdir(input.runDir, { recursive: true })
   await mkdir(join(input.runDir, 'findings'), { recursive: true })
@@ -133,6 +146,25 @@ async function realpathAllowingMissing(path: string): Promise<string> {
     if (parent === absolute) throw err
     return join(await realpathAllowingMissing(parent), basename(absolute))
   }
+}
+
+async function gitToplevel(
+  gitBin: string,
+  repoPath: string,
+): Promise<{ ok: true; root: string } | { ok: false; error: string }> {
+  const proc = Bun.spawn([gitBin, 'rev-parse', '--show-toplevel'], {
+    cwd: repoPath,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  if ((await proc.exited) !== 0) {
+    return { ok: false, error: `${repoPath} is not a git repository: ${stderr.trim()}` }
+  }
+  return { ok: true, root: stdout.trim() }
 }
 
 async function isWithin(path: string, root: string): Promise<boolean> {

@@ -475,3 +475,51 @@ test('local setup refuses a not-yet-created run dir under the repository and cre
   expect(stderr).toContain(`magpie: run dir ${nested} is inside the repository under review`)
   expect((await readdir(repo)).sort()).toEqual(before)
 })
+
+async function gitStatus(cwd: string): Promise<string> {
+  const proc = Bun.spawn(['git', 'status', '--porcelain'], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  const out = await new Response(proc.stdout).text()
+  expect(await proc.exited).toBe(0)
+  return out
+}
+
+test('local setup with --repo at a subdirectory fails before writing a run dir into the repository', async () => {
+  await mkdir(join(repo, 'sub'))
+  await writeFile(join(repo, 'sub', 's.txt'), 's\n')
+  await sh(repo, 'git', 'add', '.')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'sub')
+  const before = (await readdir(repo)).sort()
+  const statusBefore = await gitStatus(repo)
+  const sub = join(repo, 'sub')
+
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir: join(repo, 'run'),
+    repoPath: sub,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(2)
+  expect(stderr).toContain(`magpie: --repo ${sub} is not the repository root`)
+  expect((await readdir(repo)).sort()).toEqual(before)
+  expect(await gitStatus(repo)).toBe(statusBefore)
+})
+
+test('local setup with --repo outside any git repository fails with exit 2 and creates no run dir', async () => {
+  const notRepo = await mkdtemp(join(tmpdir(), 'magpie-setup-notrepo-'))
+  const nested = join(runDir, 'r1')
+  try {
+    const { exit, stderr } = await setupCapturingStderr({
+      mode: 'local',
+      runDir: nested,
+      repoPath: notRepo,
+      baseRef: 'main',
+      deps: LOCAL_DEPS,
+    })
+    expect(exit).toBe(2)
+    expect(stderr).toContain('not a git repository')
+    expect(await readdir(runDir)).toEqual([])
+  } finally {
+    await rm(notRepo, { recursive: true, force: true })
+  }
+})
