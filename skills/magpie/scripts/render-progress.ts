@@ -16,7 +16,7 @@ export type StageStatus = 'pending' | 'running' | 'done' | 'error' | 'skipped'
 const STAGE_HINT: Record<StageId, string> = {
   setup: 'fetch PR and diff',
   context: 'index symbols',
-  specialists: 'six reviewers in parallel',
+  specialists: 'five reviewers in parallel',
   dedupe: 'merge overlaps',
   critic: 'keep the high-signal ones',
   'peer-review': 'independent second opinion',
@@ -27,7 +27,7 @@ const STAGE_HINT: Record<StageId, string> = {
 const STAGE_NOW_DOING: Record<StageId, string> = {
   setup: 'Fetching the PR and diff',
   context: 'Reading the PR to brief the reviewers',
-  specialists: 'Six reviewers reading the diff in parallel',
+  specialists: 'Five reviewers reading the diff in parallel',
   dedupe: 'Merging overlapping findings',
   critic: 'Keeping only the high-signal ones',
   'peer-review': 'Getting an independent second opinion',
@@ -86,7 +86,7 @@ function progressPane(input: RenderProgressInput): string {
   if (cur.status === 'running') {
     lead =
       cur.id === 'specialists' && (input.shardCount ?? 1) > 1
-        ? `Six reviewers across ${input.shardCount} shards`
+        ? `Five reviewers across ${input.shardCount} shards`
         : STAGE_NOW_DOING[cur.id]
   } else if (cur.status === 'error') {
     lead = `${STAGE_NOW_DOING[cur.id]} stalled`

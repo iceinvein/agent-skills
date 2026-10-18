@@ -231,7 +231,7 @@ test('progress sums specialist counts across shards', async () => {
   const exit = await runRender(runDir, 'progress')
   expect(exit).toBe(0)
   const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
-  expect(html).toContain('Six reviewers across 2 shards')
+  expect(html).toContain('Five reviewers across 2 shards')
   // security is 2 + 3, not 3.
   expect(html).toContain('security <span class="count">5</span>')
 })
@@ -251,7 +251,7 @@ test('a malformed shards/manifest.json degrades to the unsharded progress wordin
   await specialistsRunning()
   expect(await runRender(runDir, 'progress')).toBe(0)
   const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
-  expect(html).toContain('Six reviewers reading the diff in parallel')
+  expect(html).toContain('Five reviewers reading the diff in parallel')
   expect(html).not.toMatch(/across \S+ shards/)
 })
 
@@ -267,7 +267,7 @@ test('a manifest with shards: [] renders the unsharded progress wording', async 
   await specialistsRunning()
   expect(await runRender(runDir, 'progress')).toBe(0)
   const html = await readFile(join(runDir, 'screen', 'progress.html'), 'utf8')
-  expect(html).toContain('Six reviewers reading the diff in parallel')
+  expect(html).toContain('Five reviewers reading the diff in parallel')
   expect(html).not.toContain('across 0 shards')
   expect(html).not.toMatch(/across \S+ shards/)
 })

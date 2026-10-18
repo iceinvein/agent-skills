@@ -1,6 +1,6 @@
 ---
 name: shard-gate-stops-and-asks
-description: A resumed run whose diff split into seven shards must stop and ask before dispatching 42 specialist subagents.
+description: A resumed run whose diff split into seven shards must stop and ask before dispatching 35 specialist subagents.
 tags: [magpie, specialists, shard-gate, scaffold]
 max_turns: 30
 timeout_seconds: 900

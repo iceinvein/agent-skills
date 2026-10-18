@@ -4,14 +4,7 @@ import { readdir, readFile } from 'node:fs/promises'
 const SKILL = new URL('../../SKILL.md', import.meta.url).pathname
 const SKILL_JSON = new URL('../../skill.json', import.meta.url).pathname
 const ref = (name: string) => new URL(`../../references/${name}`, import.meta.url).pathname
-const FOCUSES = [
-  'security',
-  'bugs',
-  'performance',
-  'code-smells',
-  'architecture',
-  'contracts',
-] as const
+const FOCUSES = ['security', 'bugs', 'performance', 'code-smells', 'architecture'] as const
 
 test('every references/ path SKILL.md cites exists on disk', async () => {
   const text = await readFile(SKILL, 'utf8')
@@ -406,7 +399,7 @@ test('stage 4 reconciles the expected findings files before dedupe', async () =>
   // Stage 4 fails only when every specialist fails, so losing 1 of 30 agents
   // otherwise renders a report indistinguishable from a complete one.
   expect(section).toMatch(/findings\/<focus>\.shard-<n>\.json/)
-  expect(section).toMatch(/6 × <shard count>/)
+  expect(section).toMatch(/5 × <shard count>/)
 })
 
 test('the stage-4 gate offers only options the pipeline can carry out', async () => {

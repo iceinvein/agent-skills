@@ -52,13 +52,6 @@
       "unpinned": "No case reaches the end of stage 4 with a findings file missing for a re-dispatch to fill."
     },
     {
-      "id": "skipped-shards-get-contracts-pass",
-      "states": "SKILL.md: 4. Specialists",
-      "origin": "docs/specs/2026-10-17-magpie-recall.md",
-      "cases": [],
-      "unpinned": "The sharded case stops at the gate before the user answers, so no case picks the partial option and dispatches the contracts-only pass."
-    },
-    {
       "id": "critic-subagents-run-the-prompt-files-verbatim",
       "states": "SKILL.md: 6. Critic",
       "origin": "commit:773467d",

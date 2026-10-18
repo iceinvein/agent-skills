@@ -1,6 +1,6 @@
 ---
 name: magpie
-description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"). Interactive PR review pipeline; six parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
+description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"). Interactive PR review pipeline; five parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
 ---
 
 # Magpie
@@ -91,7 +91,7 @@ Append `{stage: context, status: done}` and re-render progress. If the scout ret
 
 ### 4. Specialists
 
-Read `references/specialists.md` now, before dispatching anything: it holds the six focus blocks and the output contract every specialist prompt is built from. Assemble prompts from that file verbatim; written from memory they drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
+Read `references/specialists.md` now, before dispatching anything: it holds the five focus blocks and the output contract every specialist prompt is built from. Assemble prompts from that file verbatim; written from memory they drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
 
 Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render
 progress, so the served page shows the stage as active rather than "Paused". Then read
@@ -99,31 +99,29 @@ progress, so the served page shows the stage as active rather than "Paused". The
 
 **One shard, zero shards, or no manifest** (a diff filtered down to nothing, e.g. a
 lockfile-only PR, yields `shards: []` in an otherwise normal manifest; a run predating
-this feature has no manifest at all): dispatch the six specialists in a single message,
-six parallel Agent calls, one per focus in (security, bugs, performance, code-smells,
-architecture, contracts), each carrying the prompt `references/specialists.md`
-describes with the unsharded run header. The shard gate and the wave dispatch below do not apply; the
+this feature has no manifest at all): dispatch the five specialists in a single message,
+five parallel Agent calls, one per focus in (security, bugs, performance, code-smells,
+architecture), each carrying the prompt `references/specialists.md` describes with the
+unsharded run header. The shard gate and the wave dispatch below do not apply; the
 logging and the file check at the end of this stage still do.
 
 **More than one shard:** each focus reviews every shard, so the run dispatches
-`6 × <shard count>` subagents in total.
+`5 × <shard count>` subagents in total.
 
 **More than four shards: stop and ask the user once, before dispatching anything.**
 State the shard count, the resulting agent count, and the three options: proceed as
 sharded; re-shard for fewer, larger chunks with
 `magpie shard "$RUN_DIR" --budget <lines> --max-files <n>`, raising both flags (a PR of
 many small files is split by the 80-file cap, so a larger `--budget` alone changes
-nothing); or review only the highest-risk shards, giving each skipped shard the contracts
-specialist alone, which means appending
-`{stage: shard-coverage, status: partial, reviewed: [<ids>], contractsOnly: [<ids>]}` to
-`$RUN_DIR/log.jsonl` and naming the contracts-only shards in the terminal.
+nothing); or review only the highest-risk shards, which means appending
+`{stage: shard-coverage, status: partial, reviewed: [<ids>], skipped: [<ids>]}` to
+`$RUN_DIR/log.jsonl` and telling the user in the terminal which shards go unreviewed.
 That log entry is the only record of the gap: the report has no unreviewed marker.
 Wait for the answer. This is the only interactive gate in the pipeline before the
 report, and it exists so that neither the cost nor a coverage gap is ever silent.
 
-Dispatch by wave, one shard per wave, the six focuses in parallel within a wave, then
-the contracts-only shards six at a time, re-rendering progress between waves. That
-holds in-flight agents at six and makes a
+Dispatch by wave, one shard per wave, the five focuses in parallel within a wave,
+re-rendering progress between waves. That holds in-flight agents at five and makes a
 crash cheap to resume: only the `(focus, shard)` pairs whose findings file is missing
 need re-dispatching.
 
@@ -135,11 +133,11 @@ shard, zero shards, or no manifest).
 advances `magpie status`.)
 
 Before leaving this stage, list `$RUN_DIR/findings` and confirm one file per expected
-`(focus, shard)` pair: six per reviewed shard named `findings/<focus>.shard-<n>.json`
-(only `contracts` on a contracts-only shard) when sharded, six `findings/<focus>.json`
-otherwise, plus `findings/tests.json` from setup. Re-dispatch any missing pair.
-`magpie dedupe` re-checks this against the manifest and names every missing pair on
-stdout, as a backstop rather than a substitute.
+`(focus, shard)` pair: `5 × <shard count>` named `findings/<focus>.shard-<n>.json` when
+sharded, five `findings/<focus>.json` otherwise, plus `findings/tests.json` from setup.
+Re-dispatch any pair missing from a shard you meant to review; a shard skipped at the
+gate is expected to have none. `magpie dedupe` re-checks this against the manifest and
+names every missing pair on stdout, as a backstop rather than a substitute.
 
 If every specialist fails (no findings files written), log
 `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.

@@ -25,8 +25,7 @@ Diff: <<RUN_DIR>>/diff.patch
 4. The repository's written conventions, for the review rules. At the worktree root:
    `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING*`, `.github/copilot-instructions.md`, and
    every file under `.cursor/rules/`. Then `CLAUDE.md` and `AGENTS.md` in each
-   directory the diff touches and in every parent directory up to the worktree root.
-   Skip any that do not exist.
+   directory the diff touches. Skip any that do not exist.
 
 ## How to reason
 

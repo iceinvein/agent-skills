@@ -38,14 +38,7 @@ export const STAGE_PRESETS = {
       context: 'done',
       specialists: 'running',
     },
-    counts: {
-      security: 1,
-      bugs: 3,
-      performance: 2,
-      'code-smells': 0,
-      architecture: 0,
-      contracts: 1,
-    },
+    counts: { security: 1, bugs: 3, performance: 2, 'code-smells': 0, architecture: 0 },
   },
   'specialists-done': {
     stages: {
@@ -55,14 +48,7 @@ export const STAGE_PRESETS = {
       specialists: 'done',
       dedupe: 'running',
     },
-    counts: {
-      security: 1,
-      bugs: 4,
-      performance: 2,
-      'code-smells': 5,
-      architecture: 3,
-      contracts: 2,
-    },
+    counts: { security: 1, bugs: 4, performance: 2, 'code-smells': 5, architecture: 3 },
   },
   'dedupe-done': {
     stages: {
@@ -73,14 +59,7 @@ export const STAGE_PRESETS = {
       dedupe: 'done',
       critic: 'running',
     },
-    counts: {
-      security: 1,
-      bugs: 3,
-      performance: 2,
-      'code-smells': 4,
-      architecture: 2,
-      contracts: 2,
-    },
+    counts: { security: 1, bugs: 3, performance: 2, 'code-smells': 4, architecture: 2 },
   },
   'critic-done': {
     stages: {
@@ -92,14 +71,7 @@ export const STAGE_PRESETS = {
       critic: 'done',
       'peer-review': 'running',
     },
-    counts: {
-      security: 1,
-      bugs: 2,
-      performance: 1,
-      'code-smells': 3,
-      architecture: 2,
-      contracts: 1,
-    },
+    counts: { security: 1, bugs: 2, performance: 1, 'code-smells': 3, architecture: 2 },
   },
   'peer-review-error': {
     stages: {
@@ -111,14 +83,7 @@ export const STAGE_PRESETS = {
       critic: 'done',
       'peer-review': 'error',
     },
-    counts: {
-      security: 1,
-      bugs: 2,
-      performance: 1,
-      'code-smells': 3,
-      architecture: 2,
-      contracts: 1,
-    },
+    counts: { security: 1, bugs: 2, performance: 1, 'code-smells': 3, architecture: 2 },
   },
   'report-done': {
     // The default: what a reviewer sees when they open the page after the
@@ -133,14 +98,7 @@ export const STAGE_PRESETS = {
       'peer-review': 'done',
       report: 'done',
     },
-    counts: {
-      security: 1,
-      bugs: 2,
-      performance: 2,
-      'code-smells': 2,
-      architecture: 1,
-      contracts: 1,
-    },
+    counts: { security: 1, bugs: 2, performance: 2, 'code-smells': 2, architecture: 1 },
   },
   'post-done': {
     stages: {
@@ -154,14 +112,7 @@ export const STAGE_PRESETS = {
       report: 'done',
       post: 'done',
     },
-    counts: {
-      security: 1,
-      bugs: 2,
-      performance: 2,
-      'code-smells': 2,
-      architecture: 1,
-      contracts: 1,
-    },
+    counts: { security: 1, bugs: 2, performance: 2, 'code-smells': 2, architecture: 1 },
   },
 } as const
 
