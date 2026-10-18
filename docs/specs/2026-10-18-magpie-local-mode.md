@@ -73,6 +73,11 @@ mode never creates, so the caller's tree is never a candidate for
 `git worktree remove --force`. A test pins that a local run's cleanup leaves the repo
 path intact.
 
+Setup refuses a run dir inside the repository under review, checked against
+`git rev-parse --show-toplevel` before anything is created, and requires `--repo` to be
+that root. When `--repo` is a linked worktree, the guard protects that worktree only; a
+run dir in the enclosing main checkout is allowed, since it is not the tree under review.
+
 ## 3. Prompts
 
 - `scout.md`, `checks.md`, `specialists.md`: `Working directory: <RUN_DIR>/worktree`
@@ -90,14 +95,15 @@ path intact.
 Prints the result for the calling agent as markdown on stdout and logs
 `{stage: handoff, status: done}`:
 
-- Header: target, counts by severity, the run dir, and a staleness line when the
-  tree has moved since setup (recomputes the local diff and compares its sha256 with
-  one setup recorded in `diff-source.json`). Moved means some anchors may be off; it
-  is a warning, not an error.
+- Header: target, counts by action (must-fix, should-fix, optional), and a staleness
+  line when the tree has moved since setup (recomputes the local diff and compares its
+  sha256 with one setup recorded in `diff-source.json`). Moved means some anchors may
+  be off; it is a warning, not an error. The run dir is not printed: cleanup renames it
+  straight after, so SKILL.md has the agent append the archived path cleanup reports.
 - Findings ordered as the report orders them (recommended first, then score), each:
-  `N. [severity] file:line: title`, then the parsed Observation / Why it matters /
+  `N. [action] file:line: title`, then the parsed Observation / Why it matters /
   Suggested direction / Needs verification sections (`finding-description.ts`), and
-  the `suggestion` code block when present.
+  the `suggestion` code block when present, labelled with the lines it replaces.
 - Footer: an instruction to the caller: address each `must-fix` and `should-fix`, or
   say why not; the rest are optional.
 

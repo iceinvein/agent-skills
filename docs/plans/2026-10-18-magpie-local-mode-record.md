@@ -169,6 +169,45 @@ a rewrap. Open until a real eval run: Apple's xcrun `/usr/bin/git` shim in the e
 sandbox (the sluice evals README records it failing; the fixture's `TMPDIR` export fixes
 the same shim for python3).
 
+Round 2 (e6d0f62): fixes as asked; T7 done.
+
+## Hunt
+
+bug-hunter over `427bded..HEAD` (skills/magpie only) against the spec. Artifacts in
+`.bug-hunter/2026-10-18-magpie-local-mode/` (`intent.md`, `scenarios.md`,
+`findings.json`, `repros/`). No `report.md`: the subagent environment refused it, so the
+report is the hunt agent's reply, summarised here. 18 scenarios passed.
+
+- **B1, handoff omits the run dir** (spec section 4). Not a bug: the `Run:` line was
+  removed on purpose in T6 round 1, since cleanup moves the dir straight after handoff.
+  The spec is stale; updated.
+- **B2, same-size same-second edit dropped from the diff** and **B3, handoff calls a
+  changed tree fresh**: one root cause. The temp index copy (T1 round 3) gets a fresh
+  mtime, which disables git's racy-entry recheck. Fix task T8: give the copy the
+  original's mtime.
+- **B4, failed setup with `--repo <subdir>` leaves `<repo>/run/`**: the inside-repo check
+  compares against `--repo` as given, before the repo-root check. Fix task T9.
+- **A1** (to the user): with `core.splitIndex`, setup bumps the mtime of
+  `.git/sharedindex.<sha>`; content unchanged, no new file.
+- **A2** (to the user): spec section 4 says counts and labels by severity; plan T3 and
+  the code use the action (must-fix/should-fix/optional). Spec section 4 updated to
+  match what shipped (action labels, no run dir, line-range label), pending the user.
+
+T8 (e7855c0, edbce9b): the copy takes the original index's atime/mtime, stat taken
+before the copy so a concurrent index rewrite can only make git recheck more. Review ran
+bug-hunter's real-clock repros: B2 5/5, B3 5/5 with the fix, 0/3 each without. Checked
+nsec truncation, split index, untracked cache and fsmonitor; none change the diff. Done.
+
+T9 (3f9221d): `git rev-parse --show-toplevel` before any mkdir; guard compares against
+the root. Review round 1: nothing blocking; sent back a `..`-through-symlink run dir that
+slips the guard (predates T9; fix by resolving the run dir once), a missing or non-dir
+`--repo` that threw from `Bun.spawn`, and two message fixes. Noted for the spec: with a
+linked worktree as `--repo`, a run dir in the enclosing main checkout is allowed, since
+the guard protects the tree under review.
+Round 2 (2f2f6ba): run dir resolved once at the top of `runSetup` (both modes);
+`--repo` stat-checked before spawning; messages fixed. Done. Untested: bare repo and
+`--repo` at `.git` (only a plain non-git dir is tested).
+
 Carried to T5: setup must record `diffSha256` of the raw `localBranchDiff` output, before
 `applyPathFilter`, or every filtered run's handoff reads as stale.
 
