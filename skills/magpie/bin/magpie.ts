@@ -344,6 +344,13 @@ const HANDLERS: Record<string, Handler> = {
       process.stderr.write('status: missing <run-dir>\n')
       return 2
     }
+    const { readTarget } = await import('../scripts/target.ts')
+    try {
+      await readTarget(runDir)
+    } catch (err) {
+      process.stderr.write(`status: ${err instanceof Error ? err.message : String(err)}\n`)
+      return 2
+    }
     const { runStatus } = await import('../scripts/status-cmd.ts')
     const result = await runStatus(runDir)
     process.stdout.write(`${JSON.stringify(result)}\n`)
