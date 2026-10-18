@@ -54,10 +54,18 @@ reaching inside it, the test has started reshaping your design.
 **A test goes when the behaviour it pinned is gone.** Delete it alongside the
 code, in the same commit, like anything else the change orphaned. Two tests
 pinning one behaviour are a test and a maintenance bill, so keep the clearer.
-None of that reaches a red test. A failure is the suite claiming your change
-broke something, and deleting it, skipping it, loosening the assertion or
-special-casing the input it feeds answers the claim by silencing the witness.
-Believe the test itself is wrong and you say so and get agreement first.
+None of that reaches an unexpected red test. A failure is the suite claiming
+your change broke something, and deleting it, skipping it, loosening the
+assertion or special-casing the input it feeds answers the claim by silencing
+the witness. Believe the test itself is wrong and you say so and get agreement
+first.
+
+**A red test on the behaviour you were asked to change is not that claim.**
+When the request or the agreed plan replaces the behaviour a test pins, the
+red is the change showing up where it should, and the agreement already
+exists. Update the test to the new behaviour, expected value written by hand,
+and name it in your reply; do not ask again. Ask only when the red reaches
+behaviour nobody said would change.
 
 Two friction lines, one in each direction:
 
