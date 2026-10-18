@@ -68,6 +68,9 @@ export async function killServer(
 }
 
 export async function runCleanup(input: RunCleanupInput): Promise<number> {
+  // Read before any side effect, so a malformed target.json leaves the run untouched.
+  // Local mode promises the caller no report, so its cleanup does not point at one.
+  const { mode } = await readTarget(input.runDir)
   const worktreePath = join(input.runDir, 'worktree')
   const worktreeExists = await stat(worktreePath)
     .then(() => true)
@@ -91,8 +94,6 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
   if (await Bun.file(join(input.runDir, 'findings.final.json')).exists()) {
     await writeLabels(input.runDir)
   }
-  // A local run renders no report, so there is nothing for magpie open to show.
-  const { mode } = await readTarget(input.runDir)
 
   const target = `${input.runDir}.archived-${Date.now()}`
   await rename(input.runDir, target)

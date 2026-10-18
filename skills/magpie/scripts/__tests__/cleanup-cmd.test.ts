@@ -37,6 +37,8 @@ beforeEach(async () => {
   await sh(repo, 'git', 'commit', '-q', '-m', 'init')
   await sh(repo, 'git', 'worktree', 'add', '--detach', join(runDir, 'worktree'), 'HEAD')
   await mkdir(join(runDir, 'state'), { recursive: true })
+  // setup writes log.jsonl first in every real run.
+  await writeFile(join(runDir, 'log.jsonl'), '')
 })
 
 afterEach(async () => {
@@ -90,6 +92,16 @@ test('cleanup of a local run prints the archive path but no view-later hint', as
   const text = out.join('')
   expect(text).toContain('archived to ')
   expect(text).not.toContain('view later')
+})
+
+test('cleanup with a malformed target.json rejects before archiving or writing labels', async () => {
+  await writeFile(join(runDir, 'log.jsonl'), '')
+  await writeFile(join(runDir, 'findings.final.json'), '[]')
+  await writeFile(join(runDir, 'target.json'), '{not json')
+  await expect(runCleanup({ runDir, repoPath: repo, gitBin: 'git' })).rejects.toThrow('target.json')
+  const entries = await readdir(dirname(runDir))
+  expect(entries.some((e) => e.startsWith(`${basename(runDir)}.archived-`))).toBe(false)
+  expect(await Bun.file(join(runDir, 'labels.json')).exists()).toBe(false)
 })
 
 test('killServer reports no-server-info when state/server-info missing', async () => {
