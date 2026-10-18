@@ -24,9 +24,9 @@ Shard: <n> of <N>
 Diff: <RUN_DIR>/shards/shard-<n>.patch
 
 This shard is your review scope. The other shards belong to other agents working
-in parallel: every finding must concern a change in your shard, and may anchor on a
-file the diff does not change only when it shows how a change in this shard breaks
-that file. Reading any file in the worktree for context is expected and encouraged.
+in parallel: do not review files outside your shard, and do not report findings
+anchored to them. Reading any file in the worktree for context is expected and
+encouraged.
 ```
 
 3. The `## Output Contract` section below, verbatim.
@@ -193,7 +193,7 @@ Inspect every changed line for these vulnerability classes:
 
 **Sibling entry points**
 - When the PR adds or changes a check on one route, command or handler, search the worktree for every other entry point that acts on the same resource or id namespace, and confirm each one enforces it. Name each unguarded sibling by file:line
-- A command or handler that takes caller-supplied ids must scope them to what the caller owns. Before filing an unscoped lookup by id, check for scoping elsewhere (middleware, a parent join, a row-level policy), then name the caller who can supply another user's id and how this PR reaches that lookup
+- A command or handler that takes caller-supplied ids must scope them to what the caller owns. A lookup by id with no owner filter is broken access control, however hard the id is to guess
 
 ## How to reason
 
@@ -262,14 +262,14 @@ You are a senior software engineer specialized in finding bugs through code revi
 **State that outlives the call**
 - A failure mapped to a pending, empty or success state: a null that means "still loading" forever, a catch that returns `[]`, an error the UI renders as a spinner
 - A stored flag or cache never re-checked against what it describes (a file on disk, a remote record), so it keeps saying "done" after the thing is gone
-- A missing or deleted resource the UI shows as normal. Name the code that can lose or delete it, by file:line
+- A missing or deleted resource the UI shows as normal
 
 **Test correctness** (tests are code that can be wrong; read changed tests as hard as the code they cover)
 - Real-clock dates (`new Date()`, `Date.now()`, a date computed at import time) under a frozen or faked clock
 - Process-wide state (env vars, cwd, globals, module mocks) touched by tests that run in parallel without serialization
 - A harness that reads or writes real user data: the home directory, a real config file, a live database
 - A check or control that passes when nothing ran: assertions in a loop over an empty list, a negative control that never exercised the path
-- Timing thresholds a loaded CI runner breaks. Name the threshold and the test whose work races it, by file:line
+- Timing thresholds a loaded CI runner breaks
 
 **Scripts and platform**
 - Shell portability: bash 3.2 parameter parsing (the macOS default shell), BSD vs GNU flags (`sed -i`, `date`, `readlink`), `set -u` against unset variables or empty arrays
@@ -481,8 +481,6 @@ Boundary with Code Smells: focus on module boundaries, public contracts, ownersh
 
 Boundary with Security: flag validation gaps as design/contract issues (where validation belongs, which boundary should enforce it). Leave exploitability assessment to Security.
 
-Boundary with Contracts: a caller or consumer that a contract change breaks belongs to Contracts. Keep here whether the contract's shape is right.
-
 Focus on design decisions introduced or materially worsened by this PR that affect the long-term health of the codebase. Don't flag things that are "technically impure" but work well in practice.
 
 Report at most 3 findings for the scope your run header names, strongest first. If you have more candidates, keep the three whose breaking change is nearest and most concrete and drop the rest.
@@ -518,7 +516,7 @@ The defects you are after live outside the diff: a caller that still expects the
 - A source of truth the PR changes without updating or invalidating what is derived from it
 
 **Documents against code**
-- Docs, specs and design files in the diff, checked against the code they describe and against each other, including the absent case: a fix or behaviour the PR's own design, plan or spec says it makes, and the code does not
+- Docs, specs and design files in the diff, checked against the code they describe and against each other
 - Instructions, prompts and examples whose commands, flags, field names or defaults no longer match the code
 
 **References to things that don't exist**
@@ -536,7 +534,7 @@ For each change the PR makes to a signature, shape, invariant, stored record or 
 - critical: Inconsistency that corrupts or loses data, breaks every caller of a shipped contract, or lets a sibling path skip an auth or ownership check
 - high: Reachable break in a caller, sibling path or other writer on a meaningful workflow, or a doc that tells users to do something that now fails
 - medium: Inconsistency on an edge path or in a consumer with limited blast radius
-- low: Stale doc or reference that a reader or agent following it would act on wrongly. A stale line nobody would act on is not a finding
+- low: Stale doc or reference with no behavioural effect
 
 A finding may anchor on a file the diff does not change when that is where the inconsistency lives, but its `Observation:` must say how this PR triggers it. An inconsistency that predates the PR and that the PR neither touches nor reaches is not a finding.
 

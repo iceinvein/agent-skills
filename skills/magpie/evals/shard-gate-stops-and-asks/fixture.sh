@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A crashed run parked after the context stage, whose diff split into seven
-# shards. Stage 4 owes the user a stop before it dispatches 42 subagents.
+# shards. Stage 4 owes the user a stop before it dispatches 35 subagents.
 #
 # The run directory sits under the workspace rather than ~/.magpie because file
 # graders refuse to follow a link out of the workspace. `magpie --list-runs` is

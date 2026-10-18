@@ -9,7 +9,7 @@ must not touch.
 
 | Case | Signal under test | What it pins |
 |---|---|---|
-| `shard-gate-stops-and-asks` | A resume at stage 4 with seven shards | Stops before dispatching, names 7 shards and 42 subagents, offers all three options |
+| `shard-gate-stops-and-asks` | A resume at stage 4 with seven shards | Stops before dispatching, names 7 shards and 35 subagents, offers all three options |
 | `codex-missing-falls-back` | No codex on the machine at stage 7 | Claude path with the independence preamble, `provider: claude`, never `status: error` |
 | `report-ends-the-turn` | Stage 8 reached | Renders, logs the stage done, hands back for selection, posts nothing |
 | `post-folds-selection-events` | The user typed `post` after re-ticking | Folds `state/events` last-event-wins, posts `bugs-1,perf-1` only |

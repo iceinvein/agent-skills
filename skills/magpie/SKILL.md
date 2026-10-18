@@ -61,7 +61,7 @@ nothing reviewed.
 
 When a prior run exists for the same PR (active or archived under `~/.magpie/`), setup writes `$RUN_DIR/incremental.json` with `{previousRunId, previousSha, currentSha, sameSha}`. The post stage surfaces this as a "Incremental review since `<sha>`" trailer on the summary comment.
 
-Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. This deterministic domain flows through dedupe/critic/peer-review alongside the six LLM specialists; no subagent is dispatched for it.
+Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. That sixth domain flows through dedupe/critic/peer-review alongside the five LLM specialists; no subagent is dispatched for it.
 
 ### 2. Serve
 
@@ -91,7 +91,7 @@ Append `{stage: context, status: done}` and re-render progress. If the scout ret
 
 ### 4. Specialists
 
-Before dispatching anything, read `references/specialists.md`: it holds the six focus blocks and the output contract every specialist prompt is built from. Assemble prompts from that file verbatim; written from memory they drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
+Read `references/specialists.md` now, before dispatching anything: it holds the six focus blocks and the output contract every specialist prompt is built from. Assemble prompts from that file verbatim; written from memory they drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
 
 Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render
 progress, so the served page shows the stage as active rather than "Paused". Then read
@@ -99,10 +99,11 @@ progress, so the served page shows the stage as active rather than "Paused". The
 
 **One shard, zero shards, or no manifest** (a diff filtered down to nothing, e.g. a
 lockfile-only PR, yields `shards: []` in an otherwise normal manifest; a run predating
-this feature has no manifest at all): dispatch six parallel Agent calls in one message,
-one per focus (security, bugs, performance, code-smells, architecture, contracts),
-each carrying the prompt `references/specialists.md` describes with the unsharded run
-header. Skip the shard gate and the waves; the logging and the file check still apply.
+this feature has no manifest at all): dispatch the six specialists in a single message,
+six parallel Agent calls, one per focus in (security, bugs, performance, code-smells,
+architecture, contracts), each carrying the prompt `references/specialists.md`
+describes with the unsharded run header. The shard gate and the wave dispatch below do not apply; the
+logging and the file check at the end of this stage still do.
 
 **More than one shard:** each focus reviews every shard, so the run dispatches
 `6 × <shard count>` subagents in total.
@@ -117,13 +118,14 @@ specialist alone, which means appending
 `{stage: shard-coverage, status: partial, reviewed: [<ids>], contractsOnly: [<ids>]}` to
 `$RUN_DIR/log.jsonl` and naming the contracts-only shards in the terminal.
 That log entry is the only record of the gap: the report has no unreviewed marker.
-Wait for the answer. This is the pipeline's only interactive gate before the report,
-so that neither the cost nor a coverage gap is ever silent.
+Wait for the answer. This is the only interactive gate in the pipeline before the
+report, and it exists so that neither the cost nor a coverage gap is ever silent.
 
 Dispatch by wave, one shard per wave, the six focuses in parallel within a wave, then
 the contracts-only shards six at a time, re-rendering progress between waves. That
-holds in-flight agents at six and makes a crash cheap to resume: only missing
-`(focus, shard)` pairs are re-dispatched.
+holds in-flight agents at six and makes a
+crash cheap to resume: only the `(focus, shard)` pairs whose findings file is missing
+need re-dispatching.
 
 After each subagent returns, append
 `{stage: specialist, focus: <focus>, shard: <n>, status: done, findings: <count>}` to
@@ -134,12 +136,10 @@ advances `magpie status`.)
 
 Before leaving this stage, list `$RUN_DIR/findings` and confirm one file per expected
 `(focus, shard)` pair: six per reviewed shard named `findings/<focus>.shard-<n>.json`
-when sharded, six `findings/<focus>.json` otherwise, plus `findings/tests.json` from
-setup. A contracts-only shard expects `findings/contracts.shard-<n>.json` alone.
-Re-dispatch only missing pairs of shards you meant to review. As a backstop,
-`magpie dedupe` names every pair missing against the manifest.
-It does not yet read `shard-coverage`, so it also lists a contracts-only shard's other
-focuses; those are expected.
+(only `contracts` on a contracts-only shard) when sharded, six `findings/<focus>.json`
+otherwise, plus `findings/tests.json` from setup. Re-dispatch any missing pair.
+`magpie dedupe` re-checks this against the manifest and names every missing pair on
+stdout, as a backstop rather than a substitute.
 
 If every specialist fails (no findings files written), log
 `{stage: specialists, status: error}` and stop. Otherwise mark `{stage: specialists, status: done}`.
@@ -270,9 +270,8 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
-  read `shards/manifest.json` and the last `shard-coverage` entry, and re-dispatch
-  only missing pairs: all six focuses for a reviewed shard, `contracts` alone for a
-  `contractsOnly` one. Never re-shard mid-run without deleting those
+  read `shards/manifest.json`, and re-dispatch only the pairs with no
+  `findings/<focus>.shard-<n>.json`. Never re-shard mid-run without deleting those
   files first (stage 1): the check would otherwise trust ids that moved.
 - Non-null `error` means the run stopped on a failed stage. Report which stage to the user and confirm before re-running it.
 

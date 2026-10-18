@@ -145,7 +145,7 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
    set the fields stay null and nothing extra is printed. A judge failure exits 1 and
    names the result file, which already holds the scored replay.
 
-**Cost:** a whole review: a scout, six specialists per shard, and the critic batches.
+**Cost:** a whole review: a scout, five specialists per shard, and the critic batches.
 `--max-cost-usd` (default 10) is passed to Claude as `--max-budget-usd`, the CLI's own
 spend cap; `claude -p` has no `--max-cost-usd` flag. Hitting the cap stops the session,
 and the replay then fails without scoring, on Claude's error result or on the missing

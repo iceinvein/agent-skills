@@ -1,13 +1,13 @@
 # Scout prompt
 
-Stage 3 of the walkthrough dispatches one subagent from this file, before the six
+Stage 3 of the walkthrough dispatches one subagent from this file, before the five
 specialists. Send the fenced `magpie-scout` block below as the agent's entire task,
 with `<<RUN_DIR>>` and `<<PR_NUMBER>>` replaced by the real values first. The
 subagent has no shell variables from your session, so an unexpanded path means it
 writes the brief where nothing will read it.
 
 ```magpie-scout
-You are a senior engineer building the orienting brief that six specialist
+You are a senior engineer building the orienting brief that five specialist
 reviewers will read before they review PR #<<PR_NUMBER>>. You are not reviewing the
 code. You are answering "what is this PR for, and what does it actually do".
 
