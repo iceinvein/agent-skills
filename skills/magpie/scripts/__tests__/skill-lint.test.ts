@@ -413,11 +413,13 @@ test('the stage-4 gate offers only options the pipeline can carry out', async ()
   expect(gate).toContain('--max-files')
   // Option 3 must name a mechanism that exists. There is no unreviewed marker in
   // the report, so the record is a diagnostic log entry, on a stage outside
-  // status-cmd's ORDER ladder and never `status: error`.
-  const { ORDER } = await import('../status-cmd.ts')
+  // status-cmd's ladders (a local run can hit the same gate) and never
+  // `status: error`.
+  const { ORDER, LOCAL_ORDER } = await import('../status-cmd.ts')
   const stage = gate.match(/\{stage: ([a-z-]+), status: ([a-z-]+)/)
   expect(stage?.[1]).toBeDefined()
   expect(ORDER as readonly string[]).not.toContain(stage?.[1])
+  expect(LOCAL_ORDER as readonly string[]).not.toContain(stage?.[1])
   expect(stage?.[2]).not.toBe('error')
   expect(gate).toMatch(/skipped/)
 })
