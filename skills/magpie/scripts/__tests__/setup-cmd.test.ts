@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { diffSha256, localBranchDiff } from '../local-diff.ts'
@@ -454,7 +463,9 @@ test('local setup refuses a run dir that is the repository and leaves it untouch
     deps: LOCAL_DEPS,
   })
   expect(exit).toBe(2)
-  expect(stderr).toContain(`magpie: run dir ${repo} is inside the repository under review ${repo}`)
+  expect(stderr).toContain(
+    `magpie: run dir ${repo} is inside the repository under review ${await realpath(repo)}\n`,
+  )
   expect(await readFile(join(repo, 'findings', 'user.txt'), 'utf8')).toBe('mine\n')
   expect((await readdir(repo)).sort()).toEqual(before)
 })
@@ -505,6 +516,56 @@ test('local setup with --repo at a subdirectory fails before writing a run dir i
   expect(await gitStatus(repo)).toBe(statusBefore)
 })
 
+test('local setup with a run dir that climbs out of a symlink into the repository leaves the repository unchanged', async () => {
+  await mkdir(join(repo, 'sub'))
+  await writeFile(join(repo, 'sub', 's.txt'), 's\n')
+  await sh(repo, 'git', 'add', '.')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'sub')
+  await symlink(join(repo, 'sub'), join(runDir, 'L'))
+  const before = (await readdir(repo)).sort()
+  const statusBefore = await gitStatus(repo)
+
+  await setupCapturingStderr({
+    mode: 'local',
+    runDir: `${join(runDir, 'L')}/../run5`,
+    repoPath: repo,
+    baseRef: 'nope',
+    deps: LOCAL_DEPS,
+  })
+  expect((await readdir(repo)).sort()).toEqual(before)
+  expect(await gitStatus(repo)).toBe(statusBefore)
+})
+
+test('local setup with a --repo that does not exist fails with exit 2 and creates no run dir', async () => {
+  const missing = join(runDir, 'no-such-repo')
+  const nested = join(runDir, 'r1')
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir: nested,
+    repoPath: missing,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(2)
+  expect(stderr).toBe(`magpie: --repo ${missing} does not exist\n`)
+  expect(await readdir(runDir)).toEqual([])
+})
+
+test('local setup with a --repo that is a file fails with exit 2 and creates no run dir', async () => {
+  const file = join(repo, 'a.txt')
+  const nested = join(runDir, 'r1')
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir: nested,
+    repoPath: file,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(2)
+  expect(stderr).toBe(`magpie: --repo ${file} is not a directory\n`)
+  expect(await readdir(runDir)).toEqual([])
+})
+
 test('local setup with --repo outside any git repository fails with exit 2 and creates no run dir', async () => {
   const notRepo = await mkdtemp(join(tmpdir(), 'magpie-setup-notrepo-'))
   const nested = join(runDir, 'r1')
@@ -517,7 +578,7 @@ test('local setup with --repo outside any git repository fails with exit 2 and c
       deps: LOCAL_DEPS,
     })
     expect(exit).toBe(2)
-    expect(stderr).toContain('not a git repository')
+    expect(stderr).toContain(`magpie: --repo ${notRepo} is not inside a git work tree: `)
     expect(await readdir(runDir)).toEqual([])
   } finally {
     await rm(notRepo, { recursive: true, force: true })

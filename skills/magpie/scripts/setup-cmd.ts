@@ -24,7 +24,22 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
   const deps = input.deps ?? defaultDeps()
   // Absolute so target.json and every git call agree on the repo whatever the cwd.
   const repoPath = resolve(input.repoPath)
+  // Resolved once so the inside-repo guard checks the same path mkdir creates:
+  // left raw, the OS would follow `..` through a symlink the guard resolved textually.
+  const runDir = resolve(input.runDir)
   if (input.mode === 'local') {
+    const repoStat = await stat(repoPath).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') return null
+      throw err
+    })
+    if (repoStat === null) {
+      process.stderr.write(`magpie: --repo ${repoPath} does not exist\n`)
+      return 2
+    }
+    if (!repoStat.isDirectory()) {
+      process.stderr.write(`magpie: --repo ${repoPath} is not a directory\n`)
+      return 2
+    }
     // Checked before any mkdir: a --repo below the root would otherwise let a
     // run dir elsewhere in the repo pass the guard below and be created there.
     const top = await gitToplevel(deps.git, repoPath)
@@ -38,27 +53,27 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     }
     // Local mode reviews the repo in place, so a run dir inside it would be
     // written to and its rollback would delete the caller's files.
-    if (await isWithin(input.runDir, top.root)) {
+    if (await isWithin(runDir, top.root)) {
       process.stderr.write(
-        `magpie: run dir ${input.runDir} is inside the repository under review ${repoPath}\n`,
+        `magpie: run dir ${runDir} is inside the repository under review ${top.root}\n`,
       )
       return 2
     }
   }
-  await mkdir(input.runDir, { recursive: true })
-  await mkdir(join(input.runDir, 'findings'), { recursive: true })
-  await mkdir(join(input.runDir, 'screen'), { recursive: true })
-  await mkdir(join(input.runDir, 'state'), { recursive: true })
+  await mkdir(runDir, { recursive: true })
+  await mkdir(join(runDir, 'findings'), { recursive: true })
+  await mkdir(join(runDir, 'screen'), { recursive: true })
+  await mkdir(join(runDir, 'state'), { recursive: true })
 
   const preResult = await preflight(deps)
   if (!preResult.ok) {
-    await logLine(input.runDir, { stage: 'setup', status: 'error', missing: preResult.missing })
+    await logLine(runDir, { stage: 'setup', status: 'error', missing: preResult.missing })
     process.stderr.write(`magpie: missing dependencies:\n${renderInstallHint(preResult.missing)}\n`)
-    await cleanup(input.runDir)
+    await cleanup(runDir)
     return 3
   }
   if (preResult.missingOptional.length > 0) {
-    await logLine(input.runDir, {
+    await logLine(runDir, {
       stage: 'preflight',
       status: 'done',
       missingOptional: preResult.missingOptional,
@@ -67,59 +82,59 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
       `magpie: optional dependency unavailable, some stages will be skipped:\n${renderInstallHint(preResult.missingOptional)}\n`,
     )
   } else {
-    await logLine(input.runDir, { stage: 'preflight', status: 'done' })
+    await logLine(runDir, { stage: 'preflight', status: 'done' })
   }
 
   const diffExit =
     input.mode === 'local'
-      ? await writeLocalDiff(input.runDir, deps.git, repoPath, input.baseRef, input.intentFile)
-      : await writePrDiff(input.runDir, deps, repoPath, input.prNumber)
+      ? await writeLocalDiff(runDir, deps.git, repoPath, input.baseRef, input.intentFile)
+      : await writePrDiff(runDir, deps, repoPath, input.prNumber)
   if (diffExit !== 0) {
-    await cleanup(input.runDir)
+    await cleanup(runDir)
     return diffExit
   }
 
-  await applyPathFilter(input.runDir, repoPath)
+  await applyPathFilter(runDir, repoPath)
 
   try {
-    await runShard(input.runDir)
+    await runShard(runDir)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    await logLine(input.runDir, { stage: 'shard', status: 'error', error: message })
+    await logLine(runDir, { stage: 'shard', status: 'error', error: message })
     process.stderr.write(`magpie: ${message}\n`)
-    await cleanup(input.runDir)
+    await cleanup(runDir)
     return 6
   }
 
-  await runTestsCheck(input.runDir)
+  await runTestsCheck(runDir)
 
   if (input.mode === 'local') {
-    await logLine(input.runDir, { stage: 'setup', status: 'done', root: repoPath })
+    await logLine(runDir, { stage: 'setup', status: 'done', root: repoPath })
     return 0
   }
 
-  await detectIncrementalReview(input.runDir, input.prNumber)
+  await detectIncrementalReview(runDir, input.prNumber)
 
-  const prJson = (await Bun.file(join(input.runDir, 'pr.json')).json()) as { headRefName: string }
+  const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as { headRefName: string }
   const branch = prJson.headRefName
 
   const wt = await createWorktree({
     gitBin: deps.git,
     repoPath,
     branch,
-    runDir: input.runDir,
+    runDir: runDir,
   })
   if (!wt.ok) {
-    await logLine(input.runDir, { stage: 'worktree', status: 'error', error: wt.error })
+    await logLine(runDir, { stage: 'worktree', status: 'error', error: wt.error })
     process.stderr.write(`magpie: ${wt.error}\n`)
-    await cleanup(input.runDir)
+    await cleanup(runDir)
     return 5
   }
   try {
-    await writeTarget(input.runDir, { mode: 'pr', root: resolve(input.runDir, 'worktree') })
+    await writeTarget(runDir, { mode: 'pr', root: resolve(runDir, 'worktree') })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    await logLine(input.runDir, { stage: 'worktree', status: 'error', error: message })
+    await logLine(runDir, { stage: 'worktree', status: 'error', error: message })
     process.stderr.write(`magpie: ${message}\n`)
     // The worktree is registered in the caller's repo; deleting the dir alone would leave it listed.
     const removed = await removeWorktree({
@@ -128,10 +143,10 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
       worktreePath: wt.worktreePath,
     })
     if (!removed.ok) process.stderr.write(`magpie: ${removed.error}\n`)
-    await cleanup(input.runDir)
+    await cleanup(runDir)
     return 5
   }
-  await logLine(input.runDir, { stage: 'setup', status: 'done', worktree: wt.worktreePath })
+  await logLine(runDir, { stage: 'setup', status: 'done', worktree: wt.worktreePath })
   return 0
 }
 
@@ -162,7 +177,10 @@ async function gitToplevel(
     new Response(proc.stderr).text(),
   ])
   if ((await proc.exited) !== 0) {
-    return { ok: false, error: `${repoPath} is not a git repository: ${stderr.trim()}` }
+    return {
+      ok: false,
+      error: `--repo ${repoPath} is not inside a git work tree: ${stderr.trim()}`,
+    }
   }
   return { ok: true, root: stdout.trim() }
 }
