@@ -166,4 +166,66 @@ describe("test-changes.sh", () => {
 		expect(git(dir, "status", "--porcelain")).toBe(" M tests/a.test.ts\n?? tests/new.test.ts\n");
 		expect(readdirSync(join(dir, ".git")).filter((name) => name.startsWith("sluice-"))).toEqual([]);
 	});
+
+	// A copied index with a fresh mtime makes git trust stat data for a file
+	// edited in the same second it was staged, and a same-size edit then goes
+	// unseen. One pass rarely hits the window, so it is tried many times.
+	test("a same-size edit made right after a commit is flagged", () => {
+		const { dir } = repoWith({});
+		for (let i = 0; i < 20; i++) {
+			write(dir, "tests/a.test.ts", `expect(${i % 10}).toBe(1);\n`);
+			git(dir, "add", "-A");
+			git(dir, "commit", "-qm", `round ${i}`);
+			const base = git(dir, "rev-parse", "HEAD").trim();
+			write(dir, "tests/a.test.ts", `expect(${i % 10}).toBe(2);\n`);
+			expect(run(dir, base)).toEqual({ code: 0, out: "tests/a.test.ts\n" });
+		}
+	});
+
+	test("a new binary test file passes", () => {
+		const { dir, base } = repoWith({});
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests/img.snap"), Buffer.from([0, 1, 2]));
+		expect(run(dir, base)).toEqual({ code: 0, out: "" });
+	});
+
+	test("a changed binary test file is flagged", () => {
+		const { dir } = repoWith({});
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests/img.snap"), Buffer.from([0, 1, 2]));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "img");
+		const base = git(dir, "rev-parse", "HEAD").trim();
+		writeFileSync(join(dir, "tests/img.snap"), Buffer.from([0, 1, 2, 3]));
+		expect(run(dir, base)).toEqual({ code: 0, out: "tests/img.snap\n" });
+	});
+
+	test("an added .only( is flagged when the repo forces colour on", () => {
+		const { dir, base } = repoWith({ "tests/a.test.ts": SUITE });
+		git(dir, "config", "color.ui", "always");
+		write(dir, "tests/a.test.ts", SUITE + "it.only(1);\n");
+		expect(run(dir, base)).toEqual({ code: 0, out: "tests/a.test.ts\n" });
+	});
+
+	// Sessions commit, so HEAD is theirs to move; the base is not.
+	test("a .sluice-test-paths committed after the base does not hide tests", () => {
+		const { dir, base } = repoWith({ "tests/a.test.js": SUITE });
+		write(dir, ".sluice-test-paths", "nothing/**\n");
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "hide");
+		write(dir, "tests/a.test.js", "");
+		expect(run(dir, base)).toEqual({ code: 0, out: "tests/a.test.js\n" });
+	});
+
+	test("a test path with a quote in its name prints unquoted", () => {
+		const { dir, base } = repoWith({ 'tests/q"uote.test.js': SUITE });
+		write(dir, 'tests/q"uote.test.js', SUITE.replace("toBe(3)", "toBe(4)"));
+		expect(run(dir, base)).toEqual({ code: 0, out: 'tests/q"uote.test.js\n' });
+	});
+
+	test("an added .only( in a test path with a backslash in its name is flagged", () => {
+		const { dir, base } = repoWith({ "tests/b\\ack.test.js": SUITE });
+		write(dir, "tests/b\\ack.test.js", SUITE + "it.only(1);\n");
+		expect(run(dir, base)).toEqual({ code: 0, out: "tests/b\\ack.test.js\n" });
+	});
 });
