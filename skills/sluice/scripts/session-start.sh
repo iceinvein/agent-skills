@@ -87,25 +87,40 @@ stamp_baseline() {
 	digest="$(GIT_OPTIONAL_LOCKS=0 bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
 	[ -n "$digest" ] || return 0
 	# Line 3 is the commit the session's changes are measured from. Work in
-	# progress already in the tree is part of it, so it is never charged to the
-	# session. `stash create` commits the dirty tree without touching the
-	# working tree or the stash stack, which other sessions share, and prints
-	# nothing on a clean tree. It still rewrites the index's stat cache, so it
-	# works on a copy: a hook has no business writing to someone's index.
-	# Untracked files are not captured. An unborn HEAD has no commit to name,
-	# and an index that cannot be copied is unknown, not clean; both leave the
-	# line out.
-	local base="" head idx tmp
+	# progress already in the tree, untracked files included, is part of it,
+	# so it is never charged to the session: a test file that was untracked at
+	# the start and edited since must not read as new. It is built the way
+	# test-changes.sh builds its side, `add -A` on a scratch index, so the two
+	# compare like with like; the working tree, the real index and the stash
+	# stack, which other sessions share, are never written. The copy keeps the
+	# index's mtime, because git trusts an entry's stat data once the index is
+	# newer than it, and a fresh mtime would hide a same-size edit made in the
+	# second the file was staged.
+	#
+	# A tree that matches HEAD records HEAD itself rather than a fresh commit
+	# of the same tree: the comparison is the same, and a clean start leaves
+	# no dangling object behind.
+	#
+	# The line is left out, as unknown, when HEAD is unborn (commit-tree needs
+	# a parent and none is invented), when the git dir or the index cannot be
+	# read or copied, and when any of add, write-tree or commit-tree fails.
+	local base="" head gitdir idx scratch tree_id
 	if head="$(git -C "$tree" rev-parse --verify -q HEAD 2>/dev/null)" &&
+		gitdir="$(git -C "$tree" rev-parse --absolute-git-dir 2>/dev/null)" &&
 		idx="$(git -C "$tree" rev-parse --path-format=absolute --git-path index 2>/dev/null)" &&
-		tmp="$(mktemp "${TMPDIR:-/tmp}/sluice-index.XXXXXX" 2>/dev/null)"; then
-		if cp "$idx" "$tmp" 2>/dev/null &&
-			base="$(GIT_INDEX_FILE="$tmp" git -C "$tree" stash create 2>/dev/null)"; then
-			[ -n "$base" ] || base="$head"
-		else
-			base=""
+		scratch="$(mktemp -d "$gitdir/sluice-session-base.XXXXXX" 2>/dev/null)"; then
+		trap 'rm -rf "$scratch"' EXIT
+		if cp -p "$idx" "$scratch/index" 2>/dev/null &&
+			GIT_INDEX_FILE="$scratch/index" git -C "$tree" add -A >/dev/null 2>&1 &&
+			tree_id="$(GIT_INDEX_FILE="$scratch/index" git -C "$tree" write-tree 2>/dev/null)"; then
+			if [ "$tree_id" = "$(git -C "$tree" rev-parse --verify -q "HEAD^{tree}" 2>/dev/null)" ]; then
+				base="$head"
+			else
+				base="$(git -C "$tree" commit-tree "$tree_id" -p "$head" -m "sluice session base" 2>/dev/null)" || base=""
+			fi
 		fi
-		rm -f "$tmp"
+		rm -rf "$scratch"
+		trap - EXIT
 	fi
 	if [ -n "$base" ]; then
 		printf '%s\n%s\n%s\n' "$tree" "$digest" "$base" >"$dir/$sid" 2>/dev/null || true

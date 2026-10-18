@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -303,6 +303,78 @@ describe("session-start.sh baseline stamp", () => {
 		stampedHook({ cwd: dir, session_id: "base4", source: "compact" }, cfg);
 
 		expect(readFileSync(stampPath(cfg, "base4"), "utf8").trim().split("\n")[2]).toBe(opened);
+	});
+
+	test("an untracked file present at session start is part of the base commit", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		writeFileSync(join(dir, "wip.test.ts"), "test pending\n");
+
+		stampedHook({ cwd: dir, session_id: "base5", source: "startup" }, cfg);
+
+		const base = readFileSync(stampPath(cfg, "base5"), "utf8").trim().split("\n")[2];
+		expect(git(dir, "show", `${base}:wip.test.ts`)).toBe("test pending");
+		expect(git(dir, "status", "--porcelain")).toBe("?? wip.test.ts");
+	});
+
+	// git trusts an index entry's stat data unless the entry is no older than
+	// the index file itself. A file staged and re-edited at the same size in
+	// the same second is caught only while the index keeps its own mtime, and
+	// the gap before the hook runs is what lets a copy with a fresh mtime lose
+	// it. The wait is the condition under test, not a settling delay.
+	test("a same-size edit made after staging is in the base commit", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		writeFileSync(join(dir, "README.md"), "aa\n");
+		git(dir, "add", "README.md");
+		writeFileSync(join(dir, "README.md"), "bb\n");
+		Bun.sleepSync(1100);
+
+		stampedHook({ cwd: dir, session_id: "base6", source: "startup" }, cfg);
+
+		const base = readFileSync(stampPath(cfg, "base6"), "utf8").trim().split("\n")[2];
+		expect(git(dir, "show", `${base}:README.md`)).toBe("bb");
+	});
+
+	// `add -A` on a scratch index resolves a conflicted path to whatever is on
+	// disk, markers and all, which is the work the session inherited. The real
+	// index keeps its conflict.
+	test("a conflicted tree records its on-disk content and keeps the conflict", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		git(dir, "checkout", "-qb", "side");
+		writeFileSync(join(dir, "README.md"), "side\n");
+		git(dir, "commit", "-qam", "side");
+		git(dir, "checkout", "-q", "-");
+		writeFileSync(join(dir, "README.md"), "main\n");
+		git(dir, "commit", "-qam", "main");
+		git(dir, "merge", "-q", "side");
+		const onDisk = readFileSync(join(dir, "README.md"), "utf8");
+		expect(git(dir, "status", "--porcelain")).toBe("UU README.md");
+
+		stampedHook({ cwd: dir, session_id: "base7", source: "startup" }, cfg);
+
+		const base = readFileSync(stampPath(cfg, "base7"), "utf8").trim().split("\n")[2];
+		expect(git(dir, "show", `${base}:README.md`)).toBe(onDisk.trim());
+		expect(git(dir, "status", "--porcelain")).toBe("UU README.md");
+	});
+
+	test("the base commit leaves no scratch files in the temp directory", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const scratch = mkdtempSync(join(tmpdir(), "sluice-tmp-"));
+		const dir = gitRepo();
+		writeFileSync(join(dir, "README.md"), "dirty\n");
+		Bun.spawnSync({
+			cmd: ["bash", HOOK],
+			stdin: new TextEncoder().encode(JSON.stringify({ cwd: dir, session_id: "base8", source: "startup" })),
+			cwd: tmpdir(),
+			env: { ...process.env, CLAUDE_CONFIG_DIR: cfg, TMPDIR: scratch },
+			timeout: 5000,
+		});
+
+		expect(readFileSync(stampPath(cfg, "base8"), "utf8").trim().split("\n").length).toBe(3);
+		expect(readdirSync(scratch)).toEqual([]);
+		expect(readdirSync(join(dir, ".git")).filter((f) => f.startsWith("sluice"))).toEqual([]);
 	});
 
 	// The hook still has its own job, and stamping must not disturb it.
