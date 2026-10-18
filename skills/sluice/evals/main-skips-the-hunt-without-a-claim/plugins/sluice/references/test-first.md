@@ -75,8 +75,9 @@ for a deletion or a test that cannot run on that code, since it records every
 changed test still unrecorded, edits included; `--only <path>` narrows
 either form to the paths named, so a fixture that passes on the old code
 goes to `--none` on its own rather than sinking the test beside it. The
-Stop hook refuses a handback that carries neither. The proof is per file, so a loosened assertion
-sharing a file with a new failing test still passes it.
+Stop hook refuses a handback while any changed test has neither a proof nor
+a `--none` record. The proof is per file, so a loosened assertion sharing a
+file with a new failing test still passes it.
 
 Two friction lines, one in each direction:
 
