@@ -35,6 +35,22 @@ describe("content-digest.sh", () => {
 		expect(digest(dir).out).toBe(git(dir, "rev-parse", "HEAD^{tree}"));
 	});
 
+	// An edit in the same second as the commit that wrote the index keeps the
+	// size and, at git's one-second granularity, the mtime, so only git's
+	// racy-entry check notices it, and that check compares against the index
+	// file's own mtime. The digest runs a second later, as it does at the end of
+	// a turn: a copy of the index stamped "now" then makes the entry look settled
+	// and the edit look clean. The wait is the condition under test.
+	test("a same-size edit made in the second of the commit changes the digest", () => {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "f.txt"), "aa\n");
+		git(dir, "add", "f.txt");
+		git(dir, "commit", "-qm", "f");
+		writeFileSync(join(dir, "f.txt"), "bb\n");
+		Bun.sleepSync(1100);
+		expect(digest(dir).out).not.toBe(git(dir, "rev-parse", "HEAD^{tree}"));
+	});
+
 	test("an ignored file does not change the digest", () => {
 		const dir = gitRepo();
 		writeFileSync(join(dir, "build.log"), "noise\n");

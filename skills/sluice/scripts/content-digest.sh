@@ -55,7 +55,7 @@ trap 'rm -rf "$scratch"' EXIT
 # from no index is exactly that. An empty file would not be: git reads it as a
 # corrupt index.
 if [ -f "$index" ]; then
-	cp "$index" "$scratch/index" 2>/dev/null || fail "could not copy $index into $scratch"
+	cp -p "$index" "$scratch/index" 2>/dev/null || fail "could not copy $index into $scratch"
 fi
 
 GIT_INDEX_FILE="$scratch/index" git add -A >/dev/null || exit 1
