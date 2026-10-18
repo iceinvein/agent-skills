@@ -201,6 +201,22 @@ test('localBranchDiff and localBranchMeta leave .git/index unwritten', async () 
   expect(Buffer.compare(await readFile(indexPath), bytesBefore)).toBe(0)
 })
 
+test('localBranchDiff leaves .git/index unwritten when a tracked file is only stat-dirty', async () => {
+  await makeFeatureBranch()
+  const y2030 = new Date('2030-01-01T00:00:00Z')
+  // .gitignore is unchanged since the merge base, so only its stat info moves.
+  await utimes(join(repo, '.gitignore'), y2030, y2030)
+  const indexPath = join(repo, '.git', 'index')
+  const past = new Date(Date.now() - 3_600_000)
+  await utimes(indexPath, past, past)
+  const before = await stat(indexPath)
+  const bytesBefore = await readFile(indexPath)
+  const r = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  expect(r.ok).toBe(true)
+  expect((await stat(indexPath)).mtimeMs).toBe(before.mtimeMs)
+  expect(Buffer.compare(await readFile(indexPath), bytesBefore)).toBe(0)
+})
+
 test('localBranchDiff writes non-ASCII paths unquoted', async () => {
   await writeFile(join(repo, 'naïve.txt'), 'old\n')
   await sh(repo, 'git', 'add', 'naïve.txt')

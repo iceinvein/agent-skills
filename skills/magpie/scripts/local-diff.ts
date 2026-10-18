@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto'
-import { realpath } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { copyFile, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 export type LocalBranchDiffInput = {
   gitBin: string
@@ -37,14 +40,15 @@ async function git(
   gitBin: string,
   cwd: string,
   args: string[],
+  extraEnv: Record<string, string> = {},
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
   // Bun.spawn snapshots the env at startup unless given one, so pass the live
   // env to honour GIT_CONFIG_* or HOME set after launch. GIT_OPTIONAL_LOCKS=0
-  // stops diff/status refreshing the caller's index. quotePath=false keeps
+  // stops status refreshing the caller's index. quotePath=false keeps
   // non-ASCII paths readable by the downstream header parsers.
   const proc = Bun.spawn([gitBin, '-c', 'core.quotePath=false', ...args], {
     cwd,
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...extraEnv },
     stdout: 'pipe',
     stderr: 'pipe',
   })
@@ -103,7 +107,31 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
     return { ok: false, error: `no merge base between ${baseRef} and HEAD: ${mb.stderr.trim()}` }
   }
 
-  const tracked = await git(gitBin, repoPath, ['diff', ...DIFF_FORMAT, '--find-renames', mergeBase])
+  const indexPath = await git(gitBin, repoPath, ['rev-parse', '--git-path', 'index'])
+  if (indexPath.exit !== 0) {
+    return { ok: false, error: `git rev-parse --git-path index failed: ${indexPath.stderr.trim()}` }
+  }
+  const realIndex = resolve(repoPath, indexPath.stdout.trim())
+  const scratch = await mkdtemp(join(tmpdir(), 'magpie-index-'))
+  let tracked: { exit: number; stdout: string; stderr: string }
+  try {
+    // git refreshes stat info into the index on `git diff <commit>` regardless
+    // of optional locks, so that diff runs against a throwaway copy.
+    const indexEnv: Record<string, string> = {}
+    if (existsSync(realIndex)) {
+      const copy = join(scratch, 'index')
+      await copyFile(realIndex, copy)
+      indexEnv.GIT_INDEX_FILE = copy
+    }
+    tracked = await git(
+      gitBin,
+      repoPath,
+      ['diff', ...DIFF_FORMAT, '--find-renames', mergeBase],
+      indexEnv,
+    )
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
   if (tracked.exit !== 0) {
     return { ok: false, error: `git diff ${mergeBase} failed: ${tracked.stderr.trim()}` }
   }
