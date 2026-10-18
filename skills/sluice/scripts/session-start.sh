@@ -82,9 +82,36 @@ stamp_baseline() {
 	# one. Without this the directory grows for the life of the machine.
 	find "$dir" "${dir%/stamps}/nudged" -type f -mtime +7 -delete 2>/dev/null || true
 
-	digest="$(bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
+	# `git status` refreshes the index's stat cache when it can take the lock,
+	# and this hook must leave the index as it found it.
+	digest="$(GIT_OPTIONAL_LOCKS=0 bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
 	[ -n "$digest" ] || return 0
-	printf '%s\n%s\n' "$tree" "$digest" >"$dir/$sid" 2>/dev/null || true
+	# Line 3 is the commit the session's changes are measured from. Work in
+	# progress already in the tree is part of it, so it is never charged to the
+	# session. `stash create` commits the dirty tree without touching the
+	# working tree or the stash stack, which other sessions share, and prints
+	# nothing on a clean tree. It still rewrites the index's stat cache, so it
+	# works on a copy: a hook has no business writing to someone's index.
+	# Untracked files are not captured. An unborn HEAD has no commit to name,
+	# and an index that cannot be copied is unknown, not clean; both leave the
+	# line out.
+	local base="" head idx tmp
+	if head="$(git -C "$tree" rev-parse --verify -q HEAD 2>/dev/null)" &&
+		idx="$(git -C "$tree" rev-parse --path-format=absolute --git-path index 2>/dev/null)" &&
+		tmp="$(mktemp "${TMPDIR:-/tmp}/sluice-index.XXXXXX" 2>/dev/null)"; then
+		if cp "$idx" "$tmp" 2>/dev/null &&
+			base="$(GIT_INDEX_FILE="$tmp" git -C "$tree" stash create 2>/dev/null)"; then
+			[ -n "$base" ] || base="$head"
+		else
+			base=""
+		fi
+		rm -f "$tmp"
+	fi
+	if [ -n "$base" ]; then
+		printf '%s\n%s\n%s\n' "$tree" "$digest" "$base" >"$dir/$sid" 2>/dev/null || true
+	else
+		printf '%s\n%s\n' "$tree" "$digest" >"$dir/$sid" 2>/dev/null || true
+	fi
 }
 stamp_baseline "$sid" "$source"
 

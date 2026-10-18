@@ -246,6 +246,65 @@ describe("session-start.sh baseline stamp", () => {
 		expect(existsSync(join(cfg, "sluice", "nudged", "res2"))).toBe(false);
 	});
 
+	// Line 3 is the commit the session's changes are measured from. Work in
+	// progress that was already there belongs to the baseline, not the session.
+	function git(dir: string, ...args: string[]) {
+		return Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 }).stdout.toString().trim();
+	}
+
+	test("a clean tree records HEAD as the base commit", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		stampedHook({ cwd: dir, session_id: "base1", source: "startup" }, cfg);
+
+		const lines = readFileSync(stampPath(cfg, "base1"), "utf8").trim().split("\n");
+		expect(lines[2]).toBe(git(dir, "rev-parse", "HEAD"));
+	});
+
+	test("a dirty tree records a commit holding the dirty content and leaves the tree alone", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		writeFileSync(join(dir, "README.md"), "staged\n");
+		git(dir, "add", "README.md");
+		writeFileSync(join(dir, "README.md"), "edited after staging\n");
+		const indexBefore = readFileSync(join(dir, ".git", "index"));
+
+		stampedHook({ cwd: dir, session_id: "base2", source: "startup" }, cfg);
+
+		const base = readFileSync(stampPath(cfg, "base2"), "utf8").trim().split("\n")[2];
+		expect(base).toMatch(/^[0-9a-f]{40}$/);
+		expect(base).not.toBe(git(dir, "rev-parse", "HEAD"));
+		expect(git(dir, "show", `${base}:README.md`)).toBe("edited after staging");
+		expect(readFileSync(join(dir, "README.md"), "utf8")).toBe("edited after staging\n");
+		expect(readFileSync(join(dir, ".git", "index")).equals(indexBefore)).toBe(true);
+		expect(git(dir, "stash", "list")).toBe("");
+	});
+
+	test("a repo with no commits records the tree and digest only", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = mkdtempSync(join(tmpdir(), "sluice-stamp-"));
+		git(dir, "init", "-q");
+		writeFileSync(join(dir, "a.ts"), "export const a = 1;\n");
+		stampedHook({ cwd: dir, session_id: "base3", source: "startup" }, cfg);
+
+		const lines = readFileSync(stampPath(cfg, "base3"), "utf8").split("\n").filter((l) => l !== "");
+		expect(lines.length).toBe(2);
+	});
+
+	test("a compact keeps the base commit the session opened with", () => {
+		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
+		const dir = gitRepo();
+		const opened = git(dir, "rev-parse", "HEAD");
+		stampedHook({ cwd: dir, session_id: "base4", source: "startup" }, cfg);
+
+		writeFileSync(join(dir, "later.ts"), "export const z = 3;\n");
+		git(dir, "add", "later.ts");
+		git(dir, "commit", "-qm", "later");
+		stampedHook({ cwd: dir, session_id: "base4", source: "compact" }, cfg);
+
+		expect(readFileSync(stampPath(cfg, "base4"), "utf8").trim().split("\n")[2]).toBe(opened);
+	});
+
 	// The hook still has its own job, and stamping must not disturb it.
 	test("still prints a live run alongside the stamp", () => {
 		const cfg = mkdtempSync(join(tmpdir(), "sluice-cfg-"));
