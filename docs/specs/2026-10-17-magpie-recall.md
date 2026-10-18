@@ -3,6 +3,11 @@
 (Sluice deep channel. Design signed off 2026-10-17; the task plan is
 `docs/plans/2026-10-17-magpie-recall.md`.)
 
+**Status (2026-10-18):** Only section 1 (the recall set, judge and scoring) shipped, plus
+replay diagnostics. Sections 2 to 5 (the scout, bugs and security additions, the `contracts`
+specialist and contracts-only shards) were built, measured with no recall gain, and
+reverted. See `docs/plans/2026-10-17-magpie-recall-record.md`.
+
 ## Context
 
 The last round (`docs/specs/2026-10-03-magpie-classification.md`) tuned what magpie keeps.

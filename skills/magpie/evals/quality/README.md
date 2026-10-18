@@ -137,8 +137,10 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
    them; unmatched findings count as `unlabelled` and stay out of precision. Writes
    `results/<ts>-full-<runId>.json` with `recall`, `recallVerdicts`, `judgeModel` and
    `judgeCostUsd` all null, plus `log`, `shardManifest`, `findingsFiles`, `dedupedCount`,
-   `criticDropped`, `evidenceDropped`, `thresholdDropped` and `shardCoverage` read from the
-   scratch run dir before it is deleted.
+   `criticDropped`, `evidenceDropped` and `thresholdDropped` read from the scratch run dir
+   before it is deleted. `shardCoverage` is derived from the manifest and the findings file
+   names: a shard counts as reviewed when any specialist wrote a file for it, so it overstates
+   a shard only some focuses reviewed. The printed line ends with `, shards <reviewed>/<total>`.
 4. When the run has a recall set (see [Recall](#recall)), judges the new kept findings
    against it, scores them, and rewrites the same result file with those four fields
    filled. The printed line gains `, missed-recall <caught>/<misses>`. Without a recall

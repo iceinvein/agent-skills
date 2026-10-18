@@ -187,3 +187,13 @@ Results: `2026-10-17T17-07-49-558Z-full-pr-50-1789099641.json`,
   procedure review comment. More prompt bullets did not supply it. The recall gap here is
   not mainly an instruction gap.
 - Probe spend: about $9.
+
+## Final review
+
+- Integration review over master..HEAD: nothing blocking. Gates: 643 pass in skills/magpie,
+  2095 at the root, lint and tsc clean.
+- Taken: status notes on the spec and plan, and the README now says how `shardCoverage` is
+  derived.
+- Left: the test fixture id `contracts-4` in `recall.test.ts` reads like a removed domain. It
+  is only a string, and editing a test needs the user's say, so it was not changed.
+- User chose: final review, then local merge.

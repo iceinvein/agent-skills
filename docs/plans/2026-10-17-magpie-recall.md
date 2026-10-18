@@ -1,5 +1,8 @@
 # Plan: magpie recall
 
+**Status (2026-10-18):** T1 to T4, T7 and T9 are done. T5 (the flip) was built and reverted
+(6e38efe, b15ec91). T6 and T8 were cancelled. See `docs/plans/2026-10-17-magpie-recall-record.md`.
+
 **Goal:** Raise magpie's recall on the 29 known misses (spec:
 `docs/specs/2026-10-17-magpie-recall.md`), measure it with an LLM-judged recall eval, and
 keep label precision from collapsing.
