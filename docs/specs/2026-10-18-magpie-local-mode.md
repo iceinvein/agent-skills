@@ -78,6 +78,10 @@ Setup refuses a run dir inside the repository under review, checked against
 that root. When `--repo` is a linked worktree, the guard protects that worktree only; a
 run dir in the enclosing main checkout is allowed, since it is not the tree under review.
 
+With `core.splitIndex` on, git bumps the mtime of `.git/sharedindex.<sha>` when the
+diff reads it through the index copy. The bytes are unchanged, no file is created and no
+lock is taken, so this is accepted as within "never writes to the caller's repo".
+
 ## 3. Prompts
 
 - `scout.md`, `checks.md`, `specialists.md`: `Working directory: <RUN_DIR>/worktree`

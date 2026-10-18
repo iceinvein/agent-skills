@@ -240,3 +240,10 @@ through code and SKILL.md, archived pre-branch runs, accepted nits cross-checked
 fixes confirmed by re-running bug-hunter's repros (B2, B3, B4 pass; B1 fails by design).
 One should-fix (`open`/`serve` picking local runs) became T10. Cleared after T10. Gates at
 980bc45: 727 magpie tests, 150 eval-freshness tests, lint and tsc clean.
+
+## Handback (2026-10-18)
+
+User decisions: keep the SKILL.md word cap at 3500; handoff labels by action, as
+shipped (A2); the split-index mtime bump is acceptable and documented in the spec (A1);
+leave the branch as it stands, unmerged and unpushed, to run the eval fixture and a live
+local review first.
