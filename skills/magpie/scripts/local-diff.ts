@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { copyFile, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { copyFile, mkdtemp, realpath, rm, stat, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -121,6 +121,10 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
     if (existsSync(realIndex)) {
       const copy = join(scratch, 'index')
       await copyFile(realIndex, copy)
+      // git trusts cached stat data only for files older than the index file,
+      // so a fresh mtime on the copy would hide same-second edits.
+      const original = await stat(realIndex)
+      await utimes(copy, original.atime, original.mtime)
       indexEnv.GIT_INDEX_FILE = copy
     }
     tracked = await git(

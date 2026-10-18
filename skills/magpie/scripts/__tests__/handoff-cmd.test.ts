@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { formatHandoff, runHandoff } from '../handoff-cmd.ts'
@@ -236,6 +236,29 @@ test('runHandoff logs a done handoff entry with the finding count', async () => 
 test('runHandoff warns when the tree changed after the review began', async () => {
   await writeLocalRun()
   await writeFile(join(repo, 'a.txt'), 'one\ntwo\nthree\n')
+  const exit = await runHandoff(runDir)
+  expect(exit).toBe(0)
+  expect(stdout).toContain(WARNING)
+})
+
+test('runHandoff warns after a same-size edit made in the same second as the last index write', async () => {
+  // b.txt matches the merge base, so git trusts the index alone to call it unchanged.
+  await sh(repo, 'git', 'checkout', '-q', 'main')
+  await writeFile(join(repo, 'b.txt'), 'bee\n')
+  await sh(repo, 'git', 'add', 'b.txt')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'add b')
+  await sh(repo, 'git', 'checkout', '-q', 'feat/x')
+  await sh(repo, 'git', 'rebase', '-q', 'main')
+  await writeLocalRun()
+  // Pinning b.txt and the index to one whole second reproduces the racy case
+  // without waiting on the clock; trustctime=false because ctime cannot be set.
+  await sh(repo, 'git', 'config', 'core.trustctime', 'false')
+  const second = new Date('2020-01-01T00:00:00Z')
+  await utimes(join(repo, 'b.txt'), second, second)
+  await sh(repo, 'git', 'update-index', '--refresh')
+  await writeFile(join(repo, 'b.txt'), 'bed\n')
+  await utimes(join(repo, 'b.txt'), second, second)
+  await utimes(join(repo, '.git', 'index'), second, second)
   const exit = await runHandoff(runDir)
   expect(exit).toBe(0)
   expect(stdout).toContain(WARNING)

@@ -217,6 +217,22 @@ test('localBranchDiff leaves .git/index unwritten when a tracked file is only st
   expect(Buffer.compare(await readFile(indexPath), bytesBefore)).toBe(0)
 })
 
+test('localBranchDiff includes a same-size edit made in the same second as the last index write', async () => {
+  // Pinning a.txt and the index to one whole second reproduces the racy case
+  // without waiting on the clock; trustctime=false because ctime cannot be set.
+  await sh(repo, 'git', 'config', 'core.trustctime', 'false')
+  const second = new Date('2020-01-01T00:00:00Z')
+  await utimes(join(repo, 'a.txt'), second, second)
+  await sh(repo, 'git', 'update-index', '--refresh')
+  await writeFile(join(repo, 'a.txt'), 'two\n')
+  await utimes(join(repo, 'a.txt'), second, second)
+  await utimes(join(repo, '.git', 'index'), second, second)
+  const r = await localBranchDiff({ gitBin: 'git', repoPath: repo, baseRef: 'main' })
+  if (!r.ok) throw new Error(r.error)
+  expect(r.diff).toContain('-one')
+  expect(r.diff).toContain('+two')
+})
+
 test('localBranchDiff writes non-ASCII paths unquoted', async () => {
   await writeFile(join(repo, 'naïve.txt'), 'old\n')
   await sh(repo, 'git', 'add', 'naïve.txt')
