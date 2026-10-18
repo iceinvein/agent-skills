@@ -4,7 +4,7 @@ Interactive Claude Code skill that runs a multi-stage PR review pipeline inside 
 
 ## What it does
 
-Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), each quoting an evidence snippet for every anchored finding. Dedupe drops findings whose snippet is not in the file and groups nearby findings from different domains as merge candidates. Critic subagents then re-check each surviving finding against the worktree, keep, drop or merge it, and set its risk label, from which the severity is derived. Peer review runs via `codex exec` (falling back to a Claude second-opinion subagent when codex is unavailable). The interactive HTML report puts the top recommended findings first, lets the user dismiss findings with a reason, and posts the ones they select via `gh`; cleanup records what was posted, dismissed or ignored in `labels.json`.
+Given a GitHub PR number, dispatches five specialist subagents in parallel (security, bugs, performance, code-smells, architecture), each quoting an evidence snippet for every anchored finding, plus one checks pass per PR that reviews the tests, harnesses and controls for ways they can pass without proving what they exist for. Dedupe drops findings whose snippet is not in the file and groups nearby findings from different domains as merge candidates. Critic subagents then re-check each surviving finding against the worktree, keep, drop or merge it, and set its risk label, from which the severity is derived. Peer review runs via `codex exec` (falling back to a Claude second-opinion subagent when codex is unavailable). The interactive HTML report puts the top recommended findings first, lets the user dismiss findings with a reason, and posts the ones they select via `gh`; cleanup records what was posted, dismissed or ignored in `labels.json`.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 ## Layout
 
 - `SKILL.md` is the agent-facing prompt: the stage walkthrough and nothing else. Installed by the agent-skills CLI.
-- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract, including the repository review rules), `specialists.md` (stage 4, the five focus blocks plus the shared output contract), `critic.md` (stage 6, the critic subagent prompt `magpie critic-prompt` fills), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
+- `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract, including the repository review rules), `checks.md` (stage 3, the once-per-PR checks pass that writes `findings/checks.json`), `specialists.md` (stage 4, the five focus blocks plus the shared output contract), `critic.md` (stage 6, the critic subagent prompt `magpie critic-prompt` fills), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
 - `skill.json` is the agent-skills manifest.
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).

@@ -385,6 +385,36 @@ test('a malformed shards/manifest.json is treated as no manifest', async () => {
   expect(done?.coverage).toBeUndefined()
 })
 
+test('a checks.json written once per run reaches the deduped findings', async () => {
+  await writeWorktreeSource()
+  await writeFile(
+    join(runDir, 'findings', 'checks.json'),
+    JSON.stringify([
+      {
+        ...f('checks-1', 'a.ts', 0, 'runner scores an empty report as a passing control', 'checks'),
+        line: null,
+      },
+    ]),
+  )
+  expect(await runDedupe(runDir, { threshold: 0 })).toBe(0)
+  const out = JSON.parse(await readFile(join(runDir, 'findings.deduped.json'), 'utf8'))
+  expect(out.map((x: ReviewFinding) => [x.id, x.domain])).toEqual([['checks-1', 'checks']])
+})
+
+test('a sharded run never expects a checks file per shard', async () => {
+  await writeManifest(2)
+  for (const focus of LLM_FOCUSES) {
+    for (const shard of [1, 2]) {
+      await writeFile(join(runDir, 'findings', `${focus}.shard-${shard}.json`), JSON.stringify([]))
+    }
+  }
+  await writeFile(join(runDir, 'findings', 'checks.json'), JSON.stringify([]))
+  const { exit } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toEqual({ expected: 10, missing: [] })
+})
+
 test('runDedupe still skips files it cannot map to a focus', async () => {
   await writeFile(join(runDir, 'findings', 'nonsense.json'), JSON.stringify([]))
   await writeFile(join(runDir, 'findings', 'security.shard-x.json'), JSON.stringify([]))
