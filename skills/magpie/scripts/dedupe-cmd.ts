@@ -18,11 +18,12 @@ export type RunDedupeOptions = {
 }
 
 /**
- * The five focuses a specialist subagent writes. `tests` is a `FOCUS_IDS` entry
- * too, but setup writes `findings/tests.json` once for the whole run with no
- * subagent, so it is never expected per shard.
+ * The five focuses a specialist subagent writes per shard. `tests` and `checks`
+ * are `FOCUS_IDS` entries too, but each is written once for the whole run
+ * (`tests.json` by setup, `checks.json` by the stage 3 checks pass), so neither
+ * is ever expected per shard.
  */
-const SPECIALIST_FOCUS_IDS = FOCUS_IDS.filter((id) => id !== 'tests')
+const SPECIALIST_FOCUS_IDS = FOCUS_IDS.filter((id) => id !== 'tests' && id !== 'checks')
 
 type Coverage = { expected: number; missing: string[] }
 

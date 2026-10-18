@@ -4,6 +4,7 @@ export const FOCUS_IDS = [
   'performance',
   'code-smells',
   'architecture',
+  'checks',
   'tests',
 ] as const
 export type FocusId = (typeof FOCUS_IDS)[number]

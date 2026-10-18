@@ -73,6 +73,7 @@ const FOCUS_LABEL: Record<FocusId, string> = {
   performance: 'Performance',
   'code-smells': 'Code Smells',
   architecture: 'Architecture',
+  checks: 'Checks',
   tests: 'Tests',
 }
 

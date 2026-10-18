@@ -10,13 +10,14 @@ import {
   parseFinding,
 } from '../types.ts'
 
-test('FOCUS_IDS contains the LLM focuses plus the deterministic tests domain', () => {
+test('FOCUS_IDS contains the LLM focuses, the checks pass and the deterministic tests domain', () => {
   expect(FOCUS_IDS).toEqual([
     'security',
     'bugs',
     'performance',
     'code-smells',
     'architecture',
+    'checks',
     'tests',
   ])
 })

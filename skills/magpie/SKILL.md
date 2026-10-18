@@ -42,13 +42,10 @@ If exit is non-zero, surface stderr verbatim and stop. The CLI removes the workt
 
 Setup filters lockfiles, build output, generated source, and snapshot fixtures from `diff.patch` before specialists see it. Users override with `.magpie.json` at the repo root: `{"exclude": [...glob], "include": [...glob], "useDefaults": true|false}`. When anything is filtered, the raw diff is kept as `$RUN_DIR/diff.full.patch` and the exclusion list as `$RUN_DIR/excluded-files.json`.
 
-When `gh pr diff` refuses the diff (HTTP 406 above roughly 300 files) or returns an
-empty diff for a PR with changed files, setup rebuilds it from the local clone instead
-of aborting: it fetches `pull/<n>/head` and diffs from the merge base against the PR's
-base branch, reproducing the three-dot semantics `gh pr diff` uses. A local head that
-does not match the PR's `headRefOid` is a hard error, not a silently stale review. The
-`fetch-pr` log entry records `source: "gh" | "git"` and the merge base, and
-`$RUN_DIR/diff-source.json` carries the same for the report.
+When `gh pr diff` refuses the diff (HTTP 406 above roughly 300 files) or returns it
+empty, setup rebuilds it from the local clone: `pull/<n>/head` diffed from the merge
+base, as `gh pr diff` does. A local head that does not match the PR's `headRefOid` is a
+hard error. `$RUN_DIR/diff-source.json` records `source: "gh" | "git"` and the merge base.
 
 Setup then splits the filtered diff into shards, writing `$RUN_DIR/shards/manifest.json`
 and, when more than one shard results, `$RUN_DIR/shards/shard-<n>.patch`. `diff.patch`
@@ -61,7 +58,7 @@ nothing reviewed.
 
 When a prior run exists for the same PR (active or archived under `~/.magpie/`), setup writes `$RUN_DIR/incremental.json` with `{previousRunId, previousSha, currentSha, sameSha}`. The post stage surfaces this as a "Incremental review since `<sha>`" trailer on the summary comment.
 
-Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. That sixth domain flows through dedupe/critic/peer-review alongside the five LLM specialists; no subagent is dispatched for it.
+Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. That domain flows through dedupe/critic/peer-review like the LLM findings; no subagent is dispatched for it.
 
 ### 2. Serve
 
@@ -73,7 +70,7 @@ magpie serve "$RUN_DIR"
 
 Read `$RUN_DIR/state/server-info` for the URL; the server writes it asynchronously, so if it is missing, wait a moment and re-read (it appears within ~1s). Print to the user: "Open <url> in your browser to follow along."
 
-The server shuts down after 30 idle minutes (an open report tab heartbeats every 30s, so it stays up while the user is looking) and deletes `state/server-info` on the way out. Nothing in the pipeline depends on it: re-run `magpie serve "$RUN_DIR"` to bring the report back.
+The server shuts down after 30 idle minutes (an open report tab keeps it up) and deletes `state/server-info`. Nothing in the pipeline depends on it: re-run `magpie serve "$RUN_DIR"` to bring the report back.
 
 Render the first progress paint:
 
@@ -85,9 +82,9 @@ magpie render "$RUN_DIR" progress
 
 Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render progress. This stage never aborts the run.
 
-Read `references/scout.md` and dispatch one subagent (Agent tool, `general-purpose`) carrying the `magpie-scout` block with `<<RUN_DIR>>` and `<<PR_NUMBER>>` substituted. It writes `$RUN_DIR/brief.json`.
+Read `references/scout.md` and `references/checks.md`, then dispatch two subagents (Agent tool, `general-purpose`) in one message: the scout, carrying the `magpie-scout` block with `<<RUN_DIR>>` and `<<PR_NUMBER>>` substituted, which writes `$RUN_DIR/brief.json`; and the checks pass, built as `references/checks.md` says, which writes `$RUN_DIR/findings/checks.json` once for the run.
 
-Append `{stage: context, status: done}` and re-render progress. If the scout returned without writing `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read.
+Append `{stage: context, status: done}` and re-render progress. If the scout wrote no `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read. If the checks pass wrote no `checks.json`, append `{stage: checks, status: skipped}`; nothing downstream needs it.
 
 ### 4. Specialists
 
@@ -134,7 +131,7 @@ advances `magpie status`.)
 
 Before leaving this stage, list `$RUN_DIR/findings` and confirm one file per expected
 `(focus, shard)` pair: `5 × <shard count>` named `findings/<focus>.shard-<n>.json` when
-sharded, five `findings/<focus>.json` otherwise, plus `findings/tests.json` from setup.
+sharded, five `findings/<focus>.json` otherwise, plus `findings/tests.json` from setup and `findings/checks.json` from stage 3.
 Re-dispatch any pair missing from a shard you meant to review; a shard skipped at the
 gate is expected to have none. `magpie dedupe` re-checks this against the manifest and
 names every missing pair on stdout, as a backstop rather than a substitute.
@@ -264,7 +261,7 @@ magpie status "$RUN_DIR"
 
 The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 
-- `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3.
+- `context`: if `$RUN_DIR/brief.json` exists, append `{stage: context, status: done}` and move on; otherwise re-run stage 3. Re-dispatch only the checks pass if `findings/checks.json` is missing.
 - Any other stage: run it as written in the walkthrough.
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
