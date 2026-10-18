@@ -1,6 +1,6 @@
 # sluice evals
 
-Nineteen cases for `claude plugin eval`. Twelve pin the routing decision: which
+Twenty-one cases for `claude plugin eval`. Fourteen pin the routing decision: which
 channel the run names, and whether the behaviour that channel owes actually
 happened. Seven pin what a deep run does after pre-flight, where the question is
 no longer which channel but whether the run keeps going.
@@ -17,6 +17,8 @@ no longer which channel but whether the run keeps going.
 | `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
 | `fast-reads-the-unmentioned-convention` | Flags live in a table the prompt never names | The flag lands in the registry table and the generated `--help` |
 | `fast-verifies-before-handback` | A fast flag, then the handback | A passing `status.sh verify` after the last edit, before handing back |
+| `fast-updates-the-test-the-change-replaces` | A new summary line that an existing test pins the old form of | The test updated without asking; `status.sh tests-changed -- <suite>` after the last edit |
+| `fast-leaves-an-unrelated-red-test-alone` | The obvious edit to a shared helper turns the status test red | Status output kept by changing code, or a question; `tests/status.test.js` untouched |
 | `main-hunts-a-checkable-claim` | Main work whose intent states a checkable claim | bug-hunter on the diff once green; the `lastPage` remainder bug it proves, fixed test-first |
 | `main-skips-the-hunt-without-a-claim` | A new interface with nothing to check | No bug-hunter; one line saying the intent stated no checkable claim |
 
@@ -34,7 +36,7 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Eighteen cases scaffold a small Node repo and then change it, so they need the
+Twenty cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
 inherit it, and pin the judge, because `--model` does not reach it and the
 `llm` graders otherwise run on Haiku. From the repo root:
@@ -243,6 +245,12 @@ in the earlier passes was partly a misreading of that refusal. Every pass-2
 commit is the agent working around the harness, so a deep score on this
 machine still depends on it; a Linux runner, where `git` is an ordinary binary,
 gives the clean read.
+
+`status.sh tests-changed` runs `git worktree add` under `$TMPDIR`, so in a
+macOS sandbox the proof itself may fail while
+`fast-updates-the-test-the-change-replaces`'s proof grader, which sees the call
+and not its exit, still passes. That is why both test-change cases are
+`sandboxSensitive`.
 
 **Fixed between the rerun and pass 2.**
 

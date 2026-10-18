@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The deploy repo with its summary line moved into a helper the status command
 # shares, so the obvious edit to summary() turns the status test red on
-# behaviour the request says stays exactly as it is.
+# behaviour the request never mentions.
 set -euo pipefail
 
 mkdir -p src/cli tests

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Smallest repo that makes --quiet a real one-subsystem change: an existing
-# command with an existing flag, an existing test, and a runnable suite.
+# Smallest repo where the requested summary line replaces what an existing
+# test pins: that test goes red exactly where the request says it should.
 set -euo pipefail
 
 mkdir -p src/cli tests

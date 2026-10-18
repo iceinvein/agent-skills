@@ -8,7 +8,9 @@ type: regex
 # (--because, --base, --with) may sit before `--`, and the suite after it may
 # be scoped (`node --test tests/deploy.test.js`), but it must be the fixture's
 # runner, so `--none` or `-- true` does not pass. Not seen here: whether the
-# call exited 0, and edits made through Bash after it.
+# call exited 0, and edits made through Bash after it. So where the proof
+# itself fails (tests-changed cuts its scratch worktree under $TMPDIR, which
+# a macOS sandbox can refuse), this grader still passes on the call.
 pattern: '"name":"(?:Write|Edit|MultiEdit)","input":\{(?:"(?:[^"\\]|\\.)*"|[^"{}])*?"file_path":"(?:[^"]*/)?tests/deploy\.test\.js"[\s\S]*?"command":"(?:(?:[^"\\]|\\.)*?(?:[\s/]|\\[nt]))?status\.sh(?:\\"|'')?(?:\s|\\[nt])+tests-changed(?:\s|\\[nt])(?:[^"\\]|\\.)*?(?:\s|\\[nt])--(?:\s|\\[nt])+(?:npm(?:\s|\\[nt])+(?:run(?:\s|\\[nt])+)?test|node(?:\s|\\[nt])+--test)(?=\s|\\[nt]|\\"|"|[;&|])(?![\s\S]*"name":"(?:Write|Edit|MultiEdit|NotebookEdit)")'
 flags: i
 target: trace
