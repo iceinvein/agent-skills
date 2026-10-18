@@ -1,6 +1,20 @@
 # Design: test-change gate
 
 Signed off 2026-10-18 through plan mode. The plan is `docs/plans/2026-10-18-test-change-gate.md`.
+**Amended during the run** (reasons in the run record,
+`docs/plans/2026-10-18-test-change-gate-record.md`). D1: the base is a commit
+built from a temporary index after `git add -A` (`write-tree`, `commit-tree
+-p HEAD`), or HEAD when clean, not `git stash create`, so untracked work at
+session start is part of it. D4: the scratch worktree lives under `$TMPDIR`
+and is rebuilt before every run; the proof is a per-path differential
+(control = base plus every changed test except the flagged ones, must pass,
+else exit 8; each flagged test alone must fail, else exit 7; all or nothing);
+deleted tests are skipped and recorded only with `--none`, which records only
+paths without a current record; every run reads `/dev/null`. Exit codes 7
+and 8 replace D4's 1 and 4, which already meant other things in `status.sh`.
+A path that is no longer a regular file reads as deleted on both sides, and
+an unreadable flagged test is named in the refusal.
+
 ## Context
 
 Today (`89ac27e`) `test-first.md` stopped asking permission to update a test
