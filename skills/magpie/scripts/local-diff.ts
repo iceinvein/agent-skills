@@ -120,10 +120,12 @@ export async function localBranchDiff(input: LocalBranchDiffInput): Promise<Loca
     const indexEnv: Record<string, string> = {}
     if (existsSync(realIndex)) {
       const copy = join(scratch, 'index')
-      await copyFile(realIndex, copy)
       // git trusts cached stat data only for files older than the index file,
-      // so a fresh mtime on the copy would hide same-second edits.
+      // so a fresh mtime on the copy would hide same-second edits. The stat
+      // comes first so a concurrent index rewrite can only pair newer bytes
+      // with an older mtime, which makes git recheck more, not less.
       const original = await stat(realIndex)
+      await copyFile(realIndex, copy)
       await utimes(copy, original.atime, original.mtime)
       indexEnv.GIT_INDEX_FILE = copy
     }
