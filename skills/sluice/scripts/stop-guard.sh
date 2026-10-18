@@ -265,11 +265,15 @@ test_gate() {
 	while IFS= read -r p; do
 		if [ -f "$moved_tree/$p" ]; then
 			# Hashed the way status.sh records it, path-aware so filters apply.
-			# A file that cannot be hashed is unknown, not unrecorded. A directory
-			# where the file was is its deletion, as status.sh reads it: taken as
-			# unhashable it silenced the gate for every other flagged path.
-			sha="$(git -C "$moved_tree" hash-object -- "$p" 2>/dev/null)" || return 0
-			[ -n "$sha" ] || return 0
+			# A file that cannot be hashed has no record status.sh could have
+			# written either, so it is named as unreadable rather than letting
+			# one path silence the gate for every other. A directory where the
+			# file was is its deletion, as status.sh reads it.
+			sha="$(git -C "$moved_tree" hash-object -- "$p" 2>/dev/null)"
+			if [ -z "$sha" ]; then
+				missing="$missing$p (cannot be read)"$'\n'
+				continue
+			fi
 		else
 			sha="-"
 		fi

@@ -139,7 +139,9 @@ describe("test-changes.sh", () => {
 		expect(run(dir, "HEAD")).toEqual({ code: 1, out: "" });
 	});
 
-	test("--list prints added, modified, deleted and renamed test paths", () => {
+	// A rename's source is listed too: it is gone now, and the proof's overlay
+	// has to remove it from the base checkout.
+	test("--list prints added, modified, deleted and renamed test paths, rename sources included", () => {
 		const { dir, base } = repoWith({
 			"tests/gone.test.ts": SUITE.replace("adds", "gone"),
 			"tests/grown.test.ts": SUITE.replace("adds", "grown"),
@@ -152,7 +154,7 @@ describe("test-changes.sh", () => {
 		write(dir, "src/add.ts", "export {};\n");
 		expect(run("--list", dir, base)).toEqual({
 			code: 0,
-			out: "tests/gone.test.ts\ntests/grown.test.ts\ntests/new.test.ts\ntests/renamed.test.ts\n",
+			out: "tests/gone.test.ts\ntests/grown.test.ts\ntests/moved.test.ts\ntests/new.test.ts\ntests/renamed.test.ts\n",
 		});
 	});
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1224,6 +1224,36 @@ describe("stop-guard.sh entry check", () => {
 			expect(recordNone(dir, base).exitCode).toBe(0);
 
 			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		// Root reads a mode-000 file anyway, so there is no unreadable file to make
+		// as root. A plain unreadable file stops the classifier too, and the gate
+		// rightly stays silent on a tree it cannot read; the hash is reached only
+		// when git trusts the index entry and never rereads the file. A staged
+		// edit with core.trustctime off is that case: the chmod leaves the stat
+		// data git compares untouched. The mtime is set back before staging so
+		// the entry is not racily clean, which git would reread regardless.
+		test.skipIf(process.getuid?.() === 0)("an unreadable flagged test does not silence the gate for the others", () => {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			writeFileSync(join(dir, "tests", "locked.test.ts"), ORIGINAL);
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "locked"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "config", "core.trustctime", "false"], timeout: 10000 });
+			stamp(cfg, "t19", dir);
+			weaken(dir);
+			writeFileSync(join(dir, "tests", "locked.test.ts"), 'test("adds", () => {});\n');
+			utimesSync(join(dir, "tests", "locked.test.ts"), new Date(2020, 0, 1), new Date(2020, 0, 1));
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "tests/locked.test.ts"], timeout: 10000 });
+			chmodSync(join(dir, "tests", "locked.test.ts"), 0o000);
+
+			const input = { cwd: dir, session_id: "t19", transcript_path: routed("deep"), stop_hook_active: false };
+			const out = entryGuard(input, cfg).out;
+			chmodSync(join(dir, "tests", "locked.test.ts"), 0o644);
+			expect(decision(out)).toBe("block");
+			const reason = JSON.parse(out).reason as string;
+			expect(reason).toContain("tests/add.test.ts");
+			expect(reason).toContain("tests/locked.test.ts (cannot be read)");
 		});
 
 		test("the refusal says a node suite usually needs --with node_modules", () => {

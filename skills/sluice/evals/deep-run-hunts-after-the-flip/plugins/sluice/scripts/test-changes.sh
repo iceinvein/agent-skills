@@ -5,8 +5,8 @@
 # Usage: test-changes.sh [--list] <tree> <base>
 # Without --list, prints each test path needing a record, one per line, sorted;
 # empty output means none does. With --list, prints every test path that
-# differs from base (added, modified, deleted, and rename destinations), for
-# the proof run to copy. Exit 0 printed the answer, exit 1 the tree or base
+# differs from base (added, modified, deleted, and both ends of a rename), for
+# the proof run to copy or, where the path is gone now, delete. Exit 0 printed the answer, exit 1 the tree or base
 # could not be read, and then nothing is printed: an unreadable tree is
 # "unknown", never "changed", and the caller stays silent.
 #
@@ -94,11 +94,18 @@ git diff --cached "${plain[@]}" -M100% --name-status -z "$base" -- "${pathspecs[
 flagged=""
 while IFS= read -r -d '' status; do
 	IFS= read -r -d '' path || exit 1
+	source_path=""
 	case "$status" in
-	R*) IFS= read -r -d '' path || exit 1 ;;
+	R*)
+		source_path="$path"
+		IFS= read -r -d '' path || exit 1
+		;;
 	esac
 	if [ "$mode" = list ]; then
-		flagged="$flagged$path"$'\n'
+		# The source too: it is gone now, and the proof's overlay has to remove it
+		# from the base, or a file moved into a directory of its own name blocks
+		# that directory.
+		flagged="$flagged$source_path${source_path:+$'\n'}$path"$'\n'
 		continue
 	fi
 	case "$status" in

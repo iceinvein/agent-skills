@@ -2492,6 +2492,22 @@ describe("tests-changed", () => {
 		expect(readFileSync(RECORD(dir), "utf8")).toBe("-\ttests/fixture\tunproven\tfixtures split (unproven: a deletion)\n");
 	});
 
+	test("a test file moved unchanged into a directory of its own name does not stop the proof", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "fix.json"), '{"a": 1}\n');
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "fixture");
+		rmSync(join(dir, "tests", "fix.json"));
+		mkdirSync(join(dir, "tests", "fix.json"));
+		writeFileSync(join(dir, "tests", "fix.json", "one.json"), '{"a": 1}\n');
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
 	// Named by absolute path, the file the command runs is the tree's, not the
 	// scratch worktree's, so both runs would run the new code.
 	test("a command naming a path in the tree by absolute path exits 4", () => {
