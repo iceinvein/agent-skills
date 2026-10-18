@@ -88,6 +88,22 @@ test('critic-prompt writes the prompt file from the magpie-critic block and prin
   expect(prompt).toContain(`Write to: ${outputPath}`)
 })
 
+test('critic-prompt points <<WORKTREE>> at the review root named in target.json', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+  await writeFile(
+    join(runDir, 'target.json'),
+    `${JSON.stringify({ mode: 'local', root: '/repos/caller' }, null, 2)}\n`,
+  )
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain('Worktree: /repos/caller\n')
+})
+
 test('critic-prompt writes one numbered prompt per batch', async () => {
   const templatePath = join(runDir, 'critic.md')
   await writeFile(templatePath, TEMPLATE_DOC)

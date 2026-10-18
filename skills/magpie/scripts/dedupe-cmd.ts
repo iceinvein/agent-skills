@@ -5,6 +5,7 @@ import { deduplicateFindings, findMergeCandidates } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
 import { namespaceId, parseFindingsFilename } from './findings-files.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
+import { reviewRoot } from './target.ts'
 import { FOCUS_IDS, parseFinding, type ReviewFinding } from './types.ts'
 
 async function logLine(runDir: string, entry: Record<string, unknown>): Promise<void> {
@@ -124,7 +125,7 @@ export async function runDedupe(runDir: string, options: RunDedupeOptions = {}):
 
   const deduped = deduplicateFindings(collected)
   const scored = deduped.map((f) => ({ ...f, score: scoreRisk(f.risk) }))
-  const evidence = await verifyEvidence(scored, join(runDir, 'worktree'))
+  const evidence = await verifyEvidence(scored, await reviewRoot(runDir))
   let diff = ''
   try {
     diff = await readFile(join(runDir, 'diff.patch'), 'utf8')
