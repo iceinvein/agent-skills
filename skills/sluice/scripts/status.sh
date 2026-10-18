@@ -38,9 +38,10 @@
 # `line` is exempt and always exits 0 in silence, because a statusline renders
 # on every keystroke and has nowhere to put an error. `verify -- <cmd>` exits
 # with the command's own code, so a failing check reads as that failure.
-# `tests-changed` adds 7, the changed tests pass on the old code, and 8, the
-# command failed on the old code before any test was changed; neither records
-# anything. Its exit 1 also covers a tree whose changed tests cannot be read.
+# `tests-changed` adds 7, a flagged test passes on the old code, and 8, the
+# command failed on the old code with the flagged tests at their old version;
+# neither records anything. Its exit 1 also covers a tree whose changed tests
+# cannot be read.
 #
 # A flag value may not begin with `--`: unchecked, an omitted value silently
 # becomes the next flag and the field holds a flag name.
@@ -449,6 +450,34 @@ if [ "$SUB" = "tests-changed" ]; then
 		esac
 		[ -e "$TREE/$p" ] || { err "--with $p: no such path in $TREE"; exit 4; }
 	done
+	# A command that names the tree or the main checkout by absolute path runs
+	# their files, not the scratch worktree's, so both runs would run the new
+	# code. Compared after resolving symlinks, since git reports physical paths
+	# (/private/var on macOS) and a caller usually passes logical ones.
+	if [ "$RUN" -eq 1 ]; then
+		COMMON="$(git -C "$TREE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+		[ -n "$COMMON" ] || { err "could not find the git dir of $TREE"; exit 1; }
+		ROOTS="$(cd "$TREE" && pwd -P)
+$(cd "$(dirname "$COMMON")" && pwd -P)"
+		for a in "$@"; do
+			case "$a" in
+				/*) ;;
+				*) continue ;;
+			esac
+			d="$a"
+			rest=""
+			while [ ! -d "$d" ]; do
+				rest="/$(basename "$d")$rest"
+				d="$(dirname "$d")"
+			done
+			resolved="$(cd "$d" && pwd -P)$rest"
+			while IFS= read -r root; do
+				case "$resolved/" in
+					"$root"/*) err "the command names $a, inside $root, so both runs would run the new code; name it relative to the top of the tree"; exit 4 ;;
+				esac
+			done <<<"$ROOTS"
+		done
+	fi
 
 	# An explicit base wins; otherwise the session's own, from line 3 of its
 	# stamp. A missing line or one gc has pruned is unknown, and guessing a base
@@ -488,15 +517,22 @@ if [ "$SUB" = "tests-changed" ]; then
 		STATUS=unproven
 		WHY="$BECAUSE (unproven: $REASON)"
 	else
+		# Removing a test can only make a suite pass, and a command naming the
+		# missing file fails on "not found", so no run can prove a deletion.
+		while IFS= read -r p; do
+			[ -e "$TREE/$p" ] || [ -L "$TREE/$p" ] || {
+				err "$p was deleted, and no run can prove a deletion; record it with --none <reason>. Nothing was recorded"
+				exit 4
+			}
+		done <<<"$FLAGGED"
 		LISTED="$(bash "$TEST_CHANGES" --list "$TREE" "$BASE_SHA")" || {
 			err "could not list the changed tests in $TREE against $BASE_SHA, so nothing was recorded"
 			exit 1
 		}
-		# In the git dir for content-digest.sh's reason: a sandbox can refuse the
-		# temp dir, and worktree add has to write the git dir anyway.
-		GITDIR="$(git -C "$TREE" rev-parse --absolute-git-dir 2>/dev/null)"
-		[ -n "$GITDIR" ] || { err "could not find the git dir of $TREE"; exit 1; }
-		WT="$(mktemp -d "$GITDIR/sluice-tc.XXXXXX" 2>/dev/null)" || { err "could not make a scratch directory in $GITDIR"; exit 1; }
+		# Outside the repo, so nothing the command resolves by walking up from the
+		# worktree (node_modules, a config file) can come from the tree or the
+		# main checkout instead of from the base.
+		WT="$(mktemp -d "${TMPDIR:-/tmp}/sluice-tc.XXXXXX" 2>/dev/null)" || { err "could not make a scratch directory in ${TMPDIR:-/tmp}"; exit 1; }
 		trap 'git -C "$TREE" worktree remove --force "$WT" >/dev/null 2>&1; rm -rf "$WT"; git -C "$TREE" worktree prune >/dev/null 2>&1' EXIT
 		# Bash skips the EXIT trap on a signal it has no trap for.
 		trap 'exit 130' INT
@@ -511,26 +547,50 @@ if [ "$SUB" = "tests-changed" ]; then
 			mkdir -p "$(dirname "$WT/$p")" && ln -s "$TREE/$p" "$WT/$p" || { err "could not link $p into the scratch worktree"; exit 1; }
 		done
 
+		overlay() { # <path>: puts the tree's current version of it over the base
+			if [ -e "$TREE/$1" ] || [ -L "$TREE/$1" ]; then
+				mkdir -p "$(dirname "$WT/$1")" && cp -P "$TREE/$1" "$WT/$1" || { err "could not copy $1 onto the base"; exit 1; }
+			else
+				rm -f "$WT/$1" || { err "could not delete $1 from the base"; exit 1; }
+			fi
+		}
+
+		# The control run is the base with every changed test but the flagged ones
+		# brought forward, and each proof run differs from it by one flagged path,
+		# so a proof run's failure is that path's. Bringing them all forward at
+		# once let any new test that fails on old code prove every flagged path.
+		# The unit is the file: one file that loosens an assertion and adds a new
+		# failing test is still proved.
+		while IFS= read -r p; do
+			[ -n "$p" ] || continue
+			case $'\n'"$FLAGGED"$'\n' in
+				*$'\n'"$p"$'\n'*) continue ;;
+			esac
+			overlay "$p"
+		done <<<"$LISTED"
+
 		# Without this a suite that cannot run on the base at all (a missing
-		# dependency, a tool absent) would fail the proof run and read as proved.
+		# dependency, a new test for code the base lacks, a test already red there)
+		# would fail every proof run and read as proved.
 		if ! (cd "$WT" && "$@"); then
-			err "the command failed on $BASE_SHA before any test was changed, so it cannot prove anything here; link an ignored dependency with --with <path>, or record with --none <reason>. Nothing was recorded"
+			err "the command failed on $BASE_SHA with the flagged tests left as they were, so it cannot prove anything here; link an ignored dependency with --with <path>, narrow the command to the flagged files, or record with --none <reason>. Nothing was recorded"
 			exit 8
 		fi
 
 		while IFS= read -r p; do
-			[ -n "$p" ] || continue
-			if [ -e "$TREE/$p" ] || [ -L "$TREE/$p" ]; then
-				mkdir -p "$(dirname "$WT/$p")" && cp -P "$TREE/$p" "$WT/$p" || { err "could not copy $p onto the base"; exit 1; }
+			overlay "$p"
+			if (cd "$WT" && "$@"); then
+				err "$p passes on $BASE_SHA, the code it was changed against, so it does not pin the change. Nothing was recorded"
+				exit 7
+			fi
+			# Back to its base version, so the next proof differs from the control
+			# run by its own path alone.
+			if git -C "$WT" cat-file -e "HEAD:$p" 2>/dev/null; then
+				git -C "$WT" checkout -q HEAD -- "$p" || { err "could not restore $p on the base"; exit 1; }
 			else
 				rm -f "$WT/$p" || { err "could not delete $p from the base"; exit 1; }
 			fi
-		done <<<"$LISTED"
-
-		if (cd "$WT" && "$@"); then
-			err "the changed tests pass on $BASE_SHA, the code they were changed against, so they do not pin the change. Nothing was recorded"
-			exit 7
-		fi
+		done <<<"$FLAGGED"
 	fi
 
 	LINES=""

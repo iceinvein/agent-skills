@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -2142,16 +2142,18 @@ describe("tests-changed", () => {
 		return config;
 	}
 
+	/** Runs tests-changed with a fresh TMPDIR, returned as `tmp` so a test can see what was left in it. */
 	function tc(dir: string, env: Record<string, string>, ...args: string[]) {
 		const inherited = { ...process.env };
 		delete inherited.CLAUDE_CODE_SESSION_ID;
 		delete inherited.CLAUDE_CONFIG_DIR;
+		const tmp = mkdtempSync(join(tmpdir(), "sluice-tmp-"));
 		const proc = Bun.spawnSync({
 			cmd: ["bash", SCRIPT, "--dir", dir, "tests-changed", ...args],
-			env: { ...inherited, ...env },
+			env: { ...inherited, TMPDIR: tmp, ...env },
 			timeout: 30000,
 		});
-		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString() };
+		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString(), tmp };
 	}
 
 	function session(dir: string): Record<string, string> {
@@ -2172,36 +2174,33 @@ describe("tests-changed", () => {
 
 	/**
 	 * A base whose suite needs an ignored dependency that only the main tree
-	 * holds, with the source and its test since changed to add a "!". A relative
-	 * vendor path rather than node_modules: the scratch worktree sits inside the
-	 * main tree's git dir, and node's upward node_modules search would find the
-	 * main tree's copy with no --with at all.
+	 * holds, with the source and its test since changed to add a "!". The
+	 * dependency is a relative vendor file, or a node package in node_modules.
 	 */
-	function depRepo(): string {
+	function depRepo(kind: "vendor" | "node_modules" = "vendor"): string {
 		const dir = gitRepo();
-		writeFileSync(join(dir, ".gitignore"), "vendor/\n");
-		writeFileSync(join(dir, "greet.js"), 'module.exports = () => require("./vendor/dep.js");\n');
+		const spec = kind === "vendor" ? "./vendor/dep.js" : "dep";
+		writeFileSync(join(dir, ".gitignore"), `${kind}/\n`);
+		writeFileSync(join(dir, "greet.js"), `module.exports = () => require("${spec}");\n`);
 		mkdirSync(join(dir, "tests"));
 		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi"));
 		git(dir, "add", "-A");
 		git(dir, "commit", "-qm", "greet");
-		mkdirSync(join(dir, "vendor"));
-		writeFileSync(join(dir, "vendor", "dep.js"), 'module.exports = "hi";\n');
-		writeFileSync(join(dir, "greet.js"), 'module.exports = () => require("./vendor/dep.js") + "!";\n');
+		const depDir = kind === "vendor" ? join(dir, "vendor") : join(dir, "node_modules", "dep");
+		mkdirSync(depDir, { recursive: true });
+		writeFileSync(join(depDir, kind === "vendor" ? "dep.js" : "index.js"), 'module.exports = "hi";\n');
+		writeFileSync(join(dir, "greet.js"), `module.exports = () => require("${spec}") + "!";\n`);
 		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi!"));
 		return dir;
 	}
 
-	function scratchLeft(dir: string): string[] {
+	/** Linked worktrees of `dir` beyond itself, and anything left in the run's TMPDIR. */
+	function scratchLeft(dir: string, tmp: string): string[] {
 		const extraTrees = git(dir, "worktree", "list", "--porcelain")
 			.split("\n")
 			.filter((l) => l.startsWith("worktree "))
 			.slice(1);
-		const dirs = Bun.spawnSync({ cmd: ["ls", "-a", join(dir, ".git")] })
-			.stdout.toString()
-			.split("\n")
-			.filter((n) => n.startsWith("sluice-tc."));
-		return [...extraTrees, ...dirs];
+		return [...extraTrees, ...readdirSync(tmp)];
 	}
 
 	test("a test edited to pin new behaviour, with the source changed to match, records proved lines", () => {
@@ -2308,21 +2307,24 @@ describe("tests-changed", () => {
 	test("no scratch worktree remains after a recorded run", () => {
 		const dir = greetRepo();
 		pinned(dir);
-		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(0);
-		expect(scratchLeft(dir)).toEqual([]);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
 	});
 
 	test("no scratch worktree remains after a run that passes on old code", () => {
 		const dir = greetRepo();
 		loosened(dir);
-		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(7);
-		expect(scratchLeft(dir)).toEqual([]);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
 	});
 
 	test("no scratch worktree remains after a failed control run", () => {
 		const dir = depRepo();
-		expect(tc(dir, session(dir), "--because", "x", "--", "node", "--test").code).toBe(8);
-		expect(scratchLeft(dir)).toEqual([]);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
 	});
 
 	test("a record git can see is refused as verify refuses it", () => {
@@ -2333,5 +2335,110 @@ describe("tests-changed", () => {
 		const r = tc(dir, session(dir), "--because", "x", "--none", "y");
 		expect(r.code).toBe(1);
 		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	/**
+	 * The reviewer's repro: a session that breaks add, loosens the old test so it
+	 * still passes, and adds a new test for a sub() the base does not have.
+	 */
+	function addRepo(): string {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "add.js"), "module.exports = (a, b) => a + b;\n");
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(
+			join(dir, "tests", "add.test.js"),
+			'const assert = require("node:assert");\nconst add = require("../add.js");\nassert.strictEqual(add(2, 2), 4);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "add");
+		writeFileSync(join(dir, "add.js"), "module.exports = (a, b) => a + b + 1;\n");
+		writeFileSync(
+			join(dir, "tests", "add.test.js"),
+			'const assert = require("node:assert");\nconst add = require("../add.js");\nassert.ok(add(2, 2) > 0);\n',
+		);
+		writeFileSync(join(dir, "sub.js"), "module.exports = (a, b) => a - b;\n");
+		writeFileSync(
+			join(dir, "tests", "sub.test.js"),
+			'const assert = require("node:assert");\nconst sub = require("../sub.js");\nassert.strictEqual(sub(3, 1), 2);\n',
+		);
+		return dir;
+	}
+
+	test("a loosened test beside a new failing test is never recorded", () => {
+		const dir = addRepo();
+		const loop = "for f in tests/*.test.js; do node $f || exit 1; done";
+		const r = tc(dir, session(dir), "--because", "x", "--", "sh", "-c", loop);
+		expect([7, 8]).toContain(r.code ?? -1);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a command scoped to the edited test still records it proved beside a new failing test", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "farewell.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../farewell.js")(), "bye");\n',
+		);
+		writeFileSync(join(dir, "farewell.js"), 'module.exports = () => "bye";\n');
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test", "tests/greet.test.js");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("of two flagged tests, the one that passes on old code is named and nothing is recorded", () => {
+		const dir = greetRepo();
+		writeFileSync(
+			join(dir, "tests", "length.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")().length, 2);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "length");
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "length.test.js"),
+			'const assert = require("node:assert");\nassert.ok(require("../greet.js")().length > 0);\n',
+		);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/length.test.js");
+		expect(r.err).not.toContain("tests/greet.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a deleted flagged test cannot be proved by a run, so it exits 4 pointing to --none", () => {
+		const dir = greetRepo();
+		rmSync(join(dir, "tests", "greet.test.js"));
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--none");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	// Named by absolute path, the file the command runs is the tree's, not the
+	// scratch worktree's, so both runs would run the new code.
+	test("a command naming a path in the tree by absolute path exits 4", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test", join(dir, "tests", "greet.test.js"));
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a node dependency in node_modules is not reachable on the base without --with", () => {
+		const dir = depRepo("node_modules");
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--with node_modules makes a node dependency in the main tree resolvable on the base", () => {
+		const dir = depRepo("node_modules");
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--with", "node_modules", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hi!"))}\ttests/greet.test.js\tproved\tgreeting gains a bang\n`,
+		);
 	});
 });
