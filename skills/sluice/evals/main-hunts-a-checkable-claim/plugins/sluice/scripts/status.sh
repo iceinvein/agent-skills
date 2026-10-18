@@ -23,6 +23,7 @@
 #   status.sh close
 #   status.sh route <fast|main|deep>
 #   status.sh verify -- <cmd> [args...] | verify --none <reason>
+#   status.sh tests-changed --because <t> [--base <ref>] {[--with <path>]... -- <cmd> | --none <reason>}
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
 # <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. A tree the
@@ -37,6 +38,10 @@
 # `line` is exempt and always exits 0 in silence, because a statusline renders
 # on every keystroke and has nowhere to put an error. `verify -- <cmd>` exits
 # with the command's own code, so a failing check reads as that failure.
+# `tests-changed` adds 7, a flagged test passes on the old code, and 8, the
+# command failed on the old code with the flagged tests at their old version;
+# neither records anything. Its exit 1 also covers a tree whose changed tests
+# cannot be read.
 #
 # A flag value may not begin with `--`: unchecked, an omitted value silently
 # becomes the next flag and the field holds a flag name.
@@ -403,6 +408,264 @@ if [ "$SUB" = "verify" ]; then
 	[ -n "$DIGEST" ] || { err "could not read the content of $TREE, so nothing was recorded"; exit 1; }
 	printf '%s\n' "$DIGEST" >"$TREE/.sluice/verified" || { err "could not write $TREE/.sluice/verified"; exit 1; }
 	[ -z "$REASON" ] || echo "sluice: verified with no check: $REASON"
+	exit 0
+fi
+
+# Records why the session's changed tests are allowed to ask what they now ask,
+# for the test-change gate. A changed test is proved when it fails on the code
+# it was changed against: one that still passes there does not pin the change.
+# The runs happen in a scratch worktree at the base, so the partner's tree is
+# never touched. Like verify it needs no run and reads ORIG_DIR.
+if [ "$SUB" = "tests-changed" ]; then
+	TREE="$(git -C "$ORIG_DIR" rev-parse --show-toplevel 2>/dev/null)"
+	[ -n "$TREE" ] || { err "tests-changed needs a git work tree, and $ORIG_DIR is not in one"; exit 4; }
+	BECAUSE=""
+	BASE=""
+	REASON=""
+	NONE=0
+	RUN=0
+	WITH=()
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--because) need_value --because $# "${2-}"; BECAUSE="$2"; shift 2 ;;
+			--base) need_value --base $# "${2-}"; BASE="$2"; shift 2 ;;
+			--with) need_value --with $# "${2-}"; WITH+=("$2"); shift 2 ;;
+			--none) need_value --none $# "${2-}"; REASON="$2"; NONE=1; shift 2 ;;
+			--) shift; RUN=1; break ;;
+			*) err "tests-changed: unknown argument $1"; exit 4 ;;
+		esac
+	done
+	[ -n "$BECAUSE" ] || { err "tests-changed needs --because <text>"; exit 4; }
+	if [ "$RUN" -eq "$NONE" ]; then
+		err "tests-changed needs one of -- <cmd> [args...] or --none <reason>"
+		exit 4
+	fi
+	[ "$RUN" -eq 0 ] || [ $# -gt 0 ] || { err "tests-changed -- needs a command to run"; exit 4; }
+	[ "$NONE" -eq 0 ] || [ -n "$REASON" ] || { err "tests-changed --none needs a reason"; exit 4; }
+	[ "$NONE" -eq 0 ] || [ "${#WITH[@]}" -eq 0 ] || { err "--with only applies to a run, not to --none"; exit 4; }
+	for p in "${WITH[@]+"${WITH[@]}"}"; do
+		# The link has to land inside the scratch worktree and point inside the tree.
+		case "/$p/" in
+			//* | */../*) err "--with takes a path inside the tree, and $p is not one"; exit 4 ;;
+		esac
+		[ -e "$TREE/$p" ] || { err "--with $p: no such path in $TREE"; exit 4; }
+	done
+	# A command that names the tree or the main checkout by absolute path runs
+	# their files, not the scratch worktree's, so both runs would run the new
+	# code. Compared after resolving symlinks, since git reports physical paths
+	# (/private/var on macOS) and a caller usually passes logical ones.
+	if [ "$RUN" -eq 1 ]; then
+		ROOTS="$(cd "$TREE" && pwd -P)"
+		# The first entry of the list is the main checkout, unless the repo is
+		# bare: then it is the git dir, and its parent holds no checkout at all.
+		FIRST="$(git -C "$TREE" worktree list --porcelain 2>/dev/null | sed '/^$/q')"
+		[ -n "$FIRST" ] || { err "could not list the worktrees of $TREE"; exit 1; }
+		case $'\n'"$FIRST"$'\n' in
+			*$'\n'bare$'\n'*) ;;
+			*)
+				MAIN_ROOT="$(printf '%s\n' "$FIRST" | sed -n '1s/^worktree //p')"
+				[ -d "$MAIN_ROOT" ] && ROOTS="$ROOTS
+$(cd "$MAIN_ROOT" && pwd -P)"
+				;;
+		esac
+		for a in "$@"; do
+			case "$a" in
+				/*) ;;
+				*) continue ;;
+			esac
+			d="$a"
+			rest=""
+			while [ ! -d "$d" ]; do
+				rest="/$(basename "$d")$rest"
+				d="$(dirname "$d")"
+			done
+			resolved="$(cd "$d" && pwd -P)$rest"
+			while IFS= read -r root; do
+				case "$resolved/" in
+					"$root"/*) err "the command names $a, inside $root, so both runs would run the new code; name it relative to the top of the tree"; exit 4 ;;
+				esac
+			done <<<"$ROOTS"
+		done
+	fi
+
+	# An explicit base wins; otherwise the session's own, from line 3 of its
+	# stamp. A missing line or one gc has pruned is unknown, and guessing a base
+	# would prove the tests against code they were never changed from.
+	if [ -z "$BASE" ]; then
+		SID="${CLAUDE_CODE_SESSION_ID-}"
+		[ -n "$SID" ] || { err "tests-changed needs --base <ref> when CLAUDE_CODE_SESSION_ID is not set"; exit 4; }
+		case "$SID" in
+			*/* | .*) err "session id $SID is not a stamp name; pass --base <ref>"; exit 4 ;;
+		esac
+		BASE="$(sed -n 3p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sluice/stamps/$SID" 2>/dev/null)"
+		[ -n "$BASE" ] || { err "the session stamp holds no base commit, so the base is unknown; pass --base <ref>"; exit 4; }
+	fi
+	BASE_SHA="$(git -C "$TREE" rev-parse --verify --quiet "$BASE^{commit}" 2>/dev/null)"
+	[ -n "$BASE_SHA" ] || { err "base $BASE no longer resolves to a commit here, so the base is unknown; pass --base <ref>"; exit 4; }
+
+	TEST_CHANGES="$(dirname "$0")/test-changes.sh"
+	FLAGGED="$(bash "$TEST_CHANGES" "$TREE" "$BASE_SHA")" || {
+		err "could not read the changed tests in $TREE against $BASE_SHA, so nothing was recorded"
+		exit 1
+	}
+	if [ -z "$FLAGGED" ]; then
+		echo "sluice: no changed test needs a record"
+		exit 0
+	fi
+
+	mk_dir "$TREE/.sluice" "$TREE"
+	# As in verify: a record git can see moves the tree it records.
+	git -C "$TREE" check-ignore -q .sluice/tests-changed || {
+		err "$TREE/.sluice/.gitignore does not ignore tests-changed, so the record would move the tree it records; add * to it"
+		exit 1
+	}
+
+	# Hashed path-aware, so filters apply, the way the stop gate hashes it.
+	current_blob() { # <path>: its blob, or - when it is gone
+		local sha
+		if [ -e "$TREE/$1" ]; then
+			sha="$(git -C "$TREE" hash-object -- "$1" 2>/dev/null)"
+			[ -n "$sha" ] || { err "could not read $TREE/$1, so nothing was recorded"; exit 1; }
+			printf '%s\n' "$sha"
+		else
+			printf '%s\n' "-"
+		fi
+	}
+
+	STATUS=proved
+	WHY="$BECAUSE"
+	SKIPPED=""
+	if [ "$NONE" -eq 1 ]; then
+		STATUS=unproven
+		WHY="$BECAUSE (unproven: $REASON)"
+		# A path already recorded at its current content needs nothing more, so
+		# --none after a proof adds only the deletions, and a repeat adds nothing.
+		UNRECORDED=""
+		while IFS= read -r p; do
+			sha="$(current_blob "$p")" || exit 1
+			found=""
+			if [ -f "$TREE/.sluice/tests-changed" ]; then
+				while IFS=$'\t' read -r rec_sha rec_path rest; do
+					if [ "$rec_sha" = "$sha" ] && [ "$rec_path" = "$p" ]; then
+						found=1
+						break
+					fi
+				done <"$TREE/.sluice/tests-changed"
+			fi
+			[ -n "$found" ] || UNRECORDED="$UNRECORDED$p"$'\n'
+		done <<<"$FLAGGED"
+		FLAGGED="${UNRECORDED%$'\n'}"
+		if [ -z "$FLAGGED" ]; then
+			echo "sluice: every flagged test already has a record at its current content"
+			exit 0
+		fi
+	else
+		# Removing a test can only make a suite pass, and a command naming the
+		# missing file fails on "not found", so no run can prove a deletion. The
+		# deletions are left for --none and the edits beside them proved as usual.
+		REMAINING=""
+		while IFS= read -r p; do
+			if [ -e "$TREE/$p" ]; then
+				REMAINING="$REMAINING$p"$'\n'
+			else
+				SKIPPED="$SKIPPED${SKIPPED:+, }$p"
+			fi
+		done <<<"$FLAGGED"
+		FLAGGED="${REMAINING%$'\n'}"
+		if [ -z "$FLAGGED" ]; then
+			err "every flagged test was deleted ($SKIPPED), and no run can prove a deletion; record them with --none <reason>. Nothing was recorded"
+			exit 4
+		fi
+		LISTED="$(bash "$TEST_CHANGES" --list "$TREE" "$BASE_SHA")" || {
+			err "could not list the changed tests in $TREE against $BASE_SHA, so nothing was recorded"
+			exit 1
+		}
+		# Outside the repo, so nothing the command resolves by walking up from the
+		# worktree (node_modules, a config file) can come from the tree or the
+		# main checkout instead of from the base.
+		WT="$(mktemp -d "${TMPDIR:-/tmp}/sluice-tc.XXXXXX" 2>/dev/null)" || { err "could not make a scratch directory in ${TMPDIR:-/tmp}"; exit 1; }
+		trap 'git -C "$TREE" worktree remove --force "$WT" >/dev/null 2>&1; rm -rf "$WT"; git -C "$TREE" worktree prune >/dev/null 2>&1' EXIT
+		# Bash skips the EXIT trap on a signal it has no trap for.
+		trap 'exit 130' INT
+		trap 'exit 143' TERM
+		ADD_ERR="$(git -C "$TREE" worktree add --detach "$WT" "$BASE_SHA" 2>&1 >/dev/null)" || {
+			err "could not check out $BASE_SHA to run on: $ADD_ERR"
+			exit 1
+		}
+		# Ignored dependencies never reach a fresh checkout.
+		for p in "${WITH[@]+"${WITH[@]}"}"; do
+			[ ! -e "$WT/$p" ] && [ ! -L "$WT/$p" ] || { err "--with $p is tracked at the base, so there is nothing to link"; exit 4; }
+			mkdir -p "$(dirname "$WT/$p")" && ln -s "$TREE/$p" "$WT/$p" || { err "could not link $p into the scratch worktree"; exit 1; }
+		done
+
+		overlay() { # <path>: puts the tree's current version of it over the base
+			if [ -e "$TREE/$1" ] || [ -L "$TREE/$1" ]; then
+				mkdir -p "$(dirname "$WT/$1")" && cp -P "$TREE/$1" "$WT/$1" || { err "could not copy $1 onto the base"; exit 1; }
+			else
+				rm -f "$WT/$1" || { err "could not delete $1 from the base"; exit 1; }
+			fi
+		}
+
+		# The control run is the base with every changed test but the flagged ones
+		# brought forward, and each proof run differs from it by one flagged path,
+		# so a proof run's failure is that path's. Bringing them all forward at
+		# once let any new test that fails on old code prove every flagged path.
+		# The unit is the file: one file that loosens an assertion and adds a new
+		# failing test is still proved, and so is a flagged test that newly imports
+		# source the base lacks, since it fails on the base for that alone.
+		#
+		# Rebuilt from the base before every run, because a run writes into the
+		# worktree (fixtures, databases, caches) and what one leaves would decide
+		# the next. -x takes ignored residue too; the --with links are kept.
+		control_tree() {
+			local excludes=() w listed
+			for w in "${WITH[@]+"${WITH[@]}"}"; do
+				excludes+=(-e "/$w")
+			done
+			git -C "$WT" checkout -q HEAD -- . && git -C "$WT" clean -fdxq "${excludes[@]+"${excludes[@]}"}" || {
+				err "could not reset the scratch worktree to $BASE_SHA"
+				exit 1
+			}
+			while IFS= read -r listed; do
+				[ -n "$listed" ] || continue
+				case $'\n'"$FLAGGED"$'\n' in
+					*$'\n'"$listed"$'\n'*) continue ;;
+				esac
+				overlay "$listed"
+			done <<<"$LISTED"
+		}
+
+		control_tree
+
+		# Without this a suite that cannot run on the base at all (a missing
+		# dependency, a new test for code the base lacks, a test already red there)
+		# would fail every proof run and read as proved.
+		if ! (cd "$WT" && "$@"); then
+			err "the command failed on $BASE_SHA with the flagged tests left as they were, so it cannot prove anything here; link an ignored dependency with --with <path>, narrow the command to the flagged files, or record with --none <reason>. Nothing was recorded"
+			exit 8
+		fi
+
+		while IFS= read -r p; do
+			control_tree
+			overlay "$p"
+			if (cd "$WT" && "$@"); then
+				err "$p passes on $BASE_SHA, the code it was changed against, so it does not pin the change. Nothing was recorded"
+				exit 7
+			fi
+		done <<<"$FLAGGED"
+	fi
+
+	LINES=""
+	COUNT=0
+	while IFS= read -r p; do
+		SHA="$(current_blob "$p")" || exit 1
+		LINES="$LINES$SHA	$p	$STATUS	$WHY
+"
+		COUNT=$((COUNT + 1))
+	done <<<"$FLAGGED"
+	printf '%s' "$LINES" >>"$TREE/.sluice/tests-changed" || { err "could not write $TREE/.sluice/tests-changed"; exit 1; }
+	echo "sluice: recorded $COUNT changed test(s) as $STATUS"
+	[ -z "$SKIPPED" ] || echo "sluice: not recorded, since no run can prove a deletion: $SKIPPED; record it with --none <reason>"
 	exit 0
 fi
 

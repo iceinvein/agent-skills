@@ -121,6 +121,9 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
   def route: "(?:^|[;&|(])[[:space:]]*(?:(?:bash|sh|zsh)[[:space:]]+)?(?:\"[^\"]*|\u0027[^\u0027]*|[^[:space:];&|\"\u0027]*)status\\.sh[\"\u0027]?[[:space:]]+route[[:space:]]+(fast|main|deep)(?:[[:space:];&|]|$)";
   def routes: [ .message.content[]? | select(.type == "tool_use" and .name == "Bash")
                 | (.input.command // "") | select(test(route)) ];
+  # Anchored the way route is, so a search or a commit message that names the
+  # call is not metered as one.
+  def tchanged: "(?:^|[;&|(])[[:space:]]*(?:(?:bash|sh|zsh)[[:space:]]+)?(?:\"[^\"]*|\u0027[^\u0027]*|[^[:space:];&|\"\u0027]*)status\\.sh[\"\u0027]?[[:space:]]+tests-changed(?:[[:space:]]|$)";
   def announces: (.type == "assistant") and (is_meta | not)
     and ((texts | test(marker; "i")) or (texts | test(lead; "i")) or (routes | length > 0));
   # Prose comes before the calls in a message, so its channel goes into the
@@ -255,12 +258,19 @@ SUMMARY="$(jq -s --argjson costs "$COSTS" --arg sid "$(basename "$TRANSCRIPT" .j
          else .[0:-1] + [{ s: .[-1].s, e: ([.[-1].e, $i.e] | max) }] end)
      | map(.e - .s) | add // 0) as $agent_span
 
+  | [ $run[] | select((.type == "assistant") and (is_meta | not))
+      | .message.content[]? | select(.type == "tool_use" and .name == "Bash")
+      | (.input.command // "") | select(test(tchanged)) ] as $tc_calls
+  | ([ $tc_calls[] | select(test("[[:space:]]--none([[:space:]]|$)")) ] | length) as $tc_unproven
+
   | { empty: false,
       trail: (if ($trail | length) == 0 then "not announced" else ($trail | join(" → ")) end),
       elapsed: $elapsed, waiting: $waiting,
       tool_total: ($tools | length),
       tool_top: ([ $tools | group_by(.)[] | { n: length, name: (.[0] | ascii_downcase | split("__") | last) } ]
                  | sort_by(-.n) | .[0:3]),
+      tc_total: ($tc_calls | length),
+      tc_unproven: $tc_unproven,
       out_tok: $out_tok, cache_tok: $cache_tok,
       agents: $agents,
       priced_count: ($priced | length),
@@ -323,6 +333,10 @@ fi
 
 printf 'tokens    %s out · %s cache read\n' "$(tok "$(g '.out_tok')")" "$(tok "$(g '.cache_tok')")"
 printf 'tests     %s\n' "${TESTS:-not reported}"
+tc_total=$(g '.tc_total'); tc_unproven=$(g '.tc_unproven')
+if [ "$tc_total" -gt 0 ]; then
+  printf 'tests changed  %s proved · %s unproven\n' "$((tc_total - tc_unproven))" "$tc_unproven"
+fi
 
 # The diff is the branch as a whole against where it left the base, working
 # tree included, because uncommitted work is still work this run produced.

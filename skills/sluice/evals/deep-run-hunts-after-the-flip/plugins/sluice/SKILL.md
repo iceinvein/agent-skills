@@ -77,7 +77,9 @@ yourself wanting to skip the rule, or arguing that this one is the exception.
 - **Test first.** The test comes before the code; run it while it should
   still be failing, then write the least code that turns it green. Skip that
   watching step and a green result is only an unchecked guess. A test no
-  plausible change could turn red is not one you owe. `references/test-first.md`
+  plausible change could turn red is not one you owe. A changed existing test
+  is recorded with `status.sh tests-changed` before the handback.
+  `references/test-first.md`
 - **Root cause** before fix. A fix that only hides the symptom has not fixed
   anything. Three failed fixes point at the design, not your guesswork.
   `references/root-cause.md`

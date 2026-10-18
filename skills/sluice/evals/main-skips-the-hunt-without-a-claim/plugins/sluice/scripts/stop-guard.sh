@@ -16,10 +16,12 @@
 # fired this turn, which is what keeps this from looping. One refusal per turn, then:
 # a nudge with the state in it rather than a wall.
 #
-# Two checks run ahead of the run guard, both keyed on the tree having moved
-# since the session opened: an entry check for a session that never routed,
-# and a verification gate refusing a fast or main handback with no passing
-# check recorded against the tree as it stands (see their own sections).
+# Three checks run ahead of the run guard, all keyed on the tree having moved
+# since the session opened: an entry check for a session that never routed, a
+# verification gate refusing a fast or main handback with no passing check
+# recorded against the tree as it stands, and a test gate refusing a handback
+# that weakened an existing test with no record of why (see their own
+# sections).
 #
 # Reads the harness's stop JSON on stdin for `cwd` and `stop_hook_active`. To
 # refuse, prints {"decision":"block","reason":...} on stdout. Always exits 0.
@@ -70,6 +72,7 @@ fi
 # moved_tree only when it moved; it stays empty when it did not or when that
 # cannot be told.
 moved_tree=""
+moved_stamp=""
 read_moved() {
 	local stamp tree line_tree line_digest now
 	[ -n "$sid" ] || return 0
@@ -89,12 +92,14 @@ read_moved() {
 
 	# A tree that cannot be read is unknown, not moved. Losing git's exit
 	# status here would turn a held lock or a rebase in flight into a refused
-	# turn over a tree nobody touched.
-	now="$(bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
+	# turn over a tree nobody touched. Without optional locks for the reason
+	# session-start.sh gives: a hook must leave the index as it found it.
+	now="$(GIT_OPTIONAL_LOCKS=0 bash "$here/tree-snapshot.sh" "$tree" 2>/dev/null)" || return 0
 	[ -n "$now" ] || return 0
 	[ "$now" = "$line_digest" ] && return 0
 
 	moved_tree="$tree"
+	moved_stamp="$stamp"
 }
 read_moved
 
@@ -228,6 +233,69 @@ verify_gate() {
 }
 
 if ! verify_gate; then
+	exit 0
+fi
+
+# ---- test gate -------------------------------------------------------------
+# A test edited until it agrees with the new code proves nothing about that
+# code, and a passing check cannot tell that edit from an honest one. So a
+# changed existing test (a removed line, a deletion, a skip or focus marker,
+# as test-changes.sh decides) needs a line in .sluice/tests-changed naming its
+# current content: either proved red on the session's base by
+# `status.sh tests-changed -- <cmd>`, or recorded unproven with a reason. An
+# edit made after its record names other content and is refused again. A new
+# test only asks more of the code, so it needs nothing.
+#
+# The base is line 3 of the stamp read_moved found. A stamp without one, or
+# one gc has pruned, is unknown, and test-changes.sh fails on a base it cannot
+# read, so either way this stays silent. It applies in every channel, after
+# the verify gate so one attempt carries one refusal, and once per turn comes
+# from the `stop_hook_active` exit at the top.
+test_gate() {
+	local base flagged missing p sha rec_sha rec_path rest found
+	[ -n "$moved_tree" ] || return 0
+	base="$(sed -n '3p' "$moved_stamp" 2>/dev/null)"
+	[ -n "$base" ] || return 0
+	base="$(git -C "$moved_tree" rev-parse --verify --quiet "$base^{commit}" 2>/dev/null)" || return 0
+	[ -n "$base" ] || return 0
+	flagged="$(bash "$here/test-changes.sh" "$moved_tree" "$base" 2>/dev/null)" || return 0
+	[ -n "$flagged" ] || return 0
+
+	missing=""
+	while IFS= read -r p; do
+		if [ -e "$moved_tree/$p" ]; then
+			# Hashed the way status.sh records it, path-aware so filters apply.
+			# A file that cannot be hashed is unknown, not unrecorded.
+			sha="$(git -C "$moved_tree" hash-object -- "$p" 2>/dev/null)" || return 0
+			[ -n "$sha" ] || return 0
+		else
+			sha="-"
+		fi
+		found=""
+		if [ -f "$moved_tree/.sluice/tests-changed" ]; then
+			while IFS=$'\t' read -r rec_sha rec_path rest; do
+				if [ "$rec_sha" = "$sha" ] && [ "$rec_path" = "$p" ]; then
+					found=1
+					break
+				fi
+			done <"$moved_tree/.sluice/tests-changed"
+		fi
+		[ -n "$found" ] || missing="$missing$p"$'\n'
+	done <<<"$flagged"
+	[ -n "$missing" ] || return 0
+
+	# Paths land in a reason the harness prints, so control bytes are stripped
+	# as the run guard strips them from the topic and tree.
+	jq -n --arg paths "$missing" --arg base "$base" '{
+		decision: "block",
+		reason: ("sluice: this session changed existing tests in a way that asks less of the code (an edited or removed assertion, a deleted test, a skip or focus marker), and nothing records why: "
+			+ ($paths | split("\n") | map(select(. != "") | gsub("[\u0000-\u001f\u007f]"; "")) | join(", "))
+			+ ". A test bent to fit new code proves nothing about it, so each one needs a record against the session base \($base). Prove it fails on the old code: status.sh tests-changed --because \"<the behaviour the change replaces>\" -- <the suite, scoped to these files> (the run is in a scratch worktree of the base, so a node suite usually needs --with node_modules). If it cannot run on the old code, record why: status.sh tests-changed --because \"<the behaviour the change replaces>\" --none \"<why it cannot run on the old code>\". No run can prove a deleted test, so prove the edited ones first, then record each deletion with --none. Then name each changed test, and why it changed, in your reply.")
+	}'
+	return 1
+}
+
+if ! test_gate; then
 	exit 0
 fi
 
