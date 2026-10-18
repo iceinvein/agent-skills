@@ -69,10 +69,12 @@ the review reads what was proved and does not repeat it. Nothing merges while a
 proven bug is open.
 
 Record the check last, after the hunt and any fix: `status.sh verify -- <cmd>`
-once nothing else will touch the tree. bug-hunter writes its report under
-`.bug-hunter/` at the repo root, untracked, and the digest counts untracked
-content, so a check recorded before the hunt no longer matches the tree at the
-handback, even when the hunt proved nothing.
+once nothing else will touch the tree. A fix, or a repro promoted into the
+tree, moves the content the check passed on. The hunt's own report does not:
+`.bug-hunter/` ignores itself, and the digest leaves ignored files out. A repo
+that deleted that `.gitignore` to commit its runs is the exception, and there
+a check recorded before the hunt no longer matches the tree at the handback,
+even when the hunt proved nothing.
 
 When bug-hunter is not installed, or this session has no Skill tool to invoke
 it with, the gate is not skipped in silence. Say it as a missing reviewer is
