@@ -180,7 +180,7 @@ test('references/scout.md holds the scout prompt and the brief contract', async 
   }
   expect(text).toContain('brief: <N> changes, <K> watch items, <R> review rules')
   expect(text).not.toContain('"subsystems"')
-  for (const ph of ['<<RUN_DIR>>', '<<PR_NUMBER>>']) {
+  for (const ph of ['<<RUN_DIR>>', '<<WORKTREE>>', '<<TARGET>>']) {
     expect(text).toContain(ph)
   }
   // watchItems are context for specialists, not findings in their own right.
@@ -219,8 +219,9 @@ test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
   // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added:
-  // that's real, load-bearing procedure, not bloat.
-  expect(text.split(/\s+/).length).toBeLessThan(3000)
+  // that's real, load-bearing procedure, not bloat. Raised from 3000 for the
+  // local-mode section, which the walkthrough already sat 3 words under.
+  expect(text.split(/\s+/).length).toBeLessThan(3500)
 })
 
 test('styles.css declares a prefers-color-scheme:dark block that overrides core tokens', async () => {

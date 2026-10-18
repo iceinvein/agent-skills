@@ -27,6 +27,8 @@ If you cloned this repo and want to run from source, you can also invoke `./inst
 
 Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads SKILL.md and walks the pipeline; the CLI runs as `magpie setup`, `magpie serve`, etc.
 
+An implementing or orchestrating agent can also ask for a review of its own branch before a PR exists: local mode (`magpie setup <run-dir> --local [--base <ref>]`) reviews the merge base to working tree diff in place and hands the ranked findings back as terminal text via `magpie handoff`, with no server, report or posting.
+
 ## Development
 
 ```

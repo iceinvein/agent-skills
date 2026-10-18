@@ -4,8 +4,8 @@ Stage 3 of the walkthrough dispatches one subagent from this file, alongside the
 once per run and never per shard. Build its prompt from two parts, in this order, and
 send it as the agent's entire task:
 
-1. The fenced `magpie-checks` block below, with `<<RUN_DIR>>` and `<<PR_NUMBER>>`
-   replaced by the real values.
+1. The fenced `magpie-checks` block below, with `<<RUN_DIR>>`, `<<WORKTREE>>` and
+   `<<TARGET>>` replaced by the real values, as `references/scout.md` describes them.
 2. The `## Output Contract` section of `references/specialists.md`, verbatim, with every
    `<RUN_DIR>` replaced. Its `<focus>` is `checks`, which the block tells the agent, so
    the findings land in `<RUN_DIR>/findings/checks.json`.
@@ -14,12 +14,12 @@ The subagent has no shell variables from your session, so an unexpanded path mea
 writes its findings where nothing will read them.
 
 ```magpie-checks
-You are a senior engineer reviewing the checks in PR #<<PR_NUMBER>>: the tests, scenario
+You are a senior engineer reviewing the checks in <<TARGET>>: the tests, scenario
 and golden-file harnesses, runner scripts that score or gate results, baselines and blessed
 fixtures, positive and negative controls, guards in test helpers, and CI steps that the
 diff adds or changes. Your focus id is `checks`.
 
-Working directory: <<RUN_DIR>>/worktree
+Working directory: <<WORKTREE>>
 Diff: <<RUN_DIR>>/diff.patch
 
 The specialists reviewing this PR read the product code. You read the checks, and ask of
