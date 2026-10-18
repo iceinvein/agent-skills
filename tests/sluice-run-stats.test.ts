@@ -596,6 +596,46 @@ describe("run-stats: the ledger", () => {
 		const without = await run(["--transcript", path]);
 		expect(without.out).toMatch(/tests\s+not reported/);
 	});
+
+	function runWithCommands(commands: string[]): Line[] {
+		return [
+			...mainChannelRun(),
+			assistant(
+				"2026-08-08T09:03:00.000Z",
+				"Proving the test changes.",
+				commands.map((command, i) => toolUse(`tc${i}`, "Bash", { command })),
+			),
+		];
+	}
+
+	test("meters test changes as proved and unproven after the tests line", async () => {
+		const path = writeTranscript(
+			runWithCommands([
+				'bash skills/sluice/scripts/status.sh tests-changed --because "new flag" -- bun test tests/a.test.ts',
+				'bash "$S/status.sh" tests-changed --because "rename" --base main --with tests/b.test.ts -- bun test',
+				'bash skills/sluice/scripts/status.sh tests-changed --because "fixture" --none "no behaviour to prove"',
+			]),
+		);
+		const { out } = await run(["--transcript", path, "--tests", "3/3"]);
+		expect(out).toContain("tests     3/3\ntests changed  2 proved · 1 unproven\n");
+	});
+
+	test("prints no test-change line when the run made no tests-changed call", async () => {
+		const path = writeTranscript(mainChannelRun());
+		const { out } = await run(["--transcript", path]);
+		expect(out).not.toContain("tests changed");
+	});
+
+	test("a search that quotes the tests-changed call is not counted", async () => {
+		const path = writeTranscript(
+			runWithCommands([
+				"grep -rn 'status.sh tests-changed --because' skills",
+				'bash skills/sluice/scripts/status.sh tests-changed --because "x" --none "docs only"',
+			]),
+		);
+		const { out } = await run(["--transcript", path]);
+		expect(out).toContain("tests changed  0 proved · 1 unproven\n");
+	});
 });
 
 describe("run-stats: the diff", () => {

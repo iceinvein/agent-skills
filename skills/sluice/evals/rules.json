@@ -114,6 +114,15 @@
       ]
     },
     {
+      "id": "update-the-test-the-change-replaces",
+      "states": "references/test-first.md",
+      "origin": "docs/specs/2026-10-18-test-change-gate.md",
+      "cases": [
+        "fast-updates-the-test-the-change-replaces",
+        "fast-leaves-an-unrelated-red-test-alone"
+      ]
+    },
+    {
       "id": "root-cause-before-fix",
       "states": "references/root-cause.md",
       "origin": "docs/specs/2026-08-07-sluice-design.md",
@@ -349,6 +358,8 @@
     "deep-run-hunts-after-the-flip",
     "deep-run-survives-a-milestone",
     "deep-run-waits-for-a-running-agent",
+    "fast-leaves-an-unrelated-red-test-alone",
+    "fast-updates-the-test-the-change-replaces",
     "fast-verifies-before-handback"
   ],
   "vacuousWithout": [

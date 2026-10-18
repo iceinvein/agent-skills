@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -2105,5 +2105,546 @@ describe("verify", () => {
 		expect(verify(wt, "--", "true").code).toBe(0);
 		expect(verified(wt)).toBe(digest(wt));
 		expect(existsSync(join(main, ".sluice", "verified"))).toBe(false);
+	});
+});
+
+describe("tests-changed", () => {
+	const GREET_TEST = (expected: string) =>
+		`const test = require("node:test");\nconst assert = require("node:assert");\nconst greet = require("../greet.js");\ntest("greets", () => { assert.strictEqual(greet(), "${expected}"); });\n`;
+	const LOOSE_TEST =
+		'const test = require("node:test");\nconst assert = require("node:assert");\nconst greet = require("../greet.js");\ntest("greets", () => { assert.ok(typeof greet() === "string"); });\n';
+
+	function git(dir: string, ...args: string[]): string {
+		return Bun.spawnSync({ cmd: ["git", "-C", dir, ...args], timeout: 10000 }).stdout.toString().trim();
+	}
+
+	function blob(content: string): string {
+		const proc = Bun.spawnSync({ cmd: ["git", "hash-object", "--stdin"], stdin: Buffer.from(content), timeout: 10000 });
+		return proc.stdout.toString().trim();
+	}
+
+	/** A repo whose base commit greets "hi", pinned by a node --test suite. */
+	function greetRepo(): string {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hi";\n');
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "greet");
+		return dir;
+	}
+
+	/** A stamp for session `sid` whose line 3 is `base`, under a fresh config dir. */
+	function stamp(dir: string, base: string, sid = "sess-1"): string {
+		const config = mkdtempSync(join(tmpdir(), "sluice-config-"));
+		mkdirSync(join(config, "sluice", "stamps"), { recursive: true });
+		writeFileSync(join(config, "sluice", "stamps", sid), `${dir}\nsomedigest\n${base}\n`);
+		return config;
+	}
+
+	/** Runs tests-changed with a fresh TMPDIR, returned as `tmp` so a test can see what was left in it. */
+	function tc(dir: string, env: Record<string, string>, ...args: string[]) {
+		const inherited = { ...process.env };
+		delete inherited.CLAUDE_CODE_SESSION_ID;
+		delete inherited.CLAUDE_CONFIG_DIR;
+		const tmp = mkdtempSync(join(tmpdir(), "sluice-tmp-"));
+		const proc = Bun.spawnSync({
+			cmd: ["bash", SCRIPT, "--dir", dir, "tests-changed", ...args],
+			env: { ...inherited, TMPDIR: tmp, ...env },
+			timeout: 30000,
+		});
+		return { code: proc.exitCode, out: proc.stdout.toString(), err: proc.stderr.toString(), tmp };
+	}
+
+	function session(dir: string): Record<string, string> {
+		return { CLAUDE_CONFIG_DIR: stamp(dir, git(dir, "rev-parse", "HEAD")), CLAUDE_CODE_SESSION_ID: "sess-1" };
+	}
+
+	const RECORD = (dir: string) => join(dir, ".sluice", "tests-changed");
+
+	function pinned(dir: string) {
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hello"));
+	}
+
+	function loosened(dir: string) {
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "greet.test.js"), LOOSE_TEST);
+	}
+
+	/**
+	 * A base whose suite needs an ignored dependency that only the main tree
+	 * holds, with the source and its test since changed to add a "!". The
+	 * dependency is a relative vendor file, or a node package in node_modules.
+	 */
+	function depRepo(kind: "vendor" | "node_modules" = "vendor"): string {
+		const dir = gitRepo();
+		const spec = kind === "vendor" ? "./vendor/dep.js" : "dep";
+		writeFileSync(join(dir, ".gitignore"), `${kind}/\n`);
+		writeFileSync(join(dir, "greet.js"), `module.exports = () => require("${spec}");\n`);
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "greet");
+		const depDir = kind === "vendor" ? join(dir, "vendor") : join(dir, "node_modules", "dep");
+		mkdirSync(depDir, { recursive: true });
+		writeFileSync(join(depDir, kind === "vendor" ? "dep.js" : "index.js"), 'module.exports = "hi";\n');
+		writeFileSync(join(dir, "greet.js"), `module.exports = () => require("${spec}") + "!";\n`);
+		writeFileSync(join(dir, "tests", "greet.test.js"), GREET_TEST("hi!"));
+		return dir;
+	}
+
+	/** Linked worktrees of `dir` beyond itself, and anything left in the run's TMPDIR. */
+	function scratchLeft(dir: string, tmp: string): string[] {
+		const extraTrees = git(dir, "worktree", "list", "--porcelain")
+			.split("\n")
+			.filter((l) => l.startsWith("worktree "))
+			.slice(1);
+		return [...extraTrees, ...readdirSync(tmp)];
+	}
+
+	test("a test edited to pin new behaviour, with the source changed to match, records proved lines", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("a test loosened so it passes on old code exits 7 and records nothing", () => {
+		const dir = greetRepo();
+		loosened(dir);
+		const r = tc(dir, session(dir), "--because", "looser", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a suite that fails on the base before any change exits 8, suggests --with, and records nothing", () => {
+		const dir = depRepo();
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(r.err).toContain("--with");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--with makes an ignored dependency in the main tree resolvable on the base", () => {
+		const dir = depRepo();
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--with", "vendor", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hi!"))}\ttests/greet.test.js\tproved\tgreeting gains a bang\n`,
+		);
+	});
+
+	test("--none records unproven lines carrying the reason, with no run", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--none", "no node here");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tunproven\tgreeting is now hello (unproven: no node here)\n`,
+		);
+	});
+
+	test("a deleted test is recorded with - for its blob", () => {
+		const dir = greetRepo();
+		rmSync(join(dir, "tests", "greet.test.js"));
+		const r = tc(dir, session(dir), "--because", "greeting retired", "--none", "nothing left to run");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			"-\ttests/greet.test.js\tunproven\tgreeting retired (unproven: nothing left to run)\n",
+		);
+	});
+
+	test("with no flagged test it says so, exits 0 and writes nothing", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "extra.test.js"), 'require("node:test")("extra", () => {});\n');
+		const r = tc(dir, session(dir), "--because", "more tests", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: no changed test needs a record\n");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--base overrides a stamp whose base no longer resolves", () => {
+		const dir = greetRepo();
+		const head = git(dir, "rev-parse", "HEAD");
+		pinned(dir);
+		const env = { CLAUDE_CONFIG_DIR: stamp(dir, "0".repeat(40)), CLAUDE_CODE_SESSION_ID: "sess-1" };
+		const r = tc(dir, env, "--because", "greeting is now hello", "--base", head, "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("a stamp base that no longer resolves, with no --base, exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const env = { CLAUDE_CONFIG_DIR: stamp(dir, "0".repeat(40)), CLAUDE_CODE_SESSION_ID: "sess-1" };
+		const r = tc(dir, env, "--because", "x", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("no session id and no --base exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, {}, "--because", "x", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a missing --because exits 4 and records nothing", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--none", "y");
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("no scratch worktree remains after a recorded run", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
+	});
+
+	test("no scratch worktree remains after a run that passes on old code", () => {
+		const dir = greetRepo();
+		loosened(dir);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
+	});
+
+	test("no scratch worktree remains after a failed control run", () => {
+		const dir = depRepo();
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(scratchLeft(dir, r.tmp)).toEqual([]);
+	});
+
+	test("a record git can see is refused as verify refuses it", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		mkdirSync(join(dir, ".sluice"));
+		writeFileSync(join(dir, ".sluice", ".gitignore"), "archive/\n");
+		const r = tc(dir, session(dir), "--because", "x", "--none", "y");
+		expect(r.code).toBe(1);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	/**
+	 * The reviewer's repro: a session that breaks add, loosens the old test so it
+	 * still passes, and adds a new test for a sub() the base does not have.
+	 */
+	function addRepo(): string {
+		const dir = gitRepo();
+		writeFileSync(join(dir, "add.js"), "module.exports = (a, b) => a + b;\n");
+		mkdirSync(join(dir, "tests"));
+		writeFileSync(
+			join(dir, "tests", "add.test.js"),
+			'const assert = require("node:assert");\nconst add = require("../add.js");\nassert.strictEqual(add(2, 2), 4);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "add");
+		writeFileSync(join(dir, "add.js"), "module.exports = (a, b) => a + b + 1;\n");
+		writeFileSync(
+			join(dir, "tests", "add.test.js"),
+			'const assert = require("node:assert");\nconst add = require("../add.js");\nassert.ok(add(2, 2) > 0);\n',
+		);
+		writeFileSync(join(dir, "sub.js"), "module.exports = (a, b) => a - b;\n");
+		writeFileSync(
+			join(dir, "tests", "sub.test.js"),
+			'const assert = require("node:assert");\nconst sub = require("../sub.js");\nassert.strictEqual(sub(3, 1), 2);\n',
+		);
+		return dir;
+	}
+
+	test("a loosened test beside a new failing test is never recorded", () => {
+		const dir = addRepo();
+		const loop = "for f in tests/*.test.js; do node $f || exit 1; done";
+		const r = tc(dir, session(dir), "--because", "x", "--", "sh", "-c", loop);
+		expect([7, 8]).toContain(r.code ?? -1);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a command scoped to the edited test still records it proved beside a new failing test", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "farewell.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../farewell.js")(), "bye");\n',
+		);
+		writeFileSync(join(dir, "farewell.js"), 'module.exports = () => "bye";\n');
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test", "tests/greet.test.js");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("of two flagged tests, the one that passes on old code is named and nothing is recorded", () => {
+		const dir = greetRepo();
+		writeFileSync(
+			join(dir, "tests", "length.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")().length, 2);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "length");
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "length.test.js"),
+			'const assert = require("node:assert");\nassert.ok(require("../greet.js")().length > 0);\n',
+		);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/length.test.js");
+		expect(r.err).not.toContain("tests/greet.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a deleted flagged test cannot be proved by a run, so it exits 4 pointing to --none", () => {
+		const dir = greetRepo();
+		rmSync(join(dir, "tests", "greet.test.js"));
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("--none");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	/** greetRepo with a second test at the base, since deleted, and the greet test pinned to hello. */
+	function editedAndDeleted(): string {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "old.test.js"), 'require("node:assert").ok(true);\n');
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "old");
+		pinned(dir);
+		rmSync(join(dir, "tests", "old.test.js"));
+		return dir;
+	}
+
+	test("a proof beside a deletion records the edited test and names the deletion as still needing --none", () => {
+		const dir = editedAndDeleted();
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+		expect(r.out).toContain("sluice: not recorded, since no run can prove a deletion: tests/old.test.js; record it with --none <reason>\n");
+	});
+
+	test("--none after a proof records only the deletion", () => {
+		const dir = editedAndDeleted();
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--", "node", "--test").code).toBe(0);
+		const r = tc(dir, env, "--because", "old test retired", "--none", "it tested nothing");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n` +
+				"-\ttests/old.test.js\tunproven\told test retired (unproven: it tested nothing)\n",
+		);
+	});
+
+	test("--none twice records each flagged test once and says nothing was left", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--none", "no node here").code).toBe(0);
+		const r = tc(dir, env, "--because", "greeting is now hello", "--none", "no node here");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("sluice: every flagged test already has a record at its current content\n");
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tunproven\tgreeting is now hello (unproven: no node here)\n`,
+		);
+	});
+
+	/** greetRepo with a tracked tests/fixture file, since replaced by a directory of the same name. */
+	function fixtureSplit(): string {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "fixture"), "{}\n");
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "fixture");
+		rmSync(join(dir, "tests", "fixture"));
+		mkdirSync(join(dir, "tests", "fixture"));
+		writeFileSync(join(dir, "tests", "fixture", "one.json"), '{"split": 1}\n');
+		return dir;
+	}
+
+	test("a proof skips a test path replaced by a directory as a deletion", () => {
+		const dir = fixtureSplit();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+		expect(r.out).toContain("sluice: not recorded, since no run can prove a deletion: tests/fixture;");
+	});
+
+	test("--none records a test path replaced by a directory as -", () => {
+		const dir = fixtureSplit();
+		const r = tc(dir, session(dir), "--because", "fixtures split", "--none", "a deletion");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe("-\ttests/fixture\tunproven\tfixtures split (unproven: a deletion)\n");
+	});
+
+	test("a test file moved unchanged into a directory of its own name does not stop the proof", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "fix.json"), '{"a": 1}\n');
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "fixture");
+		rmSync(join(dir, "tests", "fix.json"));
+		mkdirSync(join(dir, "tests", "fix.json"));
+		writeFileSync(join(dir, "tests", "fix.json", "one.json"), '{"a": 1}\n');
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	const DEPLOY_TEST = (expected: string) =>
+		`const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")(), "${expected}");\n`;
+
+	/**
+	 * A test updated to pin hello, beside a fixture under tests/ with a line
+	 * removed: both flagged, and the fixture passes on the base whatever it holds.
+	 */
+	function fixtureAndTest(): string {
+		const dir = greetRepo();
+		mkdirSync(join(dir, "tests", "fixtures"));
+		writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1,\n"b": 2\n}\n');
+		writeFileSync(join(dir, "tests", "deploy.test.js"), DEPLOY_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "deploy");
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1\n}\n');
+		writeFileSync(join(dir, "tests", "deploy.test.js"), DEPLOY_TEST("hello"));
+		return dir;
+	}
+
+	test("without --only a fixture that passes on the base still fails the whole proof", () => {
+		const dir = fixtureAndTest();
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/fixtures/data.json");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--only proves and records just the named test", () => {
+		const dir = fixtureAndTest();
+		const r = tc(
+			dir, session(dir), "--because", "greeting is now hello", "--only", "tests/deploy.test.js", "--", "node", "--test",
+		);
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(DEPLOY_TEST("hello"))}\ttests/deploy.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("--none --only records just the named path", () => {
+		const dir = fixtureAndTest();
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--only", "tests/deploy.test.js", "--", "node", "--test").code).toBe(0);
+		const r = tc(dir, env, "--because", "fixture trimmed", "--only", "tests/fixtures/data.json", "--none", "data, not a test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(DEPLOY_TEST("hello"))}\ttests/deploy.test.js\tproved\tgreeting is now hello\n` +
+				`${blob('{\n"a": 1\n}\n')}\ttests/fixtures/data.json\tunproven\tfixture trimmed (unproven: data, not a test)\n`,
+		);
+	});
+
+	test("--only a path that is not flagged exits 4 naming it", () => {
+		const dir = fixtureAndTest();
+		const r = tc(dir, session(dir), "--because", "x", "--only", "tests/greet.test.js", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("tests/greet.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	// Named by absolute path, the file the command runs is the tree's, not the
+	// scratch worktree's, so both runs would run the new code.
+	test("a command naming a path in the tree by absolute path exits 4", () => {
+		const dir = greetRepo();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test", join(dir, "tests", "greet.test.js"));
+		expect(r.code).toBe(4);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a file one proof run leaves behind does not prove a later loosened test", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hi"));
+		writeFileSync(
+			join(dir, "tests", "b.test.js"),
+			'const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")().length, 2);\n',
+		);
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "a and b");
+		pinned(dir);
+		writeFileSync(
+			join(dir, "tests", "a.test.js"),
+			'require("node:fs").writeFileSync("marker", "");\n' + GREET_TEST("hello"),
+		);
+		writeFileSync(
+			join(dir, "tests", "b.test.js"),
+			'const assert = require("node:assert");\nassert.ok(!require("node:fs").existsSync("marker"));\nassert.ok(require("../greet.js")().length > 0);\n',
+		);
+		const r = tc(dir, session(dir), "--because", "x", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/b.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("a command that reads stdin cannot skip a later flagged test's proof", () => {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hi"));
+		writeFileSync(join(dir, "tests", "b.test.js"), GREET_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "a and b");
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "a.test.js"), GREET_TEST("hello"));
+		writeFileSync(join(dir, "tests", "b.test.js"), LOOSE_TEST);
+		const r = tc(dir, session(dir), "--because", "x", "--", "sh", "-c", "cat >/dev/null; node --test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/b.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	// With a bare repo hosting the worktrees, the git dir's parent is no
+	// checkout at all, just the directory the repo sits in.
+	test("a worktree of a bare repo accepts an absolute argument outside every checkout", () => {
+		const src = greetRepo();
+		const parent = mkdtempSync(join(tmpdir(), "sluice-bare-"));
+		Bun.spawnSync({ cmd: ["git", "clone", "-q", "--bare", src, join(parent, "x.git")], timeout: 10000 });
+		Bun.spawnSync({ cmd: ["git", "-C", join(parent, "x.git"), "worktree", "add", "-q", join(parent, "wt")], timeout: 10000 });
+		const wt = join(parent, "wt");
+		pinned(wt);
+		const r = tc(wt, session(wt), "--because", "greeting is now hello", "--", "sh", "-c", "node --test", join(parent, "outside"));
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(wt), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("a node dependency in node_modules is not reachable on the base without --with", () => {
+		const dir = depRepo("node_modules");
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--", "node", "--test");
+		expect(r.code).toBe(8);
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--with node_modules makes a node dependency in the main tree resolvable on the base", () => {
+		const dir = depRepo("node_modules");
+		const r = tc(dir, session(dir), "--because", "greeting gains a bang", "--with", "node_modules", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hi!"))}\ttests/greet.test.js\tproved\tgreeting gains a bang\n`,
+		);
 	});
 });

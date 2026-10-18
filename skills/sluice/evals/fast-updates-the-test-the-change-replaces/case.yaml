@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: fast-updates-the-test-the-change-replaces
+context:
+  scaffold_script: fixture.sh
