@@ -32,6 +32,33 @@ test('resolveRunDir returns the latest run when no id given', async () => {
   expect(r.archived).toBe(false)
 })
 
+test('resolveRunDir returns the latest local run when no id given', async () => {
+  await makeRun('pr-1-1000', 0)
+  await new Promise((r) => setTimeout(r, 20))
+  await makeRun('local-feature-x-2000', 0)
+  const r = await resolveRunDir(undefined, home)
+  expect(r).toEqual({
+    id: 'local-feature-x-2000',
+    path: join(home, 'local-feature-x-2000'),
+    archived: false,
+  })
+})
+
+test('resolveRunDir finds an archived local run with a dotted, dashed slug as latest', async () => {
+  await makeRun('pr-1-1000', 0)
+  await new Promise((r) => setTimeout(r, 20))
+  await makeRun('local-release-1.2-rc-2000.archived-3000', 0)
+  const r = await resolveRunDir(undefined, home)
+  expect(r.id).toBe('local-release-1.2-rc-2000.archived-3000')
+  expect(r.archived).toBe(true)
+})
+
+test('resolveRunDir marks an explicit archived local id as archived', async () => {
+  await makeRun('local-feature-x-2000.archived-3000', 0)
+  const r = await resolveRunDir('local-feature-x-2000.archived-3000', home)
+  expect(r.archived).toBe(true)
+})
+
 test('resolveRunDir picks an archived run as latest if it is newest', async () => {
   await makeRun('pr-1-1000', 0)
   await new Promise((r) => setTimeout(r, 20))

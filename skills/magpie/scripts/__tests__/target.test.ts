@@ -15,7 +15,21 @@ afterEach(async () => {
 })
 
 test('a run without target.json reads as PR mode rooted at its worktree', async () => {
+  await writeFile(join(runDir, 'log.jsonl'), '')
   expect(await readTarget(runDir)).toEqual({ mode: 'pr', root: join(runDir, 'worktree') })
+})
+
+test('a directory with neither target.json nor log.jsonl is not a run', async () => {
+  await expect(readTarget(runDir)).rejects.toThrow(
+    `${runDir}: not a magpie run (no target.json or log.jsonl)`,
+  )
+})
+
+test('a missing directory is not a run', async () => {
+  const missing = join(runDir, 'mistyped')
+  await expect(reviewRoot(missing)).rejects.toThrow(
+    `${missing}: not a magpie run (no target.json or log.jsonl)`,
+  )
 })
 
 test('a written local target reads back', async () => {

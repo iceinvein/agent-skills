@@ -12,6 +12,8 @@ let stderr: string
 
 beforeEach(async () => {
   runDir = await mkdtemp(join(tmpdir(), 'magpie-critic-'))
+  // setup's first write; without it the dir does not read as a run.
+  await writeFile(join(runDir, 'log.jsonl'), '')
   stdout = ''
   stderr = ''
   spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {

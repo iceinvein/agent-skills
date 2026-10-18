@@ -289,6 +289,23 @@ async function prepareLocalBranch(): Promise<void> {
   await writeFile(join(repo, 'new.txt'), 'untracked\n')
 }
 
+async function setupCapturingStderr(
+  input: Parameters<typeof runSetup>[0],
+): Promise<{ exit: number; stderr: string }> {
+  const errs: string[] = []
+  const origWrite = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    errs.push(s)
+    return true
+  }) as typeof process.stderr.write
+  try {
+    const exit = await runSetup(input)
+    return { exit, stderr: errs.join('') }
+  } finally {
+    process.stderr.write = origWrite
+  }
+}
+
 async function readLog(): Promise<Array<Record<string, unknown>>> {
   const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
   return log
@@ -382,29 +399,79 @@ test('local setup with an unresolvable base logs the error and keeps only the lo
 test('local setup with a missing intent file fails naming the path', async () => {
   await prepareLocalBranch()
   const missing = join(runDir, 'no-such-intent.md')
-  const errs: string[] = []
-  const origWrite = process.stderr.write.bind(process.stderr)
-  process.stderr.write = ((s: string) => {
-    errs.push(s)
-    return true
-  }) as typeof process.stderr.write
-  let exit: number
-  try {
-    exit = await runSetup({
-      mode: 'local',
-      runDir,
-      repoPath: repo,
-      baseRef: 'main',
-      intentFile: missing,
-      deps: LOCAL_DEPS,
-    })
-  } finally {
-    process.stderr.write = origWrite
-  }
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir,
+    repoPath: repo,
+    baseRef: 'main',
+    intentFile: missing,
+    deps: LOCAL_DEPS,
+  })
   expect(exit).not.toBe(0)
-  expect(errs.join('')).toContain(`magpie: intent file ${missing} does not exist`)
+  expect(stderr).toContain(`magpie: intent file ${missing} does not exist`)
   expect((await readLog()).find((e) => e.stage === 'local-diff')).toMatchObject({
     status: 'error',
   })
   expect(await readdir(runDir)).toEqual(['log.jsonl'])
+})
+
+test('local setup with an intent path that is a directory fails naming the path', async () => {
+  await prepareLocalBranch()
+  const intentDir = await mkdtemp(join(tmpdir(), 'magpie-intent-dir-'))
+  try {
+    const { exit, stderr } = await setupCapturingStderr({
+      mode: 'local',
+      runDir,
+      repoPath: repo,
+      baseRef: 'main',
+      intentFile: intentDir,
+      deps: LOCAL_DEPS,
+    })
+    expect(exit).not.toBe(0)
+    expect(stderr).toContain(`magpie: intent file ${intentDir} is not a file`)
+    expect((await readLog()).find((e) => e.stage === 'local-diff')).toMatchObject({
+      status: 'error',
+    })
+    expect(await readdir(runDir)).toEqual(['log.jsonl'])
+  } finally {
+    await rm(intentDir, { recursive: true, force: true })
+  }
+})
+
+test('local setup refuses a run dir that is the repository and leaves it untouched', async () => {
+  await prepareLocalBranch()
+  await mkdir(join(repo, 'findings'))
+  await writeFile(join(repo, 'findings', 'user.txt'), 'mine\n')
+  await sh(repo, 'git', 'add', 'findings/user.txt')
+  await sh(repo, 'git', 'commit', '-q', '-m', 'user findings')
+  const before = (await readdir(repo)).sort()
+
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir: repo,
+    repoPath: repo,
+    baseRef: 'nope',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(2)
+  expect(stderr).toContain(`magpie: run dir ${repo} is inside the repository under review ${repo}`)
+  expect(await readFile(join(repo, 'findings', 'user.txt'), 'utf8')).toBe('mine\n')
+  expect((await readdir(repo)).sort()).toEqual(before)
+})
+
+test('local setup refuses a not-yet-created run dir under the repository and creates nothing', async () => {
+  await prepareLocalBranch()
+  const before = (await readdir(repo)).sort()
+  const nested = join(repo, 'runs', 'r1')
+
+  const { exit, stderr } = await setupCapturingStderr({
+    mode: 'local',
+    runDir: nested,
+    repoPath: repo,
+    baseRef: 'main',
+    deps: LOCAL_DEPS,
+  })
+  expect(exit).toBe(2)
+  expect(stderr).toContain(`magpie: run dir ${nested} is inside the repository under review`)
+  expect((await readdir(repo)).sort()).toEqual(before)
 })

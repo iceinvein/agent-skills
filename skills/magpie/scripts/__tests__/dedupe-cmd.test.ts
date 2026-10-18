@@ -10,6 +10,8 @@ let runDir: string
 beforeEach(async () => {
   runDir = await mkdtemp(join(tmpdir(), 'magpie-dedupe-'))
   await mkdir(join(runDir, 'findings'), { recursive: true })
+  // setup's first write; without it the dir does not read as a run.
+  await writeFile(join(runDir, 'log.jsonl'), '')
 })
 
 afterEach(async () => {

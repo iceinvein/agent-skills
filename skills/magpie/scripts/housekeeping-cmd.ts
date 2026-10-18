@@ -2,8 +2,10 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const ACTIVE_PATTERN = /^pr-\d+-\d+$/
-const ARCHIVED_PATTERN = /^pr-\d+-\d+\.archived-\d+$/
+// Local slugs may contain dots and dashes, so an archived local id also matches
+// ACTIVE_PATTERN: test ARCHIVED_PATTERN first.
+const ACTIVE_PATTERN = /^(?:pr-\d+|local-[A-Za-z0-9._-]+)-\d+$/
+const ARCHIVED_PATTERN = /^(?:pr-\d+|local-[A-Za-z0-9._-]+)-\d+\.archived-\d+$/
 
 export function reviewHome(): string {
   return process.env.MAGPIE_HOME ?? join(homedir(), '.magpie')
@@ -24,10 +26,10 @@ export async function listRuns(home?: string): Promise<RunInfo[]> {
     const path = join(root, id)
     const s = await stat(path).catch(() => null)
     if (!s?.isDirectory()) continue
-    if (ACTIVE_PATTERN.test(id)) {
-      runs.push({ id, archived: false, path })
-    } else if (ARCHIVED_PATTERN.test(id)) {
+    if (ARCHIVED_PATTERN.test(id)) {
       runs.push({ id, archived: true, path })
+    } else if (ACTIVE_PATTERN.test(id)) {
+      runs.push({ id, archived: false, path })
     }
   }
   return runs

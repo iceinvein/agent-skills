@@ -63,7 +63,8 @@ const HANDLERS: Record<string, Handler> = {
     const runDir = args[0]
     const prFlag = args.indexOf('--pr')
     const isLocal = args.includes('--local')
-    if (!runDir) {
+    // A flag in the run-dir slot is usually an unset, unquoted $RUN_DIR.
+    if (!runDir || runDir.startsWith('-')) {
       process.stderr.write(
         'setup: missing <run-dir> (--pr <n> | --local [--base <ref>] [--intent-file <path>]) [--repo <path>]\n',
       )
@@ -111,7 +112,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   target: async (args) => {
     const runDir = args[0]
-    if (!runDir) {
+    if (!runDir || runDir.startsWith('-')) {
       process.stderr.write('target: missing <run-dir>\n')
       return 2
     }
@@ -126,8 +127,15 @@ const HANDLERS: Record<string, Handler> = {
   },
   handoff: async (args) => {
     const runDir = args[0]
-    if (!runDir) {
+    if (!runDir || runDir.startsWith('-')) {
       process.stderr.write('handoff: missing <run-dir>\n')
+      return 2
+    }
+    const { readTarget } = await import('../scripts/target.ts')
+    try {
+      await readTarget(runDir)
+    } catch (err) {
+      process.stderr.write(`handoff: ${err instanceof Error ? err.message : String(err)}\n`)
       return 2
     }
     const { runHandoff } = await import('../scripts/handoff-cmd.ts')

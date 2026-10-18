@@ -1,6 +1,5 @@
-import { existsSync } from 'node:fs'
-import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { appendFile, mkdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fetchPr } from './gh.ts'
 import { buildIncrementalContext, findPreviousRun } from './incremental.ts'
 import { diffSha256, localBranchDiff, localBranchMeta } from './local-diff.ts'
@@ -9,7 +8,7 @@ import { type Deps, defaultDeps, preflight, renderInstallHint } from './prefligh
 import { shardDiff } from './shard.ts'
 import { writeTarget } from './target.ts'
 import { detectMissingTests } from './tests-check.ts'
-import { createWorktree } from './worktree.ts'
+import { createWorktree, removeWorktree } from './worktree.ts'
 
 export type RunSetupInput = {
   runDir: string
@@ -25,6 +24,14 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
   const deps = input.deps ?? defaultDeps()
   // Absolute so target.json and every git call agree on the repo whatever the cwd.
   const repoPath = resolve(input.repoPath)
+  // Local mode reviews the repo in place, so a run dir inside it would be
+  // written to and its rollback would delete the caller's files.
+  if (input.mode === 'local' && (await isWithin(input.runDir, repoPath))) {
+    process.stderr.write(
+      `magpie: run dir ${input.runDir} is inside the repository under review ${repoPath}\n`,
+    )
+    return 2
+  }
   await mkdir(input.runDir, { recursive: true })
   await mkdir(join(input.runDir, 'findings'), { recursive: true })
   await mkdir(join(input.runDir, 'screen'), { recursive: true })
@@ -95,9 +102,42 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(input.runDir)
     return 5
   }
-  await writeTarget(input.runDir, { mode: 'pr', root: resolve(input.runDir, 'worktree') })
+  try {
+    await writeTarget(input.runDir, { mode: 'pr', root: resolve(input.runDir, 'worktree') })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await logLine(input.runDir, { stage: 'worktree', status: 'error', error: message })
+    process.stderr.write(`magpie: ${message}\n`)
+    // The worktree is registered in the caller's repo; deleting the dir alone would leave it listed.
+    const removed = await removeWorktree({
+      gitBin: deps.git,
+      repoPath,
+      worktreePath: wt.worktreePath,
+    })
+    if (!removed.ok) process.stderr.write(`magpie: ${removed.error}\n`)
+    await cleanup(input.runDir)
+    return 5
+  }
   await logLine(input.runDir, { stage: 'setup', status: 'done', worktree: wt.worktreePath })
   return 0
+}
+
+/** realpath of the nearest existing ancestor, with the not-yet-created tail re-appended. */
+async function realpathAllowingMissing(path: string): Promise<string> {
+  const absolute = resolve(path)
+  try {
+    return await realpath(absolute)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err
+    const parent = dirname(absolute)
+    if (parent === absolute) throw err
+    return join(await realpathAllowingMissing(parent), basename(absolute))
+  }
+}
+
+async function isWithin(path: string, root: string): Promise<boolean> {
+  const rel = relative(await realpathAllowingMissing(root), await realpathAllowingMissing(path))
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
 
 async function writePrDiff(
@@ -141,11 +181,19 @@ async function writeLocalDiff(
   intentFile: string | undefined,
 ): Promise<number> {
   const intentPath = intentFile === undefined ? null : resolve(intentFile)
-  if (intentPath !== null && !existsSync(intentPath)) {
-    const error = `intent file ${intentPath} does not exist`
-    await logLine(runDir, { stage: 'local-diff', status: 'error', error })
-    process.stderr.write(`magpie: ${error}\n`)
-    return 4
+  if (intentPath !== null) {
+    const intentStat = await stat(intentPath).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') return null
+      throw err
+    })
+    let error: string | null = null
+    if (intentStat === null) error = `intent file ${intentPath} does not exist`
+    else if (!intentStat.isFile()) error = `intent file ${intentPath} is not a file`
+    if (error !== null) {
+      await logLine(runDir, { stage: 'local-diff', status: 'error', error })
+      process.stderr.write(`magpie: ${error}\n`)
+      return 4
+    }
   }
   const diff = await localBranchDiff({
     gitBin,

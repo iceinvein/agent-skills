@@ -8,8 +8,10 @@ export type ResolvedRun = {
   archived: boolean
 }
 
-const ACTIVE_PATTERN = /^pr-\d+-\d+$/
-const ARCHIVED_PATTERN = /^pr-(\d+)-\d+\.archived-(\d+)$/
+// Local slugs may contain dots and dashes, so an archived local id also matches
+// ACTIVE_PATTERN: test ARCHIVED_PATTERN first.
+const ACTIVE_PATTERN = /^(?:pr-\d+|local-[A-Za-z0-9._-]+)-\d+$/
+const ARCHIVED_PATTERN = /^(?:pr-(\d+)|local-[A-Za-z0-9._-]+)-\d+\.archived-(\d+)$/
 
 type Entry = { id: string; path: string; archived: boolean; mtimeMs: number }
 
@@ -25,10 +27,10 @@ async function listEntries(home: string): Promise<Entry[]> {
     const path = join(home, id)
     const s = await stat(path).catch(() => null)
     if (!s?.isDirectory()) continue
-    if (ACTIVE_PATTERN.test(id)) {
-      out.push({ id, path, archived: false, mtimeMs: s.mtimeMs })
-    } else if (ARCHIVED_PATTERN.test(id)) {
+    if (ARCHIVED_PATTERN.test(id)) {
       out.push({ id, path, archived: true, mtimeMs: s.mtimeMs })
+    } else if (ACTIVE_PATTERN.test(id)) {
+      out.push({ id, path, archived: false, mtimeMs: s.mtimeMs })
     }
   }
   return out

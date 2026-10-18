@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 
@@ -8,15 +9,21 @@ function isMissingFile(err: unknown): boolean {
   return (err as NodeJS.ErrnoException)?.code === 'ENOENT'
 }
 
-/** Runs from before local mode wrote no target.json; those are all PR runs. */
+/**
+ * Runs from before local mode wrote no target.json; those are all PR runs.
+ * setup writes log.jsonl first, so a dir without it is a mistyped path, not an old run.
+ */
 export async function readTarget(runDir: string): Promise<ReviewTarget> {
   const path = join(runDir, 'target.json')
   let text: string
   try {
     text = await readFile(path, 'utf8')
   } catch (err) {
-    if (isMissingFile(err)) return { mode: 'pr', root: join(runDir, 'worktree') }
-    throw err
+    if (!isMissingFile(err)) throw err
+    if (!existsSync(join(runDir, 'log.jsonl'))) {
+      throw new Error(`${runDir}: not a magpie run (no target.json or log.jsonl)`)
+    }
+    return { mode: 'pr', root: join(runDir, 'worktree') }
   }
   let raw: unknown
   try {
