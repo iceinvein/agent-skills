@@ -64,7 +64,7 @@ prompts and SKILL.md for the new mode; T7 adds the eval case.
 
 ### Task 4: Mode-aware status ladder
 **Contract:** Needs: `readTarget` from Task 2 | Offers: `LOCAL_ORDER` exported from `scripts/status-cmd.ts` = `['setup', 'context', 'specialists', 'dedupe', 'critic', 'peer-review', 'handoff']`; `runStatus(runDir)` uses `LOCAL_ORDER` when `readTarget(runDir)` says `local` and `ORDER` otherwise; `StatusResult['lastCompleted']` and `next` widen to include `'handoff'`
-**Touches:** scripts/status-cmd.ts (edit) | scripts/__tests__/status-cmd.test.ts (test)
+**Touches:** scripts/status-cmd.ts (edit) | scripts/__tests__/status-cmd.test.ts (test) | scripts/__tests__/skill-lint.test.ts (test)
 **Effort:** low, the two ladders are given literally and the existing test file shows the shape
 - [ ] Tests first: a local run whose log ends at `peer-review done` reports `next: 'handoff'`; one ending at `handoff done` reports `lastCompleted: 'handoff', next: 'cleanup'`; a PR run (no `target.json`) ending at `peer-review done` still reports `next: 'report'` -> the local cases fail, implement, pass.
 - [ ] Check the skill-lint test that asserts diagnostic stage names stay out of `ORDER` still passes and, if it reads `ORDER` only, extend its assertion to `LOCAL_ORDER` -> gates pass.
