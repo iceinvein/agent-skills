@@ -1256,6 +1256,47 @@ describe("stop-guard.sh entry check", () => {
 			expect(reason).toContain("tests/locked.test.ts (cannot be read)");
 		});
 
+		test("a test proved with --only and a fixture recorded with --none --only hands back", () => {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			mkdirSync(join(dir, "tests", "fixtures"));
+			writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1,\n"b": 2\n}\n');
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "fixture"], timeout: 10000 });
+			stamp(cfg, "t20", dir);
+			const base = readFileSync(join(cfg, "sluice", "stamps", "t20"), "utf8").split("\n")[2];
+			weaken(dir);
+			writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1\n}\n');
+
+			const proof = Bun.spawnSync({
+				cmd: [
+					"bash", STATUS, "tests-changed", "--dir", dir, "--base", base, "--because", "add returned 3",
+					"--only", "tests/add.test.ts", "--", "sh", "-c", "! grep -q toBeDefined tests/add.test.ts",
+				],
+				timeout: 10000,
+			});
+			expect(proof.exitCode).toBe(0);
+			const none = Bun.spawnSync({
+				cmd: [
+					"bash", STATUS, "tests-changed", "--dir", dir, "--base", base, "--because", "fixture trimmed",
+					"--only", "tests/fixtures/data.json", "--none", "data, not a test",
+				],
+				timeout: 10000,
+			});
+			expect(none.exitCode).toBe(0);
+
+			const input = { cwd: dir, session_id: "t20", transcript_path: routed("deep"), stop_hook_active: false };
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("the refusal says --only proves just the named paths", () => {
+			const { cfg, dir, input } = session("t21");
+			weaken(dir);
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(reason).toContain("--only <path>");
+		});
+
 		test("the refusal says a node suite usually needs --with node_modules", () => {
 			const { cfg, dir, input } = session("t16");
 			weaken(dir);

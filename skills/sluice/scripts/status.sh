@@ -23,7 +23,7 @@
 #   status.sh close
 #   status.sh route <fast|main|deep>
 #   status.sh verify -- <cmd> [args...] | verify --none <reason>
-#   status.sh tests-changed --because <t> [--base <ref>] {[--with <path>]... -- <cmd> | --none <reason>}
+#   status.sh tests-changed --because <t> [--base <ref>] [--only <path>]... {[--with <path>]... -- <cmd> | --none <reason>}
 #
 # --dir <path> selects the tree to read (default: $PWD). State lives at
 # <dir>/.sluice/run.json and closed runs at <dir>/.sluice/archive/. A tree the
@@ -425,8 +425,10 @@ if [ "$SUB" = "tests-changed" ]; then
 	NONE=0
 	RUN=0
 	WITH=()
+	ONLY=""
 	while [ $# -gt 0 ]; do
 		case "$1" in
+			--only) need_value --only $# "${2-}"; ONLY="$ONLY$2"$'\n'; shift 2 ;;
 			--because) need_value --because $# "${2-}"; BECAUSE="$2"; shift 2 ;;
 			--base) need_value --base $# "${2-}"; BASE="$2"; shift 2 ;;
 			--with) need_value --with $# "${2-}"; WITH+=("$2"); shift 2 ;;
@@ -508,6 +510,26 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		err "could not read the changed tests in $TREE against $BASE_SHA, so nothing was recorded"
 		exit 1
 	}
+	# --only narrows what this call proves or records to the named paths. A
+	# flagged path left out is then just another changed file: present at its
+	# current version in every run, so a test reading an edited fixture sees it,
+	# and a fixture that passes on the base cannot sink the test beside it.
+	if [ -n "$ONLY" ]; then
+		while IFS= read -r p; do
+			[ -n "$p" ] || continue
+			case $'\n'"$FLAGGED"$'\n' in
+				*$'\n'"$p"$'\n'*) ;;
+				*) err "--only $p: not a flagged test path, so there is nothing to record for it"; exit 4 ;;
+			esac
+		done <<<"$ONLY"
+		NAMED=""
+		while IFS= read -r p; do
+			case $'\n'"$ONLY" in
+				*$'\n'"$p"$'\n'*) NAMED="$NAMED$p"$'\n' ;;
+			esac
+		done <<<"$FLAGGED"
+		FLAGGED="${NAMED%$'\n'}"
+	fi
 	if [ -z "$FLAGGED" ]; then
 		echo "sluice: no changed test needs a record"
 		exit 0

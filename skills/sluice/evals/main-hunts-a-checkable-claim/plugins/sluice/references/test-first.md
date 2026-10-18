@@ -72,8 +72,10 @@ starting code (so a node suite needs `--with node_modules`) and records them
 only if each fails there, because a new expectation the old code already met
 replaced nothing. Prove the edited tests first, then use `--none "<reason>"`
 for a deletion or a test that cannot run on that code, since it records every
-changed test still unrecorded, edits included; the Stop hook refuses a
-handback that carries neither. The proof is per file, so a loosened assertion
+changed test still unrecorded, edits included; `--only <path>` narrows
+either form to the paths named, so a fixture that passes on the old code
+goes to `--none` on its own rather than sinking the test beside it. The
+Stop hook refuses a handback that carries neither. The proof is per file, so a loosened assertion
 sharing a file with a new failing test still passes it.
 
 Two friction lines, one in each direction:

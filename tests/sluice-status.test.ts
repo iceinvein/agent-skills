@@ -2508,6 +2508,65 @@ describe("tests-changed", () => {
 		);
 	});
 
+	const DEPLOY_TEST = (expected: string) =>
+		`const assert = require("node:assert");\nassert.strictEqual(require("../greet.js")(), "${expected}");\n`;
+
+	/**
+	 * A test updated to pin hello, beside a fixture under tests/ with a line
+	 * removed: both flagged, and the fixture passes on the base whatever it holds.
+	 */
+	function fixtureAndTest(): string {
+		const dir = greetRepo();
+		mkdirSync(join(dir, "tests", "fixtures"));
+		writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1,\n"b": 2\n}\n');
+		writeFileSync(join(dir, "tests", "deploy.test.js"), DEPLOY_TEST("hi"));
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "deploy");
+		writeFileSync(join(dir, "greet.js"), 'module.exports = () => "hello";\n');
+		writeFileSync(join(dir, "tests", "fixtures", "data.json"), '{\n"a": 1\n}\n');
+		writeFileSync(join(dir, "tests", "deploy.test.js"), DEPLOY_TEST("hello"));
+		return dir;
+	}
+
+	test("without --only a fixture that passes on the base still fails the whole proof", () => {
+		const dir = fixtureAndTest();
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(7);
+		expect(r.err).toContain("tests/fixtures/data.json");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
+	test("--only proves and records just the named test", () => {
+		const dir = fixtureAndTest();
+		const r = tc(
+			dir, session(dir), "--because", "greeting is now hello", "--only", "tests/deploy.test.js", "--", "node", "--test",
+		);
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(DEPLOY_TEST("hello"))}\ttests/deploy.test.js\tproved\tgreeting is now hello\n`,
+		);
+	});
+
+	test("--none --only records just the named path", () => {
+		const dir = fixtureAndTest();
+		const env = session(dir);
+		expect(tc(dir, env, "--because", "greeting is now hello", "--only", "tests/deploy.test.js", "--", "node", "--test").code).toBe(0);
+		const r = tc(dir, env, "--because", "fixture trimmed", "--only", "tests/fixtures/data.json", "--none", "data, not a test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(DEPLOY_TEST("hello"))}\ttests/deploy.test.js\tproved\tgreeting is now hello\n` +
+				`${blob('{\n"a": 1\n}\n')}\ttests/fixtures/data.json\tunproven\tfixture trimmed (unproven: data, not a test)\n`,
+		);
+	});
+
+	test("--only a path that is not flagged exits 4 naming it", () => {
+		const dir = fixtureAndTest();
+		const r = tc(dir, session(dir), "--because", "x", "--only", "tests/greet.test.js", "--none", "y");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("tests/greet.test.js");
+		expect(existsSync(RECORD(dir))).toBe(false);
+	});
+
 	// Named by absolute path, the file the command runs is the tree's, not the
 	// scratch worktree's, so both runs would run the new code.
 	test("a command naming a path in the tree by absolute path exits 4", () => {
