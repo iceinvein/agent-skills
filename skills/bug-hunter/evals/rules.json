@@ -154,6 +154,14 @@
       ]
     },
     {
+      "id": "bug-hunter-dir-ignores-itself",
+      "states": "SKILL.md: Output",
+      "origin": "skills/sluice/references/status.md",
+      "cases": [
+        "callers-tree-unchanged"
+      ]
+    },
+    {
       "id": "promoting-a-repro-is-the-callers-job",
       "states": "SKILL.md: Output",
       "origin": "docs/specs/2026-10-12-bug-hunter.md",

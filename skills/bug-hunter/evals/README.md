@@ -11,7 +11,7 @@ skill.
 | `proves-a-spec-boundary-bug` | Usernames are 3 to 20 characters inclusive; the code rejects 20 | A bug in `findings.json` citing the limit, with a repro that fails against the fixture |
 | `silent-spec-is-an-ambiguity` | Quantities are "capped"; the spec never says where, the code uses 99 | The cap lands in `ambiguities` and `bugs` is empty |
 | `correct-code-has-no-bugs` | Pagination that meets every stated range at its edge | `bugs` is empty |
-| `callers-tree-unchanged` | A backoff whose first delay is doubled | Nothing changes in the caller's tree outside `.bug-hunter/` |
+| `callers-tree-unchanged` | A backoff whose first delay is doubled | Nothing changes in the caller's tree outside `.bug-hunter/`, and `.bug-hunter/.gitignore` is written holding `*` |
 | `bug-cites-intent-from-spec` | A coupon that floors where the spec rounds half up | `intent.md` is written, and the bug cites a claim sourced from `SPEC.md`, not from the code's floor |
 | `spec-outranks-target-docstring` | The spec keeps a sealed export on offer when its rewrite fails; the module's docstring and code drop it | A bug citing the spec claim, not an ambiguity between spec and docstring |
 | `impossible-value-is-a-bug` | The spec is silent on rounding; the code shows `60s` and `1m 60s` | A bug for the seconds field of 60, which no rounding rule gives |
@@ -97,6 +97,11 @@ a file needs its exact path and throws on a glob. So:
   An edit to `package.json` or `SPEC.md` is still unseen. A run that writes
   nothing passes all three, which is why the case also has
   `bug-hunter-fired`.
+- `output-ignores-itself` in the same case reads the trace for a Write of
+  `.bug-hunter/.gitignore` whose content is `*`, or a shell command that
+  writes a `*` into it. The `files` target would show the path but not its
+  content, and an empty `.gitignore` ignores nothing. A script that opens the
+  file itself is not caught.
 - `bug-cites-the-spec` in `bug-cites-intent-from-spec` is an `llm` judge over
   the trace, with the same window and last-write limits as
   `bug-cites-the-limit`. It resolves the bug's `claim` through the `intent`

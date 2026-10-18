@@ -76,6 +76,11 @@ The `.bug-hunter/` directory is the one path in the caller's tree the skill
 writes. Promoting a repro into the tree as a regression test is the caller's
 job.
 
+The directory ignores itself, so no repo has to add a line for it: if
+`.bug-hunter/.gitignore` is absent, write it holding `*` before anything else
+in the run. Leave an existing one alone; deleting it is how a repo chooses to
+commit its runs.
+
 ## Hand-back
 
 The run directory, the counts per bucket, then each bug in one line:
