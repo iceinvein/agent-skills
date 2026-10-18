@@ -2462,6 +2462,36 @@ describe("tests-changed", () => {
 		);
 	});
 
+	/** greetRepo with a tracked tests/fixture file, since replaced by a directory of the same name. */
+	function fixtureSplit(): string {
+		const dir = greetRepo();
+		writeFileSync(join(dir, "tests", "fixture"), "{}\n");
+		git(dir, "add", "-A");
+		git(dir, "commit", "-qm", "fixture");
+		rmSync(join(dir, "tests", "fixture"));
+		mkdirSync(join(dir, "tests", "fixture"));
+		writeFileSync(join(dir, "tests", "fixture", "one.json"), '{"split": 1}\n');
+		return dir;
+	}
+
+	test("a proof skips a test path replaced by a directory as a deletion", () => {
+		const dir = fixtureSplit();
+		pinned(dir);
+		const r = tc(dir, session(dir), "--because", "greeting is now hello", "--", "node", "--test");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe(
+			`${blob(GREET_TEST("hello"))}\ttests/greet.test.js\tproved\tgreeting is now hello\n`,
+		);
+		expect(r.out).toContain("sluice: not recorded, since no run can prove a deletion: tests/fixture;");
+	});
+
+	test("--none records a test path replaced by a directory as -", () => {
+		const dir = fixtureSplit();
+		const r = tc(dir, session(dir), "--because", "fixtures split", "--none", "a deletion");
+		expect(r.code).toBe(0);
+		expect(readFileSync(RECORD(dir), "utf8")).toBe("-\ttests/fixture\tunproven\tfixtures split (unproven: a deletion)\n");
+	});
+
 	// Named by absolute path, the file the command runs is the tree's, not the
 	// scratch worktree's, so both runs would run the new code.
 	test("a command naming a path in the tree by absolute path exits 4", () => {

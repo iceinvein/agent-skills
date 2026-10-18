@@ -520,10 +520,13 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		exit 1
 	}
 
-	# Hashed path-aware, so filters apply, the way the stop gate hashes it.
+	# Hashed path-aware, so filters apply, the way the stop gate hashes it. A
+	# directory where the file was (a fixture split into many) is that file's
+	# deletion, here, in proof mode and in the gate alike: it cannot be hashed,
+	# and read as unreadable it could never be recorded.
 	current_blob() { # <path>: its blob, or - when it is gone
 		local sha
-		if [ -e "$TREE/$1" ]; then
+		if [ -f "$TREE/$1" ]; then
 			sha="$(git -C "$TREE" hash-object -- "$1" 2>/dev/null)"
 			[ -n "$sha" ] || { err "could not read $TREE/$1, so nothing was recorded"; exit 1; }
 			printf '%s\n' "$sha"
@@ -565,7 +568,7 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		# deletions are left for --none and the edits beside them proved as usual.
 		REMAINING=""
 		while IFS= read -r p; do
-			if [ -e "$TREE/$p" ]; then
+			if [ -f "$TREE/$p" ]; then
 				REMAINING="$REMAINING$p"$'\n'
 			else
 				SKIPPED="$SKIPPED${SKIPPED:+, }$p"
@@ -598,8 +601,10 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 			mkdir -p "$(dirname "$WT/$p")" && ln -s "$TREE/$p" "$WT/$p" || { err "could not link $p into the scratch worktree"; exit 1; }
 		done
 
+		# A directory that replaced a file only removes the file here: its
+		# contents are listed paths of their own, sorted after it.
 		overlay() { # <path>: puts the tree's current version of it over the base
-			if [ -e "$TREE/$1" ] || [ -L "$TREE/$1" ]; then
+			if [ -f "$TREE/$1" ] || [ -L "$TREE/$1" ]; then
 				mkdir -p "$(dirname "$WT/$1")" && cp -P "$TREE/$1" "$WT/$1" || { err "could not copy $1 onto the base"; exit 1; }
 			else
 				rm -f "$WT/$1" || { err "could not delete $1 from the base"; exit 1; }
@@ -639,8 +644,11 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 
 		# Without this a suite that cannot run on the base at all (a missing
 		# dependency, a new test for code the base lacks, a test already red there)
-		# would fail every proof run and read as proved.
-		if ! (cd "$WT" && "$@"); then
+		# would fail every proof run and read as proved. Every run's stdin is
+		# /dev/null: the proof loop's list arrives on stdin, so a command that
+		# reads it would swallow the paths still to be proved, and a runner
+		# waiting on input would hang the call.
+		if ! (cd "$WT" && "$@") </dev/null; then
 			err "the command failed on $BASE_SHA with the flagged tests left as they were, so it cannot prove anything here; link an ignored dependency with --with <path>, narrow the command to the flagged files, or record with --none <reason>. Nothing was recorded"
 			exit 8
 		fi
@@ -648,7 +656,7 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		while IFS= read -r p; do
 			control_tree
 			overlay "$p"
-			if (cd "$WT" && "$@"); then
+			if (cd "$WT" && "$@") </dev/null; then
 				err "$p passes on $BASE_SHA, the code it was changed against, so it does not pin the change. Nothing was recorded"
 				exit 7
 			fi

@@ -1186,6 +1186,46 @@ describe("stop-guard.sh entry check", () => {
 			expect(entryGuard(input, cfg).out).toBe("");
 		});
 
+		/** A session over a tracked tests/fixture file, replaced by a directory, beside a weakened test. */
+		function fixtureSplitSession(sid: string) {
+			const cfg = configDir();
+			const dir = repoWithTest();
+			writeFileSync(join(dir, "tests", "fixture"), "{}\n");
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "add", "-A"], timeout: 10000 });
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "commit", "-qm", "fixture"], timeout: 10000 });
+			stamp(cfg, sid, dir);
+			const base = readFileSync(join(cfg, "sluice", "stamps", sid), "utf8").split("\n")[2];
+			weaken(dir);
+			rmSync(join(dir, "tests", "fixture"));
+			mkdirSync(join(dir, "tests", "fixture"));
+			writeFileSync(join(dir, "tests", "fixture", "one.json"), '{"split": 1}\n');
+			const input = { cwd: dir, session_id: sid, transcript_path: routed("deep"), stop_hook_active: false };
+			return { cfg, dir, base, input };
+		}
+
+		test("a test path replaced by a directory does not silence the gate for a weakened test", () => {
+			const { cfg, input } = fixtureSplitSession("t17");
+
+			const out = entryGuard(input, cfg).out;
+			expect(decision(out)).toBe("block");
+			expect(JSON.parse(out).reason).toContain("tests/add.test.ts");
+		});
+
+		test("a proved edit beside a test path replaced by a directory and recorded with --none hands back", () => {
+			const { cfg, dir, base, input } = fixtureSplitSession("t18");
+			const proof = Bun.spawnSync({
+				cmd: [
+					"bash", STATUS, "tests-changed", "--dir", dir, "--base", base, "--because", "add returned 3",
+					"--", "sh", "-c", "! grep -q toBeDefined tests/add.test.ts",
+				],
+				timeout: 10000,
+			});
+			expect(proof.exitCode).toBe(0);
+			expect(recordNone(dir, base).exitCode).toBe(0);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
 		test("the refusal says a node suite usually needs --with node_modules", () => {
 			const { cfg, dir, input } = session("t16");
 			weaken(dir);
