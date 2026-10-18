@@ -83,8 +83,17 @@ test('a local run with handoff done goes to cleanup', async () => {
   expect(result.next).toBe('cleanup')
 })
 
-test('a run without target.json after peer-review still resumes at report', async () => {
+test('a PR or archived run with no target.json resumes at report after peer-review', async () => {
   await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
   const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('peer-review')
+  expect(result.next).toBe('report')
+})
+
+test('a PR run with target.json resumes at report after peer-review', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'pr', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('peer-review')
   expect(result.next).toBe('report')
 })
