@@ -254,3 +254,39 @@ prints both findings in the real format, `status` next cleanup, `cleanup` archiv
 `--list-runs` archived; the calls log holds no serve, render, post or `gh`. With HOME
 inside the workspace, `git status` shows `home/` untracked; the scaffolded diff is
 unaffected. Still not run: the case under `claude plugin eval` (paid).
+
+## Pre-merge checks (2026-10-18)
+
+**Paid eval.** `claude plugin eval skills/magpie --case local-mode-hands-back --scaffold
+--runs 1 --ablation none`: score 1.00, all six graders pass, $0.22, 24s. Git worked in
+the eval sandbox, which settles the xcrun shim question for this case.
+
+**Live local review.** The controller ran SKILL.md's Local mode end to end as the
+orchestrator, against a scratch repo on `feat/session-expiry` (one commit, one uncommitted
+edit, one untracked file, `docs/plan.md` as `--intent-file`, `--base main`) with five
+planted defects: TTL compared in ms against seconds, a sweep that never deletes, SQL
+interpolation, a page offset off by one, `Math.random` session tokens.
+- Setup: 3 files in the diff (committed, uncommitted, untracked), one shard, `target`
+  returned the repo.
+- The scout's brief named all five defects as watch items, using the intent file.
+  Checks: 0 findings (no tests in the diff). Specialists: 14 findings; dedupe kept all
+  evidence against the live repo and merged duplicates to 13; the critic kept 9 and merged
+  4; codex peer review made one precise update (narrowed the injection finding to
+  `action` and `pageSize`).
+- `magpie handoff`: 4 must-fix, 2 should-fix, 3 optional, covering all five planted defects
+  plus two real extras (touch revives an expired session; no absolute lifetime cap).
+- Cleanup archived with no `view later` line; the repo was byte-identical (status, index,
+  worktree list) through handoff and cleanup; `--list-runs` showed the archived local run;
+  `magpie open` with no id still opened the latest PR report.
+
+Transport note: specialist, scout and checks prompts were assembled verbatim from the
+references by a script and handed over as "your task is this file", the way stage 6 hands
+over the critic prompt.
+
+Observed, not fixed:
+- The scout block's output contract still says the report reads commit messages "from
+  `pr.json`"; harmless on a local run, wording debt.
+- First cleanup failed with `log.jsonl:12 is not valid JSON`. The cause was the
+  controller's own log appends (a zsh word-splitting slip), not magpie. It exposed an
+  inconsistency that predates the branch: `magpie status` skips unparseable log lines,
+  while cleanup's labels step throws on them.
