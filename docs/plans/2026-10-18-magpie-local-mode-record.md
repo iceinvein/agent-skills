@@ -100,6 +100,23 @@ a PR run, from T2's missing-`target.json` default.
 Round 2 (b817df4): cleared; T3 done. Nit accepted: an `{ok: false}` recompute reads as
 stale without echoing its error to stderr (a throw does echo).
 
+Carried to T5: setup must record `diffSha256` of the raw `localBranchDiff` output, before
+`applyPathFilter`, or every filtered run's handoff reads as stale.
+
+## T4
+
+Touches widened to `scripts/__tests__/skill-lint.test.ts`: its shard-gate test asserts
+the diagnostic stage is outside `ORDER`, and a local run hits the same gate, so it now
+checks `LOCAL_ORDER` too.
+
+Review round 1 (on 3088fc9): nothing blocking. To fix: a test with `target.json`
+`mode: 'pr'` (which every PR run will have after T5), so choosing the ladder by file
+existence rather than `mode` goes red; assert `lastCompleted` in the no-target test.
+Carried to T7: the eval fixtures' fake `magpie status` copies `ORDER`, and
+`evals/README.md` claims the fakes match `status-cmd.ts`; the new case's fake must read
+`target.json` and switch ladders.
+
+
 ## T5 (the flip)
 
 Built at 75a18e5. One edit outside Touches, justified: `pipeline-e2e.test.ts` gained
@@ -208,18 +225,18 @@ Round 2 (2f2f6ba): run dir resolved once at the top of `runSetup` (both modes);
 `--repo` stat-checked before spawning; messages fixed. Done. Untested: bare repo and
 `--repo` at `.git` (only a plain non-git dir is tested).
 
-Carried to T5: setup must record `diffSha256` of the raw `localBranchDiff` output, before
-`applyPathFilter`, or every filtered run's handoff reads as stale.
+T10: the final review found that widening `resolve-run.ts`'s patterns (T5) let `magpie
+open` with no id pick the newest run, usually a local one, and render an HTML page for
+it (out of scope per the spec). T10 restores PR-only resolution for `open`/`serve` and
+rejects local ids and paths there; `--list-runs` keeps listing local runs for resume.
+Also the resume wording that let a local run set `TARGET` to `PR #`.
+Done at 980bc45, checked by the final reviewer. Nit accepted: `magpie serve <path>` skips
+`resolveRunDir`, so serving a local run by hand-typed path still renders a page.
 
-## T4
+## Final review
 
-Touches widened to `scripts/__tests__/skill-lint.test.ts`: its shard-gate test asserts
-the diagnostic stage is outside `ORDER`, and a local run hits the same gate, so it now
-checks `LOCAL_ORDER` too.
-
-Review round 1 (on 3088fc9): nothing blocking. To fix: a test with `target.json`
-`mode: 'pr'` (which every PR run will have after T5), so choosing the ladder by file
-existence rather than `mode` goes red; assert `lastCompleted` in the no-target test.
-Carried to T7: the eval fixtures' fake `magpie status` copies `ORDER`, and
-`evals/README.md` claims the fakes match `status-cmd.ts`; the new case's fake must read
-`target.json` and switch ladders.
+Integration check over `427bded..HEAD`: one local run and one PR run traced end to end
+through code and SKILL.md, archived pre-branch runs, accepted nits cross-checked, hunt
+fixes confirmed by re-running bug-hunter's repros (B2, B3, B4 pass; B1 fails by design).
+One should-fix (`open`/`serve` picking local runs) became T10. Cleared after T10. Gates at
+980bc45: 727 magpie tests, 150 eval-freshness tests, lint and tsc clean.
