@@ -44,7 +44,8 @@ picked up by Claude Code's default locations. Entries carry no `plugin.json`,
 so the marketplace entry is the whole manifest.
 
 `version` comes from `skill.json`, so the existing per-skill bump is what
-ships an update to plugin users. Nothing new to remember at release.
+ships an update to plugin users. Nothing new to remember at release. The one
+exception is improve-my-codebase (see Audits below).
 
 ### Generator
 

@@ -48,4 +48,11 @@ Integration clear: build:index leaves the tree clean, strict validate passes, `b
 - T8 (f1a569a, 2963fc2): improve-my-codebase entry `source: ./skills`, `skills: ["./improve-my-codebase"]`, no version; flagged skills' hook paths get the `<name>/` prefix (latent until a flagged skill has hooks; the implementer's first test had pinned the wrong path, corrected). Review clear with an isolated install: 1 skill loaded, all 26 audits present as siblings, nothing auto-loads from the skills root. Version is the repo HEAD commit, so every commit offers an update (spec wording corrected). Non-blocking, left: build-index does not type-check `plugin.bundleSiblings`.
 - Suite under load: T8's reviewer saw 17 failures in a run overlapping other test runs and an install (not named), then 1 failure in a quieter run: `skills/migrate/scripts/__tests__/e2e-express.test.ts` "contract-only run driven probe through handoff, ending green at a plain check" hit the 5s timeout (5003ms); alone it passes in 3.5s. migrate's e2e code is untouched on this branch, so this is timing under load, likely the source of T3's two unidentified failures. Reported at handback as a pre-existing flaky test.
 - T9 (6fb8e24): magpie README plugin route (0.14.5), release.sh hint names build:index. The implementer chained the suite and the commit, so it committed on a run with 33 load-induced failures (not named); its rerun on the committed tree was 2331/0, and the controller's quiet run `status.sh verify -- bun test` was 2331 pass / 0 fail. Review clear; two wording nits left (hint says "index" for index + marketplace; "bunx only" next to a source-clone `./install.sh` line).
-- Not observed at runtime (no live session): `/sluice:sluice` invocation, `sluice:sluice-implementer-low` agent type, `bin/` on the Bash tool PATH.
+
+## Final review (round 2)
+
+Clear: build:index clean, strict validate passes, bump dry-run clean, all three round-1 findings resolved. One non-blocking inconsistency fixed by the controller: RELEASING.md and the spec said every plugin is versioned from skill.json; both now name the improve-my-codebase exception.
+
+## Open at handback
+
+- Not observed at runtime (no live session, from the hunt): `/sluice:sluice` invocation, `sluice:sluice-implementer-low` agent type, `bin/` on the Bash tool PATH.
