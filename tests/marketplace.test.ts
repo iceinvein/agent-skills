@@ -16,6 +16,7 @@ test("buildMarketplace turns a Claude skill into a plugin entry under the iceinv
   expect(buildMarketplace([skill()])).toEqual({
     name: "iceinvein-skills",
     owner: { name: "iceinvein" },
+    description: "Thinking frameworks from foundational software engineering texts, installed as skills for AI coding agents.",
     plugins: [
       {
         name: "magpie",

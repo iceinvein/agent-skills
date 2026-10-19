@@ -1,0 +1,373 @@
+{
+  "name": "iceinvein-skills",
+  "owner": {
+    "name": "iceinvein"
+  },
+  "description": "Thinking frameworks from foundational software engineering texts, installed as skills for AI coding agents.",
+  "plugins": [
+    {
+      "name": "bounded-context-auditor",
+      "source": "./skills/bounded-context-auditor",
+      "description": "Evans-inspired bounded context analysis: detect linguistic fractures, draw context maps, identify leaking language and shared model pollution",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "bug-hunter",
+      "source": "./skills/bug-hunter",
+      "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. One agent collects intent from the request, specs, docs and unchanged code, runs QA-style scenarios from a catalog as repros in the repo's own test runner inside a scratch copy, and re-runs each failure clean before reporting it. Counts a contradicted claim, or a result wrong under every reading, as a bug; keeps ambiguities for questions with more than one acceptable answer; reports latent defects without filing them. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
+      "version": "0.4.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "codebase-architecture",
+      "source": "./skills/codebase-architecture",
+      "description": "Architecture review for existing codebases or structured design for new projects, with patterns reference",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cognitive-load-auditor",
+      "source": "./skills/cognitive-load-auditor",
+      "description": "Jeff Johnson-inspired cognitive load analysis: evaluate UI against Miller's Law, Hick's Law, Fitts's Law, and working memory limits",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cohesion-analyzer",
+      "source": "./skills/cohesion-analyzer",
+      "description": "Constantine & Yourdon-inspired cohesion analysis: classify module focus on the 7-level spectrum, find split lines, reduce mixed responsibilities",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "complexity-accountant",
+      "source": "./skills/complexity-accountant",
+      "description": "Ousterhout-inspired complexity analysis: deep vs shallow modules, complexity budget, justified abstractions",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "composability-auditor",
+      "source": "./skills/composability-auditor",
+      "description": "Unix Philosophy-inspired composability analysis: identify reuse blockers, decompose self-sufficient units into composable pieces with standard interfaces",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "contract-enforcer",
+      "source": "./skills/contract-enforcer",
+      "description": "Meyer-inspired Design by Contract: preconditions, postconditions, invariants, and failure contracts for non-trivial functions",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "coupling-auditor",
+      "source": "./skills/coupling-auditor",
+      "description": "Constantine & Yourdon-inspired coupling analysis: classify, measure, and reduce interdependence between modules",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cover-letter",
+      "source": "./skills/cover-letter",
+      "description": "Cover letter suite router. Dispatches to write, audit, rewrite, or persona subcommands and shares file I/O (PDF, DOCX, MD/MDX, URL), output formats, and writing conventions across the suite",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cover-letter-audit",
+      "source": "./skills/cover-letter-audit",
+      "description": "Scores a cover letter on 100 points across content/fit, structure, voice/humanness, and correctness; detects AI-generated-content signals and produces a prioritized fix list",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cover-letter-persona",
+      "source": "./skills/cover-letter-persona",
+      "description": "Reusable writing personas built on the NNGroup 4-dimension tone framework, adapted for professional correspondence and used by cover-letter-write and cover-letter-rewrite",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cover-letter-rewrite",
+      "source": "./skills/cover-letter-rewrite",
+      "description": "Audit-driven targeted rewrite of an existing cover letter. Focus modes: humanize, align, tighten, structure, tone; preserves voice where it already works",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cover-letter-write",
+      "source": "./skills/cover-letter-write",
+      "description": "Generates a cover letter from a resume and job description. Outputs markdown, DOCX, and PDF; enforces human prose, maps every claim to a resume bullet, and covers top JD requirements without keyword stuffing",
+      "version": "1.0.1",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "cqs-auditor",
+      "source": "./skills/cqs-auditor",
+      "description": "Meyer-inspired Command-Query Separation: classify functions as commands or queries, detect mixed violations, separate side effects from return values",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "demeter-enforcer",
+      "source": "./skills/demeter-enforcer",
+      "description": "Lieberherr-inspired Law of Demeter analysis: detect chain violations, parameter drilling, and hidden traversal; fix with tell-don't-ask or parameter narrowing",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "dependency-direction-auditor",
+      "source": "./skills/dependency-direction-auditor",
+      "description": "Martin-inspired dependency direction analysis: trace imports across layers, classify violations by severity, recommend inversion",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "design-review",
+      "source": "./skills/design-review",
+      "description": "Brooks-inspired design integrity review: tests conceptual integrity, constraint exploitation, removal discipline, and scope control",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "error-strategist",
+      "source": "./skills/error-strategist",
+      "description": "Duffy & Abrahams-inspired error handling: classify errors (bug/recoverable/fatal), assign safety guarantees, design recovery boundaries",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "event-design-reviewer",
+      "source": "./skills/event-design-reviewer",
+      "description": "Evans/Vernon/Dahan-inspired event design: domain-meaningful naming, fat payloads, schema evolution, and the domain expert test",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "evolution-analyzer",
+      "source": "./skills/evolution-analyzer",
+      "description": "Lehman-inspired software evolution analysis: trajectory assessment, debt visibility, and change impact on system health",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "gestalt-reviewer",
+      "source": "./skills/gestalt-reviewer",
+      "description": "Gestalt-inspired visual perception audit: proximity, similarity, closure, continuity, and figure-ground analysis for UI layouts",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "idempotency-guardian",
+      "source": "./skills/idempotency-guardian",
+      "description": "Helland-inspired idempotency analysis: classify mutation points, check protection mechanisms, evaluate side effect safety for retry-safe systems",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "improve-my-codebase",
+      "source": "./skills/improve-my-codebase",
+      "description": "Orchestrator skill that runs every applicable audit skill in parallel and produces a prioritized, convergence-ranked improvement report",
+      "version": "1.1.0",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "integration-pattern-auditor",
+      "source": "./skills/integration-pattern-auditor",
+      "description": "Hohpe & Woolf-inspired messaging analysis: name the integration pattern, verify delivery guarantees, identify missing infrastructure",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "magpie",
+      "source": "./skills/magpie",
+      "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request. Local mode (setup --local) runs the same pipeline on the current branch's diff from its merge base, uncommitted and untracked work included, against the caller's live tree, with no server or posting, and hands the ranked findings back in the terminal for an implementing or orchestrating agent to address. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
+      "version": "0.14.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "migrate",
+      "source": "./skills/migrate",
+      "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, to hand mapped requirements to a delivery team, or to resume, check, report, or forecast a mapping run already under way.",
+      "version": "0.4.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "module-secret-auditor",
+      "source": "./skills/module-secret-auditor",
+      "description": "Parnas-inspired information hiding analysis: module boundaries drawn by change-reason, not by noun or technical layer",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "port-adapter-auditor",
+      "source": "./skills/port-adapter-auditor",
+      "description": "Cockburn-inspired hexagonal architecture analysis: identify ports and adapters, classify boundary health, ensure core testability and swappability",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "rams-design-audit",
+      "source": "./skills/rams-design-audit",
+      "description": "Dieter Rams-inspired design audit: every visual element must earn its presence, less but better, clarity through restraint",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "scope-estimate",
+      "source": "./skills/scope-estimate",
+      "description": "Scopes and estimates a rebuild or respec of an existing system for a proposal: read-only discovery agents write cited inventories, a capability register gives every capability a status and a proposed disposition, area agents turn it into sized functional requirements, and a bundled Bun scheduler groups them into slices and contracts-first work packages and schedules them across engineers x worktrees at fast, planning and floor rates. The scheduler refuses a plan that misses or double-counts a requirement or has a dependency cycle, so every figure in the docs comes from one reproducible run. Also covers current and target architecture pages, proposal review, and a two-week calibration before committing to a date. Lighter than migrate: no store and no phase gates.",
+      "version": "0.1.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "seam-finder",
+      "source": "./skills/seam-finder",
+      "description": "Feathers-inspired legacy code modification: find seams, make minimal incisions, preserve existing behavior",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "simplicity-razor",
+      "source": "./skills/simplicity-razor",
+      "description": "Hickey-inspired simplicity analysis: simple vs easy, complecting detection, strand decomposition",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "sluice",
+      "source": "./skills/sluice",
+      "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries nine rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment, one status command and a SessionStart hook can answer where the run is (the hook prints a live run at every session start, compaction included), and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Two Stop hooks hold a handback: one refuses a tree that moved since its last recorded check, the other refuses a changed existing test not proven to fail on the session's starting code (or recorded with a reason). Claude Code only; stands down where the superpowers pipeline governs the repo.",
+      "version": "0.25.2",
+      "author": {
+        "name": "iceinvein"
+      },
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "echo 'Before acting on a request that changes code, pick a sluice channel and state which one.'; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\""
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/stop-guard.sh\""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "temporal-coupling-detector",
+      "source": "./skills/temporal-coupling-detector",
+      "description": "Hidden ordering dependency analysis: detect two-phase init, method order dependencies, invisible preconditions, and resource lifecycle violations; fix with types, parameters, and factory patterns",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "terse",
+      "source": "./skills/terse",
+      "description": "Professional output compression. Cuts ~20-30% of output tokens with proper grammar, a plain-language register, and semantic accuracy. Three levels: clean, tight, sharp.",
+      "version": "1.3.4",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "type-driven-designer",
+      "source": "./skills/type-driven-designer",
+      "description": "Wlaschin & Minsky-inspired type design: make illegal states unrepresentable through branded types, discriminated unions, and domain-encoded constraints",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    },
+    {
+      "name": "unidirectional-flow-enforcer",
+      "source": "./skills/unidirectional-flow-enforcer",
+      "description": "Elm Architecture-inspired data flow analysis: enforce unidirectional state flow, detect bidirectional mutations, trace state lifecycle in UI applications",
+      "version": "1.0.2",
+      "author": {
+        "name": "iceinvein"
+      }
+    }
+  ]
+}

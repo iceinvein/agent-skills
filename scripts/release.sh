@@ -24,11 +24,12 @@ if [[ "$BRANCH" != "master" && "$BRANCH" != "main" ]]; then
   exit 1
 fi
 
-# Ensure skills/index.json is in sync with each skill's skill.json
-echo "Rebuilding skill index..."
+# Ensure skills/index.json and the plugin marketplace are in sync with each skill's skill.json
+echo "Rebuilding skill index and plugin marketplace..."
 bun run scripts/build-index.ts
-if ! git diff --quiet -- skills/index.json; then
-  echo "Error: skills/index.json was out of date. It has been regenerated."
+# git status, not git diff, so a first-time untracked marketplace.json also counts as stale.
+if [[ -n "$(git status --porcelain -- skills/index.json .claude-plugin/marketplace.json)" ]]; then
+  echo "Error: skills/index.json or .claude-plugin/marketplace.json was out of date. Both have been regenerated."
   echo "Commit the change and re-run release."
   exit 1
 fi

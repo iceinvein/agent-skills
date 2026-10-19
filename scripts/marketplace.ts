@@ -29,6 +29,7 @@ export type PluginEntry = {
 export type MarketplaceFile = {
   name: "iceinvein-skills";
   owner: { name: "iceinvein" };
+  description: "Thinking frameworks from foundational software engineering texts, installed as skills for AI coding agents.";
   plugins: PluginEntry[];
 };
 
@@ -79,5 +80,10 @@ export function buildMarketplace(skills: SkillManifest[]): MarketplaceFile {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { name: "iceinvein-skills", owner: { name: "iceinvein" }, plugins };
+  return {
+    name: "iceinvein-skills",
+    owner: { name: "iceinvein" },
+    description: "Thinking frameworks from foundational software engineering texts, installed as skills for AI coding agents.",
+    plugins,
+  };
 }
