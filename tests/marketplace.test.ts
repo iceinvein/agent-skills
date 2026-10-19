@@ -102,15 +102,35 @@ test("buildMarketplace roots a bundleSiblings skill at the skills dir, loads onl
   expect("version" in entry!).toBe(false);
 });
 
-test("buildMarketplace still wires hooks for a global bundleSiblings skill", () => {
+test("buildMarketplace resolves a bundleSiblings skill's hook scripts inside its own dir under the skills root", () => {
   const [entry] = buildMarketplace([
     skill({
+      name: "sluice",
       plugin: { bundleSiblings: true },
-      activation: { default: "global", claudeHookDirective: "Pick a channel." },
+      activation: {
+        default: "global",
+        claudeHookDirective: "Pick a channel.",
+        claudeHookScript: "scripts/session-start.sh",
+        claudeStopScript: "scripts/stop-guard.sh",
+      },
     }),
   ]).plugins;
   expect(entry!.hooks).toEqual({
-    SessionStart: [{ hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] }],
+    SessionStart: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: "echo 'Pick a channel.'; bash \"${CLAUDE_PLUGIN_ROOT}/sluice/scripts/session-start.sh\"",
+          },
+        ],
+      },
+    ],
+    Stop: [
+      {
+        hooks: [{ type: "command", command: "bash \"${CLAUDE_PLUGIN_ROOT}/sluice/scripts/stop-guard.sh\"" }],
+      },
+    ],
   });
 });
 

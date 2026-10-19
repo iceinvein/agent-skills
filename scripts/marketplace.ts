@@ -48,15 +48,17 @@ function commandGroup(command: string): HookGroup[] {
   return [{ hooks: [{ type: "command", command }] }];
 }
 
-function buildHooks(activation: NonNullable<SkillManifest["activation"]>): PluginEntry["hooks"] {
+// scriptDir is where the skill dir sits relative to the plugin root: "" when the
+// skill dir is the root, "<name>/" when the plugin root is the skills dir.
+function buildHooks(activation: NonNullable<SkillManifest["activation"]>, scriptDir: string): PluginEntry["hooks"] {
   const hooks: NonNullable<PluginEntry["hooks"]> = {};
 
   const sessionStart: string[] = [];
   if (activation.claudeHookDirective) sessionStart.push(`echo ${shellQuote(activation.claudeHookDirective)}`);
-  if (activation.claudeHookScript) sessionStart.push(pluginScript(activation.claudeHookScript));
+  if (activation.claudeHookScript) sessionStart.push(pluginScript(scriptDir + activation.claudeHookScript));
   if (sessionStart.length > 0) hooks.SessionStart = commandGroup(sessionStart.join("; "));
 
-  if (activation.claudeStopScript) hooks.Stop = commandGroup(pluginScript(activation.claudeStopScript));
+  if (activation.claudeStopScript) hooks.Stop = commandGroup(pluginScript(scriptDir + activation.claudeStopScript));
 
   return Object.keys(hooks).length > 0 ? hooks : undefined;
 }
@@ -86,7 +88,7 @@ export function buildMarketplace(skills: SkillManifest[]): MarketplaceFile {
       // Session-activated skills are opted into per session by the CLI, so a
       // plugin install must not fire their hooks in every session.
       if (skill.activation?.default === "global") {
-        const hooks = buildHooks(skill.activation);
+        const hooks = buildHooks(skill.activation, skill.plugin?.bundleSiblings ? `${skill.name}/` : "");
         if (hooks) entry.hooks = hooks;
       }
       return entry;
