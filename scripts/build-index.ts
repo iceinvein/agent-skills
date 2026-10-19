@@ -2,7 +2,8 @@
 // Regenerate skills/index.json and .claude-plugin/marketplace.json from each
 // skills/*/skill.json.
 //
-// Source of truth per skill: skill.json (name, description, type, version).
+// Source of truth per skill: skill.json (name, description, type, version,
+// plus author and tools for the marketplace).
 // Preserved from the existing index.json (because they don't live in skill.json):
 //   - applies: string[]   -> orchestration filter tag
 //   - quick:   boolean    -> orchestration "fast pass" flag
@@ -12,7 +13,7 @@
 //
 // Exit codes:
 //   0 - both files regenerated (or unchanged); written in place
-//   1 - a skill.json is invalid or missing required fields
+//   1 - a skill.json is invalid or missing required fields; neither file is written
 
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -57,6 +58,12 @@ async function readSkillManifest(name: string): Promise<SkillManifest & { type: 
       throw new Error(`skills/${name}/skill.json missing required field '${field}'`);
     }
   }
+  if (typeof data.author !== "string" || data.author === "") {
+    throw new Error(`skills/${name}/skill.json missing required field 'author'`);
+  }
+  if (!Array.isArray(data.tools) || !data.tools.every((tool: unknown) => typeof tool === "string")) {
+    throw new Error(`skills/${name}/skill.json missing required field 'tools'`);
+  }
   return data;
 }
 
@@ -94,9 +101,11 @@ async function main() {
     built.push(entry);
   }
 
+  // Built before either write so a failure leaves both files as they were.
+  const marketplace = buildMarketplace(manifests);
+
   await writeIfChanged(INDEX_PATH, "skills/index.json", JSON.stringify(built, null, 2) + "\n", `${built.length} skills`);
 
-  const marketplace = buildMarketplace(manifests);
   await mkdir(MARKETPLACE_DIR, { recursive: true });
   await writeIfChanged(
     MARKETPLACE_PATH,
