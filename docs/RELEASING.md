@@ -63,6 +63,8 @@ The generator (`scripts/build-index.ts`) walks `skills/*/skill.json` for the sou
 
 The release script runs the generator and aborts if it produces a diff, so a new skill cannot be released without being registered.
 
+`build:index` also regenerates `.claude-plugin/marketplace.json`, the Claude Code plugin marketplace (one plugin per skill, versioned from `skill.json`). Plugin users install from the default branch, not from npm, so the skill version bump is what reaches them, and it reaches them on merge rather than on release. Run `bun run build:index` after a bump and commit the result in the same commit; `tests/marketplace.test.ts` fails otherwise.
+
 ## Cutting a release
 
 `scripts/release.sh` (also `bun run release`) does the following:

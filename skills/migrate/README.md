@@ -185,6 +185,12 @@ writing.
 bunx @iceinvein/agent-skills install migrate -g
 ```
 
+As a Claude Code plugin, after `/plugin marketplace add iceinvein/agent-skills`:
+
+```
+/plugin install migrate@iceinvein-skills
+```
+
 This skill ships in two parts: the prompt (`SKILL.md`) and a companion Bun
 CLI (`bin` + `scripts`). The agent-skills installer writes both into
 `~/.claude/skills/migrate/` and then runs the bundled `install.sh` as a

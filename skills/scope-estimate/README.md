@@ -52,6 +52,12 @@ bunx @iceinvein/agent-skills install scope-estimate        # this project
 bunx @iceinvein/agent-skills install scope-estimate -g     # every project
 ```
 
+As a Claude Code plugin, after `/plugin marketplace add iceinvein/agent-skills`:
+
+```
+/plugin install scope-estimate@iceinvein-skills
+```
+
 Needs [Bun](https://bun.sh) for the scheduler. Claude Code only.
 
 ## Starting a run

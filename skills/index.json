@@ -227,13 +227,13 @@
     "name": "magpie",
     "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request. Local mode (setup --local) runs the same pipeline on the current branch's diff from its merge base, uncommitted and untracked work included, against the caller's live tree, with no server or posting, and hands the ranked findings back in the terminal for an implementing or orchestrating agent to address. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
     "type": "prompt",
-    "version": "0.14.2"
+    "version": "0.14.3"
   },
   {
     "name": "migrate",
     "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, to hand mapped requirements to a delivery team, or to resume, check, report, or forecast a mapping run already under way.",
     "type": "prompt",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   {
     "name": "module-secret-auditor",
@@ -269,7 +269,7 @@
     "name": "scope-estimate",
     "description": "Scopes and estimates a rebuild or respec of an existing system for a proposal: read-only discovery agents write cited inventories, a capability register gives every capability a status and a proposed disposition, area agents turn it into sized functional requirements, and a bundled Bun scheduler groups them into slices and contracts-first work packages and schedules them across engineers x worktrees at fast, planning and floor rates. The scheduler refuses a plan that misses or double-counts a requirement or has a dependency cycle, so every figure in the docs comes from one reproducible run. Also covers current and target architecture pages, proposal review, and a two-week calibration before committing to a date. Lighter than migrate: no store and no phase gates.",
     "type": "prompt",
-    "version": "0.1.2"
+    "version": "0.1.3"
   },
   {
     "name": "seam-finder",

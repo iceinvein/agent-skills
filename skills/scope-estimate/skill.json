@@ -1,6 +1,6 @@
 {
   "name": "scope-estimate",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Scopes and estimates a rebuild or respec of an existing system for a proposal: read-only discovery agents write cited inventories, a capability register gives every capability a status and a proposed disposition, area agents turn it into sized functional requirements, and a bundled Bun scheduler groups them into slices and contracts-first work packages and schedules them across engineers x worktrees at fast, planning and floor rates. The scheduler refuses a plan that misses or double-counts a requirement or has a dependency cycle, so every figure in the docs comes from one reproducible run. Also covers current and target architecture pages, proposal review, and a two-week calibration before committing to a date. Lighter than migrate: no store and no phase gates.",
   "author": "iceinvein",
   "type": "prompt",

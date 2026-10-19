@@ -22,6 +22,21 @@ bunx @iceinvein/agent-skills install                         # no args: opens pi
 
 Auto-detects Claude Code, Cursor, Codex, or Gemini CLI. Use `--tool claude` to target one, `-g` to install globally.
 
+### Claude Code plugin
+
+Each skill is also a plugin in the `iceinvein-skills` marketplace:
+
+```
+/plugin marketplace add iceinvein/agent-skills
+/plugin install <skill>@iceinvein-skills
+```
+
+- Plugin skills are namespaced: invoke them as `/<skill>:<skill>` (e.g. `/sluice:sluice`).
+- Third-party marketplaces do not auto-update by default. Update from `/plugin`.
+- Activation modes do not apply: sluice's hooks always run while the plugin is enabled, and terse is never auto-activated.
+- Do not install sluice through both routes, or its hooks run twice. Its statusline segment is bunx-only.
+- magpie and migrate need Bun on PATH.
+
 ## Skills
 
 ### Migration
