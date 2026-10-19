@@ -12,4 +12,17 @@ while [ -L "$SCRIPT" ]; do
   fi
 done
 DIR="$(cd -P "$(dirname "$SCRIPT")" && pwd)"
+ROOT="$(dirname "$DIR")"
+
+# A plugin install puts bin/ on PATH without running install.sh, so the
+# first run has to fetch runtime dependencies itself. Progress goes to stderr
+# because callers parse magpie's stdout.
+if [ -f "$ROOT/package.json" ] && [ ! -d "$ROOT/node_modules" ]; then
+  echo "Installing magpie runtime dependencies..." >&2
+  (cd "$ROOT" && bun install --production --silent) >&2 || {
+    echo "magpie: bun install failed in $ROOT" >&2
+    exit 1
+  }
+fi
+
 exec bun "$DIR/magpie.ts" "$@"
