@@ -49,6 +49,7 @@ else
   echo ""
   echo "Run: bun run src/cli/index.ts bump --all"
   echo "  or: bun run src/cli/index.ts bump <skill> [patch|minor|major]"
+  echo "Then: bun run build:index, and commit the bumps and the regenerated index together"
   exit 1
 fi
 

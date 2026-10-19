@@ -27,6 +27,8 @@ As a Claude Code plugin, after `/plugin marketplace add iceinvein/agent-skills`:
 
 This skill ships in two parts: the prompt (SKILL.md) and a companion Bun CLI (bin + scripts). The agent-skills installer writes both into `~/.claude/skills/magpie/` and then runs the bundled `install.sh` as a postinstall step, which symlinks `bin/magpie` onto your PATH (preferring `/usr/local/bin`, falling back to `~/.local/bin`). Set `MAGPIE_BIN_DIR` to link into that directory instead; it is created if missing, and install.sh fails rather than falling back when it cannot link there. Removing the skill with `agent-skills remove magpie -g` runs `uninstall.sh` first to undo the PATH symlink.
 
+Under a Claude Code plugin install, the plugin's `bin/` puts `magpie` on your PATH, and `bin/magpie` installs its runtime dependencies on first run (Bun required). `install.sh` and `MAGPIE_BIN_DIR` apply only to the bunx install.
+
 If you cloned this repo and want to run from source, you can also invoke `./install.sh` directly: it does the PATH-link step against the local source tree.
 
 ## Use
