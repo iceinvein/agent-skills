@@ -1,4 +1,6 @@
 import { test, expect } from "bun:test";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildMarketplace, type SkillManifest } from "../scripts/marketplace";
 
 function skill(overrides: Partial<SkillManifest> = {}): SkillManifest {
@@ -90,4 +92,16 @@ test("buildMarketplace sorts plugins by name", () => {
   const names = buildMarketplace([skill({ name: "sluice" }), skill({ name: "bug-hunter" }), skill({ name: "magpie" })])
     .plugins.map((p) => p.name);
   expect(names).toEqual(["bug-hunter", "magpie", "sluice"]);
+});
+
+// Plugin users install from the default branch, so a bump commit that leaves the
+// marketplace on the old version hides the update until the next release.
+test("the committed marketplace matches the skill manifests (run `bun run build:index` to refresh)", () => {
+  const repoRoot = join(import.meta.dir, "..");
+  const skillsDir = join(repoRoot, "skills");
+  const manifests: SkillManifest[] = readdirSync(skillsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(skillsDir, entry.name, "skill.json")))
+    .map((entry) => JSON.parse(readFileSync(join(skillsDir, entry.name, "skill.json"), "utf8")));
+  const committed = JSON.parse(readFileSync(join(repoRoot, ".claude-plugin", "marketplace.json"), "utf8"));
+  expect(committed).toEqual(buildMarketplace(manifests));
 });
