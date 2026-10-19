@@ -63,6 +63,11 @@ CLI_INSTALL_DIR=""
 # An explicit MAGPIE_BIN_DIR is the only place the caller wants the link, so a
 # failure there is an error rather than a cue to try the default locations.
 if [ -n "${MAGPIE_BIN_DIR:-}" ]; then
+  # The recorded path is read by uninstall.sh from any cwd, so it must be absolute.
+  case "$MAGPIE_BIN_DIR" in
+    /*) ;;
+    *) MAGPIE_BIN_DIR="$PWD/$MAGPIE_BIN_DIR" ;;
+  esac
   if install_link "$MAGPIE_BIN_DIR"; then
     CLI_INSTALL_DIR="$MAGPIE_BIN_DIR"
   else

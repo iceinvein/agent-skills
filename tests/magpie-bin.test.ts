@@ -96,11 +96,12 @@ test(
 );
 
 // MAGPIE_BIN_DIR keeps install.sh away from the real /usr/local/bin and
-// ~/.local/bin, which it would otherwise relink into this throwaway copy.
-function runInstall(root: string, binDir: string) {
+// ~/.local/bin, which it would otherwise relink into this throwaway copy. HOME
+// is a tmpdir too, so a break in that branch still cannot reach ~/.local/bin.
+function runInstall(root: string, binDir: string, cwd: string = root) {
   return Bun.spawnSync(["bash", join(root, "install.sh")], {
-    cwd: root,
-    env: { ...process.env, MAGPIE_BIN_DIR: binDir },
+    cwd,
+    env: { ...process.env, HOME: makeTempDir("magpie-home-"), MAGPIE_BIN_DIR: binDir },
   });
 }
 
@@ -131,6 +132,20 @@ test(
     expect(install.exitCode).toBe(0);
     expect(readlinkSync(join(binDir, "magpie"))).toBe(join(root, "bin", "magpie"));
     expect(readFileSync(join(root, ".installed-cli-path"), "utf8")).toBe(`${join(binDir, "magpie")}\n`);
+  },
+  120_000,
+);
+
+test(
+  "install.sh records a relative MAGPIE_BIN_DIR as an absolute path",
+  () => {
+    const root = copyMagpieTrackedFiles();
+    const parent = makeTempDir("magpie-cwd-");
+
+    const install = runInstall(root, "relative-bin", parent);
+
+    expect(install.exitCode).toBe(0);
+    expect(readFileSync(join(root, ".installed-cli-path"), "utf8")).toBe(`${join(parent, "relative-bin", "magpie")}\n`);
   },
   120_000,
 );
