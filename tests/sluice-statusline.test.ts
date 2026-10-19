@@ -110,6 +110,22 @@ describe("statusline.sh renders a live run", () => {
 		expect(r.out).toContain("widget");
 	});
 
+	// One session per worktree, each with its own run, and the session cd'd into
+	// a package below the worktree root. Testing only the given directory for a
+	// run sent it to the main tree, which has none, and the bar went blank.
+	test("a session in a subdirectory of a worktree sees that worktree's own run", () => {
+		const main = gitRepo();
+		const wt = worktree(main, "impl");
+		seed(wt);
+		const nested = join(wt, "backend");
+		mkdirSync(nested, { recursive: true });
+
+		const r = render("--dir", nested);
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
+		expect(r.out).toMatch(/T1/);
+	});
+
 	// The gate stops at a `.git` directory, so the main tree answers "no run
 	// here" before status.sh is ever consulted. Once the run has moved into a
 	// worktree, that is the one tree the controller's own session is most likely

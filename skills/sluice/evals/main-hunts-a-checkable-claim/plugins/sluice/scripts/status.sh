@@ -155,8 +155,14 @@ main_tree() { # <dir>
 ORIG_DIR="$DIR"
 if [ "$SUB" != "init" ] && [ ! -f "$DIR/.sluice/run.json" ] \
 	&& [ "$(git -C "$DIR" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]; then
+	# The tree's own run lives at its top, not at whatever subdirectory the
+	# session is sitting in. Testing only $DIR sent a session in a worktree's
+	# package straight past that worktree's run to the main tree's.
+	OWN_TREE="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)"
 	MAIN_TREE="$(main_tree "$DIR")"
-	if [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
+	if [ -n "${OWN_TREE:-}" ] && [ -f "$OWN_TREE/.sluice/run.json" ]; then
+		DIR="$OWN_TREE"
+	elif [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
 		DIR="$MAIN_TREE"
 
 		# Then forward, where the main tree's run has moved on into a worktree.
