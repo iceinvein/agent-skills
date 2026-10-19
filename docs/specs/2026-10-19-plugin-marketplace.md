@@ -92,8 +92,11 @@ the bare `magpie ...` / `migrate ...` calls in their SKILL.md files work
 unchanged. `install.sh` and `uninstall.sh` do not run and are not needed:
 there is no symlink to place or remove.
 
-Magpie also needs `node_modules` (shiki), which git does not carry. A plugin
-copy has none, and nothing runs `install.sh`. `bin/magpie` installs
+Magpie also needs `node_modules` (shiki), which git does not carry, and
+nothing runs `install.sh`. (The bug hunt found that Claude Code 2.1.303's
+`plugin install` installs a plugin's `package.json` dependencies itself; the
+wrapper's install is then a fallback, kept for versions and setups where that
+does not happen.) `bin/magpie` installs
 production dependencies on first run when `node_modules` is missing, the same
 `bun install --production` that `install.sh` runs. Under bunx, `install.sh`
 has already done it, so the check is a no-op. A plugin update lands in a fresh
@@ -133,7 +136,10 @@ The Install section gains a "Claude Code plugin" route next to bunx:
   has one entry per Claude skill, skips non-Claude skills, carries
   version/description, and adds hooks only for `activation.default: global`.
   Expected JSON written by hand.
-- `claude plugin validate .` on the marketplace, and on each `skills/<name>`.
+- `claude plugin validate . --strict` on the marketplace. Not on each
+  `skills/<name>`: the validator requires a `plugin.json` in the directory,
+  which this design deliberately does not have. The isolated install below is
+  the check for the plugins.
 - Integration: with `CLAUDE_CONFIG_DIR` pointed at a scratch dir, add this
   checkout as a local marketplace, install sluice, magpie and a plain skill,
   then:
