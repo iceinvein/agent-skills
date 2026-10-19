@@ -37,7 +37,7 @@ It updates the requirements, re-runs the scheduler and every page that quotes
 a figure.
 
 **Scheduler on its own:**
-`bun .claude/skills/scope-estimate/scripts/schedule.ts build-plan/requirements build-plan/plan.json --json build-plan/schedule.json`
+`bun <skill-dir>/scripts/schedule.ts build-plan/requirements build-plan/plan.json --json build-plan/schedule.json`
 (`--help` lists the `plan.json` fields).
 
 **Say when presenting:** status is from reading code, not running it; rates
@@ -118,15 +118,16 @@ stays a local file until you say otherwise.
 ## The scheduler
 
 ```
-bun .claude/skills/scope-estimate/scripts/schedule.ts <requirements-dir> <plan.json> [--json <out.json>]
+bun <skill-dir>/scripts/schedule.ts <requirements-dir> <plan.json> [--json <out.json>]
 ```
 
-Use `~/.claude/skills/...` for a global install. It prints totals, gated
-totals, per-slice requirements and planning days, the engineers x worktrees
-matrix at planning rates, the headline fast, planning and floor weeks, the
-longest dependency chain, packages sized by assumption and dependencies that
-resolved to nothing. `--json` adds the full report, including the lane order
-for every team combination.
+`<skill-dir>` is the skill's install directory (e.g.
+`.claude/skills/scope-estimate` for a bunx project install). It prints
+totals, gated totals, per-slice requirements and planning days, the
+engineers x worktrees matrix at planning rates, the headline fast, planning
+and floor weeks, the longest dependency chain, packages sized by assumption
+and dependencies that resolved to nothing. `--json` adds the full report,
+including the lane order for every team combination.
 
 It refuses a plan that misses or double-counts a requirement, reuses a
 package id, names an unknown package or undeclared layer, has a dependency

@@ -134,16 +134,17 @@ ordered product packages) and run:
 bun <skill-dir>/scripts/schedule.ts build-plan/requirements build-plan/plan.json --json build-plan/schedule.json
 ```
 
-(`<skill-dir>` is this skill's base directory, stated when the skill loads.) It refuses a
-plan that does not account for every requirement exactly once, reuses a
-package id, names an unknown package or undeclared layer, lets scheduled work
-wait on gated work, or has a dependency cycle (naming the requirement behind
-each edge). It prints totals, gated totals, per-slice counts and planning
-days, the engineers x worktrees matrix at planning rates, the headline
-fast/planning/floor range, the critical chain, assumed sizes and unresolved
-dependencies. Fix the plan, not the output. **Every number in the docs comes
-from this output.** Re-run it after any requirement, rate or team change and
-update every page that quotes a figure. Reference: `references/schedule.md`.
+(`<skill-dir>` is this skill's base directory, stated when the skill loads.) It
+refuses a plan that does not account for every requirement exactly once,
+reuses a package id, names an unknown package or undeclared layer, lets
+scheduled work wait on gated work, or has a dependency cycle (naming the
+requirement behind each edge). It prints totals, gated totals, per-slice
+counts and planning days, the engineers x worktrees matrix at planning rates,
+the headline fast/planning/floor range, the critical chain, assumed sizes and
+unresolved dependencies. Fix the plan, not the output. **Every number in the
+docs comes from this output.** Re-run it after any requirement, rate or team
+change and update every page that quotes a figure. Reference:
+`references/schedule.md`.
 
 ### 5. Architecture and proposal checks
 
