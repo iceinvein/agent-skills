@@ -88,6 +88,32 @@ test("buildMarketplace shell-escapes a single quote in the directive", () => {
   expect(entry!.hooks?.SessionStart?.[0]?.hooks[0]?.command).toBe("echo 'It'\\''s on.'");
 });
 
+test("buildMarketplace roots a bundleSiblings skill at the skills dir, loads only its own skill and pins no version", () => {
+  const [entry] = buildMarketplace([
+    skill({ name: "improve-my-codebase", plugin: { bundleSiblings: true } }),
+  ]).plugins;
+  expect(entry).toEqual({
+    name: "improve-my-codebase",
+    source: "./skills",
+    skills: ["./improve-my-codebase"],
+    description: "Collects things.",
+    author: { name: "iceinvein" },
+  });
+  expect("version" in entry!).toBe(false);
+});
+
+test("buildMarketplace still wires hooks for a global bundleSiblings skill", () => {
+  const [entry] = buildMarketplace([
+    skill({
+      plugin: { bundleSiblings: true },
+      activation: { default: "global", claudeHookDirective: "Pick a channel." },
+    }),
+  ]).plugins;
+  expect(entry!.hooks).toEqual({
+    SessionStart: [{ hooks: [{ type: "command", command: "echo 'Pick a channel.'" }] }],
+  });
+});
+
 test("buildMarketplace sorts plugins by name", () => {
   const names = buildMarketplace([skill({ name: "sluice" }), skill({ name: "bug-hunter" }), skill({ name: "magpie" })])
     .plugins.map((p) => p.name);

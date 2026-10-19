@@ -214,9 +214,11 @@
     },
     {
       "name": "improve-my-codebase",
-      "source": "./skills/improve-my-codebase",
+      "source": "./skills",
+      "skills": [
+        "./improve-my-codebase"
+      ],
       "description": "Orchestrator skill that runs every applicable audit skill in parallel and produces a prioritized, convergence-ranked improvement report",
-      "version": "1.1.0",
       "author": {
         "name": "iceinvein"
       }

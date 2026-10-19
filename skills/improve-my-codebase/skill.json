@@ -1,9 +1,12 @@
 {
   "name": "improve-my-codebase",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Orchestrator skill that runs every applicable audit skill in parallel and produces a prioritized, convergence-ranked improvement report",
   "author": "iceinvein",
   "type": "prompt",
+  "plugin": {
+    "bundleSiblings": true
+  },
   "tools": [
     "claude",
     "cursor",

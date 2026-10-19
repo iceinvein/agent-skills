@@ -13,6 +13,7 @@ export type SkillManifest = {
     claudeHookScript?: string;
     claudeStopScript?: string;
   };
+  plugin?: { bundleSiblings?: boolean };
 };
 
 export type HookGroup = { hooks: { type: "command"; command: string }[] };
@@ -20,8 +21,9 @@ export type HookGroup = { hooks: { type: "command"; command: string }[] };
 export type PluginEntry = {
   name: string;
   source: string;
+  skills?: string[];
   description: string;
-  version: string;
+  version?: string;
   author: { name: string };
   hooks?: { SessionStart?: HookGroup[]; Stop?: HookGroup[] };
 };
@@ -63,13 +65,24 @@ export function buildMarketplace(skills: SkillManifest[]): MarketplaceFile {
   const plugins = skills
     .filter((skill) => skill.tools.includes("claude"))
     .map((skill): PluginEntry => {
-      const entry: PluginEntry = {
-        name: skill.name,
-        source: `./skills/${skill.name}`,
-        description: skill.description,
-        version: skill.version,
-        author: { name: skill.author },
-      };
+      // A skill that reads its sibling skill dirs ships the whole skills dir,
+      // loading only itself. It pins no version so Claude Code versions it by
+      // commit, and a change to any sibling still reaches plugin users.
+      const entry: PluginEntry = skill.plugin?.bundleSiblings
+        ? {
+            name: skill.name,
+            source: "./skills",
+            skills: [`./${skill.name}`],
+            description: skill.description,
+            author: { name: skill.author },
+          }
+        : {
+            name: skill.name,
+            source: `./skills/${skill.name}`,
+            description: skill.description,
+            version: skill.version,
+            author: { name: skill.author },
+          };
       // Session-activated skills are opted into per session by the CLI, so a
       // plugin install must not fire their hooks in every session.
       if (skill.activation?.default === "global") {
