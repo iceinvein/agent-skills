@@ -7,7 +7,8 @@ description: Source-agnostic legacy migration mapping. Walks a legacy codebase t
 
 ## Prerequisites
 
-- `migrate` on `PATH`, put there by this skill's `install.sh`.
+- `migrate` on `PATH`, put there by this skill's `install.sh` under a bunx
+  install, or by the plugin's `bin/` under a Claude Code plugin install.
 - A read-only checkout of the legacy source. `migrate check`'s `citations` and
   `source` gates read it; nothing here writes to it, and every writer in the CLI
   refuses a path that resolves inside it.

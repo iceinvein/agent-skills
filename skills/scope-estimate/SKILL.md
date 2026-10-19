@@ -131,10 +131,10 @@ Complete `build-plan/plan.json` (slices, foundation packages, any split or
 ordered product packages) and run:
 
 ```
-bun .claude/skills/scope-estimate/scripts/schedule.ts build-plan/requirements build-plan/plan.json --json build-plan/schedule.json
+bun <skill-dir>/scripts/schedule.ts build-plan/requirements build-plan/plan.json --json build-plan/schedule.json
 ```
 
-(Use `~/.claude/skills/...` if the skill was installed globally.) It refuses a
+(`<skill-dir>` is this skill's base directory, stated when the skill loads.) It refuses a
 plan that does not account for every requirement exactly once, reuses a
 package id, names an unknown package or undeclared layer, lets scheduled work
 wait on gated work, or has a dependency cycle (naming the requirement behind

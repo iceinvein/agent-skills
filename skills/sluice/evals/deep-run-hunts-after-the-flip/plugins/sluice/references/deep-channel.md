@@ -431,7 +431,8 @@ reads the run state rather than the plan: it sees what has actually landed.
   task with no `Effort` line goes out on this session's model and effort, and a
   downshift that was neither marked nor ratified is a saving your partner never
   agreed to. A task ratified at `Effort: low` goes out with
-  `subagent_type: sluice-implementer-low`, the agent sluice installs with
+  `subagent_type: sluice-implementer-low` (`sluice:sluice-implementer-low`
+  under a Claude Code plugin install), the agent sluice installs with
   `effort: low` and `model: inherit`: the Agent tool takes a model and no
   effort, so an agent definition is the one place a dispatch's effort can be
   set. Reviewers are the
@@ -533,7 +534,8 @@ something stronger would be promising what is already in use. What a tier buys
 is a dispatch. The one effort rule that holds across all of them is that a
 review never runs below the effort that built the task, so tiers 1 and 2 over
 an `Effort: low` task go out at this session's effort rather than on
-`sluice-implementer-low`.
+`sluice-implementer-low` (`sluice:sluice-implementer-low` under a Claude Code
+plugin install).
 
 **Where the repo carries review tiering of its own, this table governs.** It is
 the more specific of the two: wired into `Flips`, the `Effort` marks and the
