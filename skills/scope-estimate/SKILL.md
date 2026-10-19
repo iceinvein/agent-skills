@@ -1,6 +1,6 @@
 ---
 name: scope-estimate
-description: Use when asked to scope, size or estimate a rebuild or respec of an existing system for a proposal or engagement, to map what a codebase does into a capability register, to turn capabilities into functional requirements and build slices, or to work out how long an agent-driven team (engineers x worktrees) takes to build it. Lighter than migrate: no store, no CLI gates, presentable docs plus a scheduler script so the numbers add up.
+description: "Use when asked to scope, size or estimate a rebuild or respec of an existing system for a proposal or engagement, to map what a codebase does into a capability register, to turn capabilities into functional requirements and build slices, or to work out how long an agent-driven team (engineers x worktrees) takes to build it. Lighter than migrate: no store, no CLI gates, presentable docs plus a scheduler script so the numbers add up."
 ---
 
 # Scope and estimate

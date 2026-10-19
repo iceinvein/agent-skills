@@ -13,7 +13,7 @@
     "name": "bug-hunter",
     "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. One agent collects intent from the request, specs, docs and unchanged code, runs QA-style scenarios from a catalog as repros in the repo's own test runner inside a scratch copy, and re-runs each failure clean before reporting it. Counts a contradicted claim, or a result wrong under every reading, as a bug; keeps ambiguities for questions with more than one acceptable answer; reports latent defects without filing them. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
     "type": "prompt",
-    "version": "0.4.1"
+    "version": "0.4.2"
   },
   {
     "name": "codebase-architecture",
@@ -225,9 +225,9 @@
   },
   {
     "name": "magpie",
-    "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request, or to self-review the current branch diff before a PR exists, typically requested by an implementing or orchestrating agent, with findings handed back in the terminal. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
+    "description": "Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture) plus a once-per-PR checks pass that finds tests and controls able to pass without proving their purpose, drops findings whose quoted evidence is not in the code, dedupes, runs critic subagents that re-check each finding against the worktree and set its risk label, peer-reviews via codex exec (falling back to a Claude second opinion when codex is unavailable), and serves an interactive HTML report for selecting or dismissing findings to post via gh, recording the outcome per finding as labels. Bundles a Bun CLI installed onto PATH via the skill's postinstall step. Use when the user asks to review a GitHub pull request. Local mode (setup --local) runs the same pipeline on the current branch's diff from its merge base, uncommitted and untracked work included, against the caller's live tree, with no server or posting, and hands the ranked findings back in the terminal for an implementing or orchestrating agent to address. Splits oversized diffs into budgeted shards and rebuilds the diff from the local clone when gh pr diff refuses it.",
     "type": "prompt",
-    "version": "0.14.0"
+    "version": "0.14.1"
   },
   {
     "name": "migrate",
@@ -269,7 +269,7 @@
     "name": "scope-estimate",
     "description": "Scopes and estimates a rebuild or respec of an existing system for a proposal: read-only discovery agents write cited inventories, a capability register gives every capability a status and a proposed disposition, area agents turn it into sized functional requirements, and a bundled Bun scheduler groups them into slices and contracts-first work packages and schedules them across engineers x worktrees at fast, planning and floor rates. The scheduler refuses a plan that misses or double-counts a requirement or has a dependency cycle, so every figure in the docs comes from one reproducible run. Also covers current and target architecture pages, proposal review, and a two-week calibration before committing to a date. Lighter than migrate: no store and no phase gates.",
     "type": "prompt",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "name": "seam-finder",
@@ -293,9 +293,9 @@
   },
   {
     "name": "sluice",
-    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries nine rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment, one status command and a SessionStart hook can answer where the run is (the hook prints a live run at every session start, compaction included), and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Claude Code only; stands down where the superpowers pipeline governs the repo.",
+    "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries nine rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment, one status command and a SessionStart hook can answer where the run is (the hook prints a live run at every session start, compaction included), and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Two Stop hooks hold a handback: one refuses a tree that moved since its last recorded check, the other refuses a changed existing test not proven to fail on the session's starting code (or recorded with a reason). Claude Code only; stands down where the superpowers pipeline governs the repo.",
     "type": "prompt",
-    "version": "0.25.0"
+    "version": "0.25.1"
   },
   {
     "name": "temporal-coupling-detector",

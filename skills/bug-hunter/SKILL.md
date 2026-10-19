@@ -1,6 +1,7 @@
 ---
 name: bug-hunter
 description: Use when asked to hunt for bugs or edge cases in a change or area, to say what QA will find before QA does, or to prove a change correct. Runs QA-style scenarios as failing reproductions in the repo's own test runner and reports only bugs it can prove, plus the questions intent leaves open.
+argument-hint: "[<commit>|<base>..<head>|<path>...]"
 ---
 
 # Bug hunter
@@ -12,7 +13,8 @@ a failing reproduction, checked against what the change was meant to do.
 ## Method
 
 1. **Name the target** in one line: a diff (a commit, a range, the working
-   changes) or a set of paths. Every later step is scoped to it.
+   changes) or a set of paths, taken from the arguments when given and the
+   working changes otherwise. Every later step is scoped to it.
 2. **Collect intent** into `intent.md`: numbered claims (`I1`, `I2`, ...),
    each one checkable statement with its source. Sources are the request or
    ticket, commit messages, specs and designs, docs, `CLAUDE.md`/`AGENTS.md`,

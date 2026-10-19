@@ -1,6 +1,7 @@
 ---
 name: sluice
 description: Use at the start of any request that changes code. Routes the work into one of four channels (bypass, fast, main, deep) by change shape, and applies only the rules that channel needs. Also use when asked to work faster or with less process.
+argument-hint: "[fast|main|deep] [<what to change>]"
 ---
 
 # Sluice
@@ -119,7 +120,8 @@ Escalate out loud. A `fast` task that turns out to need a new interface becomes
 `main`, and you say so with another `status.sh route` call in that message.
 Finishing quietly in the wrong channel is the failure this prevents; the same
 goes for dropping to a shallower one. Explicit instruction wins: "just do it"
-collapses to `fast`.
+collapses to `fast`, and a channel named when invoking (`/sluice main`) is that
+channel.
 
 ## Deep channel
 
