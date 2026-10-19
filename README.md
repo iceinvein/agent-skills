@@ -35,7 +35,7 @@ Each skill is also a plugin in the `iceinvein-skills` marketplace:
 - Third-party marketplaces do not auto-update by default. Update from `/plugin`.
 - Activation modes do not apply: sluice's hooks always run while the plugin is enabled, and terse is never auto-activated.
 - Do not install sluice through both routes, or its hooks run twice. Its statusline segment is bunx-only.
-- magpie and migrate need Bun on PATH.
+- magpie, migrate and scope-estimate need Bun on PATH.
 
 ## Skills
 
