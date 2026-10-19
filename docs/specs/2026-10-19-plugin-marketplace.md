@@ -106,6 +106,21 @@ dependencies.
 Migrate's SKILL.md says the CLI is "put there by this skill's `install.sh`".
 That line is reworded to cover both routes.
 
+### Audits (improve-my-codebase)
+
+improve-my-codebase reads its audits from sibling skill directories
+(`<skills-root>/<audit-id>/SKILL.md`). A plugin copy holds only its own
+directory, so every audit would read as not installed. Its `skill.json`
+carries `"plugin": { "bundleSiblings": true }`, and the generator gives that
+entry `source: "./skills"` with `skills: ["./improve-my-codebase"]`. The
+plugin copy then carries every audit as plain files, while only
+improve-my-codebase loads as a skill. The entry has no `version`, so Claude
+Code versions it by the repo's HEAD commit. Any commit offers an update,
+including one that touched no audit. A pinned version would freeze
+the audit copies until improve-my-codebase itself was bumped. (Found by the
+final review; partner chose this over teaching the skill the cache layout or
+documenting a limitation.)
+
 ### Paths in skill docs
 
 - `scope-estimate/SKILL.md:134` hardcodes `.claude/skills/scope-estimate/...`
