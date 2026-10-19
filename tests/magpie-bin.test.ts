@@ -1,5 +1,5 @@
 import { test, expect, afterAll } from "bun:test";
-import { accessSync, constants, cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -95,33 +95,42 @@ test(
   120_000,
 );
 
+// MAGPIE_BIN_DIR keeps install.sh away from the real /usr/local/bin and
+// ~/.local/bin, which it would otherwise relink into this throwaway copy.
+function runInstall(root: string, binDir: string) {
+  return Bun.spawnSync(["bash", join(root, "install.sh")], {
+    cwd: root,
+    env: { ...process.env, MAGPIE_BIN_DIR: binDir },
+  });
+}
+
 test(
   "magpie skips the first-run install after install.sh has installed its dependencies",
   () => {
-    // install.sh tries /usr/local/bin before ~/.local/bin; a writable one would
-    // be overwritten with a link into this throwaway copy.
-    let systemBinWritable = true;
-    try {
-      accessSync("/usr/local/bin", constants.W_OK);
-    } catch {
-      systemBinWritable = false;
-    }
-    if (systemBinWritable) throw new Error("/usr/local/bin is writable; install.sh would relink the real magpie there");
-
     const root = copyMagpieTrackedFiles();
-    const home = makeTempDir("magpie-home-");
-    const install = Bun.spawnSync(["bash", join(root, "install.sh")], {
-      cwd: root,
-      env: { ...process.env, HOME: home },
-    });
+    const install = runInstall(root, makeTempDir("magpie-bindir-"));
     expect(install.exitCode).toBe(0);
-    expect(install.stdout.toString()).toContain(`linked  ${home}/.local/bin/magpie`);
 
     const result = runHelp(root);
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr.toString()).not.toContain("Installing magpie runtime dependencies");
     expect(existsSync(join(root, "node_modules", ".magpie-deps-installed"))).toBe(true);
+  },
+  120_000,
+);
+
+test(
+  "install.sh links the CLI into MAGPIE_BIN_DIR and records that path",
+  () => {
+    const root = copyMagpieTrackedFiles();
+    const binDir = join(makeTempDir("magpie-bindir-"), "not-yet-created");
+
+    const install = runInstall(root, binDir);
+
+    expect(install.exitCode).toBe(0);
+    expect(readlinkSync(join(binDir, "magpie"))).toBe(join(root, "bin", "magpie"));
+    expect(readFileSync(join(root, ".installed-cli-path"), "utf8")).toBe(`${join(binDir, "magpie")}\n`);
   },
   120_000,
 );

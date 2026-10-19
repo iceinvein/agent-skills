@@ -60,7 +60,16 @@ install_link() {
 echo "Installing magpie CLI on PATH:"
 
 CLI_INSTALL_DIR=""
-if install_link "/usr/local/bin"; then
+# An explicit MAGPIE_BIN_DIR is the only place the caller wants the link, so a
+# failure there is an error rather than a cue to try the default locations.
+if [ -n "${MAGPIE_BIN_DIR:-}" ]; then
+  if install_link "$MAGPIE_BIN_DIR"; then
+    CLI_INSTALL_DIR="$MAGPIE_BIN_DIR"
+  else
+    echo "magpie postinstall: could not link magpie into MAGPIE_BIN_DIR ($MAGPIE_BIN_DIR)" >&2
+    exit 1
+  fi
+elif install_link "/usr/local/bin"; then
   CLI_INSTALL_DIR="/usr/local/bin"
 elif install_link "$HOME/.local/bin"; then
   CLI_INSTALL_DIR="$HOME/.local/bin"
