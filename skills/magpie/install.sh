@@ -18,14 +18,18 @@ chmod +x "$BIN_SOURCE" || true
 
 # Magpie has runtime dependencies (shiki, etc.) declared in package.json.
 # node_modules is not shipped via npm, so we populate it here. Use bun if
-# available; fall back to a clear error otherwise.
-if [ -f "$SOURCE_DIR/package.json" ] && [ ! -d "$SOURCE_DIR/node_modules" ]; then
+# available; fall back to a clear error otherwise. The gate and marker match
+# bin/magpie's first-run install, so the wrapper does not install again, and a
+# failed install here leaves no marker and is retried on the next run.
+MARKER="$SOURCE_DIR/node_modules/.magpie-deps-installed"
+if [ -f "$SOURCE_DIR/package.json" ] && [ ! -f "$MARKER" ]; then
   if command -v bun >/dev/null 2>&1; then
     echo "Installing magpie runtime dependencies..."
     (cd "$SOURCE_DIR" && bun install --production --silent) || {
       echo "magpie postinstall: bun install failed in $SOURCE_DIR" >&2
       exit 1
     }
+    touch "$MARKER"
   else
     echo "magpie postinstall: bun not found on PATH; install Bun (https://bun.sh) and rerun this script." >&2
     exit 1

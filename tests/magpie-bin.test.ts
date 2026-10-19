@@ -1,5 +1,5 @@
 import { test, expect, afterAll } from "bun:test";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, constants, cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -91,6 +91,37 @@ test(
     expect(second.exitCode).not.toBe(0);
     expect(second.stderr.toString()).toContain(`bun install failed in ${root}`);
     expect(second.stdout.toString()).toBe("");
+  },
+  120_000,
+);
+
+test(
+  "magpie skips the first-run install after install.sh has installed its dependencies",
+  () => {
+    // install.sh tries /usr/local/bin before ~/.local/bin; a writable one would
+    // be overwritten with a link into this throwaway copy.
+    let systemBinWritable = true;
+    try {
+      accessSync("/usr/local/bin", constants.W_OK);
+    } catch {
+      systemBinWritable = false;
+    }
+    if (systemBinWritable) throw new Error("/usr/local/bin is writable; install.sh would relink the real magpie there");
+
+    const root = copyMagpieTrackedFiles();
+    const home = makeTempDir("magpie-home-");
+    const install = Bun.spawnSync(["bash", join(root, "install.sh")], {
+      cwd: root,
+      env: { ...process.env, HOME: home },
+    });
+    expect(install.exitCode).toBe(0);
+    expect(install.stdout.toString()).toContain(`linked  ${home}/.local/bin/magpie`);
+
+    const result = runHelp(root);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.toString()).not.toContain("Installing magpie runtime dependencies");
+    expect(existsSync(join(root, "node_modules", ".magpie-deps-installed"))).toBe(true);
   },
   120_000,
 );
