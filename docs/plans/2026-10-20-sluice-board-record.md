@@ -220,3 +220,6 @@ The full suite on the merged tree did not come back green:
   is ~20% slower there (a board write per status.sh write), so it sits nearer
   bun's 5s under load.
 Master was not moved. The run stays open.
+- Re-run on the partner's word, load 7 falling to 4: 2457 pass, 0 fail
+  across 134 files, 279s; the real board unchanged. Merged locally by
+  fast-forwarding master to this commit.
