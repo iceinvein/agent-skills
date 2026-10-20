@@ -85,7 +85,12 @@ case "$verb" in
 	run-drop)
 		[ -n "$1" ] || exit 0
 		path="$ROOT/runs/$(key "$1")"
-		rm -f "$path" 2>/dev/null || { err "could not remove $path"; exit 1; }
+		# Checked rather than read off rm's status: GNU rm -f takes "not a
+		# directory" for "nothing there" and exits 0 where BSD rm fails.
+		for dir in "$ROOT" "$ROOT/runs"; do
+			[ ! -e "$dir" ] || [ -d "$dir" ] || { err "could not remove $path"; exit 1; }
+		done
+		rm -f "$path" 2>/dev/null && [ ! -e "$path" ] || { err "could not remove $path"; exit 1; }
 		;;
 	session)
 		id="$1" channel="$2" tree="$3"
