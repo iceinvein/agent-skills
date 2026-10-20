@@ -9,7 +9,7 @@
 # The root is $SLUICE_BOARD_DIR, else $CLAUDE_CONFIG_DIR/sluice/board, else
 # $HOME/.claude/sluice/board; with none of the three set the index is empty.
 #
-# Exit: 0 ok, 4 bad arguments, 5 jq missing.
+# Exit: 0 ok, 4 bad arguments, 5 jq missing, 6 the board could not be read.
 
 set -u
 
@@ -70,58 +70,100 @@ paint() { # <sgr> <text>
 	fi
 }
 
-# Every file goes to jq as a raw string and is parsed inside with fromjson?, so
-# one half-written or hand-mangled file drops out alone rather than failing the
-# whole read.
-state() {
-	local args="" n=0 f tree
-	set --
-	if [ -n "$ROOT" ]; then
-		for f in "$ROOT"/runs/*; do
-			[ -f "$f" ] || continue
-			tree="$(head -n 1 "$f" 2>/dev/null)"
-			[ -n "$tree" ] && [ -r "$tree/.sluice/run.json" ] || continue
-			set -- "$@" --arg "t$n" "$tree" --rawfile "r$n" "$tree/.sluice/run.json"
-			n=$((n + 1))
-		done
-		n=0
-		for f in "$ROOT"/sessions/*.json; do
-			[ -f "$f" ] || continue
-			set -- "$@" --rawfile "s$n" "$f"
-			n=$((n + 1))
-		done
-	fi
-	jq -n "$@" '
-		def clean: if type == "string" then gsub("[\u0000-\u001f\u007f]"; "") else . end;
-		def epoch: try fromdateiso8601 catch null;
-		def rank: if any(.tasks[]?; .status == "blocked") then 0
-			elif any(.tasks[]?; .status == "active" or .status == "review") then 1
-			else 2 end;
-		$ARGS.named as $n
-		| [$n | keys[] | select(test("^t[0-9]+$")) | ltrimstr("t")
-			| {tree: $n["t\(.)"], run: ($n["r\(.)"] | fromjson? // null)}
-			| select(.run | type == "object")]
-		| reduce .[] as $r ([]; if any(.[]; .tree == $r.tree) then . else . + [$r] end)
-		| sort_by([(.run | rank), -((.run.updated // .run.started // "" | epoch) // 0)])
-		| . as $runs
-		| [$runs[].run.session | strings] as $taken
-		| [$n | to_entries[] | select(.key | test("^s[0-9]+$")) | .value | fromjson? // empty
-			| select(type == "object")
-			| with_entries(.value |= clean)
-			| select((.updated | epoch) as $t | $t != null and now - $t <= 86400)
-			| select(.channel == "fast" or .channel == "main" or .channel == "deep")
-			| select(.channel != "deep" or (.session as $s | $taken | index([$s]) | not))]
-		| sort_by(-(.updated | epoch))
-		| . as $sessions
-		| def tally($state): reduce ("fast", "main", "deep") as $c ({}; .[$c] = ([$sessions[] | select(.channel == $c and .state == $state)] | length));
-		{runs: $runs, sessions: $sessions,
-			counts: {runs: ($runs | length), working: tally("working"), handed_back: tally("handed back")}}
-	'
+# The board polls for hours while runs close and sessions are pruned under it,
+# so each file is read into a variable first and skipped when that read fails,
+# and jq gets contents rather than paths that may be gone by the time it opens
+# them. TREES keeps each run's path by index, so a path holding a newline or a
+# tab reaches status.sh whole rather than through a line-split read.
+gather() {
+	local n=0 f tree run entry
+	TREES=()
+	JQ_ARGS=(--arg home "${HOME:-}")
+	[ -n "$ROOT" ] || return 0
+	for f in "$ROOT"/runs/*; do
+		[ -f "$f" ] || continue
+		# The x keeps $() from eating every trailing newline, so only the one
+		# board-index.sh wrote is removed.
+		tree="$(cat "$f" 2>/dev/null && printf x)" || continue
+		tree="${tree%x}"
+		tree="${tree%$'\n'}"
+		[ -n "$tree" ] || continue
+		run="$(cat "$tree/.sluice/run.json" 2>/dev/null)" || continue
+		TREES[$n]="$tree"
+		JQ_ARGS+=(--arg "t$n" "$tree" --arg "r$n" "$run")
+		n=$((n + 1))
+	done
+	n=0
+	for f in "$ROOT"/sessions/*.json; do
+		[ -f "$f" ] || continue
+		entry="$(cat "$f" 2>/dev/null)" || continue
+		JQ_ARGS+=(--arg "s$n" "$entry")
+		n=$((n + 1))
+	done
 }
 
+# Builds {board, order, lines}: board is what --json prints, order the runs to
+# draw as "<index into TREES>\t<name>\t<path as shown>", lines the session rows.
+# Each entry is evaluated on its own inside try, so one with an odd shape costs
+# only itself, and the counts are taken from the same filtered list the rows
+# are drawn from.
+COMBINE='
+	def clean: if type == "string" then gsub("[\u0000-\u001f\u007f]"; "") else . end;
+	def base: split("/") | map(select(. != "")) | last // "/";
+	def age($t): ((now - ($t | fromdateiso8601)) / 60 | floor | if . < 0 then 0 else . end)
+		| if . < 60 then "\(.)m" else "\(. / 60 | floor)h\(. % 60)m" end;
+	def need(cond; why): if cond then . else error(why) end;
+	$ARGS.named as $n
+	| [$n | keys[] | select(test("^t[0-9]+$")) | ltrimstr("t") | tonumber
+		| . as $i
+		| try (
+			$n["r\($i)"] | fromjson
+			| need(type == "object"; "not a run")
+			| need((.tasks | type) == "array"; "no tasks")
+			| need(all(.tasks[]; type == "object" and (.status | type) == "string"); "odd tasks")
+			| {i: $i, tree: $n["t\($i)"], run: .,
+				rank: (if any(.tasks[]; .status == "blocked") then 0
+					elif any(.tasks[]; .status == "active" or .status == "review") then 1
+					else 2 end),
+				t: (.updated // .started | fromdateiso8601)}
+		) catch empty]
+	| reduce .[] as $r ([]; if any(.[]; .tree == $r.tree) then . else . + [$r] end)
+	| sort_by([.rank, -.t])
+	| . as $runs
+	| [$runs[].run.session | strings] as $taken
+	| [$n | keys[] | select(test("^s[0-9]+$")) | $n[.]
+		| try (
+			fromjson
+			| need(type == "object"; "not an entry")
+			| with_entries(.value |= clean)
+			| need((.tree | type) == "string" and .tree != ""; "no tree")
+			| need(.channel == "fast" or .channel == "main" or .channel == "deep"; "bad channel")
+			| need(.state == "working" or .state == "handed back"; "bad state")
+			| (.updated | fromdateiso8601) as $t
+			| select(now - $t <= 86400)
+			| select(.channel != "deep" or (.session as $s | $taken | index([$s]) | not))
+			| {entry: ., t: $t, line: ([.channel, (.tree | base), .state,
+				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)] | @tsv)}
+		) catch empty]
+	| sort_by(-.t)
+	| . as $sessions
+	| def tally($state): reduce ("fast", "main", "deep") as $c ({}; .[$c] = ([$sessions[] | select(.entry.channel == $c and .entry.state == $state)] | length));
+	{board: {runs: [$runs[] | {tree, run}], sessions: [$sessions[].entry],
+			counts: {runs: ($runs | length), working: tally("working"), handed_back: tally("handed back")}},
+		order: [$runs[] | (.tree | clean) as $c | [.i, ($c | base),
+			(if $home != "" and $c == $home then "~"
+				elif $home != "" and ($c | startswith($home + "/")) then "~" + ($c | ltrimstr($home))
+				else $c end)] | @tsv],
+		lines: [$sessions[].line]}
+'
+
+# Prints the frame, or returns 1 having printed nothing when the state could
+# not be built at all.
 render() {
-	local s="$1" counts head line tree name shown channel base kind age
-	counts="$(jq -r '.counts | [.runs + .working.deep + .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv' <<<"$s")"
+	local s counts head line i name shown channel base kind age
+	gather
+	s="$(jq -n "${JQ_ARGS[@]}" "$COMBINE" 2>/dev/null)" && [ -n "$s" ] || return 1
+	counts="$(jq -r '.board.counts | [.runs + .working.deep + .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv' <<<"$s")"
 	head=""
 	set -- $counts
 	[ "$1" -gt 0 ] && head="$head · $1 deep"
@@ -132,24 +174,16 @@ render() {
 	[ -n "$head" ] || head=" · nothing running"
 	printf '%s%s  %s\n' "$(paint 1 sluice)" "$head" "$(paint 2 "$(date +%H:%M:%S)")"
 
-	while IFS= read -r tree; do
-		[ -n "$tree" ] || continue
-		shown="$tree"
-		if [ -n "${HOME:-}" ]; then
-			case "$tree" in
-				"$HOME") shown="~" ;;
-				"$HOME"/*) shown="~${tree#"$HOME"}" ;;
-			esac
-		fi
-		name="$(basename "$tree")"
+	while IFS="$(printf '\t')" read -r i name shown; do
+		[ -n "$i" ] || continue
 		printf '\n%s  %s\n' "$(paint 1 "$name")" "$(paint 2 "$shown")"
-		line="$(bash "$(dirname "$0")/status.sh" line --full --dir "$tree" 2>/dev/null)"
+		line="$(bash "$(dirname "$0")/status.sh" line --full --dir "${TREES[$i]}" 2>/dev/null)"
 		if [ "$colour" = 0 ]; then
 			line="$(printf '%s\n' "$line" | sed "s/$ESC\[[0-9;]*m//g")"
 		fi
 		[ -n "$line" ] && printf '%s\n' "$line"
 	done <<EOF
-$(jq -r '.runs[].tree' <<<"$s")
+$(jq -r '.order[]' <<<"$s")
 EOF
 
 	local first=1
@@ -161,25 +195,21 @@ EOF
 		fi
 		printf '%s  %s  %s  %s\n' "$(paint 1 "$channel")" "$base" "$kind" "$(paint 2 "$age")"
 	done <<EOF
-$(jq -r '
-	def age($t): ((now - ($t | fromdateiso8601)) / 60 | floor | if . < 0 then 0 else . end)
-		| if . < 60 then "\(.)m" else "\(. / 60 | floor)h\(. % 60)m" end;
-	.sessions[]
-	| [.channel,
-		((.tree // "") | split("/") | map(select(. != "")) | last // "/"),
-		.state,
-		(if .state == "working" then "◷ \(age(.routed // .updated))" else "\(age(.updated)) ago" end)]
-	| @tsv' <<<"$s")
+$(jq -r '.lines[]' <<<"$s")
 EOF
+	return 0
 }
 
+UNREADABLE="could not read the board"
+
 if [ "$json" = 1 ]; then
-	state
+	gather
+	jq -n "${JQ_ARGS[@]}" "$COMBINE | .board" 2>/dev/null || { err "$UNREADABLE"; exit 6; }
 	exit 0
 fi
 
 if [ "$watch" = 0 ]; then
-	render "$(state)"
+	render || { err "$UNREADABLE"; exit 6; }
 	exit 0
 fi
 
@@ -194,10 +224,12 @@ trap 'exit 143' TERM
 
 printf '%s[?25l%s[2J' "$ESC" "$ESC"
 while :; do
+	frame="$(render)" || frame="board.sh: $UNREADABLE"
 	# Each line clears its own tail, so a row shorter than the one it overwrites
-	# leaves nothing of the old one behind.
-	frame="$(render "$(state)" | sed "s/\$/$ESC[K/")"
-	printf '%s[H%s\n%s[J' "$ESC" "$frame" "$ESC"
+	# leaves nothing of the old one behind. No newline after the last row: one
+	# there scrolls a frame as tall as the terminal on every redraw.
+	frame="$(printf '%s\n' "$frame" | sed "s/\$/$ESC[K/")"
+	printf '%s[H%s%s[J' "$ESC" "$frame" "$ESC"
 	# Backgrounded so a signal ends the wait at once rather than after the sleep.
 	sleep "$interval" &
 	sleeper=$!
