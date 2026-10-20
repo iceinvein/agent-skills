@@ -992,6 +992,31 @@ describe("stop-guard.sh entry check", () => {
 			expect(decision(r.out)).toBe("block");
 		});
 
+		test("a refused fast handback leaves the session working on the board", () => {
+			const { cfg, dir, input } = movedSession("v-board", "fast");
+			const root = mkdtempSync(join(tmpdir(), "sluice-guard-board-"));
+			const { CLAUDE_CODE_SESSION_ID: _, ...rest } = process.env;
+			const env = { ...rest, SLUICE_BOARD_DIR: root, CLAUDE_CONFIG_DIR: cfg };
+			const seed = Bun.spawnSync({
+				cmd: ["bash", join(SCRIPTS, "board-index.sh"), "session", "v-board", "fast", dir],
+				env,
+				timeout: 5000,
+			});
+			expect(seed.exitCode).toBe(0);
+
+			const r = Bun.spawnSync({
+				cmd: ["bash", GUARD],
+				stdin: new TextEncoder().encode(JSON.stringify(input)),
+				cwd: tmpdir(),
+				env,
+				timeout: 5000,
+			});
+			const out = r.stdout.toString();
+			expect(decision(out)).toBe("block");
+			expect(JSON.parse(out).reason).toContain("status.sh verify");
+			expect(JSON.parse(readFileSync(join(root, "sessions", "v-board.json"), "utf8")).state).toBe("working");
+		});
+
 		test("the refusal names the recorded check and the no-check escape", () => {
 			const { cfg, input } = movedSession("v2", "fast");
 
@@ -1455,9 +1480,11 @@ describe("stop-guard.sh records the handback on the board", () => {
 		return mkdtempSync(join(tmpdir(), "sluice-guard-board-"));
 	}
 
+	/** CLAUDE_CONFIG_DIR is a fresh temp dir so the hook never reads or writes
+	 * the real ~/.claude/sluice stamps and nudges. */
 	function env(root: string) {
 		const { CLAUDE_CODE_SESSION_ID: _, ...rest } = process.env;
-		return { ...rest, SLUICE_BOARD_DIR: root };
+		return { ...rest, SLUICE_BOARD_DIR: root, CLAUDE_CONFIG_DIR: mkdtempSync(join(tmpdir(), "sluice-guard-cfg-")) };
 	}
 
 	function seed(root: string, sid: string, channel: string, tree: string) {
