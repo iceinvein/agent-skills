@@ -388,8 +388,13 @@ fi
 
 # The board is a view across every tree, not part of any run, so a board that
 # cannot be written costs a line on stderr and never the command's own result.
+# board-index.sh's own complaint is folded into the note, so a failure reads as
+# one line rather than two that look like separate problems.
 board_index() { # <verb> [args...]
-	bash "$(dirname "$0")/board-index.sh" "$@" || err "note: board-index.sh $1 failed, so the board may not show this"
+	local msg
+	msg="$(bash "$(dirname "$0")/board-index.sh" "$@" 2>&1 >/dev/null)" && return 0
+	msg="${msg//board-index.sh: /}"
+	err "note: board not updated: ${msg//$'\n'/; }"
 }
 
 # Pruning only tidies what the board reads, which skips dead entries anyway.
@@ -398,9 +403,10 @@ board_prune() {
 }
 
 # Exists to put the channel into the transcript verbatim, as a command that
-# ran, which run-stats and the stop guard read back. So it touches no state:
-# a route is called before any run is opened, and fast opens none at all. For
-# the same reason it runs ahead of the jq check below, which only state needs.
+# ran, which run-stats and the stop guard read back. It opens no run, since a
+# route is called before any run is opened and fast opens none at all, but with
+# a session id known it writes that session's entry on the board. It still runs
+# ahead of the jq check below, because the announcement must work without jq.
 # Bypass is refused because it is no code change, and a marker for it would
 # read back as a routed change that never happened.
 if [ "$SUB" = "route" ]; then

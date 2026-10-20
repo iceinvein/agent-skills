@@ -78,7 +78,8 @@ case "$verb" in
 		;;
 	run-drop)
 		[ -n "$1" ] || exit 0
-		rm -f "$ROOT/runs/$(key "$1")"
+		path="$ROOT/runs/$(key "$1")"
+		rm -f "$path" 2>/dev/null || { err "could not remove $path"; exit 1; }
 		;;
 	session)
 		id="$1" channel="$2" tree="$3"
@@ -118,9 +119,23 @@ case "$verb" in
 			tree="$(head -n 1 "$f")"
 			[ -f "$tree/.sluice/run.json" ] || rm -f "$f"
 		done
+		# One jq for every session rather than one each, because prune runs on
+		# every route and a jq per file made each route slower than the last day
+		# of sessions. Contents go on stdin as NUL-separated name and contents
+		# records, as board.sh feeds them, so no count of files meets the argv
+		# limit. Anything unreadable or unparseable comes back to be removed.
 		for f in "$ROOT"/sessions/*.json; do
 			[ -f "$f" ] || continue
-			jq -e '(now - (.updated | fromdateiso8601)) <= 86400' "$f" >/dev/null 2>&1 || rm -f "$f"
+			entry=""
+			{ IFS= read -r -d '' entry; } 2>/dev/null <"$f"
+			printf '%s\0%s\0' "$f" "$entry"
+		done | jq -R -s -j '
+			(split("\u0000") | .[:-1]) as $p
+			| range(0; $p | length; 2)
+			| select(($p[. + 1] | try (fromjson | (now - (.updated | fromdateiso8601)) <= 86400) catch false) != true)
+			| $p[.] + "\u0000"
+		' 2>/dev/null | while IFS= read -r -d '' f; do
+			rm -f "$f"
 		done
 		;;
 esac

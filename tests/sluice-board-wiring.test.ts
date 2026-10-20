@@ -132,3 +132,25 @@ test("route still succeeds with its line when the board cannot be written", () =
 	expect(r.out).toBe("sluice: fast channel\n");
 	expect(r.err).toContain("status.sh: note:");
 });
+
+function oneNote(err: string) {
+	const lines = err.split("\n").filter((l) => l !== "");
+	expect(lines.length).toBe(1);
+	expect(lines[0]).toStartWith("status.sh: note: board not updated: ");
+}
+
+test("a board that cannot be written costs route exactly one note line", () => {
+	const root = join(boardDir(), "not-a-dir");
+	writeFileSync(root, "");
+	oneNote(status(root, repo(), "route", "fast", "--session", "s1").err);
+});
+
+test("a board that cannot be written costs close exactly one note line", () => {
+	const root = join(boardDir(), "not-a-dir");
+	writeFileSync(root, "");
+	const dir = repo();
+	status(root, dir, "init", "--topic", "widget", "--channel", "deep");
+	const r = status(root, dir, "close");
+	expect(r.code).toBe(0);
+	oneNote(r.err);
+});

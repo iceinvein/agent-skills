@@ -38,6 +38,25 @@ describe("run-add and run-drop", () => {
 	test("run-drop exits 0 when the pointer is already gone", () => {
 		expect(run(board(), "run-drop", "/nowhere").code).toBe(0);
 	});
+
+	test("run-drop exits 1 with only the contract message when the root is not a directory", () => {
+		const root = join(board(), "file");
+		writeFileSync(root, "");
+		const r = run(root, "run-drop", "/a/b");
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not remove ${root}/runs/%2Fa%2Fb\n`);
+	});
+
+	test("run-drop exits 1 with only the contract message when the pointer cannot be removed", () => {
+		const root = board();
+		run(root, "run-add", "/a/b");
+		chmodSync(join(root, "runs"), 0o555);
+		const r = run(root, "run-drop", "/a/b");
+		chmodSync(join(root, "runs"), 0o755);
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not remove ${root}/runs/%2Fa%2Fb\n`);
+		expect(existsSync(join(root, "runs", "%2Fa%2Fb"))).toBe(true);
+	});
 });
 
 describe("session", () => {
@@ -121,6 +140,32 @@ describe("prune", () => {
 		}));
 		expect(run(root, "prune").code).toBe(0);
 		expect(existsSync(join(root, "sessions", "old.json"))).toBe(false);
+	});
+
+	test("removes a session entry that is not JSON", () => {
+		const root = board();
+		mkdirSync(join(root, "sessions"));
+		writeFileSync(join(root, "sessions", "bad.json"), "{not json");
+		expect(run(root, "prune").code).toBe(0);
+		expect(existsSync(join(root, "sessions", "bad.json"))).toBe(false);
+	});
+
+	test("with fifty fresh and fifty stale sessions, keeps exactly the fresh ones", () => {
+		const root = board();
+		mkdirSync(join(root, "sessions"));
+		const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+		const fresh: string[] = [];
+		for (let i = 0; i < 50; i++) {
+			const write = (id: string, updated: string) =>
+				writeFileSync(join(root, "sessions", `${id}.json`), JSON.stringify({
+					session: id, channel: "fast", tree: "/t", routed: updated, state: "working", updated,
+				}));
+			write(`fresh-${i}`, iso(Date.now()));
+			write(`stale-${i}`, iso(Date.now() - 2 * 86400 * 1000));
+			fresh.push(`fresh-${i}.json`);
+		}
+		expect(run(root, "prune").code).toBe(0);
+		expect(readdirSync(join(root, "sessions")).sort()).toEqual(fresh.sort());
 	});
 
 	test("keeps a session updated just now", () => {
