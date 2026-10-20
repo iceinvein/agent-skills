@@ -18,7 +18,7 @@
       "name": "bug-hunter",
       "source": "./skills/bug-hunter",
       "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. One agent collects intent from the request, specs, docs and unchanged code, runs QA-style scenarios from a catalog as repros in the repo's own test runner inside a scratch copy, and re-runs each failure clean before reporting it. Counts a contradicted claim, or a result wrong under every reading, as a bug; keeps ambiguities for questions with more than one acceptable answer; reports latent defects without filing them. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "author": {
         "name": "iceinvein"
       }
@@ -308,7 +308,7 @@
       "name": "sluice",
       "source": "./skills/sluice",
       "description": "Routes work by change shape into four channels (bypass, fast, main, deep) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Carries nine rules as one-liners in the router and the full treatment in references read only on friction. Checks the finished plan with plan.sh validate rather than trusting it to memory, seeds the run state from it, keeps a deep run's task breakdown in .sluice/run.json so a statusline segment, one status command and a SessionStart hook can answer where the run is (the hook prints a live run at every session start, compaction included), and closes each run with a ledger read out of the session transcript: elapsed, tools, tokens, and what each dispatched agent cost where the transcript recorded it. Two Stop hooks hold a handback: one refuses a tree that moved since its last recorded check, the other refuses a changed existing test not proven to fail on the session's starting code (or recorded with a reason). Claude Code only; stands down where the superpowers pipeline governs the repo.",
-      "version": "0.25.4",
+      "version": "0.25.5",
       "author": {
         "name": "iceinvein"
       },
