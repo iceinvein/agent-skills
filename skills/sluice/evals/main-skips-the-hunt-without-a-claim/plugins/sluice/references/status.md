@@ -29,14 +29,21 @@ bash <skill-dir>/scripts/status.sh close
 bash <skill-dir>/scripts/status.sh route deep
 bash <skill-dir>/scripts/status.sh verify -- bun test
 bash <skill-dir>/scripts/status.sh verify --none "docs only, nothing executes them"
+bash <skill-dir>/scripts/board.sh
+bash <skill-dir>/scripts/board.sh --watch 5
+bash <skill-dir>/scripts/board.sh --json
 ```
 
 `route` and `verify` are the two exceptions: neither needs a run.
 
-`route` reads and writes no state, and prints `sluice: <channel> channel` so
-the channel lands in the transcript as a tool input, which is kept as written
-where the announcement's prose may not be. `references/meter.md` says why that
-matters.
+`route` prints `sluice: <channel> channel` so the channel lands in the
+transcript as a tool input, which is kept as written where the announcement's
+prose may not be. `references/meter.md` says why that matters. It opens no run,
+but with a session id (`--session`, defaulting to `$CLAUDE_CODE_SESSION_ID`) it
+writes that session's entry on the board, because a route is the only sign a
+`fast` or `main` session leaves. With no id it writes nothing: there is nobody
+to name, and none is made up. Either way it exits 0 once the channel is
+printed, since the announcement is the part that matters.
 
 `verify -- <cmd>` runs the check from the tree's top level, passes a failing
 check's exit code through, and on a pass writes the tree's content digest to
@@ -482,6 +489,50 @@ A run that is only visible to the session running it is a run your partner
 cannot redirect. That is the same argument the channel announcement makes, and
 the statusline is where it holds for the hour after the announcement scrolled
 away.
+
+## Board
+
+Everything above answers from inside one worktree set. `scripts/board.sh`
+answers across the machine: every live `deep` run and every routed `fast` or
+`main` session, drawn once, or redrawn in place every two seconds (or every
+`<seconds>` given) with `--watch` until interrupted. `--json` prints the
+combined state for another reader instead, with the counts the header shows,
+and does not combine with `--watch`.
+
+It reads an index of pointers, never copies, at `$SLUICE_BOARD_DIR`, else
+`$CLAUDE_CONFIG_DIR/sluice/board`, else `$HOME/.claude/sluice/board`; with none
+of the three set nothing is written and the board is empty. `runs/` holds one
+file per tree with a live run, naming the tree, and `sessions/<id>.json` one
+per routed session. `run.json` stays the single authority on a run, so the
+board can never show a stale copy of one. `SLUICE_BOARD_DIR` exists so the
+tests can point every script at a temporary directory and never touch the real
+board.
+
+`scripts/board-index.sh` is the only writer. Every `status.sh` write adds the
+run's pointer, so a run opened before the board existed joins it at its next
+flip; `move` re-points it and `close` drops it. `route` writes the session's
+entry as `working`, a later route in the same session overwriting it, so an
+escalation from `fast` to `main` shows as `main`. The Stop hook marks a `fast`
+or `main` entry `handed back` when it lets a stop through, and only then: a
+refused stop is the session still working. A failed board write is one
+`status.sh: note: board not updated: ...` line on stderr and never changes the
+command's result, because the board is a view across trees and not part of
+any run.
+
+A `deep` block is `status.sh line --full` for its tree, unchanged, so it reads
+exactly as the statusline does. Blocked runs sort first, then those with a task
+active or in review, then the rest. A session row shows its channel, the tree's
+name and its state: `working` with the time since it was routed, `handed back`
+with the time since. A `deep` session whose run is already drawn is not listed
+again. Session entries past a day since their last update are hidden, the same
+one-day line `show` uses for an idle run, and the next `init`, or `route` with
+a session id, removes them along with pointers to trees that no longer hold a run. An entry
+that cannot be read is skipped on its own, so one bad file costs one row
+rather than the board.
+
+The board writes nothing, so it takes no lock. It needs `jq` and exits 5
+without it, and 6 when the board cannot be read at all, because unlike the
+statusline it has somewhere to put an error.
 
 ## Friction
 

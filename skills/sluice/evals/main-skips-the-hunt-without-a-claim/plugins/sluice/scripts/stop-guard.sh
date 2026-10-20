@@ -62,6 +62,20 @@ if [ -n "$input" ]; then
 	sid="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null || true)"
 	transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
 fi
+
+# A stop let through is the session handing back, so the board marks it. A
+# trap rather than a call before each exit: the hook lets a stop through from
+# a dozen places, and a new one added later is covered without anyone having
+# to remember the board. Every block decision sets refused first, since a
+# refused stop is the session still working. The board's output and failure
+# are dropped: stdout carries the decision, and the hook always exits 0.
+refused=""
+board_handback() {
+	[ -z "$refused" ] && [ -n "$sid" ] || return 0
+	bash "$here/board-index.sh" handback "$sid" >/dev/null 2>&1 || true
+}
+trap board_handback EXIT
+
 [ "$active" = "true" ] && exit 0
 [ -d "$cwd" ] || exit 0
 
@@ -175,6 +189,7 @@ entry_nudge() {
 
 	mkdir -p "$root/nudged" 2>/dev/null || true
 	: >"$root/nudged/$sid" 2>/dev/null || true
+	refused=1
 	jq -n '{
 		decision: "block",
 		reason: "sluice: this session has changed the tree since it opened and no channel was ever announced, so the work is running with none of the rules that its shape calls for and nothing to meter it from. Invoke the sluice skill now, route what you have been doing, and say which channel it is. If it genuinely changed nothing you own (a scratch file, or an edit that was not yours), say so and stop; this will not ask twice."
@@ -225,6 +240,7 @@ verify_gate() {
 	[ -f "$moved_tree/.sluice/verified" ] && recorded="$(sed -n '1p' "$moved_tree/.sluice/verified" 2>/dev/null)"
 	[ "$recorded" = "$now" ] && return 0
 
+	refused=1
 	jq -n --arg channel "$channel" '{
 		decision: "block",
 		reason: ("sluice: this \($channel) session has changed the tree and no passing check is recorded against it as it stands now, so the handback would carry a change nothing has proved. Run the check that proves it through the recorder: status.sh verify -- <cmd> (the tests, the build, whatever exercises this change). If no check can cover it (docs, config), record why: status.sh verify --none \"<reason>\". Then hand back.")
@@ -305,6 +321,7 @@ test_gate() {
 
 	# Paths land in a reason the harness prints, so control bytes are stripped
 	# as the run guard strips them from the topic and tree.
+	refused=1
 	jq -n --arg paths "$missing" --arg base "$base" '{
 		decision: "block",
 		reason: ("sluice: this session changed existing tests in a way that asks less of the code (an edited or removed assertion, a deleted test, a skip or focus marker), and nothing records why: "
@@ -413,6 +430,7 @@ verdict="$(printf '%s' "$run" | jq -c --argjson now "$(date -u +%s)" --arg tree 
 # anyone into. What replaces it is the step `move` could not take -- the session
 # following the run -- because a controller guarded here is a controller sitting
 # in the tree its own run left.
+refused=1
 printf '%s' "$verdict" | jq 2>/dev/null '{
 	decision: "block",
 	reason: ("sluice: the deep run \(.topic) is \(.progress) done with tasks still to go and nothing marked blocked or paused, so ending the turn here hands a live run back with nothing for your partner to decide. Still open: \(.open)."
