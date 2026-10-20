@@ -199,6 +199,15 @@ describe("board.sh sessions", () => {
 		expect(out.split("\n")[0].replace(CLOCK, "")).toBe("sluice · 1 deep");
 	});
 
+	test("a main session whose id is a drawn run's session is not listed or counted again", () => {
+		const root = boardDir();
+		rawRun(root, JSON.stringify({ schema: 1, topic: "t", channel: "main", session: "m", started: "2026-01-01T00:00:00Z", tasks: [] }));
+		index(root, "session", "m", "main", "/work/shop");
+		const out = board(root).out;
+		expect(header(out)).toBe("sluice · 1 main working");
+		expect(out).not.toContain("shop");
+	});
+
 	test("a session entry updated two days ago is not listed", () => {
 		const root = boardDir();
 		index(root, "session", "old", "fast", "/work/stale");
@@ -488,7 +497,7 @@ describe("board.sh --watch", () => {
 	});
 
 	test("an interval with a leading zero is read as decimal seconds", async () => {
-		const proc = Bun.spawn({ cmd: ["bash", BOARD, "--watch", "05"], env: env(boardDir()), timeout: 1500, stdout: "pipe" });
+		const proc = Bun.spawn({ cmd: ["bash", BOARD, "--watch", "08"], env: env(boardDir()), timeout: 1500, stdout: "pipe" });
 		const out = await new Response(proc.stdout).text();
 		await proc.exited;
 		expect(out).toContain("sluice · nothing running");

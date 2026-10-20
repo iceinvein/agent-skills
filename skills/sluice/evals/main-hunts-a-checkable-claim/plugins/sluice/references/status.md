@@ -527,8 +527,8 @@ order: a run in the stop's own tree, then the run found through the session's
 pointer at the main tree, then the tree's `run.at` forward, never the main
 tree's run read from a runless worktree. That first run counts as live only
 when it is the session's own: its `run.json` names that session. A run that
-names no session is no session's own, matching the board, which hides a `deep`
-row only behind a run naming it. When it names none or another session,
+names no session is no session's own, matching the board, which hides a
+session row only behind a run naming it. When it names none or another session,
 whether sitting in the stop's own tree or reached through the forward, or its
 `run.json` cannot be read, the entry is marked `handed back`, and no later run
 in the order is looked at. A failed
@@ -553,11 +553,15 @@ active or in review, then the rest. A session row shows its channel, the tree's
 name and its state: `working` with the time since it was routed, `handed back`
 with the time since. The channel, name and state columns are padded to the
 widest value among that frame's session rows, two spaces apart, so the ages
-line up. Width is counted in characters of the drawn text (jq's count, so the
-same under a C locale), never colour codes; a wide glyph such as `日` that takes
-two terminal cells counts as one, so a row holding one draws a cell short. A `deep` session row reads `handed back` once a turn ends
-with no run live for it, and otherwise stays `working` while its run's bar is
-drawn; a `deep` session whose run is drawn is not listed again. Session
+line up. Width is counted in characters of the drawn text (jq's count, so
+the same under a C locale), never colour codes. A wide glyph such as `日` that
+takes two terminal cells counts as one, so a row holding one draws a cell
+short; a name stored decomposed (a letter plus a combining accent, as some
+filesystems write paths) counts one column per code point, so it can draw a
+cell short too. A `deep` session row reads `handed back` once a turn ends with
+no run live for it, and otherwise stays `working` while its run's bar is
+drawn. A session of any channel whose id is a drawn run's `session` is not
+listed or counted again, so one piece of work is one row and one count. Session
 entries past a day since their last update are hidden, the same one-day line
 `show` uses for an idle run, and the next `init`, or `route` with a session
 id, removes them along with pointers to trees that no longer hold a run. An

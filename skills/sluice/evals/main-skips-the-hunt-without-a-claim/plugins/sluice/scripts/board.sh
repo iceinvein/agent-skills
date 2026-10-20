@@ -185,7 +185,7 @@ COMBINE='
 			| need(.state == "working" or .state == "handed back"; "bad state")
 			| (.updated | fromdateiso8601) as $t
 			| select(now - $t <= 86400)
-			| select(.channel != "deep" or (.session as $s | $taken | index([$s]) | not))
+			| select(.session as $s | $taken | index([$s]) | not)
 			| {entry: ., t: $t, cells: [.channel, (.tree | base), .state,
 				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)]}
 		) catch empty]
