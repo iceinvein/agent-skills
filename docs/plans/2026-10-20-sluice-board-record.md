@@ -119,3 +119,24 @@ run is compared on sluice tests plus the count of non-sluice failures.
   ~43ms (early return before any git call), fast ~70ms and deep mid-run
   ~85ms per stop, against master's 43/69 which writes no board. T5 marked done
   with its findings closed by T6.
+
+## Hunt
+
+Report: `.bug-hunter/2026-10-20-sluice-board/report.md` (4 bugs, 3
+ambiguities, 28 covered).
+
+- B1 (unreadable board root draws as empty, exit 0; status.md says exit 6),
+  B2 (backslash in a tree name drawn doubled, jq @tsv escaping) and B4 (a deep
+  design stop kept `working` by another session's run reached through run.at)
+  go to Task 7. B4's fix also closes T6's accepted own-tree case: a run counts
+  as live for the stop only when its `.session` is this session or empty.
+- B3 (move prints two notes when the board is unwritable) ruled not a bug:
+  the status.sh header promises one note per failed board write, and move
+  makes two.
+- A1 (`--watch 05`), A2 (runs opened with --channel main counted as deep), A3
+  (session rows aligned vs two-space joined) go to the partner at handback.
+- T7 (a97262e) review: B1, B2, B4 fixed and their hunt repros pass; B3's
+  repro still fails as ruled. Two Minors sent back: an unreadable `runs/` or
+  `sessions/` drew as an empty board, and status.md described the live-run
+  rule as an "or" where the code takes the first run found in order.
+- T7 Minors fixed in f3e05c0, read by the controller.
