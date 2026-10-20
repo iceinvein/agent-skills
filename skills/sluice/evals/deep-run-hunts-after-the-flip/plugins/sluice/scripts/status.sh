@@ -596,12 +596,17 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		exit 0
 	fi
 
-	mk_dir "$TREE/.sluice" "$TREE"
-	# As in verify: a record git can see moves the tree it records.
-	git -C "$TREE" check-ignore -q .sluice/tests-changed || {
-		err "$TREE/.sluice/.gitignore does not ignore tests-changed, so the record would move the tree it records; add * to it"
-		exit 1
-	}
+	# In the repo's common git dir rather than the tree, so every worktree reads
+	# the same records: a test recorded where it was edited still counts in the
+	# tree it is merged into. Inside the git dir it is never content of the tree,
+	# so it cannot move the tree it records. One file per call, because sessions
+	# in several worktrees record at once and bash splits a long append into
+	# several writes that interleave. The tree's own .sluice/tests-changed is
+	# where records were written before, and is still read.
+	COMMON="$(git -C "$TREE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+	[ -n "$COMMON" ] || { err "could not find the git dir of $TREE, so nothing was recorded"; exit 1; }
+	RECORDS="$COMMON/sluice/tests-changed"
+	mkdir -p "$RECORDS" || { err "could not make $RECORDS"; exit 1; }
 
 	# Hashed path-aware, so filters apply, the way the stop gate hashes it. A
 	# directory where the file was (a fixture split into many) is that file's
@@ -630,14 +635,16 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 		while IFS= read -r p; do
 			sha="$(current_blob "$p")" || exit 1
 			found=""
-			if [ -f "$TREE/.sluice/tests-changed" ]; then
+			for rec in "$RECORDS"/* "$TREE/.sluice/tests-changed"; do
+				[ -f "$rec" ] || continue
 				while IFS=$'\t' read -r rec_sha rec_path rest; do
 					if [ "$rec_sha" = "$sha" ] && [ "$rec_path" = "$p" ]; then
 						found=1
 						break
 					fi
-				done <"$TREE/.sluice/tests-changed"
-			fi
+				done <"$rec"
+				[ -n "$found" ] && break
+			done
 			[ -n "$found" ] || UNRECORDED="$UNRECORDED$p"$'\n'
 		done <<<"$FLAGGED"
 		FLAGGED="${UNRECORDED%$'\n'}"
@@ -754,7 +761,13 @@ $(cd "$MAIN_ROOT" && pwd -P)"
 "
 		COUNT=$((COUNT + 1))
 	done <<<"$FLAGGED"
-	printf '%s' "$LINES" >>"$TREE/.sluice/tests-changed" || { err "could not write $TREE/.sluice/tests-changed"; exit 1; }
+	# Written under a dot name and renamed, so a reader never sees half of it.
+	NEW="$(mktemp "$RECORDS/.XXXXXX")" || { err "could not make a record file in $RECORDS"; exit 1; }
+	printf '%s' "$LINES" >"$NEW" && mv "$NEW" "$RECORDS/${NEW##*/.}" || {
+		rm -f "$NEW"
+		err "could not write a record to $RECORDS"
+		exit 1
+	}
 	echo "sluice: recorded $COUNT changed test(s) as $STATUS"
 	[ -z "$SKIPPED" ] || echo "sluice: not recorded, since no run can prove a deletion: $SKIPPED; record it with --none <reason>"
 	exit 0

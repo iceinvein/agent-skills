@@ -240,7 +240,7 @@ fi
 # A test edited until it agrees with the new code proves nothing about that
 # code, and a passing check cannot tell that edit from an honest one. So a
 # changed existing test (a removed line, a deletion, a skip or focus marker,
-# as test-changes.sh decides) needs a line in .sluice/tests-changed naming its
+# as test-changes.sh decides) needs a line in the repo's tests-changed record naming its
 # current content: either proved red on the session's base by
 # `status.sh tests-changed -- <cmd>`, or recorded unproven with a reason. An
 # edit made after its record names other content and is refused again. A new
@@ -261,6 +261,17 @@ test_gate() {
 	flagged="$(bash "$here/test-changes.sh" "$moved_tree" "$base" 2>/dev/null)" || return 0
 	[ -n "$flagged" ] || return 0
 
+	# Records live in the repo's common git dir, one file per status.sh call,
+	# shared by every worktree, so a test recorded in the worktree it was edited
+	# in still counts once merged here. A record names content, not a tree, so it
+	# holds wherever that content is. The tree's own .sluice/tests-changed is
+	# where records were written before, and those still stand.
+	local common records rec
+	common="$(git -C "$moved_tree" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+	records=()
+	[ -n "$common" ] && records+=("$common/sluice/tests-changed"/*)
+	records+=("$moved_tree/.sluice/tests-changed")
+
 	missing=""
 	while IFS= read -r p; do
 		if [ -f "$moved_tree/$p" ]; then
@@ -278,14 +289,16 @@ test_gate() {
 			sha="-"
 		fi
 		found=""
-		if [ -f "$moved_tree/.sluice/tests-changed" ]; then
+		for rec in "${records[@]}"; do
+			[ -f "$rec" ] || continue
 			while IFS=$'\t' read -r rec_sha rec_path rest; do
 				if [ "$rec_sha" = "$sha" ] && [ "$rec_path" = "$p" ]; then
 					found=1
 					break
 				fi
-			done <"$moved_tree/.sluice/tests-changed"
-		fi
+			done <"$rec"
+			[ -n "$found" ] && break
+		done
 		[ -n "$found" ] || missing="$missing$p"$'\n'
 	done <<<"$flagged"
 	[ -n "$missing" ] || return 0
@@ -296,7 +309,7 @@ test_gate() {
 		decision: "block",
 		reason: ("sluice: this session changed existing tests in a way that asks less of the code (an edited or removed assertion, a deleted test, a skip or focus marker), and nothing records why: "
 			+ ($paths | split("\n") | map(select(. != "") | gsub("[\u0000-\u001f\u007f]"; "")) | join(", "))
-			+ ". A test bent to fit new code proves nothing about it, so each one needs a record against the session base \($base). Prove it fails on the old code: status.sh tests-changed --because \"<the behaviour the change replaces>\" -- <the suite, scoped to these files> (the run is in a scratch worktree of the base, so a node suite usually needs --with node_modules). If it cannot run on the old code, record why: status.sh tests-changed --because \"<the behaviour the change replaces>\" --none \"<why it cannot run on the old code>\". No run can prove a deleted test, so prove the edited ones first, then record each deletion with --none. --only <path> proves or records just those paths, so a fixture that cannot be proved can go to --none --only <fixture> on its own. Then name each changed test, and why it changed, in your reply.")
+			+ ". A test bent to fit new code proves nothing about it, so each one needs a record against the session base \($base). Prove it fails on the old code: status.sh tests-changed --because \"<the behaviour the change replaces>\" -- <the suite, scoped to these files> (the run is in a scratch worktree of the base, so a node suite usually needs --with node_modules). If it cannot run on the old code, record why: status.sh tests-changed --because \"<the behaviour the change replaces>\" --none \"<why it cannot run on the old code>\". No run can prove a deleted test, so prove the edited ones first, then record each deletion with --none. --only <path> proves or records just those paths, so a fixture that cannot be proved can go to --none --only <fixture> on its own. Then name each changed test, and why it changed, in your reply. The base is where this tree stood when the session opened, so a test that arrived through a merge of another session into this tree since then is listed too. Do not give a reason for a change that is not yours: record it as what it is, status.sh tests-changed --because \"arrived through the merge of <branch>, not from this session\" --none \"not this session to prove\" --only <path>, and name it in your reply as not from this session.")
 	}'
 	return 1
 }

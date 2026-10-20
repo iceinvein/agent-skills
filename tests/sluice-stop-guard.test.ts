@@ -1162,6 +1162,41 @@ describe("stop-guard.sh entry check", () => {
 			expect(entryGuard(input, cfg).out).toBe("");
 		});
 
+		// Work done in a worktree and merged into the main tree: the record was
+		// made where the edit was, and the merge brings the same content across.
+		test("lets a test recorded in another worktree of the repo hand back after the merge", () => {
+			const { cfg, dir, base, input } = session("t22");
+			const wt = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "feature");
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "worktree", "add", "-q", "-b", "feature", wt], timeout: 10000 });
+			weaken(wt);
+			Bun.spawnSync({ cmd: ["git", "-C", wt, "commit", "-qam", "weaken"], timeout: 10000 });
+			expect(recordNone(wt, base).exitCode).toBe(0);
+			Bun.spawnSync({ cmd: ["git", "-C", dir, "merge", "-q", "--no-ff", "-m", "merge feature", "feature"], timeout: 10000 });
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		// Records written before they moved to the repo's git dir still stand.
+		test("lets a test recorded in the tree's own .sluice/tests-changed hand back", () => {
+			const { cfg, dir, input } = session("t23");
+			weaken(dir);
+			const blob = Bun.spawnSync({ cmd: ["git", "-C", dir, "hash-object", "tests/add.test.ts"] }).stdout.toString().trim();
+			mkdirSync(join(dir, ".sluice"), { recursive: true });
+			writeFileSync(join(dir, ".sluice", ".gitignore"), "*\n");
+			writeFileSync(join(dir, ".sluice", "tests-changed"), `${blob}\ttests/add.test.ts\tunproven\tadd returned 3\n`);
+
+			expect(entryGuard(input, cfg).out).toBe("");
+		});
+
+		test("the refusal says to record a test from another session's merge as not this session's", () => {
+			const { cfg, dir, input } = session("t24");
+			weaken(dir);
+
+			const reason = JSON.parse(entryGuard(input, cfg).out).reason as string;
+			expect(reason).toContain("a merge of another session");
+			expect(reason).toContain('--because "arrived through the merge of <branch>, not from this session"');
+		});
+
 		test("refuses a test edited again after its record", () => {
 			const { cfg, dir, base, input } = session("t4");
 			weaken(dir);
