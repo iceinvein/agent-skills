@@ -76,7 +76,9 @@
         "correct-code-has-no-bugs",
         "bug-cites-intent-from-spec",
         "spec-outranks-target-docstring",
-        "impossible-value-is-a-bug"
+        "impossible-value-is-a-bug",
+        "false-success-is-a-bug",
+        "every-member-of-a-set-claim"
       ]
     },
     {
@@ -86,7 +88,8 @@
       "cases": [
         "proves-a-spec-boundary-bug",
         "bug-cites-intent-from-spec",
-        "spec-outranks-target-docstring"
+        "spec-outranks-target-docstring",
+        "every-member-of-a-set-claim"
       ]
     },
     {
@@ -109,7 +112,8 @@
       "states": "SKILL.md: What counts as a bug",
       "origin": "commit:23d4466",
       "cases": [
-        "impossible-value-is-a-bug"
+        "impossible-value-is-a-bug",
+        "false-success-is-a-bug"
       ]
     },
     {
@@ -144,6 +148,13 @@
         "silent-spec-is-an-ambiguity",
         "correct-code-has-no-bugs"
       ]
+    },
+    {
+      "id": "refused-report-writes-go-in-the-hand-back",
+      "states": "SKILL.md: Output",
+      "origin": "skills/bug-hunter/evals/README.md",
+      "cases": [],
+      "unpinned": "The refusal comes from the harness only inside a dispatched agent, and an eval case runs the skill at the top level, where the Write succeeds."
     },
     {
       "id": "bug-hunter-dir-is-the-only-path-written",

@@ -935,6 +935,7 @@ function readTomlString(text: string, key: string): string {
   return match[1]
 }
 
+// Drives a whole run through several gates; it takes about 4s, close to bun's 5s default limit.
 test('aspnet recipe run driven probe through queue, ending green at check --phase queue', async () => {
   const groundTruthPath = join(source, 'GROUND-TRUTH.md')
   const rows = await parseGroundTruth(groundTruthPath)
@@ -1278,4 +1279,4 @@ test('aspnet recipe run driven probe through queue, ending green at check --phas
   expect(afterRemoval.out).toContain(
     `lens census for ${mutatedSurface} claims in_ledger 0 + added ${claimed} = ${claimed} element(s) in the ledger, but elements.jsonl has ${actual}`,
   )
-})
+}, 60000)

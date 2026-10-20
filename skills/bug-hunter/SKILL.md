@@ -74,6 +74,11 @@ command), **ambiguities** (the question for product), **covered** (scenarios
 that passed, with the claim each checked). Write `findings.json` and
 `report.md` with the Write tool, never from a shell command or script.
 
+Run as a dispatched agent, the Write tool may refuse `report.md` and
+`findings.json` as report files. Then put each refused file's full content in
+the hand-back under its path, for the caller to write unchanged with the Write
+tool; never fall back to a shell write.
+
 The `.bug-hunter/` directory is the one path in the caller's tree the skill
 writes. Promoting a repro into the tree as a regression test is the caller's
 job.

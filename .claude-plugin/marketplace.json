@@ -18,7 +18,7 @@
       "name": "bug-hunter",
       "source": "./skills/bug-hunter",
       "description": "Hunts logic and correctness bugs in a change or area and proves each one with a failing reproduction checked against stated intent. One agent collects intent from the request, specs, docs and unchanged code, runs QA-style scenarios from a catalog as repros in the repo's own test runner inside a scratch copy, and re-runs each failure clean before reporting it. Counts a contradicted claim, or a result wrong under every reading, as a bug; keeps ambiguities for questions with more than one acceptable answer; reports latent defects without filing them. No repro, no finding. Writes report.md and findings.json (bugs, ambiguities, covered) to .bug-hunter/<date>-<slug>/ and never modifies the caller's tree. Language-agnostic; ships no per-language scripts.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "author": {
         "name": "iceinvein"
       }
@@ -245,7 +245,7 @@
       "name": "migrate",
       "source": "./skills/migrate",
       "description": "Source-agnostic legacy migration mapping. Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff, building an auditable requirements ledger with mandatory citations and a `migrate check` gate in place of self-reported completeness. Use when the user asks to migrate, re-specify, replatform, or map a legacy system onto a new stack, to hand mapped requirements to a delivery team, or to resume, check, report, or forecast a mapping run already under way.",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "author": {
         "name": "iceinvein"
       }
