@@ -185,3 +185,20 @@ the builtin, which also closes the accepted newline-path pointer loss.
   bugs they prove are pinned by the shipped suites. They never reach a
   commit, and the worktree goes when the branch is finished.
 - Task 9 Minors fixed in 254c570. Final review's four findings closed by Task 9 and its tier 3 review.
+
+## Handback answers
+
+- Board-root block: keep the three copies (partner's call over the
+  third-caller refactor, since a sourced file is a new pattern here).
+- Hunt ambiguities, all three changed in Task 10: `--watch 05` accepted as 5;
+  a run counts toward its own channel in the header (a main run is "main
+  working"), not toward deep; session rows padded into aligned columns.
+- Finish: merge locally, after Task 10 and its review.
+- Task 10 (9ee03e2) review: no Critical or Important; counts agree on a mixed
+  board under both bashes and locales, alignment holds with colour on. Four
+  Minors sent back: a main or fast run with its own session on the board was
+  one piece of work counted and drawn twice (now any session behind its own
+  run is hidden, not only deep), a leading-zero test that could not tell
+  octal from decimal, an unwrapped line, and decomposed accents undocumented.
+  Not tested: a run with an unknown channel counting toward deep.
+- Task 10 Minors fixed in 10e2b88, read by the controller.
