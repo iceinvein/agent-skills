@@ -386,6 +386,17 @@ if [ "$SUB" = "line" ]; then
 	exit 0
 fi
 
+# The board is a view across every tree, not part of any run, so a board that
+# cannot be written costs a line on stderr and never the command's own result.
+board_index() { # <verb> [args...]
+	bash "$(dirname "$0")/board-index.sh" "$@" || err "note: board-index.sh $1 failed, so the board may not show this"
+}
+
+# Pruning only tidies what the board reads, which skips dead entries anyway.
+board_prune() {
+	bash "$(dirname "$0")/board-index.sh" prune >/dev/null 2>&1 || true
+}
+
 # Exists to put the channel into the transcript verbatim, as a command that
 # ran, which run-stats and the stop guard read back. So it touches no state:
 # a route is called before any run is opened, and fast opens none at all. For
@@ -400,6 +411,14 @@ if [ "$SUB" = "route" ]; then
 	[ "$ROUTE" != "bypass" ] || { err "bypass is no code change, so there is nothing to route; just answer"; exit 4; }
 	in_set "$ROUTE" "$ROUTE_CHANNELS" || { err "unknown channel: $ROUTE (one of: $ROUTE_CHANNELS)"; exit 4; }
 	echo "sluice: $ROUTE channel"
+	# A route is the only sign a fast or main session leaves, so the board learns
+	# of it here. With no session id there is nobody to name, and none is made up.
+	if [ -n "$SESSION" ]; then
+		ROUTE_TREE="$(git -C "$ORIG_DIR" rev-parse --show-toplevel 2>/dev/null)"
+		[ -n "$ROUTE_TREE" ] || ROUTE_TREE="$(cd "$ORIG_DIR" 2>/dev/null && pwd -P)"
+		board_prune
+		board_index session "$SESSION" "$ROUTE" "$ROUTE_TREE"
+	fi
 	exit 0
 fi
 
@@ -822,6 +841,9 @@ write_state() {
 	fi
 	rm -f "$tmp"
 	mv "$stamped" "$STATE" || { rm -f "$stamped"; err "could not replace $STATE"; exit 1; }
+	# On every write, not only init, so a pointer lost to a prune or a hand
+	# cleanup comes back the next time the run is written.
+	board_index run-add "$(cd "$(dirname "$STATE")/.." && pwd -P)"
 }
 
 # One state file now serves a whole worktree set, so two implementers can flip
@@ -903,6 +925,10 @@ case "$SUB" in
 				err "note: another run is live in $tree (topic: $other); if it is this work stranded before a worktree was cut, move it there instead"
 			done
 		fi
+
+		# Opening a run is a rare enough moment to sweep the board of runs and
+		# sessions that ended without saying so.
+		board_prune
 
 		jq -n \
 			--arg topic "$TOPIC" \
@@ -1326,6 +1352,10 @@ case "$SUB" in
 			exit 3
 		fi
 		mv "$STATE" "$DEST_STATE" || { err "could not move $STATE to $DEST_STATE"; exit 1; }
+		# Only once the state has arrived, so the board never loses a run that
+		# failed to move.
+		board_index run-drop "$(cd "$DIR" && pwd -P)"
+		board_index run-add "$TO"
 
 		# After the state has arrived, never before: a note pointing at a run
 		# that never got there is worse than no note, being indistinguishable
@@ -1407,6 +1437,8 @@ case "$SUB" in
 			n=$((n + 1))
 		done
 		mv "$STATE" "$dest" || { err "could not archive $STATE"; exit 1; }
+		# After the archive, so a close that failed leaves the run on the board.
+		board_index run-drop "$(cd "$DIR" && pwd -P)"
 
 		# A note naming this tree has outlived the run it forwarded to. Left
 		# behind, it does not go quiet: the next run opened in this tree inherits
