@@ -1609,14 +1609,20 @@ describe("stop-guard.sh records the handback on the board", () => {
 		expect(state(root, "d5")).toBe("handed back");
 	});
 
-	test("a deep session whose live run sits in a worktree it never entered stays working", () => {
-		const root = board();
+	/** A main tree with one commit and a linked worktree beside it. */
+	function mainAndWorktree(): { main: string; wt: string } {
 		const main = repo();
 		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", main, ...args], timeout: 5000 });
 		git("init", "-q");
 		git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
 		const wt = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "impl");
 		git("worktree", "add", "-q", wt, "-b", "impl");
+		return { main, wt };
+	}
+
+	test("a deep session whose live run sits in a worktree it never entered stays working", () => {
+		const root = board();
+		const { main, wt } = mainAndWorktree();
 		liveRun(root, wt, "--session", "d6");
 		seed(root, "d6", "deep", wt);
 
@@ -1624,5 +1630,42 @@ describe("stop-guard.sh records the handback on the board", () => {
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("");
 		expect(state(root, "d6")).toBe("working");
+	});
+
+	test("a deep session stopping where run.at forwards to another session's run is marked handed back", () => {
+		const root = board();
+		const { main, wt } = mainAndWorktree();
+		liveRun(root, main, "--session", "other");
+		st(root, main, "move", "--to", wt);
+		seed(root, "d7", "deep", main);
+
+		const r = stop(root, { cwd: main, session_id: "d7", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d7")).toBe("handed back");
+	});
+
+	test("a deep session whose tree holds another session's run is marked handed back", () => {
+		const root = board();
+		const dir = liveRun(root, repo(), "--session", "other");
+		seed(root, "d8", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d8", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d8")).toBe("handed back");
+	});
+
+	test("a deep session whose own run moved on, reached through run.at, stays working", () => {
+		const root = board();
+		const { main, wt } = mainAndWorktree();
+		liveRun(root, main, "--session", "d9");
+		st(root, main, "move", "--to", wt);
+		seed(root, "d9", "deep", main);
+
+		const r = stop(root, { cwd: main, session_id: "d9", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d9")).toBe("working");
 	});
 });

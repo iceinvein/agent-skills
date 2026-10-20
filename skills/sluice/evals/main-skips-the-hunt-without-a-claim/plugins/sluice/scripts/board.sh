@@ -76,13 +76,19 @@ paint() { # <sgr> <text>
 # them. The read is the builtin, so a frame spawns no process per file. TREES
 # keeps each run's path by index, so a path holding a newline or a tab reaches
 # status.sh whole rather than through a line-split read. KEYS and VALUES are
-# the records emit hands jq.
+# the records emit hands jq. Returns 1 when the root exists but cannot be
+# listed: a root not yet created is an empty board, since nothing has been
+# written, but one that cannot be read would draw as nothing running when it
+# may hold every run on the machine.
 gather() {
 	local n=0 f tree run entry
 	TREES=()
 	KEYS=()
 	VALUES=()
 	[ -n "$ROOT" ] || return 0
+	if [ -e "$ROOT" ] || [ -L "$ROOT" ]; then
+		[ -d "$ROOT" ] && [ -r "$ROOT" ] && [ -x "$ROOT" ] || return 1
+	fi
 	for f in "$ROOT"/runs/*; do
 		[ -f "$f" ] || continue
 		# read -d '' stops at EOF with a non-zero status, so a short read is told
@@ -126,6 +132,9 @@ combine() { # [jq filter appended to COMBINE]
 
 # Builds {board, order, lines}: board is what --json prints, order the runs to
 # draw as "<index into TREES>\t<name>\t<path as shown>", lines the session rows.
+# Those fields are joined rather than put through @tsv, which escapes a
+# backslash that read -r then keeps, so a name would draw doubled; clean has
+# already dropped every tab and newline a field could hold.
 # Each entry is evaluated on its own inside try, so one with an odd shape costs
 # only itself, and the counts are taken from the same filtered list the rows
 # are drawn from.
@@ -166,7 +175,7 @@ COMBINE='
 			| select(now - $t <= 86400)
 			| select(.channel != "deep" or (.session as $s | $taken | index([$s]) | not))
 			| {entry: ., t: $t, line: ([.channel, (.tree | base), .state,
-				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)] | @tsv)}
+				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)] | join("\t"))}
 		) catch empty]
 	| sort_by(-.t)
 	| . as $sessions
@@ -176,7 +185,7 @@ COMBINE='
 		order: [$runs[] | (.tree | clean) as $c | [.i, ($c | base),
 			(if $home != "" and $c == $home then "~"
 				elif $home != "" and ($c | startswith($home + "/")) then "~" + ($c | ltrimstr($home))
-				else $c end)] | @tsv],
+				else $c end)] | map(tostring) | join("\t")],
 		lines: [$sessions[].line]}
 '
 
@@ -185,7 +194,7 @@ COMBINE='
 # per frame, when it is off.
 render() {
 	local s tag a b c d e head first=1
-	gather
+	gather || return 1
 	s="$(combine)" && [ -n "$s" ] || return 1
 	while IFS="$TAB" read -r tag a b c d e; do
 		case "$tag" in
@@ -237,7 +246,7 @@ STRIP="s/$ESC\[[0-9;]*m//g"
 [ "$colour" = 1 ] && STRIP=""
 
 if [ "$json" = 1 ]; then
-	gather
+	gather || { err "$UNREADABLE"; exit 6; }
 	combine ' | .board' || { err "$UNREADABLE"; exit 6; }
 	exit 0
 fi

@@ -131,9 +131,14 @@ resolve_run_tree() {
 # session mid-run must not read as handed back on any of them. Resolving costs
 # git calls on every stop, so it is skipped for a session with no entry, and
 # not repeated when the run guard already did it.
+#
+# The run resolved is only the one this tree can reach, which through a forward
+# or a shared tree may be another session's; that run's bar is not this
+# session's work, so the entry is kept only for a run that names this session
+# or names none. A state file that cannot be read names nobody it can be kept for.
 refused=""
 board_handback() {
-	local keep="" root
+	local keep="" root owner
 	[ -z "$refused" ] && [ -n "$sid" ] || return 0
 	case "$sid" in */* | .*) return 0 ;; esac
 	# Must match the root board-index.sh and board.sh resolve.
@@ -148,7 +153,10 @@ board_handback() {
 	fi
 	[ -f "$root/sessions/$sid.json" ] || return 0
 	[ -n "$resolved" ] || resolve_run_tree
-	[ -n "$run_tree" ] && keep="--keep-deep"
+	if [ -n "$run_tree" ] && owner="$(jq -r '.session // empty' "$run_tree/.sluice/run.json" 2>/dev/null)" \
+		&& { [ -z "$owner" ] || [ "$owner" = "$sid" ]; }; then
+		keep="--keep-deep"
+	fi
 	bash "$here/board-index.sh" handback "$sid" $keep >/dev/null 2>&1 || true
 }
 trap board_handback EXIT

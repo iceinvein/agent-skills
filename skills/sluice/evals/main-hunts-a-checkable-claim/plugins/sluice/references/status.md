@@ -521,7 +521,11 @@ it as it is while one is, since the board draws that run's bar for it. A run
 counts as live the way the hook's run guard finds one: any run in the stop's
 own tree, or the run found through the session's pointer at the main tree or
 the tree's `run.at` forward, never the main tree's run read from a runless
-worktree. A failed board write is one
+worktree. The run found must also be that session's own: one whose
+`run.json` names that session, or names none. Another session's run, whether
+reached through the forward or sitting in the stop's own tree, does not keep
+the entry, and neither does a `run.json` that cannot be read. A failed board
+write is one
 `status.sh: note: board not updated: ...` line on stderr and never changes the
 command's result, because the board is a view across trees and not part of
 any run.

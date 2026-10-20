@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -141,6 +141,16 @@ describe("board.sh runs", () => {
 		expect(lines[1]).toBe("");
 		expect(lines[at + 1]).toContain("deep · widget");
 	});
+
+	test("a run tree named with a backslash draws the backslash once in its header", () => {
+		const root = boardDir();
+		const dir = join(realpathSync(mkdtempSync(join(tmpdir(), "sluice-board-run-"))), "a\\b");
+		mkdirSync(dir);
+		Bun.spawnSync({ cmd: ["git", "init", "-q", dir] });
+		status(dir, "init", "--topic", "widget", "--channel", "deep");
+		index(root, "run-add", dir);
+		expect(board(root).out.split("\n")[2]).toBe(`a\\b  ${dir}`);
+	});
 });
 
 describe("board.sh sessions", () => {
@@ -191,6 +201,12 @@ describe("board.sh sessions", () => {
 		const out = board(root).out;
 		expect(out).not.toContain("\u001b");
 		expect(out).toContain("fast  evil[2Jname  working");
+	});
+
+	test("a session tree named with a backslash draws the backslash once", () => {
+		const root = boardDir();
+		index(root, "session", "b1", "fast", "/work/a\\b");
+		expect(board(root).out.split("\n")[2]).toStartWith("fast  a\\b  working");
 	});
 });
 
@@ -322,6 +338,27 @@ describe("board.sh entries it cannot read", () => {
 		expect(header(r.out)).toBe("sluice · 2 deep");
 		expect(r.out).toContain(`${basename(normal)}  `);
 		expect(r.out).toContain(`${basename(big)}  `);
+	});
+
+	test("a board root that cannot be read exits 6", () => {
+		const root = boardDir();
+		index(root, "session", "f1", "fast", "/work/x");
+		chmodSync(root, 0o000);
+		const r = board(root);
+		chmodSync(root, 0o755);
+		expect(r).toEqual({ code: 6, out: "", err: "board.sh: could not read the board\n" });
+	});
+
+	test("a board root that is a regular file exits 6", () => {
+		const root = join(boardDir(), "board");
+		writeFileSync(root, "");
+		expect(board(root)).toEqual({ code: 6, out: "", err: "board.sh: could not read the board\n" });
+	});
+
+	test("a board root that does not exist yet draws nothing running", () => {
+		const r = board(join(boardDir(), "never-written"));
+		expect(r.code).toBe(0);
+		expect(header(r.out)).toBe("sluice · nothing running");
 	});
 
 	test("a tree path holding a newline is read whole", () => {
