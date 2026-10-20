@@ -134,8 +134,9 @@ resolve_run_tree() {
 #
 # The run resolved is only the one this tree can reach, which through a forward
 # or a shared tree may be another session's; that run's bar is not this
-# session's work, so the entry is kept only for a run that names this session
-# or names none. A state file that cannot be read names nobody it can be kept for.
+# session's work, so the entry is kept only for a run that names this session.
+# A run naming no session is no session's own, as the board draws it, and a
+# state file that cannot be read names nobody it can be kept for.
 refused=""
 board_handback() {
 	local keep="" root owner
@@ -154,7 +155,7 @@ board_handback() {
 	[ -f "$root/sessions/$sid.json" ] || return 0
 	[ -n "$resolved" ] || resolve_run_tree
 	if [ -n "$run_tree" ] && owner="$(jq -r '.session // empty' "$run_tree/.sluice/run.json" 2>/dev/null)" \
-		&& { [ -z "$owner" ] || [ "$owner" = "$sid" ]; }; then
+		&& [ "$owner" = "$sid" ]; then
 		keep="--keep-deep"
 	fi
 	bash "$here/board-index.sh" handback "$sid" $keep >/dev/null 2>&1 || true

@@ -506,7 +506,9 @@ file per tree with a live run, naming the tree, and `sessions/<id>.json` one
 per routed session. `run.json` stays the single authority on a run, so the
 board can never show a stale copy of one. `SLUICE_BOARD_DIR` exists so the
 tests can point every script at a temporary directory and never touch the real
-board.
+board: the suite's preload sets it to a fresh one and makes every child a test
+spawns inherit it, since Bun hands a child spawned with no `env` the
+environment bun started with rather than the one the preload changed.
 
 `scripts/board-index.sh` is the only writer. Every run-state write adds the
 run's pointer, so a run opened before the board existed joins it at its next
@@ -522,10 +524,12 @@ run is found the way the hook's run guard finds one, taking the first in this
 order: a run in the stop's own tree, then the run found through the session's
 pointer at the main tree, then the tree's `run.at` forward, never the main
 tree's run read from a runless worktree. That first run counts as live only
-when it is the session's own: its `run.json` names that session, or names
-none. When it is another session's, whether sitting in the stop's own tree or
-reached through the forward, or its `run.json` cannot be read, the entry is
-marked `handed back`, and no later run in the order is looked at. A failed
+when it is the session's own: its `run.json` names that session. A run that
+names no session is no session's own, matching the board, which hides a `deep`
+row only behind a run naming it. When it names none or another session,
+whether sitting in the stop's own tree or reached through the forward, or its
+`run.json` cannot be read, the entry is marked `handed back`, and no later run
+in the order is looked at. A failed
 board write is one
 `status.sh: note: board not updated: ...` line on stderr and never changes the
 command's result, because the board is a view across trees and not part of

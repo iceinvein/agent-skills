@@ -198,15 +198,16 @@ render() {
 	local s tag a b c d e head first=1
 	gather || return 1
 	s="$(combine)" && [ -n "$s" ] || return 1
-	while IFS="$TAB" read -r tag a b c d e; do
+	while IFS="$TAB" read -r tag a b c d e f; do
 		case "$tag" in
 			counts)
 				head=""
 				[ "$a" -gt 0 ] && head="$head · $a deep"
-				[ "$b" -gt 0 ] && head="$head · $b fast working"
-				[ "$c" -gt 0 ] && head="$head · $c fast handed back"
-				[ "$d" -gt 0 ] && head="$head · $d main working"
-				[ "$e" -gt 0 ] && head="$head · $e main handed back"
+				[ "$b" -gt 0 ] && head="$head · $b deep handed back"
+				[ "$c" -gt 0 ] && head="$head · $c fast working"
+				[ "$d" -gt 0 ] && head="$head · $d fast handed back"
+				[ "$e" -gt 0 ] && head="$head · $e main working"
+				[ "$f" -gt 0 ] && head="$head · $f main handed back"
 				[ -n "$head" ] || head=" · nothing running"
 				paint 1 sluice
 				printf '%s  ' "$head"
@@ -234,7 +235,7 @@ render() {
 		esac
 	done <<EOF
 $(jq -r '
-	(.board.counts | ["counts", .runs + .working.deep + .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv),
+	(.board.counts | ["counts", .runs + .working.deep, .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv),
 	("run\t" + .order[]),
 	("session\t" + .lines[])' <<<"$s")
 EOF

@@ -163,6 +163,13 @@ describe("board.sh sessions", () => {
 		expect(out.split("\n")[0].replace(CLOCK, "")).toBe("sluice · 1 main handed back");
 	});
 
+	test("a handed-back deep session is counted as deep handed back, not as deep", () => {
+		const root = boardDir();
+		index(root, "session", "d1", "deep", "/work/shop");
+		index(root, "handback", "d1");
+		expect(header(board(root).out)).toBe("sluice · 1 deep handed back");
+	});
+
 	test("a working session shows its age with a clock", () => {
 		const root = boardDir();
 		index(root, "session", "f1", "fast", "/work/shop");

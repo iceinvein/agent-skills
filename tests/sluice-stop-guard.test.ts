@@ -1566,7 +1566,7 @@ describe("stop-guard.sh records the handback on the board", () => {
 
 	test("a deep session whose tree holds a live run stays working", () => {
 		const root = board();
-		const dir = liveRun(root);
+		const dir = liveRun(root, repo(), "--session", "d2");
 		seed(root, "d2", "deep", dir);
 
 		const r = stop(root, { cwd: dir, session_id: "d2", stop_hook_active: false });
@@ -1577,13 +1577,24 @@ describe("stop-guard.sh records the handback on the board", () => {
 
 	test("a deep session whose tree holds a live run stays working when a stop hook already fired", () => {
 		const root = board();
-		const dir = liveRun(root);
+		const dir = liveRun(root, repo(), "--session", "d3");
 		seed(root, "d3", "deep", dir);
 
 		const r = stop(root, { cwd: dir, session_id: "d3", stop_hook_active: true });
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("");
 		expect(state(root, "d3")).toBe("working");
+	});
+
+	test("a deep session whose tree holds a live run naming no session is marked handed back", () => {
+		const root = board();
+		const dir = liveRun(root);
+		seed(root, "d6", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d6", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d6")).toBe("handed back");
 	});
 
 	test("a fast session in a tree with a live deep run is marked handed back", () => {
