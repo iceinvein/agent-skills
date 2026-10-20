@@ -1540,10 +1540,16 @@ describe("stop-guard.sh records the handback on the board", () => {
 		expect(state(root, "h3")).toBe("handed back");
 	});
 
+	function st(root: string, dir: string, ...args: string[]) {
+		const proc = Bun.spawnSync({ cmd: ["bash", STATUS, ...args, "--dir", dir], env: env(root), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+	}
+
 	/** A deep run past pre-flight with an agent out, so the hook lets the stop through. */
-	function liveRun(): string {
-		const dir = midRun(3, 0);
-		status(dir, "task", "1", "--status", "active");
+	function liveRun(root: string, dir = repo(), ...init: string[]): string {
+		st(root, dir, "init", "--topic", "widget", "--channel", "deep", ...init);
+		st(root, dir, "task", "1", "--name", "T1", "--status", "active");
+		st(root, dir, "preflight", "--review", "x", "--effort", "y", "--workspace", "z");
 		return dir;
 	}
 
@@ -1560,7 +1566,7 @@ describe("stop-guard.sh records the handback on the board", () => {
 
 	test("a deep session whose tree holds a live run stays working", () => {
 		const root = board();
-		const dir = liveRun();
+		const dir = liveRun(root);
 		seed(root, "d2", "deep", dir);
 
 		const r = stop(root, { cwd: dir, session_id: "d2", stop_hook_active: false });
@@ -1571,7 +1577,7 @@ describe("stop-guard.sh records the handback on the board", () => {
 
 	test("a deep session whose tree holds a live run stays working when a stop hook already fired", () => {
 		const root = board();
-		const dir = liveRun();
+		const dir = liveRun(root);
 		seed(root, "d3", "deep", dir);
 
 		const r = stop(root, { cwd: dir, session_id: "d3", stop_hook_active: true });
@@ -1582,12 +1588,41 @@ describe("stop-guard.sh records the handback on the board", () => {
 
 	test("a fast session in a tree with a live deep run is marked handed back", () => {
 		const root = board();
-		const dir = liveRun();
+		const dir = liveRun(root);
 		seed(root, "d4", "fast", dir);
 
 		const r = stop(root, { cwd: dir, session_id: "d4", stop_hook_active: false });
 		expect(r.code).toBe(0);
 		expect(r.out).toBe("");
 		expect(state(root, "d4")).toBe("handed back");
+	});
+
+	test("a deep session whose run was closed is marked handed back", () => {
+		const root = board();
+		const dir = liveRun(root);
+		st(root, dir, "close");
+		seed(root, "d5", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d5", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d5")).toBe("handed back");
+	});
+
+	test("a deep session whose live run sits in a worktree it never entered stays working", () => {
+		const root = board();
+		const main = repo();
+		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", main, ...args], timeout: 5000 });
+		git("init", "-q");
+		git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+		const wt = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "impl");
+		git("worktree", "add", "-q", wt, "-b", "impl");
+		liveRun(root, wt, "--session", "d6");
+		seed(root, "d6", "deep", wt);
+
+		const r = stop(root, { cwd: main, session_id: "d6", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d6")).toBe("working");
 	});
 });

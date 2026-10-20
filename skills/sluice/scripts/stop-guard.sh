@@ -87,8 +87,10 @@ fi
 # guard would refuse over.
 top=""
 run_tree=""
+resolved=""
 resolve_run_tree() {
 	local main session_tree="" forward=""
+	resolved=1
 	run_tree=""
 	top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
 	[ -n "$top" ] || top="$cwd"
@@ -126,12 +128,26 @@ resolve_run_tree() {
 # A deep session whose run is live keeps its entry, because the board draws the
 # run's bar for it. Whether the run is live is asked here rather than taken
 # from the run guard, since most exits come before the guard runs, and a deep
-# session mid-run must not read as handed back on any of them.
+# session mid-run must not read as handed back on any of them. Resolving costs
+# git calls on every stop, so it is skipped for a session with no entry, and
+# not repeated when the run guard already did it.
 refused=""
 board_handback() {
-	local keep=""
+	local keep="" root
 	[ -z "$refused" ] && [ -n "$sid" ] || return 0
-	resolve_run_tree
+	case "$sid" in */* | .*) return 0 ;; esac
+	# Must match the root board-index.sh and board.sh resolve.
+	if [ -n "${SLUICE_BOARD_DIR:-}" ]; then
+		root="$SLUICE_BOARD_DIR"
+	elif [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+		root="$CLAUDE_CONFIG_DIR/sluice/board"
+	elif [ -n "${HOME:-}" ]; then
+		root="$HOME/.claude/sluice/board"
+	else
+		return 0
+	fi
+	[ -f "$root/sessions/$sid.json" ] || return 0
+	[ -n "$resolved" ] || resolve_run_tree
 	[ -n "$run_tree" ] && keep="--keep-deep"
 	bash "$here/board-index.sh" handback "$sid" $keep >/dev/null 2>&1 || true
 }

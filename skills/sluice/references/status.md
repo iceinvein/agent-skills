@@ -515,15 +515,16 @@ entry as `working`, a later route in the same session overwriting it, so an
 escalation from `fast` to `main` shows as `main`. The Stop hook marks a `fast`
 or `main` entry `handed back` when it lets a stop through, and only then: a
 refused stop is the session still working. It marks a `deep` entry the same
-way when no run is live for the session (the design stop before any run
-exists, the stop after `close`, a session that routed deep and never opened a
-run), and leaves it as it is while one is, since the board draws that run's
-bar for it. The live run is the one the hook's run guard resolves: the stop's
-own tree, the tree `init` left a session pointer to, or the tree a `move`
-forwarded to, never the main tree's run read from a runless worktree. A
-failed board write is one `status.sh: note: board not updated: ...` line on
-stderr and never changes the command's result, because the board is a view
-across trees and not part of any run.
+way when no run is live (the design stop before any run exists, the stop
+after `close`, a session that routed deep and never opened a run), and leaves
+it as it is while one is, since the board draws that run's bar for it. A run
+counts as live the way the hook's run guard finds one: any run in the stop's
+own tree, or the run found through the session's pointer at the main tree or
+the tree's `run.at` forward, never the main tree's run read from a runless
+worktree. A failed board write is one
+`status.sh: note: board not updated: ...` line on stderr and never changes the
+command's result, because the board is a view across trees and not part of
+any run.
 
 A `deep` block is `status.sh line --full` for its tree, unchanged, so it reads
 exactly as the statusline does. Blocked runs sort first, then those with a task
