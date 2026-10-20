@@ -84,3 +84,38 @@ run is compared on sluice tests plus the count of non-sluice failures.
   pinned by a test. route now 51-67ms flat from 1 to 100 sessions. Accepted:
   prune's run-pointer pass still reads `head -n 1`, so a tree path holding a
   newline loses its pointer at the next prune until its next write.
+- T5's full suite timed out four stop-guard tests at bun's 5s (106/106 alone).
+  Measured the hook, master against this branch, 30 runs each: with no board
+  entry for the session 43ms -> 50ms (the board-index.sh spawn), with an entry
+  43ms -> 67ms (spawn plus a jq read and write). Not enough on its own to push
+  a single hook run near 5s; the tests that timed out run the hook or status.sh
+  several times under a loaded full suite. Rechecked at the final full run.
+- T5 review: Important. `route deep` writes a deep session entry that nothing
+  retires (handback skipped deep, close never touched it), so after close the
+  board showed `deep … working` and counted it for a day. A plan change to
+  T1's Offers, so asked: partner chose "the hook decides". Task 6: handback no
+  longer skips deep; the Stop hook calls it only when no run is live for the
+  session, so a deep session at the design stop or after close reads handed
+  back and one mid-run is left to its bar. T5's two Minors (overstated "every
+  write adds the pointer", an unwrapped line) and the doc sentence on deep rows
+  are folded into Task 6, since the prose must describe its behaviour.
+- A full run during Task 6 (850s, 17 fail, 3 errors) is not evidence either
+  way: it overlapped T6's implementer running tests in the same tree (three
+  fails are T6's red handback tests) and the rest are 5s timeouts scattered
+  across plan, statusline, stop-guard and migrate files under that load. The
+  verdict comes from a quiet run with nothing else executing.
+- T6 review round 1: Important, the trap resolved the session's run on every
+  let-through stop, even with no board entry, and repeated the run guard's
+  resolution: 44ms (master) -> 63ms per stop. Sent back: reuse the guard's
+  result and return early when the session has no entry (stop-guard.sh gets a
+  third copy of the board-root block, the third caller; kept as a copy rather
+  than a shared file because the scripts share no sourced code today). With
+  it: slimmer liveRun tests that sat at bun's 5s, tests for a closed run and
+  the sessions/<sid> pointer path, and two overstated sentences.
+  The third copy meets the partner's "refactor at the third caller" rule, but
+  the refactor's shape (a sourced shared file) is a pattern these scripts do
+  not use, which the same rules say to ask about first. Raised at handback.
+- T6 fixes (eefaca2) read by the controller: no-entry stops back at master's
+  ~43ms (early return before any git call), fast ~70ms and deep mid-run
+  ~85ms per stop, against master's 43/69 which writes no board. T5 marked done
+  with its findings closed by T6.
