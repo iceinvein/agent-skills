@@ -120,9 +120,16 @@ case "$verb" in
 		;;
 	prune)
 		need_jq
+		# The builtin read rather than a process per pointer, because prune runs
+		# on every init and route and pointers pile up; read whole, so a tree
+		# path holding a newline still names its tree. read -d '' stops at EOF
+		# with a non-zero status, so a failed open is told from a short read by
+		# whether the file is readable; a pointer that cannot be read is kept.
 		for f in "$ROOT"/runs/*; do
 			[ -f "$f" ] || continue
-			tree="$(head -n 1 "$f")"
+			tree=""
+			{ IFS= read -r -d '' tree; } 2>/dev/null <"$f" || [ -n "$tree" ] || [ -r "$f" ] || continue
+			tree="${tree%$'\n'}"
 			[ -f "$tree/.sluice/run.json" ] || rm -f "$f"
 		done
 		# One jq for every session rather than one each, because prune runs on

@@ -153,6 +153,37 @@ describe("prune", () => {
 		expect(readdirSync(join(root, "runs")).length).toBe(1);
 	});
 
+	test("keeps a pointer to a live run whose tree path contains a newline", () => {
+		const root = board();
+		const tree = join(mkdtempSync(join(tmpdir(), "sluice-tree-")), "two\nlines");
+		// By hand: status.sh refuses a --dir holding a control character.
+		mkdirSync(join(tree, ".sluice"), { recursive: true });
+		writeFileSync(join(tree, ".sluice", "run.json"), "{}");
+		run(root, "run-add", tree);
+		expect(run(root, "prune").code).toBe(0);
+		expect(readFileSync(join(root, "runs", tree.replaceAll("/", "%2F")), "utf8")).toBe(`${tree}\n`);
+	});
+
+	test("keeps a pointer it cannot read", () => {
+		const root = board();
+		const tree = mkdtempSync(join(tmpdir(), "sluice-tree-"));
+		run(root, "run-add", tree);
+		const pointer = join(root, "runs", readdirSync(join(root, "runs"))[0]);
+		chmodSync(pointer, 0o000);
+		const r = run(root, "prune");
+		chmodSync(pointer, 0o644);
+		expect(r.code).toBe(0);
+		expect(readFileSync(pointer, "utf8")).toBe(`${tree}\n`);
+	});
+
+	test("removes an empty pointer", () => {
+		const root = board();
+		mkdirSync(join(root, "runs"));
+		writeFileSync(join(root, "runs", "empty"), "");
+		run(root, "prune");
+		expect(readdirSync(join(root, "runs"))).toEqual([]);
+	});
+
 	test("removes a session last updated two days ago", () => {
 		const root = board();
 		mkdirSync(join(root, "sessions"));
