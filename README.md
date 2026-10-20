@@ -44,8 +44,8 @@ Each skill is also a plugin in the `iceinvein-skills` marketplace:
 
 | Skill | What it does |
 |-------|--------------|
-| **migrate** | Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff: measured surface coverage, an empirically derived capability seam, cited requirements, a parity plan, a batch decision queue, and work items emitted to markdown, GitHub or a flow target with coverage and forecast read back. Bundles a Bun CLI that enforces the coverage arithmetic and phase ordering instead of trusting it. |
-| **scope-estimate** | The lighter path for a proposal: read-only discovery, a capability register with status and disposition, sized functional requirements, contracts-first work packages, and a build schedule across engineers x worktrees at fast, planning and floor rates. Bundles a Bun scheduler that refuses a plan missing or double-counting a requirement, so every figure comes from one reproducible run. |
+| **migrate** | Walks a legacy codebase through probe, enumerate, seam, extract, parity, queue, adjudicate and handoff: measured surface coverage, an empirically derived capability seam, cited requirements, a parity plan, a batch decision queue, and work items emitted to markdown, GitHub or a flow target with coverage and forecast read back. Bundles a Bun CLI that enforces the coverage arithmetic and phase ordering instead of trusting it. Claude Code only. |
+| **scope-estimate** | The lighter path for a proposal: read-only discovery, a capability register with status and disposition, sized functional requirements, contracts-first work packages, and a build schedule across engineers x worktrees at fast, planning and floor rates. Bundles a Bun scheduler that refuses a plan missing or double-counting a requirement, so every figure comes from one reproducible run. Claude Code only. |
 
 ### Code Architecture
 
@@ -100,7 +100,7 @@ Skills that check code does what it was meant to do, with evidence rather than o
 
 | Skill | Based on | What it does |
 |-------|----------|--------------|
-| **bug-hunter** | QA scenario testing; intent-first reproduction | Proves logic bugs with failing repros checked against stated intent. Writes scenarios before reading the code, and reports bugs, ambiguities, and covered scenarios. |
+| **bug-hunter** | QA scenario testing; intent-first reproduction | Proves logic bugs with failing repros checked against stated intent. Writes scenarios before reading the code, and reports bugs, ambiguities, and covered scenarios. Claude Code only. |
 
 ### Communication
 
@@ -128,7 +128,7 @@ Skills that shape how work gets done rather than analyzing code.
 
 | Skill | What it does |
 |-------|--------------|
-| **sluice** | Routes work by change shape into four channels (`bypass`, `fast`, `main`, `deep`) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Seven rules live as one-liners in the router; the full treatment sits in references read only on friction. Each run closes with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only. Conflicts with the superpowers plugin, which requires its own fixed pipeline up front for anything that adds to or changes what the software does, not just code edits; disable superpowers before installing. |
+| **sluice** | Routes work by change shape into four channels (`bypass`, `fast`, `main`, `deep`) and applies only the rules each channel needs, so a one-line fix does not pay the cost of a multi-subsystem build. Eight rules live as one-liners in the router; the full treatment sits in references read only on friction. Each run closes with a ledger read out of the session transcript: elapsed, tools, tokens, and what every dispatched agent cost. Claude Code only. Conflicts with the superpowers plugin, which requires its own fixed pipeline up front for anything that adds to or changes what the software does, not just code edits; disable superpowers before installing. |
 
 ### Orchestration
 
@@ -137,7 +137,7 @@ Skills that compose the other audit skills into higher-level workflows.
 | Skill | What it does |
 |-------|--------------|
 | **improve-my-codebase** | Runs every applicable audit skill in parallel against your codebase, ranks findings by convergence (multiple audits agreeing) and per-file rollup, and writes a prioritized improvement report. Default sweeps everything; positional args switch modes (`quick`, `diff`, `interactive`) or narrow scope (`focus <area>`, `module <path>`). |
-| **magpie** | Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via `codex exec`, and serves an interactive HTML report for selecting findings to post via `gh`. A local mode reviews the current branch diff before a PR exists and hands the findings back in the terminal. |
+| **magpie** | Interactive PR review pipeline. Runs five parallel specialist subagents (security, bugs, performance, code-smells, architecture), dedupes findings, applies a critic rubric, peer-reviews via `codex exec`, and serves an interactive HTML report for selecting findings to post via `gh`. A local mode reviews the current branch diff before a PR exists and hands the findings back in the terminal. Claude Code only. |
 
 ## Commands
 
@@ -174,7 +174,7 @@ bunx @iceinvein/agent-skills list               # show installed versions
 After any command other than `update`, the CLI runs a background freshness check (at most once every 24 hours) and prints a one-line notice if anything is out of date:
 
 ```
-some-skill (v0.2.0 → v0.3.0)
+⚠ Updates available: some-skill (v0.2.0 → v0.3.0)
   Run: agent-skills update --all
 ```
 
@@ -195,12 +195,7 @@ If a skill declares activation support and you're installing for Claude Code int
 
 ## Supported Tools
 
-| Tool | Prompt Skills | MCP Skills |
-|------|:---:|:---:|
-| Claude Code | Yes | Yes |
-| Cursor | Yes | Yes |
-| Codex | Yes | – |
-| Gemini CLI | Yes | Yes |
+Claude Code, Cursor, Codex and Gemini CLI. Most skills install into all four; bug-hunter, magpie, migrate, scope-estimate and sluice are Claude Code only, and the CLI skips the other tools for them.
 
 ## How It Works
 
