@@ -35,9 +35,16 @@ while [ $# -gt 0 ]; do
 		*) usage ;;
 	esac
 done
-case "$interval" in
-	''|0*|*[!0-9]*) err "--watch needs a positive whole number of seconds, not $interval"; exit 4 ;;
+# Leading zeros are stripped as text rather than through $((10#...)), which
+# would wrap a long run of digits into some other number.
+seconds="$interval"
+while case "$seconds" in 0?*) true ;; *) false ;; esac; do
+	seconds="${seconds#0}"
+done
+case "$seconds" in
+	''|0|*[!0-9]*) err "--watch needs a positive whole number of seconds, not $interval"; exit 4 ;;
 esac
+interval="$seconds"
 if [ "$watch" = 1 ] && [ "$json" = 1 ]; then
 	err "--watch and --json do not combine"
 	exit 4
@@ -136,7 +143,10 @@ combine() { # [jq filter appended to COMBINE]
 # draw as "<index into TREES>\t<name>\t<path as shown>", lines the session rows.
 # Those fields are joined rather than put through @tsv, which escapes a
 # backslash that read -r then keeps, so a name would draw doubled; clean has
-# already dropped every tab and newline a field could hold.
+# already dropped every tab and newline a field could hold. Session rows are
+# padded here because jq counts a string in characters whatever the locale,
+# where bash under C counts bytes and would push a row holding café out of line.
+# A wide CJK glyph still counts as one, so a row holding one draws a cell short.
 # Each entry is evaluated on its own inside try, so one with an odd shape costs
 # only itself, and the counts are taken from the same filtered list the rows
 # are drawn from.
@@ -176,19 +186,26 @@ COMBINE='
 			| (.updated | fromdateiso8601) as $t
 			| select(now - $t <= 86400)
 			| select(.channel != "deep" or (.session as $s | $taken | index([$s]) | not))
-			| {entry: ., t: $t, line: ([.channel, (.tree | base), .state,
-				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)] | join("\t"))}
+			| {entry: ., t: $t, cells: [.channel, (.tree | base), .state,
+				(if .state == "working" then "◷ \(age(.routed))" else "\(age(.updated)) ago" end)]}
 		) catch empty]
 	| sort_by(-.t)
 	| . as $sessions
-	| def tally($state): reduce ("fast", "main", "deep") as $c ({}; .[$c] = ([$sessions[] | select(.entry.channel == $c and .entry.state == $state)] | length));
+	| [range(0; 3) as $k | [$sessions[].cells[$k] | length] | max // 0] as $widths
+	| def pad($w): . + (" " * ($w - length));
+	# A run of any other channel still draws as a run, the bar deep runs draw, so
+	# it is counted with them rather than vanishing from the header.
+	def channel: if . == "fast" or . == "main" then . else "deep" end;
+	def tally($state): reduce ("fast", "main", "deep") as $c ({}; .[$c] =
+		([$sessions[] | select(.entry.channel == $c and .entry.state == $state)] | length)
+		+ (if $state == "working" then [$runs[] | select(.run.channel | channel == $c)] | length else 0 end));
 	{board: {runs: [$runs[] | {tree, run}], sessions: [$sessions[].entry],
 			counts: {runs: ($runs | length), working: tally("working"), handed_back: tally("handed back")}},
 		order: [$runs[] | (.tree | clean) as $c | [.i, ($c | base),
 			(if $home != "" and $c == $home then "~"
 				elif $home != "" and ($c | startswith($home + "/")) then "~" + ($c | ltrimstr($home))
 				else $c end)] | map(tostring) | join("\t")],
-		lines: [$sessions[].line]}
+		lines: [$sessions[].cells | [range(0; 3) as $k | .[$k] | pad($widths[$k])] + [.[3]] | join("\t")]}
 '
 
 # Prints the frame, or returns 1 having printed nothing when the state could
@@ -235,7 +252,7 @@ render() {
 		esac
 	done <<EOF
 $(jq -r '
-	(.board.counts | ["counts", .runs + .working.deep, .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv),
+	(.board.counts | ["counts", .working.deep, .handed_back.deep, .working.fast, .handed_back.fast, .working.main, .handed_back.main] | @tsv),
 	("run\t" + .order[]),
 	("session\t" + .lines[])' <<<"$s")
 EOF

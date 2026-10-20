@@ -102,6 +102,12 @@ describe("board.sh header", () => {
 		const head = board(root).out.split("\n")[0];
 		expect(head.replace(CLOCK, "")).toBe("sluice · 2 deep · 1 fast working");
 	});
+
+	test("a main run counts as main working, not as deep", () => {
+		const root = boardDir();
+		rawRun(root, JSON.stringify({ schema: 1, topic: "t", channel: "main", started: "2026-01-01T00:00:00Z", tasks: [] }));
+		expect(header(board(root).out)).toBe("sluice · 1 main working");
+	});
 });
 
 describe("board.sh runs", () => {
@@ -208,6 +214,31 @@ describe("board.sh sessions", () => {
 		const out = board(root).out;
 		expect(out).not.toContain("\u001b");
 		expect(out).toContain("fast  evil[2Jname  working");
+	});
+
+	test("rows for trees of different lengths line up their age column", () => {
+		const root = boardDir();
+		index(root, "session", "f1", "fast", "/work/a");
+		index(root, "session", "m1", "main", "/work/longer-name");
+		const rows = board(root).out.split("\n").slice(2, 4).sort();
+		expect(rows).toEqual(["fast  a            working  ◷ 0m", "main  longer-name  working  ◷ 0m"]);
+	});
+
+	test("a tree named with a multi-byte character lines up with an ASCII one", () => {
+		const root = boardDir();
+		index(root, "session", "f1", "fast", "/work/café");
+		index(root, "session", "f2", "fast", "/work/shops");
+		const rows = board(root).out.split("\n").slice(2, 4).sort();
+		expect(rows).toEqual(["fast  café   working  ◷ 0m", "fast  shops  working  ◷ 0m"]);
+	});
+
+	test("a tree named with a multi-byte character lines up under the C locale", () => {
+		const root = boardDir();
+		index(root, "session", "f1", "fast", "/work/café");
+		index(root, "session", "f2", "fast", "/work/shops");
+		const proc = Bun.spawnSync({ cmd: ["bash", BOARD], env: { ...env(root), LC_ALL: "C", LANG: "C" }, timeout: 5000 });
+		const rows = proc.stdout.toString().split("\n").slice(2, 4).sort();
+		expect(rows).toEqual(["fast  café   working  ◷ 0m", "fast  shops  working  ◷ 0m"]);
 	});
 
 	test("a session tree named with a backslash draws the backslash once", () => {
@@ -410,7 +441,7 @@ describe("board.sh output", () => {
 		const state = JSON.parse(r.out);
 		expect(state.counts).toEqual({
 			runs: 1,
-			working: { fast: 1, main: 0, deep: 1 },
+			working: { fast: 1, main: 0, deep: 2 },
 			handed_back: { fast: 1, main: 1, deep: 0 },
 		});
 		expect(state.runs.map((x: { tree: string }) => x.tree)).toEqual([dir]);
@@ -429,6 +460,10 @@ describe("board.sh output", () => {
 
 	test("--watch 0 exits 4", () => {
 		expect(board(boardDir(), "--watch", "0").code).toBe(4);
+	});
+
+	test("--watch 00 exits 4", () => {
+		expect(board(boardDir(), "--watch", "00").code).toBe(4);
 	});
 
 	test("--watch with --json exits 4", () => {
@@ -450,5 +485,12 @@ describe("board.sh --watch", () => {
 		expect(out.endsWith("\u001b[?25h")).toBe(true);
 		// A newline before the clear scrolls a frame taller than the terminal.
 		expect(out).not.toContain("\n\u001b[J");
+	});
+
+	test("an interval with a leading zero is read as decimal seconds", async () => {
+		const proc = Bun.spawn({ cmd: ["bash", BOARD, "--watch", "05"], env: env(boardDir()), timeout: 1500, stdout: "pipe" });
+		const out = await new Response(proc.stdout).text();
+		await proc.exited;
+		expect(out).toContain("sluice · nothing running");
 	});
 });

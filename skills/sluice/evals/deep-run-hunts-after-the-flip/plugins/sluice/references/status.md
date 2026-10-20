@@ -495,9 +495,11 @@ away.
 Everything above answers from inside one worktree set. `scripts/board.sh`
 answers across the machine: every live `deep` run and every routed `fast` or
 `main` session, drawn once, or redrawn in place every two seconds (or every
-`<seconds>` given) with `--watch` until interrupted. `--json` prints the
-combined state for another reader instead, with the counts the header shows,
-and does not combine with `--watch`.
+`<seconds>` given) with `--watch` until interrupted. `<seconds>` is a positive
+whole number read in base ten, leading zeros allowed (`05` is five, `08`
+eight); `0`, `00` or anything else exits 4. `--json` prints the combined state
+for another reader instead, with the counts the header shows, and does not
+combine with `--watch`.
 
 It reads an index of pointers, never copies, at `$SLUICE_BOARD_DIR`, else
 `$CLAUDE_CONFIG_DIR/sluice/board`, else `$HOME/.claude/sluice/board`; with none
@@ -535,11 +537,25 @@ board write is one
 command's result, because the board is a view across trees and not part of
 any run.
 
-A `deep` block is `status.sh line --full` for its tree, unchanged, so it reads
+The header counts each channel's working and handed-back work. A drawn run
+counts as working in its `run.json` channel: a `deep` run toward `N deep`
+alongside the working `deep` sessions, a `main` run toward `N main working`, a
+`fast` run toward `N fast working`. A run naming any other channel, or none,
+counts toward `deep`, since it still draws as a run's bar. `--json` `counts`
+holds the same numbers: `counts.working.<channel>` is that channel's working
+sessions plus its drawn runs (so `working.deep` includes the `deep` runs, where
+before it held the working `deep` sessions only and the header added the runs
+itself), and `counts.runs` is every run drawn, whatever its channel.
+
+A run block is `status.sh line --full` for its tree, unchanged, so it reads
 exactly as the statusline does. Blocked runs sort first, then those with a task
 active or in review, then the rest. A session row shows its channel, the tree's
 name and its state: `working` with the time since it was routed, `handed back`
-with the time since. A `deep` session row reads `handed back` once a turn ends
+with the time since. The channel, name and state columns are padded to the
+widest value among that frame's session rows, two spaces apart, so the ages
+line up. Width is counted in characters of the drawn text (jq's count, so the
+same under a C locale), never colour codes; a wide glyph such as `日` that takes
+two terminal cells counts as one, so a row holding one draws a cell short. A `deep` session row reads `handed back` once a turn ends
 with no run live for it, and otherwise stays `working` while its run's bar is
 drawn; a `deep` session whose run is drawn is not listed again. Session
 entries past a day since their last update are hidden, the same one-day line
