@@ -154,3 +154,34 @@ a process per pointer on every init. Task 8: the run-pointer pass reads with
 the builtin, which also closes the accepted newline-path pointer loss.
 - T8 (38e3ff4) read by the controller: prune with 200 pointers 1.43s -> 0.057s per call; init with 200 pointers 0.26s vs 0.17s on an empty board. A run at a newline path cannot be opened through status.sh (it refuses control bytes in --dir), so only prune's handling of such a pointer is covered.
 - Plan tests after T8, alternating back to back at load ~20-30: branch 32s/31s, master 18s/18s (was 172s/12s). The remainder is the board write per status.sh write (a bash spawn and an mv): +5ms per flip on a quiet machine, multiplied by the hundreds of writes those tests make. Reported at handback, not chased.
+
+## Final review
+
+- Critical C1: the bun preload's `process.env.SLUICE_BOARD_DIR` never reached
+  children spawned without an explicit `env`, so every existing test spawning
+  status.sh wrote to the real `~/.claude/sluice/board`: 1,892 pointers there,
+  1,891 into TMPDIR. This, not a per-process test board, is the cause of the
+  suite-cost section above: the real board grew on every suite run and every
+  init pruned it. The T8 prune fix stands on its own. Task 9 (tier 3).
+- Important I1: the header counted handed-back deep sessions as "deep" (T2's
+  count predates T6 letting deep reach handed back). Task 9.
+- Minor M1: hook and board disagreed on a run with no `.session` (hook: the
+  session's own; board: nobody's, so the session drew twice). One rule in
+  Task 9: a run naming no session is no session's own; Claude Code always sets
+  the id, so only hand-run inits lack one.
+- Minor M2: a stale "route reads and writes no state" test comment. Task 9.
+- Task 9 (0cf0ad2) review: no Critical or Important. Isolation proven end to
+  end (real board 1,893 before and after three runs of every sluice-spawning
+  file). Only `Bun.spawn*` missed later process.env changes; bun's `$` and
+  node:child_process already see them, so the preload wrapper is the narrowest
+  global fix (a package.json script would miss the plain `bun test` CI runs).
+  Non-sluice suites that mutate process.env (magpie, migrate, scope-estimate)
+  unchanged: 1199 pass. Three Minors sent back: an explicit `env: undefined`
+  still escaped the wrapper, the isolation test compared the whole real board
+  (racy with live sessions), a missing `local f` in board.sh render.
+- Note for the finish: `.bug-hunter/` repros sit in the plan worktree,
+  gitignored; a plain `bun test` there picks them up and 33 fail; why was
+  not investigated (the report says to copy them to the repo root first). The
+  bugs they prove are pinned by the shipped suites. They never reach a
+  commit, and the worktree goes when the branch is finished.
+- Task 9 Minors fixed in 254c570. Final review's four findings closed by Task 9 and its tier 3 review.
