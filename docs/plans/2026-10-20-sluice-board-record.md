@@ -70,3 +70,17 @@ run is compared on sluice tests plus the count of non-sluice failures.
 - T2 round 3 cleared. Waiting rather than fixed (Minor): `status.sh line`
   runs inside board.sh's `while read` loop and inherits its stdin; harmless
   while status.sh never reads stdin, and `</dev/null` would close it.
+- T4 (flip) review: invariant held on every path probed (init, --force,
+  move main->wt1->wt2->main, run.at and sessions/<id> resolution, close of an
+  unreadable run, close through the fallback, symlinked and relative dirs,
+  refused moves, concurrent flips). Cost: a task flip +5ms. Five Minors; four
+  sent back, with Touches widened to board-index.sh and its tests by
+  controller decision because two of the fixes live there: prune spawned a jq
+  per session (route at 420ms with 100 sessions), run-drop ignored rm
+  failure, a board failure printed two stderr lines, a stale route comment.
+  Accepted: prune holds no lock, so a close-then-init racing another
+  session's prune can leave the new run off the board until its next write.
+- T4 fixes (5ce1338) read by the controller, not re-reviewed: small, each
+  pinned by a test. route now 51-67ms flat from 1 to 100 sessions. Accepted:
+  prune's run-pointer pass still reads `head -n 1`, so a tree path holding a
+  newline loses its pointer at the next prune until its next write.
