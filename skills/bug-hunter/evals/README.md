@@ -1,6 +1,6 @@
 # bug-hunter evals
 
-Seven cases for `claude plugin eval`. Each scaffolds a small Node repo with a
+Nine cases for `claude plugin eval`. Each scaffolds a small Node repo with a
 `SPEC.md`, one module and a passing `node --test` suite, committed in two steps
 (the spec, then the module) so the target reads as a change. The prompt asks
 what QA will find in the module, the way a user would, and never names the
@@ -15,6 +15,8 @@ skill.
 | `bug-cites-intent-from-spec` | A coupon that floors where the spec rounds half up | `intent.md` is written, and the bug cites a claim sourced from `SPEC.md`, not from the code's floor |
 | `spec-outranks-target-docstring` | The spec keeps a sealed export on offer when its rewrite fails; the module's docstring and code drop it | A bug citing the spec claim, not an ambiguity between spec and docstring |
 | `impossible-value-is-a-bug` | The spec is silent on rounding; the code shows `60s` and `1m 60s` | A bug for the seconds field of 60, which no rounding rule gives |
+| `false-success-is-a-bug` | Closing a renamed project answers `{ ok: true }` and leaves its workspace | A bug, not an ambiguity about renames |
+| `every-member-of-a-set-claim` | Every dropped cited source is logged, except one cut by the cap after attachments fill the slots | A bug for the unlogged cut, which no existing test reaches |
 
 Every case also has `bug-hunter-fired`, a `tool_used: Skill` grader, so a
 score can be told apart from the model's own habits.
@@ -30,7 +32,7 @@ claude plugin eval skills/bug-hunter --scaffold --allow-tools Bash Write Edit \
 ```
 
 Add `--keep-temp` to keep each run's sandbox and trace, which is the only way
-to read back why a grader failed. `-j 7` runs the seven cases at once.
+to read back why a grader failed. `-j 9` runs the nine cases at once.
 
 To check the skill against its last accepted baseline, use `eval:fresh`:
 
@@ -112,6 +114,28 @@ a file needs its exact path and throws on a glob. So:
   scenario-before-body order that 0.4.0 dropped.
 
 ## Baseline
+
+### Skill 0.4.2, Opus 5.5, 2026-10-20: two guards and a field-only rule
+
+A read of 14 hunts in the snowvault transcripts (2026-10-17 to 10-20) found
+three misses. Two became cases, each copying the shape of a real one:
+`false-success-is-a-bug` follows SNO-114, which filed `wt:remove -- SNO-n`
+after a rename as an ambiguity when it exited 0 having released nothing, and
+`every-member-of-a-set-claim` follows SNO-54, which reported 0 bugs on "every
+dropped citation is logged" while one drop site logged nothing. Both scored
+1.00 on the unchanged 0.4.2, two runs each, every judge vote PASS (USD 1.70
+and 1.76, `results/2026-10-20T06-22-11-560Z` and
+`results/2026-10-20T06-22-10-824Z`). As with 0.3.0's cases, the fixture makes
+the defect plain enough that the existing rules catch it, so neither
+reproduces the field miss. They stay as guards, and the skill gained no rule
+for either.
+
+The third miss became the rule that a dispatched agent's refused `report.md`
+and `findings.json` go in its hand-back. Every one of the 10 hunts run as a
+dispatched agent had both Writes refused ("Subagents should return findings
+as text, not write report files"), so `findings.json` existed for 4 of the 14
+runs. No case pins it: an eval runs the skill at the top level, where the
+Write succeeds.
 
 ### Skill 0.4.0, Opus 5.5, 2026-10-13
 
