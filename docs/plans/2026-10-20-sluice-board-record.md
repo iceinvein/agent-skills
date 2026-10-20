@@ -60,3 +60,13 @@ run is compared on sluice tests plus the count of non-sluice failures.
   any malformed input. Sent back with the cheap Minors (newline in a tree path,
   invalid session state or tree drawn, trailing newline scrolling a tall
   frame, ordering tests).
+- T2 round 2: all ten round-1 findings fixed. New: a `cat` per file per frame
+  (Important) and file contents passed as jq argv, so one run.json past the
+  OS argv limit failed the whole board (Minor); both sent back as round 3.
+  Accepted and waiting: hand-edited entries with no `updated`/`started`,
+  fractional seconds, no `tasks`, or a working session with no `routed` are
+  dropped rather than drawn with a fallback. Exit 6 for a whole-state failure
+  (beyond the contract's list) judged sound: same meaning as status.sh's 6.
+- T2 round 3 cleared. Waiting rather than fixed (Minor): `status.sh line`
+  runs inside board.sh's `while read` loop and inherits its stdin; harmless
+  while status.sh never reads stdin, and `</dev/null` would close it.
