@@ -83,14 +83,13 @@ test("a moved run shows once, at the worktree it moved to", () => {
 	expect(board(root).runs.map((r) => r.tree)).toEqual([wt]);
 });
 
-test("a run whose pointer was lost reappears on its next write", () => {
+test("a task flip leaves the board alone", () => {
 	const root = boardDir();
 	const dir = repo();
 	ok(root, dir, "init", "--topic", "widget", "--channel", "deep");
 	rmSync(join(root, "runs"), { recursive: true });
-	expect(board(root).runs).toEqual([]);
 	ok(root, dir, "task", "1", "--name", "T1", "--status", "active");
-	expect(board(root).runs.map((r) => r.tree)).toEqual([dir]);
+	expect(existsSync(join(root, "runs"))).toBe(false);
 });
 
 test("route with a session shows that session working at the repo's top level", () => {

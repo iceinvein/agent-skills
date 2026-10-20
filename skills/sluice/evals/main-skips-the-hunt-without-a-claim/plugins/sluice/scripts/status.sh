@@ -48,8 +48,9 @@
 # naming the tree the run is in, so that session finds its run from the main
 # tree however many other runs the set holds.
 #
-# Every run-state write adds the run's tree to the machine's board index
-# through board-index.sh, `move` re-points it, and `close` drops it. `route`
+# `init` adds the run's tree to the machine's board index through
+# board-index.sh, `move` re-points it, and `close` drops it; a task flip
+# leaves the index alone. `route`
 # with a session id writes that session's entry (no id, nothing written).
 # `init`, and `route` with a session id, sweep the index of dead entries. The
 # sweep is best effort and silent, so only a run-add, run-drop or session
@@ -855,9 +856,6 @@ write_state() {
 	fi
 	rm -f "$tmp"
 	mv "$stamped" "$STATE" || { rm -f "$stamped"; err "could not replace $STATE"; exit 1; }
-	# On every write, not only init, so a pointer lost to a prune or a hand
-	# cleanup comes back the next time the run is written.
-	board_index run-add "$(cd "$(dirname "$STATE")/.." && pwd -P)"
 }
 
 # One state file now serves a whole worktree set, so two implementers can flip
@@ -957,6 +955,9 @@ case "$SUB" in
 			+ (if $session == "" then {} else {session: $session} end)
 			+ {tasks: []}
 		' | write_state || exit $?
+		# Here and in move only, not on every write: a flip spawning a board
+		# write was what a plan of sixty tasks paid sixty times over.
+		board_index run-add "$(cd "$DIR" && pwd -P)"
 
 		POINTER_TREE="$(main_tree "$DIR")"
 		if [ -n "$SESSION" ] && [ -n "$POINTER_TREE" ] && [ -d "$POINTER_TREE" ] \

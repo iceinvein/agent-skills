@@ -512,9 +512,11 @@ board: the suite's preload sets it to a fresh one and makes every child a test
 spawns inherit it, since Bun hands a child spawned with no `env` the
 environment bun started with rather than the one the preload changed.
 
-`scripts/board-index.sh` is the only writer. Every run-state write adds the
-run's pointer, so a run opened before the board existed joins it at its next
-flip; `move` re-points it and `close` drops it. `route` writes the session's
+`scripts/board-index.sh` is the only writer. `init` adds the run's pointer,
+`move` re-points it and `close` drops it. A task flip writes nothing to the
+board, because a plan's flips are many and each write is a process; the cost
+is that a run opened before the board existed stays off it until it is
+closed and a new one opened. `route` writes the session's
 entry as `working`, a later route in the same session overwriting it, so an
 escalation from `fast` to `main` shows as `main`. The Stop hook marks a `fast`
 or `main` entry `handed back` when it lets a stop through, and only then: a
