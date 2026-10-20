@@ -33,10 +33,13 @@ key() {
 	echo "${k//\//%2F}"
 }
 
-# Writes stdin to $1 through a temp file so a reader never sees half an entry.
+# Writes $2 to $1 through a temp file so a reader never sees half an entry. The
+# temp is dotted so the runs/* and sessions/*.json globs never match it. Never
+# call this on the right of a pipe: its exit would end only the subshell.
 put() {
-	local tmp="$1.tmp.$$"
-	if ! cat >"$tmp" 2>/dev/null || ! mv "$tmp" "$1" 2>/dev/null; then
+	local tmp
+	tmp="$(dirname "$1")/.$(basename "$1").tmp.$$"
+	if ! { printf '%s\n' "$2" >"$tmp"; } 2>/dev/null || ! mv "$tmp" "$1" 2>/dev/null; then
 		rm -f "$tmp"
 		err "could not write $1"
 		exit 1
@@ -71,7 +74,7 @@ case "$verb" in
 		[ -n "$1" ] || exit 0
 		path="$ROOT/runs/$(key "$1")"
 		mkdir -p "$ROOT/runs" 2>/dev/null || { err "could not write $path"; exit 1; }
-		printf '%s\n' "$1" | put "$path"
+		put "$path" "$1"
 		;;
 	run-drop)
 		[ -n "$1" ] || exit 0
@@ -91,8 +94,9 @@ case "$verb" in
 		path="$ROOT/sessions/$id.json"
 		mkdir -p "$ROOT/sessions" 2>/dev/null || { err "could not write $path"; exit 1; }
 		t="$(now)"
-		jq -n --arg s "$id" --arg c "$channel" --arg tr "$tree" --arg t "$t" \
-			'{session: $s, channel: $c, tree: $tr, routed: $t, state: "working", updated: $t}' | put "$path"
+		entry="$(jq -n --arg s "$id" --arg c "$channel" --arg tr "$tree" --arg t "$t" \
+			'{session: $s, channel: $c, tree: $tr, routed: $t, state: "working", updated: $t}')"
+		put "$path" "$entry"
 		;;
 	handback)
 		id="$1"
@@ -105,7 +109,7 @@ case "$verb" in
 		channel="$(jq -r '.channel' "$path" 2>/dev/null)" || exit 0
 		[ "$channel" = deep ] && exit 0
 		updated="$(jq --arg t "$(now)" '.state = "handed back" | .updated = $t' "$path")" || exit 0
-		printf '%s\n' "$updated" | put "$path"
+		put "$path" "$updated"
 		;;
 	prune)
 		need_jq

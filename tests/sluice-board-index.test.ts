@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -131,13 +131,68 @@ describe("prune", () => {
 	});
 });
 
-test("with no board dir, config dir or home, run-add writes nothing", () => {
-	const cwd = mkdtempSync(join(tmpdir(), "sluice-nohome-"));
-	const { CLAUDE_CODE_SESSION_ID: _, ...env } = process.env;
-	const proc = Bun.spawnSync({
-		cmd: ["env", "-u", "SLUICE_BOARD_DIR", "-u", "CLAUDE_CONFIG_DIR", "-u", "HOME", "bash", SCRIPT, "run-add", "/t"],
-		env, cwd, timeout: 5000,
+describe("failed writes", () => {
+	test("run-add exits 1 with only the contract message when runs cannot be created", () => {
+		const root = board();
+		writeFileSync(join(root, "runs"), "");
+		const r = run(root, "run-add", "/x");
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not write ${join(root, "runs", "%2Fx")}\n`);
 	});
-	expect(proc.exitCode).toBe(0);
+
+	test("session exits 1 with only the contract message when sessions cannot be created", () => {
+		const root = board();
+		writeFileSync(join(root, "sessions"), "");
+		const r = run(root, "session", "s1", "fast", "/t");
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not write ${join(root, "sessions", "s1.json")}\n`);
+	});
+
+	test("run-add exits 1 when the runs directory is read only", () => {
+		const root = board();
+		mkdirSync(join(root, "runs"), { mode: 0o555 });
+		const r = run(root, "run-add", "/x");
+		chmodSync(join(root, "runs"), 0o755);
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not write ${join(root, "runs", "%2Fx")}\n`);
+	});
+
+	test("handback exits 1 when the sessions directory is read only", () => {
+		const root = board();
+		run(root, "session", "s2", "fast", "/t");
+		chmodSync(join(root, "sessions"), 0o555);
+		const r = run(root, "handback", "s2");
+		chmodSync(join(root, "sessions"), 0o755);
+		expect(r.code).toBe(1);
+		expect(r.err).toBe(`board-index.sh: could not write ${join(root, "sessions", "s2.json")}\n`);
+	});
+});
+
+test("run-add leaves exactly one entry visible in runs", () => {
+	const root = board();
+	run(root, "run-add", "/a");
+	expect(readdirSync(join(root, "runs"))).toEqual(["%2Fa"]);
+});
+
+test("session leaves exactly one entry visible in sessions", () => {
+	const root = board();
+	run(root, "session", "s1", "fast", "/t");
+	expect(readdirSync(join(root, "sessions"))).toEqual(["s1.json"]);
+});
+
+test("with no board dir, config dir or home, no verb writes anywhere", () => {
+	const cwd = mkdtempSync(join(tmpdir(), "sluice-nohome-"));
+	const unique = `nohome-${process.pid}-${Date.now()}`;
+	const { CLAUDE_CODE_SESSION_ID: _, HOME: __, ...env } = process.env;
+	const calls = [["run-add", `/${unique}`], ["session", unique, "fast", "/t"], ["handback", unique], ["prune"]];
+	for (const args of calls) {
+		const proc = Bun.spawnSync({
+			cmd: ["env", "-u", "HOME", "bash", SCRIPT, ...args],
+			env: { ...env, SLUICE_BOARD_DIR: "", CLAUDE_CONFIG_DIR: "" }, cwd, timeout: 5000,
+		});
+		expect(proc.exitCode).toBe(0);
+	}
 	expect(readdirSync(cwd)).toEqual([]);
+	expect(existsSync(join("/.claude/sluice/board/runs", `%2F${unique}`))).toBe(false);
+	expect(existsSync(join("/.claude/sluice/board/sessions", `${unique}.json`))).toBe(false);
 });
