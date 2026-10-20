@@ -10,12 +10,12 @@ process.env.SLUICE_BOARD_DIR = mkdtempSync(join(tmpdir(), "sluice-board-"));
 // started with, not process.env as changed above, and neither Bun.env nor a
 // bunfig setting changes that. Defaulting `env` to process.env is what makes
 // the board dir above reach every child a test spawns.
-type SpawnArgs = [cmd: string[], options?: object] | [options: { cmd: string[]; env?: object }];
+type SpawnArgs = [cmd: string[], options?: { env?: object }] | [options: { cmd: string[]; env?: object }];
 
 function withSuiteEnv(args: SpawnArgs): SpawnArgs {
 	const [first, options] = args;
-	if (Array.isArray(first)) return [first, { env: process.env, ...options }];
-	return [{ env: process.env, ...first }];
+	if (Array.isArray(first)) return [first, { ...options, env: options?.env ?? process.env }];
+	return [{ ...first, env: first.env ?? process.env }];
 }
 
 const spawn = Bun.spawn;

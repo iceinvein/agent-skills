@@ -195,7 +195,7 @@ COMBINE='
 # not be built at all. Colour is painted here and stripped by the caller, once
 # per frame, when it is off.
 render() {
-	local s tag a b c d e head first=1
+	local s tag a b c d e f head first=1
 	gather || return 1
 	s="$(combine)" && [ -n "$s" ] || return 1
 	while IFS="$TAB" read -r tag a b c d e f; do
