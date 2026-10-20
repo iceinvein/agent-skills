@@ -349,6 +349,24 @@ describe("board.sh entries it cannot read", () => {
 		expect(r).toEqual({ code: 6, out: "", err: "board.sh: could not read the board\n" });
 	});
 
+	test("a sessions directory that cannot be read exits 6", () => {
+		const root = boardDir();
+		index(root, "session", "f1", "fast", "/work/x");
+		chmodSync(join(root, "sessions"), 0o000);
+		const r = board(root);
+		chmodSync(join(root, "sessions"), 0o755);
+		expect(r).toEqual({ code: 6, out: "", err: "board.sh: could not read the board\n" });
+	});
+
+	test("a runs directory that cannot be read exits 6 for --json too", () => {
+		const root = boardDir();
+		liveRun(root);
+		chmodSync(join(root, "runs"), 0o000);
+		const r = board(root, "--json");
+		chmodSync(join(root, "runs"), 0o755);
+		expect(r).toEqual({ code: 6, out: "", err: "board.sh: could not read the board\n" });
+	});
+
 	test("a board root that is a regular file exits 6", () => {
 		const root = join(boardDir(), "board");
 		writeFileSync(root, "");

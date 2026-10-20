@@ -76,19 +76,21 @@ paint() { # <sgr> <text>
 # them. The read is the builtin, so a frame spawns no process per file. TREES
 # keeps each run's path by index, so a path holding a newline or a tab reaches
 # status.sh whole rather than through a line-split read. KEYS and VALUES are
-# the records emit hands jq. Returns 1 when the root exists but cannot be
-# listed: a root not yet created is an empty board, since nothing has been
-# written, but one that cannot be read would draw as nothing running when it
-# may hold every run on the machine.
+# the records emit hands jq. Returns 1 when the root, runs/ or sessions/
+# exists but cannot be listed: one not yet created is empty, since nothing has
+# been written there, but one that cannot be read would draw as nothing running
+# when it may hold every run on the machine.
 gather() {
-	local n=0 f tree run entry
+	local n=0 f tree run entry d
 	TREES=()
 	KEYS=()
 	VALUES=()
 	[ -n "$ROOT" ] || return 0
-	if [ -e "$ROOT" ] || [ -L "$ROOT" ]; then
-		[ -d "$ROOT" ] && [ -r "$ROOT" ] && [ -x "$ROOT" ] || return 1
-	fi
+	for d in "$ROOT" "$ROOT/runs" "$ROOT/sessions"; do
+		if [ -e "$d" ] || [ -L "$d" ]; then
+			[ -d "$d" ] && [ -r "$d" ] && [ -x "$d" ] || return 1
+		fi
+	done
 	for f in "$ROOT"/runs/*; do
 		[ -f "$f" ] || continue
 		# read -d '' stops at EOF with a non-zero status, so a short read is told
