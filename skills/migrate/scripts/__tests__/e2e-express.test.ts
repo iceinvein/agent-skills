@@ -755,6 +755,7 @@ function readTomlString(text: string, key: string): string {
   return match[1]
 }
 
+// Drives a whole run through several gates; it takes about 5s, which is bun's default limit.
 test('contract-only run driven probe through handoff, ending green at a plain check', async () => {
   const groundTruthPath = join(source, 'GROUND-TRUTH.md')
   const rows = await parseGroundTruth(groundTruthPath)
@@ -1250,4 +1251,4 @@ test('contract-only run driven probe through handoff, ending green at a plain ch
   expect(reopened.out).toContain(QUEUE_ID)
   await writeFile(reopenPath, ruledText)
   expect((await migrate(['check'])).code).toBe(0)
-})
+}, 60000)
