@@ -311,6 +311,19 @@ describe("board.sh entries it cannot read", () => {
 		expect(r.out).toContain(basename(dir).replace("\u001b", ""));
 	});
 
+	test("a run file past the argument size limit draws beside a normal run", () => {
+		const root = boardDir();
+		const normal = liveRun(root);
+		const big = liveRun(root);
+		// Past macOS's 1 MB argv total, so contents handed over as arguments fail.
+		editRun(big, { padding: "x".repeat(1_200_000) });
+		const r = board(root);
+		expect(r.code).toBe(0);
+		expect(header(r.out)).toBe("sluice · 2 deep");
+		expect(r.out).toContain(`${basename(normal)}  `);
+		expect(r.out).toContain(`${basename(big)}  `);
+	});
+
 	test("a tree path holding a newline is read whole", () => {
 		const root = boardDir();
 		const dir = rawRun(root, JSON.stringify({ schema: 1, topic: "t", channel: "deep", started: "2026-01-01T00:00:00Z", tasks: [] }), "two\nlines-");
