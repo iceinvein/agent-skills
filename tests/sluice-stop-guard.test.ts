@@ -992,6 +992,31 @@ describe("stop-guard.sh entry check", () => {
 			expect(decision(r.out)).toBe("block");
 		});
 
+		test("a refused fast handback leaves the session working on the board", () => {
+			const { cfg, dir, input } = movedSession("v-board", "fast");
+			const root = mkdtempSync(join(tmpdir(), "sluice-guard-board-"));
+			const { CLAUDE_CODE_SESSION_ID: _, ...rest } = process.env;
+			const env = { ...rest, SLUICE_BOARD_DIR: root, CLAUDE_CONFIG_DIR: cfg };
+			const seed = Bun.spawnSync({
+				cmd: ["bash", join(SCRIPTS, "board-index.sh"), "session", "v-board", "fast", dir],
+				env,
+				timeout: 5000,
+			});
+			expect(seed.exitCode).toBe(0);
+
+			const r = Bun.spawnSync({
+				cmd: ["bash", GUARD],
+				stdin: new TextEncoder().encode(JSON.stringify(input)),
+				cwd: tmpdir(),
+				env,
+				timeout: 5000,
+			});
+			const out = r.stdout.toString();
+			expect(decision(out)).toBe("block");
+			expect(JSON.parse(out).reason).toContain("status.sh verify");
+			expect(JSON.parse(readFileSync(join(root, "sessions", "v-board.json"), "utf8")).state).toBe("working");
+		});
+
 		test("the refusal names the recorded check and the no-check escape", () => {
 			const { cfg, input } = movedSession("v2", "fast");
 
@@ -1443,5 +1468,75 @@ describe("stop-guard.sh entry check", () => {
 			expect(reason).toContain("evil.test.ts");
 			expect(reason).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
 		});
+	});
+});
+
+// A stop the hook lets through is the session handing back, and the board
+// shows a fast or main session as waiting on its partner from then on.
+describe("stop-guard.sh records the handback on the board", () => {
+	const BOARD = join(SCRIPTS, "board-index.sh");
+
+	function board(): string {
+		return mkdtempSync(join(tmpdir(), "sluice-guard-board-"));
+	}
+
+	/** CLAUDE_CONFIG_DIR is a fresh temp dir so the hook never reads or writes
+	 * the real ~/.claude/sluice stamps and nudges. */
+	function env(root: string) {
+		const { CLAUDE_CODE_SESSION_ID: _, ...rest } = process.env;
+		return { ...rest, SLUICE_BOARD_DIR: root, CLAUDE_CONFIG_DIR: mkdtempSync(join(tmpdir(), "sluice-guard-cfg-")) };
+	}
+
+	function seed(root: string, sid: string, channel: string, tree: string) {
+		const proc = Bun.spawnSync({ cmd: ["bash", BOARD, "session", sid, channel, tree], env: env(root), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+	}
+
+	function stop(root: string, input: Record<string, unknown>) {
+		const proc = Bun.spawnSync({
+			cmd: ["bash", GUARD],
+			stdin: new TextEncoder().encode(JSON.stringify(input)),
+			env: env(root),
+			cwd: tmpdir(),
+			timeout: 5000,
+		});
+		return { code: proc.exitCode, out: proc.stdout.toString() };
+	}
+
+	function state(root: string, sid: string): string {
+		return JSON.parse(readFileSync(join(root, "sessions", `${sid}.json`), "utf8")).state;
+	}
+
+	test("a stop the hook lets through marks the session handed back", () => {
+		const root = board();
+		const dir = repo();
+		seed(root, "h1", "fast", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "h1", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "h1")).toBe("handed back");
+	});
+
+	test("a stop the hook refuses leaves the session working", () => {
+		const root = board();
+		const dir = midRun(3, 0);
+		seed(root, "h2", "fast", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "h2", stop_hook_active: false });
+		expect(decision(r.out)).toBe("block");
+		expect(state(root, "h2")).toBe("working");
+	});
+
+	test("the second attempt after a refusal marks the session handed back", () => {
+		const root = board();
+		const dir = midRun(3, 0);
+		seed(root, "h3", "fast", dir);
+		stop(root, { cwd: dir, session_id: "h3", stop_hook_active: false });
+
+		const r = stop(root, { cwd: dir, session_id: "h3", stop_hook_active: true });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "h3")).toBe("handed back");
 	});
 });
