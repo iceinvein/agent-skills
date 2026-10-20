@@ -508,26 +508,34 @@ board can never show a stale copy of one. `SLUICE_BOARD_DIR` exists so the
 tests can point every script at a temporary directory and never touch the real
 board.
 
-`scripts/board-index.sh` is the only writer. Every `status.sh` write adds the
+`scripts/board-index.sh` is the only writer. Every run-state write adds the
 run's pointer, so a run opened before the board existed joins it at its next
 flip; `move` re-points it and `close` drops it. `route` writes the session's
 entry as `working`, a later route in the same session overwriting it, so an
 escalation from `fast` to `main` shows as `main`. The Stop hook marks a `fast`
 or `main` entry `handed back` when it lets a stop through, and only then: a
-refused stop is the session still working. A failed board write is one
-`status.sh: note: board not updated: ...` line on stderr and never changes the
-command's result, because the board is a view across trees and not part of
-any run.
+refused stop is the session still working. It marks a `deep` entry the same
+way when no run is live for the session (the design stop before any run
+exists, the stop after `close`, a session that routed deep and never opened a
+run), and leaves it as it is while one is, since the board draws that run's
+bar for it. The live run is the one the hook's run guard resolves: the stop's
+own tree, the tree `init` left a session pointer to, or the tree a `move`
+forwarded to, never the main tree's run read from a runless worktree. A
+failed board write is one `status.sh: note: board not updated: ...` line on
+stderr and never changes the command's result, because the board is a view
+across trees and not part of any run.
 
 A `deep` block is `status.sh line --full` for its tree, unchanged, so it reads
 exactly as the statusline does. Blocked runs sort first, then those with a task
 active or in review, then the rest. A session row shows its channel, the tree's
 name and its state: `working` with the time since it was routed, `handed back`
-with the time since. A `deep` session whose run is already drawn is not listed
-again. Session entries past a day since their last update are hidden, the same
-one-day line `show` uses for an idle run, and the next `init`, or `route` with
-a session id, removes them along with pointers to trees that no longer hold a run. An entry
-that cannot be read is skipped on its own, so one bad file costs one row
+with the time since. A `deep` session row reads `handed back` once a turn ends
+with no run live for it, and otherwise stays `working` while its run's bar is
+drawn; a `deep` session whose run is drawn is not listed again. Session
+entries past a day since their last update are hidden, the same one-day line
+`show` uses for an idle run, and the next `init`, or `route` with a session
+id, removes them along with pointers to trees that no longer hold a run. An
+entry that cannot be read is skipped on its own, so one bad file costs one row
 rather than the board.
 
 The board writes nothing, so it takes no lock. It needs `jq` and exits 5

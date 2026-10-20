@@ -1539,4 +1539,55 @@ describe("stop-guard.sh records the handback on the board", () => {
 		expect(r.out).toBe("");
 		expect(state(root, "h3")).toBe("handed back");
 	});
+
+	/** A deep run past pre-flight with an agent out, so the hook lets the stop through. */
+	function liveRun(): string {
+		const dir = midRun(3, 0);
+		status(dir, "task", "1", "--status", "active");
+		return dir;
+	}
+
+	test("a deep session with no run in its tree is marked handed back", () => {
+		const root = board();
+		const dir = repo();
+		seed(root, "d1", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d1", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d1")).toBe("handed back");
+	});
+
+	test("a deep session whose tree holds a live run stays working", () => {
+		const root = board();
+		const dir = liveRun();
+		seed(root, "d2", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d2", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d2")).toBe("working");
+	});
+
+	test("a deep session whose tree holds a live run stays working when a stop hook already fired", () => {
+		const root = board();
+		const dir = liveRun();
+		seed(root, "d3", "deep", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d3", stop_hook_active: true });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d3")).toBe("working");
+	});
+
+	test("a fast session in a tree with a live deep run is marked handed back", () => {
+		const root = board();
+		const dir = liveRun();
+		seed(root, "d4", "fast", dir);
+
+		const r = stop(root, { cwd: dir, session_id: "d4", stop_hook_active: false });
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(state(root, "d4")).toBe("handed back");
+	});
 });

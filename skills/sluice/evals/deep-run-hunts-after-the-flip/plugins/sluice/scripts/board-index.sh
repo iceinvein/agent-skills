@@ -6,7 +6,7 @@
 #   board-index.sh run-add <tree>
 #   board-index.sh run-drop <tree>
 #   board-index.sh session <id> <fast|main|deep> <tree>
-#   board-index.sh handback <id>
+#   board-index.sh handback <id> [--keep-deep]
 #   board-index.sh prune
 #
 # The root is $SLUICE_BOARD_DIR, else $CLAUDE_CONFIG_DIR/sluice/board, else
@@ -15,6 +15,9 @@
 # <root>/runs/<key>, one line naming the tree, where <key> is the tree with %
 # encoded as %25 and / as %2F. Sessions live at <root>/sessions/<id>.json.
 #
+# `--keep-deep` is for a stop while the session's run is live: the board draws
+# that run's bar for a deep session, so its entry stays as it is.
+#
 # Exit: 0 ok, 1 could not write, 4 bad arguments, 5 jq missing.
 
 set -u
@@ -22,7 +25,7 @@ set -u
 err() { echo "board-index.sh: $*" >&2; }
 
 usage() {
-	echo "usage: board-index.sh run-add <tree> | run-drop <tree> | session <id> <fast|main|deep> <tree> | handback <id> | prune" >&2
+	echo "usage: board-index.sh run-add <tree> | run-drop <tree> | session <id> <fast|main|deep> <tree> | handback <id> [--keep-deep] | prune" >&2
 	exit 4
 }
 
@@ -53,7 +56,10 @@ need_jq() {
 verb="${1:-}"
 [ $# -gt 0 ] && shift
 case "$verb" in
-	run-add|run-drop|handback) [ $# -eq 1 ] || usage ;;
+	run-add|run-drop) [ $# -eq 1 ] || usage ;;
+	handback)
+		[ $# -eq 1 ] || { [ $# -eq 2 ] && [ "$2" = --keep-deep ]; } || usage
+		;;
 	session) [ $# -eq 3 ] || usage ;;
 	prune) [ $# -eq 0 ] || usage ;;
 	*) usage ;;
@@ -100,7 +106,7 @@ case "$verb" in
 		put "$path" "$entry"
 		;;
 	handback)
-		id="$1"
+		id="$1" keep_deep="${2:-}"
 		case "$id" in
 			''|*/*|.*) exit 0 ;;
 		esac
@@ -108,7 +114,7 @@ case "$verb" in
 		[ -f "$path" ] || exit 0
 		need_jq
 		channel="$(jq -r '.channel' "$path" 2>/dev/null)" || exit 0
-		[ "$channel" = deep ] && exit 0
+		[ -n "$keep_deep" ] && [ "$channel" = deep ] && exit 0
 		updated="$(jq --arg t "$(now)" '.state = "handed back" | .updated = $t' "$path")" || exit 0
 		put "$path" "$updated"
 		;;

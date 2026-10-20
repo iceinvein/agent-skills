@@ -97,11 +97,33 @@ describe("handback", () => {
 		expect(session(root, "s1").state).toBe("handed back");
 	});
 
-	test("leaves a deep entry unchanged", () => {
+	test("flips a deep entry to handed back", () => {
+		const root = board();
+		run(root, "session", "s1", "deep", "/t");
+		expect(run(root, "handback", "s1").code).toBe(0);
+		expect(session(root, "s1").state).toBe("handed back");
+	});
+
+	test("with --keep-deep leaves a deep entry unchanged", () => {
 		const root = board();
 		run(root, "session", "s1", "deep", "/t");
 		const before = readFileSync(join(root, "sessions", "s1.json"), "utf8");
-		expect(run(root, "handback", "s1").code).toBe(0);
+		expect(run(root, "handback", "s1", "--keep-deep").code).toBe(0);
+		expect(readFileSync(join(root, "sessions", "s1.json"), "utf8")).toBe(before);
+	});
+
+	test("with --keep-deep still flips a fast entry to handed back", () => {
+		const root = board();
+		run(root, "session", "s1", "fast", "/t");
+		expect(run(root, "handback", "s1", "--keep-deep").code).toBe(0);
+		expect(session(root, "s1").state).toBe("handed back");
+	});
+
+	test("exits 4 on an unknown flag and writes nothing", () => {
+		const root = board();
+		run(root, "session", "s1", "fast", "/t");
+		const before = readFileSync(join(root, "sessions", "s1.json"), "utf8");
+		expect(run(root, "handback", "s1", "--keep").code).toBe(4);
 		expect(readFileSync(join(root, "sessions", "s1.json"), "utf8")).toBe(before);
 	});
 

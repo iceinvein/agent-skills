@@ -48,11 +48,12 @@
 # naming the tree the run is in, so that session finds its run from the main
 # tree however many other runs the set holds.
 #
-# Every write adds the run's tree to the machine's board index through
-# board-index.sh, `move` re-points it, `close` drops it, and `init` sweeps the
-# index of dead entries. `route` with a session id writes that session's entry
-# (no id, nothing written). A board that cannot be written costs one
-# `status.sh: note: board not updated: ...` line on stderr and never the
+# Every run-state write adds the run's tree to the machine's board index
+# through board-index.sh, `move` re-points it, `close` drops it, and `init`
+# sweeps the index of dead entries. `route` with a session id writes that
+# session's entry (no id, nothing written). The sweep is best effort and
+# silent, so only a run-add, run-drop or session write that fails costs a note:
+# one `status.sh: note: board not updated: ...` line on stderr, never the
 # command's result. scripts/board.sh draws the index.
 #
 # A flag value may not begin with `--`: unchecked, an omitted value silently

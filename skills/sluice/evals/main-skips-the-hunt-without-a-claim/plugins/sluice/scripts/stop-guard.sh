@@ -63,16 +63,77 @@ if [ -n "$input" ]; then
 	transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
 fi
 
+# The run the session's own tree answers for, and only that: the state beside
+# it, or the state it forwarded into a worktree when `move` sent the run on
+# without the session. status.sh also lets a tree with no run of its own read
+# the main worktree's, and that one is not taken here: a Stop in such a tree may
+# be an unrelated session, and a remedy printed to it would reach into somebody
+# else's run.
+#
+# The forward is read here rather than left to status.sh's resolution because
+# the two questions differ. Resolution answers "which run can this tree read",
+# which is the right question for a render and the wrong one for a refusal. The
+# tree named in the note is then passed as `--dir`, so what follows asks about
+# one named tree and carries no layout knowledge of its own.
+#
+# The run this session opened in a worktree it never entered is its own too,
+# found through the pointer `init` left at the main tree, and it comes ahead of
+# the forward: the forward names whichever run was moved last, which with
+# several controllers in the main tree may be another session's.
+#
+# Sets top to the stop's tree and run_tree to the tree holding that run, or
+# leaves run_tree empty when there is none. One function for the run guard and
+# the board, so the run that keeps a deep session off the board is the run the
+# guard would refuse over.
+top=""
+run_tree=""
+resolve_run_tree() {
+	local main session_tree="" forward=""
+	run_tree=""
+	top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
+	[ -n "$top" ] || top="$cwd"
+	case "$sid" in
+		"" | */* | .*) ;;
+		*)
+			main="$(git -C "$cwd" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+			[ -n "$main" ] && [ -f "$main/.sluice/sessions/$sid" ] \
+				&& IFS= read -r session_tree <"$main/.sluice/sessions/$sid" 2>/dev/null
+			if [ -z "$session_tree" ] || [ ! -f "$session_tree/.sluice/run.json" ] \
+				|| [ "$(jq -r '.session // empty' "$session_tree/.sluice/run.json" 2>/dev/null)" != "$sid" ]; then
+				session_tree=""
+			fi
+			;;
+	esac
+	if [ -f "$top/.sluice/run.json" ]; then
+		run_tree="$top"
+	elif [ -n "$session_tree" ]; then
+		run_tree="$session_tree"
+	elif [ -f "$top/.sluice/run.at" ]; then
+		IFS= read -r forward <"$top/.sluice/run.at" 2>/dev/null || return 0
+		# A note outliving the run it named is stale, not a run to refuse a stop over.
+		[ -n "$forward" ] && [ -f "$forward/.sluice/run.json" ] || return 0
+		run_tree="$forward"
+	fi
+}
+
 # A stop let through is the session handing back, so the board marks it. A
 # trap rather than a call before each exit: the hook lets a stop through from
 # a dozen places, and a new one added later is covered without anyone having
 # to remember the board. Every block decision sets refused first, since a
 # refused stop is the session still working. The board's output and failure
 # are dropped: stdout carries the decision, and the hook always exits 0.
+#
+# A deep session whose run is live keeps its entry, because the board draws the
+# run's bar for it. Whether the run is live is asked here rather than taken
+# from the run guard, since most exits come before the guard runs, and a deep
+# session mid-run must not read as handed back on any of them.
 refused=""
 board_handback() {
+	local keep=""
 	[ -z "$refused" ] && [ -n "$sid" ] || return 0
-	bash "$here/board-index.sh" handback "$sid" >/dev/null 2>&1 || true
+	resolve_run_tree
+	[ -n "$run_tree" ] && keep="--keep-deep"
+	bash "$here/board-index.sh" handback "$sid" $keep >/dev/null 2>&1 || true
 }
 trap board_handback EXIT
 
@@ -337,50 +398,9 @@ fi
 
 [ -f "$STATUS" ] || exit 0
 
-# The run the session's own tree answers for, and only that: the state beside
-# it, or the state it forwarded into a worktree when `move` sent the run on
-# without the session. status.sh also lets a tree with no run of its own read
-# the main worktree's, and that one is not taken here: a Stop in such a tree may
-# be an unrelated session, and a remedy printed to it would reach into somebody
-# else's run.
-#
-# The forward is read here rather than left to status.sh's resolution because
-# the two questions differ. Resolution answers "which run can this tree read",
-# which is the right question for a render and the wrong one for a refusal. The
-# tree named in the note is then passed as `--dir`, so what follows asks about
-# one named tree and carries no layout knowledge of its own.
-#
-# The run this session opened in a worktree it never entered is its own too,
-# found through the pointer `init` left at the main tree, and it comes ahead of
-# the forward: the forward names whichever run was moved last, which with
-# several controllers in the main tree may be another session's.
-top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
-[ -n "$top" ] || top="$cwd"
-session_tree=""
-case "$sid" in
-	"" | */* | .*) ;;
-	*)
-		main="$(git -C "$cwd" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
-		[ -n "$main" ] && [ -f "$main/.sluice/sessions/$sid" ] \
-			&& IFS= read -r session_tree <"$main/.sluice/sessions/$sid" 2>/dev/null
-		if [ -z "$session_tree" ] || [ ! -f "$session_tree/.sluice/run.json" ] \
-			|| [ "$(jq -r '.session // empty' "$session_tree/.sluice/run.json" 2>/dev/null)" != "$sid" ]; then
-			session_tree=""
-		fi
-		;;
-esac
-if [ -f "$top/.sluice/run.json" ]; then
-	tree="$top"
-elif [ -n "$session_tree" ]; then
-	tree="$session_tree"
-elif [ -f "$top/.sluice/run.at" ]; then
-	tree=""
-	IFS= read -r tree <"$top/.sluice/run.at" 2>/dev/null || exit 0
-	# A note outliving the run it named is stale, not a run to refuse a stop over.
-	[ -n "$tree" ] && [ -f "$tree/.sluice/run.json" ] || exit 0
-else
-	exit 0
-fi
+resolve_run_tree
+[ -n "$run_tree" ] || exit 0
+tree="$run_tree"
 
 run="$(bash "$STATUS" show --json --dir "$tree" 2>/dev/null)" || exit 0
 [ -n "$run" ] || exit 0
