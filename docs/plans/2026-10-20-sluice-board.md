@@ -77,8 +77,9 @@ a temp directory for the whole suite, so no test writes the real board.
 ### Task 5: docs and version
 
 **Contract:** Needs: every task above | Offers: `references/status.md` says what `route` writes and that a missing session id writes nothing, and gains a `## Board` section covering `board.sh`, `--watch`, `--json`, the index location and `SLUICE_BOARD_DIR`, what fast and main entries show and when they expire; the `scripts/status.sh` header documents the board calls; `skill.json` description mentions the board and its version is 0.26.0; `skills/index.json` regenerated
-**Touches:** skills/sluice/references/status.md (edit) | skills/sluice/scripts/status.sh (edit) | skills/sluice/skill.json (edit) | skills/index.json (edit)
+**Touches:** skills/sluice/references/status.md (edit) | skills/sluice/scripts/status.sh (edit) | skills/sluice/skill.json (edit) | skills/index.json (edit) | skills/sluice/evals/ (edit)
 
 - [ ] Edit `references/status.md`: replace "`route` reads and writes no state" with what it now writes and why, add the board command lines to the opening block, and add `## Board` before `## Friction` -> read back against the design's D1 to D4, no em dashes
 - [ ] Add the board calls to the comment header of `status.sh` -> `bash -n skills/sluice/scripts/status.sh` clean
-- [ ] Run `bun run skill:bump sluice minor`, update the description in `skill.json`, run `bun run build:index` -> `skill.json` reads 0.26.0 and `bun test` is green
+- [ ] Run `bun run skill:bump sluice minor`, update the description in `skill.json`, run `bun run build:index` -> `skill.json` reads 0.26.0
+- [ ] Run `bun run eval:plugins` to regenerate the copies under `skills/sluice/evals/*/plugins/` (never edited by hand) -> `bun test tests/eval-plugins.test.ts` green and `bun test` matches the baseline plus the new tests
