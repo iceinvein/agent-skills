@@ -140,3 +140,17 @@ ambiguities, 28 covered).
   `sessions/` drew as an empty board, and status.md described the live-run
   rule as an "or" where the code takes the first run found in order.
 - T7 Minors fixed in f3e05c0, read by the controller.
+
+## Suite cost
+
+Quiet back-to-back runs of `tests/sluice-`: branch 570s and 660s against
+master 155s and 188s, all green with `--timeout 30000`. Per file: plan
+172s/12s, stop-guard 157s/32s, status 122s/59s, session-start 50s/10s,
+statusline 46s/7s; the rest equal. Cause: the bun preload gives the whole
+process one board, every test's `init` adds a pointer (test runs are never
+closed, so 176+ accumulate), and `init`'s prune spawns `head` per pointer:
+quadratic in runs opened. Real boards hold a handful of runs, but the cost is
+a process per pointer on every init. Task 8: the run-pointer pass reads with
+the builtin, which also closes the accepted newline-path pointer loss.
+- T8 (38e3ff4) read by the controller: prune with 200 pointers 1.43s -> 0.057s per call; init with 200 pointers 0.26s vs 0.17s on an empty board. A run at a newline path cannot be opened through status.sh (it refuses control bytes in --dir), so only prune's handling of such a pointer is covered.
+- Plan tests after T8, alternating back to back at load ~20-30: branch 32s/31s, master 18s/18s (was 172s/12s). The remainder is the board write per status.sh write (a bash spawn and an mv): +5ms per flip on a quiet machine, multiplied by the hundreds of writes those tests make. Reported at handback, not chased.
