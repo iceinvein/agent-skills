@@ -96,11 +96,12 @@ sluice: to show a live run on your status line, add these to your statusline
 command. The first goes wherever it builds its other lines, the second last of
 all, after everything else it prints:
 
-  sluice_line=\$(bash "$RENDER" --dir "\$cwd" 2>/dev/null)
+  sluice_line=\$(bash "$RENDER" --dir "\$cwd" --session "\$session_id" 2>/dev/null)
 
   if [ -n "\$sluice_line" ]; then printf '%s\\n' "\$sluice_line"; fi
 
-\$cwd is workspace.current_dir from the JSON the harness sends on stdin. Those
-two lines carry no knowledge of where a run lives, so they stay correct as this
-skill changes; every install updates the script behind them.
+\$cwd is workspace.current_dir and \$session_id is session_id, both from the JSON
+the harness sends on stdin. Those two lines carry no knowledge of where a run
+lives, so they stay correct as this skill changes; every install updates the
+script behind them.
 EOF

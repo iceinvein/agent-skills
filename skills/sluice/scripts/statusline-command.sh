@@ -36,7 +36,13 @@ IFS= read -r -d "" -t 2 input || true
 # `cwd` is the older spelling of the same field and both are still sent, so it
 # is a fallback rather than a bug. Neither present is not an error worth a row:
 # it means this is not the JSON we were written against.
-dir="$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty' 2>/dev/null || true)"
-[ -n "$dir" ] || exit 0
+#
+# One jq for both fields, a line each: the render budget has no room for a
+# second fork, and a newline cannot appear in either value.
+{
+	IFS= read -r dir
+	IFS= read -r session
+} < <(printf '%s' "$input" | jq -r '(.workspace.current_dir // .cwd // ""), (.session_id // "")' 2>/dev/null || true)
+[ -n "${dir:-}" ] || exit 0
 
-bash "$RENDER" --dir "$dir" 2>/dev/null || exit 0
+bash "$RENDER" --dir "$dir" ${session:+--session "$session"} 2>/dev/null || exit 0

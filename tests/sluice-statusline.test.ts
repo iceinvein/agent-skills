@@ -157,6 +157,102 @@ describe("statusline.sh renders a live run", () => {
 	});
 });
 
+/** Opens a deep run in `dir` as session `sid`, the way a controller's Bash call does. */
+function seedAs(dir: string, sid: string, topic: string) {
+	const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sid };
+	Bun.spawnSync({
+		cmd: ["bash", STATUS, "init", "--topic", topic, "--channel", "deep", "--dir", dir],
+		env,
+		timeout: 5000,
+	});
+	Bun.spawnSync({
+		cmd: ["bash", STATUS, "task", "1", "--name", "first", "--status", "active", "--dir", dir],
+		env,
+		timeout: 5000,
+	});
+}
+
+function statusAs(sid: string, dir: string, ...args: string[]) {
+	return Bun.spawnSync({
+		cmd: ["bash", STATUS, ...args, "--dir", dir],
+		env: { ...process.env, CLAUDE_CODE_SESSION_ID: sid },
+		timeout: 5000,
+	});
+}
+
+// A repo whose own rules cut worktrees outside the harness's worktree tool
+// leaves every controller sitting in the main tree while its run lives in the
+// worktree it cut. Several of them at once, so the main tree cannot forward to
+// one run: the session is what says which run is whose.
+describe("statusline.sh follows the session to the run it opened", () => {
+	test("a session in the main tree renders the run it opened in a hand-cut worktree", () => {
+		const main = gitRepo();
+		seedAs(worktree(main, "impl"), "s1", "widget");
+
+		const r = render("--dir", main, "--session", "s1");
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
+		expect(r.out).toMatch(/T1/);
+	});
+
+	test("two sessions in the main tree each render their own worktree's run", () => {
+		const main = gitRepo();
+		seedAs(worktree(main, "one"), "s1", "alpha");
+		seedAs(worktree(main, "two"), "s2", "beta");
+
+		const first = render("--dir", main, "--session", "s1").out;
+		const second = render("--dir", main, "--session", "s2").out;
+		expect(first).toContain("alpha");
+		expect(first).not.toContain("beta");
+		expect(second).toContain("beta");
+		expect(second).not.toContain("alpha");
+	});
+
+	test("a session that opened no run renders nothing from the main tree", () => {
+		const main = gitRepo();
+		seedAs(worktree(main, "impl"), "s1", "widget");
+
+		expect(render("--dir", main, "--session", "s2").out).toBe("");
+	});
+
+	test("a run closed from its own tree stops rendering for the session that opened it", () => {
+		const main = gitRepo();
+		const wt = worktree(main, "impl");
+		seedAs(wt, "s1", "widget");
+		statusAs("s1", wt, "close");
+
+		expect(render("--dir", main, "--session", "s1").out).toBe("");
+	});
+
+	// The main tree's forwarding note names one run, the last one moved. A
+	// session whose run was moved earlier still has to find it.
+	test("a run moved on still renders for its session after another run is moved", () => {
+		const main = gitRepo();
+		const first = worktree(main, "one");
+		seedAs(first, "s1", "alpha");
+		statusAs("s1", first, "move", "--to", worktree(main, "one-b"));
+		const second = worktree(main, "two");
+		seedAs(second, "s2", "beta");
+		statusAs("s2", second, "move", "--to", worktree(main, "two-b"));
+
+		const r = render("--dir", main, "--session", "s1").out;
+		expect(r).toContain("alpha");
+		expect(r).not.toContain("beta");
+	});
+
+	test("moving a session's earlier run leaves it rendering its later one", () => {
+		const main = gitRepo();
+		const first = worktree(main, "one");
+		seedAs(first, "s1", "alpha");
+		seedAs(worktree(main, "two"), "s1", "beta");
+		statusAs("s1", first, "move", "--to", worktree(main, "one-b"));
+
+		const r = render("--dir", main, "--session", "s1").out;
+		expect(r).toContain("beta");
+		expect(r).not.toContain("alpha");
+	});
+});
+
 // A status bar renders on every keystroke and has nowhere to put an error. Any
 // of these printing would put permanent clutter in the bar, so silence and a
 // zero exit is the contract the caller is written against.
@@ -194,6 +290,16 @@ describe("statusline.sh is silent where there is nothing to show", () => {
 		expect(proc.exitCode).toBe(0);
 		expect(proc.stdout.toString()).toBe("");
 		expect(proc.stderr.toString()).toBe("");
+	});
+
+	test("a session id that is a path prints nothing and exits 0", () => {
+		const main = gitRepo();
+		seedAs(worktree(main, "impl"), "s1", "widget");
+
+		const r = render("--dir", main, "--session", "../s1");
+		expect(r.code).toBe(0);
+		expect(r.out).toBe("");
+		expect(r.err).toBe("");
 	});
 
 	test("an unreadable run prints nothing and exits 0", () => {
@@ -336,7 +442,7 @@ describe("the install notice", () => {
 		expect(r.code).toBe(0);
 		const script = realpathSync(join(r.root, "skills", "sluice", "scripts", "statusline.sh"));
 		expect(r.out).toContain(
-			`  sluice_line=$(bash "${script}" --dir "$cwd" 2>/dev/null)`
+			`  sluice_line=$(bash "${script}" --dir "$cwd" --session "$session_id" 2>/dev/null)`
 		);
 	});
 
@@ -487,6 +593,15 @@ describe("statusline-command.sh", () => {
 		expect(r.code).toBe(0);
 		expect(r.out).toContain("widget");
 		expect(r.out).toMatch(/T1/);
+	});
+
+	test("renders the run the session opened in another worktree", () => {
+		const main = gitRepo();
+		seedAs(worktree(main, "impl"), "s1", "widget");
+
+		const r = feed(JSON.stringify({ workspace: { current_dir: main }, session_id: "s1" }));
+		expect(r.code).toBe(0);
+		expect(r.out).toContain("widget");
 	});
 
 	// The field the harness sends has changed name before, and both spellings

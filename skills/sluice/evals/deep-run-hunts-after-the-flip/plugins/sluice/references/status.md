@@ -145,6 +145,16 @@ the run it names is really there. `close` removes a note naming its own tree,
 because a note that outlived its run would hand the next run opened in that
 tree to whoever reads the main tree.
 
+One note cannot serve a repo whose own rules cut worktrees by hand, outside the
+repo, where no worktree tool will enter them: every controller sits in the main
+tree at once, each with its own run elsewhere, and none of them ran `move`. So
+`init` also records the session that opened the run (`--session`, defaulting to
+`$CLAUDE_CODE_SESSION_ID`) and leaves `.sluice/sessions/<id>` at the main
+worktree naming the run's tree. A tree with no run of its own follows that
+pointer before the note, only while the run there is still that session's.
+`move` points it at the new tree and `close` removes it, so the statusline, the
+SessionStart hook and the Stop hook each find the run of the session asking.
+
 One file for several writers is one file to contend on, so `init`, `task`,
 `preflight`, `final`, `pause`, `resume`, `close` and `move` take a lock first, `move` taking the
 destination tree's as well as its own: two flips issued at the same moment
@@ -380,10 +390,10 @@ is live and contends with nothing for width when one is, which is what lets the
 bar be wide and the task carry its name rather than only its number.
 
 Capture it wherever the statusline command builds its other lines, passing the
-directory the session is in and nothing else:
+directory the session is in and the session's id, and nothing else:
 
 ```bash
-sluice_line=$(bash "$HOME/.claude/skills/sluice/scripts/statusline.sh" --dir "$cwd" 2>/dev/null)
+sluice_line=$(bash "$HOME/.claude/skills/sluice/scripts/statusline.sh" --dir "$cwd" --session "$session_id" 2>/dev/null)
 ```
 
 then print it last, after whatever else the command emits:
@@ -392,10 +402,12 @@ then print it last, after whatever else the command emits:
 if [ -n "$sluice_line" ]; then printf '%s\n' "$sluice_line"; fi
 ```
 
-`$cwd` is `workspace.current_dir` from the JSON the harness sends on stdin.
-Substitute the install path: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` where a
-session may set one, or `$cwd/.claude/skills/sluice/scripts/statusline.sh` for a
-project-local install.
+`$cwd` is `workspace.current_dir` and `$session_id` is `session_id`, both from
+the JSON the harness sends on stdin. The id is what finds a run this session
+opened in a worktree it never entered, which is every run in a repo that cuts
+its worktrees by hand. Substitute the install path:
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}` where a session may set one, or
+`$cwd/.claude/skills/sluice/scripts/statusline.sh` for a project-local install.
 
 Those two lines are the whole contract, and they are deliberately empty of
 judgement. Whether a run is visible from a given directory is a question about

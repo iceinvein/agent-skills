@@ -25,7 +25,10 @@ function run(dir: string, ...args: string[]) {
 	// Every call is bounded. A flag loop that fails to consume its argument spins
 	// instead of erroring, and the caller here is an agent issuing these from a
 	// tool call, so a hang costs the whole session rather than one command.
-	const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, ...args, "--dir", dir], timeout: 5000 });
+	// No session id unless a test passes one: the suite may itself run inside a
+	// session, and status.sh follows that session to the runs it opened.
+	const { CLAUDE_CODE_SESSION_ID: _, ...env } = process.env;
+	const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, ...args, "--dir", dir], env, timeout: 5000 });
 	return {
 		code: proc.exitCode,
 		signal: proc.signalCode,
@@ -56,6 +59,12 @@ describe("status.sh syntax", () => {
 		const proc = Bun.spawnSync(["bash", "-n", SCRIPT]);
 		expect(proc.stderr.toString()).toBe("");
 		expect(proc.exitCode).toBe(0);
+	});
+
+	test("a session id that would climb out of .sluice/sessions is refused", () => {
+		const r = run(repo(), "init", "--topic", "t", "--channel", "fast", "--session", "../escape");
+		expect(r.code).toBe(4);
+		expect(r.err).toContain("not a file name");
 	});
 
 	test("usage prints the command list, not the whole script", () => {

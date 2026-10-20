@@ -319,10 +319,30 @@ fi
 # which is the right question for a render and the wrong one for a refusal. The
 # tree named in the note is then passed as `--dir`, so what follows asks about
 # one named tree and carries no layout knowledge of its own.
+#
+# The run this session opened in a worktree it never entered is its own too,
+# found through the pointer `init` left at the main tree, and it comes ahead of
+# the forward: the forward names whichever run was moved last, which with
+# several controllers in the main tree may be another session's.
 top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
 [ -n "$top" ] || top="$cwd"
+session_tree=""
+case "$sid" in
+	"" | */* | .*) ;;
+	*)
+		main="$(git -C "$cwd" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+		[ -n "$main" ] && [ -f "$main/.sluice/sessions/$sid" ] \
+			&& IFS= read -r session_tree <"$main/.sluice/sessions/$sid" 2>/dev/null
+		if [ -z "$session_tree" ] || [ ! -f "$session_tree/.sluice/run.json" ] \
+			|| [ "$(jq -r '.session // empty' "$session_tree/.sluice/run.json" 2>/dev/null)" != "$sid" ]; then
+			session_tree=""
+		fi
+		;;
+esac
 if [ -f "$top/.sluice/run.json" ]; then
 	tree="$top"
+elif [ -n "$session_tree" ]; then
+	tree="$session_tree"
 elif [ -f "$top/.sluice/run.at" ]; then
 	tree=""
 	IFS= read -r tree <"$top/.sluice/run.at" 2>/dev/null || exit 0

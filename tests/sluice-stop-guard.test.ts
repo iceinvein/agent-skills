@@ -240,6 +240,32 @@ describe("stop-guard.sh reads only the session's own tree", () => {
 		expect(reason).not.toMatch(/status\.sh close/);
 	});
 
+	// A worktree cut by hand cannot carry the session into it, so the controller
+	// stops from the main tree while its run is mid-flight in the worktree.
+	function midRunAs(dir: string, sid: string) {
+		const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sid };
+		const as = (...args: string[]) =>
+			Bun.spawnSync({ cmd: ["bash", STATUS, ...args, "--dir", dir], env, timeout: 5000 });
+		as("init", "--topic", "widget", "--channel", "deep");
+		for (let i = 1; i <= 3; i++) as("task", String(i), "--name", `T${i}`, "--tier", "1");
+		as("task", "1", "--status", "done");
+		as("preflight", "--review", "x", "--effort", "y", "--workspace", "z");
+	}
+
+	test("a session in the main tree is guarded over the run it opened in a worktree", () => {
+		const main = gitRepo();
+		midRunAs(worktree(main), "s1");
+
+		expect(decision(guard({ cwd: main, session_id: "s1", stop_hook_active: false }).out)).toBe("block");
+	});
+
+	test("a session in the main tree is let stop over a run another session opened", () => {
+		const main = gitRepo();
+		midRunAs(worktree(main), "s1");
+
+		expect(guard({ cwd: main, session_id: "s2", stop_hook_active: false }).out).toBe("");
+	});
+
 	test("a worktree is let stop though the main tree forwards a run to another", () => {
 		const main = gitRepo();
 		midRunIn(main);

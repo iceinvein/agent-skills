@@ -137,7 +137,7 @@ stamp_baseline "$sid" "$source"
 [ -d "$cwd" ] || exit 0
 [ -f "$STATUS" ] || exit 0
 
-shown="$(bash "$STATUS" show --dir "$cwd" 2>/dev/null)" || exit 0
+shown="$(bash "$STATUS" show --dir "$cwd" ${sid:+--session "$sid"} 2>/dev/null)" || exit 0
 [ -n "$shown" ] || exit 0
 
 echo "A sluice run is live. Its state, from .sluice/run.json:"

@@ -43,6 +43,11 @@
 # neither records anything. Its exit 1 also covers a tree whose changed tests
 # cannot be read.
 #
+# --session <id> names the session asking (default: $CLAUDE_CODE_SESSION_ID).
+# `init` records it in the run and leaves <main tree>/.sluice/sessions/<id>
+# naming the tree the run is in, so that session finds its run from the main
+# tree however many other runs the set holds.
+#
 # A flag value may not begin with `--`: unchecked, an omitted value silently
 # becomes the next flag and the field holds a flag name.
 
@@ -95,6 +100,7 @@ in_set() {
 # subcommand's own flag loop ever sees it. Everything after `--` is verify's
 # command, kept verbatim: a `--dir` in it belongs to that command, not to us.
 DIR="$PWD"
+SESSION="${CLAUDE_CODE_SESSION_ID-}"
 ARGS=()
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -108,6 +114,11 @@ while [ $# -gt 0 ]; do
 			DIR="$2"
 			shift 2
 			;;
+		--session)
+			need_value --session $# "${2-}"
+			SESSION="$2"
+			shift 2
+			;;
 		*)
 			ARGS+=("$1")
 			shift
@@ -115,6 +126,12 @@ while [ $# -gt 0 ]; do
 	esac
 done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+# The id becomes a file name under .sluice/sessions, so one that could climb out
+# of that directory is refused rather than followed.
+case "$SESSION" in
+	*/* | .*) err "session id $SESSION is not a file name"; exit 4 ;;
+esac
 
 SUB="${1-}"
 [ $# -gt 0 ] && shift
@@ -130,6 +147,40 @@ fi
 # git work tree.
 main_tree() { # <dir>
 	git -C "$1" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p'
+}
+
+# The tree a session's run is in, from the pointer `init` left at the main tree.
+# `run.at` cannot answer this: it is one note for the whole set, and a repo that
+# cuts worktrees by hand has every controller sitting in the main tree at once,
+# each with its own run elsewhere. Followed only while the run there is still
+# that session's, so a pointer that outlived its run never hands over the next
+# one opened in that tree. Empty when there is no such run.
+session_run() { # <main tree>
+	[ -n "$SESSION" ] && [ -n "$1" ] && [ -f "$1/.sluice/sessions/$SESSION" ] || return 0
+	local at=""
+	IFS= read -r at <"$1/.sluice/sessions/$SESSION" 2>/dev/null || true
+	[ -n "$at" ] && [ -f "$at/.sluice/run.json" ] || return 0
+	[ "$(jq -r '.session // empty' "$at/.sluice/run.json" 2>/dev/null)" = "$SESSION" ] || return 0
+	printf '%s\n' "$at"
+}
+
+# Like `leave_note`, a pointer that could not be written is a blank statusline
+# for one session rather than a failed command, so the caller reports it.
+point_session() { # <main tree> <session id> <tree the run is in>
+	mkdir -p "$1/.sluice/sessions" 2>/dev/null || return 1
+	[ -e "$1/.sluice/.gitignore" ] || printf '*\n' >"$1/.sluice/.gitignore" 2>/dev/null || true
+	printf '%s\n' "$3" >"$1/.sluice/sessions/$2" 2>/dev/null
+}
+
+# The session a run was opened by, read back from the run itself rather than
+# from whoever is asking: `move` and `close` may come from another session.
+run_owner() { # <state file>
+	local owner
+	owner="$(jq -r '.session // empty' "$1" 2>/dev/null)"
+	case "$owner" in
+		*/* | .*) return 0 ;;
+	esac
+	printf '%s' "$owner"
 }
 
 # A tree's own run comes first, and only a tree with none reads the set's. Two
@@ -160,8 +211,12 @@ if [ "$SUB" != "init" ] && [ ! -f "$DIR/.sluice/run.json" ] \
 	# package straight past that worktree's run to the main tree's.
 	OWN_TREE="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)"
 	MAIN_TREE="$(main_tree "$DIR")"
+	# The session's own run outranks the set's, which may be anybody's.
+	SESSION_TREE="$(session_run "${MAIN_TREE:-}")"
 	if [ -n "${OWN_TREE:-}" ] && [ -f "$OWN_TREE/.sluice/run.json" ]; then
 		DIR="$OWN_TREE"
+	elif [ -n "$SESSION_TREE" ]; then
+		DIR="$SESSION_TREE"
 	elif [ -n "${MAIN_TREE:-}" ] && [ -d "$MAIN_TREE" ]; then
 		DIR="$MAIN_TREE"
 
@@ -841,12 +896,20 @@ case "$SUB" in
 			--arg channel "$CHANNEL" \
 			--arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 			--arg plan "$PLAN" \
-			--arg record "$RECORD" '
+			--arg record "$RECORD" \
+			--arg session "$SESSION" '
 			{schema: 1, topic: $topic, channel: $channel, started: $started}
 			+ (if $plan == "" then {} else {plan: $plan} end)
 			+ (if $record == "" then {} else {record: $record} end)
+			+ (if $session == "" then {} else {session: $session} end)
 			+ {tasks: []}
-		' | write_state
+		' | write_state || exit $?
+
+		POINTER_TREE="$(main_tree "$DIR")"
+		if [ -n "$SESSION" ] && [ -n "$POINTER_TREE" ] && [ -d "$POINTER_TREE" ] \
+			&& ! point_session "$POINTER_TREE" "$SESSION" "$(cd "$DIR" && pwd -P)"; then
+			err "note: the run is open, but $POINTER_TREE/.sluice/sessions/$SESSION could not be written, so this session reads no run from $POINTER_TREE"
+		fi
 		;;
 
 	task)
@@ -1263,6 +1326,20 @@ case "$SUB" in
 			elif ! leave_note "$NOTE_TREE" "$TO"; then
 				err "note: the run moved, but $NOTE_TREE/.sluice/run.at could not be written, so a session in $NOTE_TREE will read no run until it moves to $TO"
 			fi
+			# The note above names only the last run moved; the owner's pointer
+			# keeps finding this one after another run is moved past it. Only a
+			# pointer still naming the tree left behind follows the run: one
+			# naming elsewhere is on a later run the same session opened.
+			OWNER="$(run_owner "$DEST_STATE")"
+			if [ -n "$OWNER" ]; then
+				AT=""
+				[ -f "$NOTE_TREE/.sluice/sessions/$OWNER" ] \
+					&& IFS= read -r AT <"$NOTE_TREE/.sluice/sessions/$OWNER" 2>/dev/null
+				if { [ -z "$AT" ] || [ "$AT" = "$(cd "$DIR" && pwd -P)" ]; } \
+					&& ! point_session "$NOTE_TREE" "$OWNER" "$TO"; then
+					err "note: the run moved, but $NOTE_TREE/.sluice/sessions/$OWNER could not be written"
+				fi
+			fi
 		fi
 
 		echo "moved $(jq -r '.topic // "run"' "$DEST_STATE" 2>/dev/null || echo run) to $TO"
@@ -1300,6 +1377,7 @@ case "$SUB" in
 		# file aside intact rather than leaving it wedged in the tree.
 		started="$(jq -r '.started // empty' "$STATE" 2>/dev/null)"
 		topic="$(jq -r '.topic // empty' "$STATE" 2>/dev/null)"
+		owner="$(run_owner "$STATE")"
 		stamp="$(printf '%s' "$started" | tr -cd '0-9TZ')"
 		slug="$(printf '%s' "${topic:-run}" | tr -cs 'A-Za-z0-9._-' '-')"
 		[ -n "$stamp" ] || stamp="unknown"
@@ -1327,6 +1405,13 @@ case "$SUB" in
 			AT=""
 			IFS= read -r AT <"$NOTE_TREE/.sluice/run.at" 2>/dev/null || true
 			[ "$AT" = "$(cd "$DIR" && pwd -P)" ] && rm -f "$NOTE_TREE/.sluice/run.at"
+		fi
+		# The same holds for the owner's pointer, which may by now name a later
+		# run the same session opened elsewhere.
+		if [ -n "$NOTE_TREE" ] && [ -n "$owner" ] && [ -f "$NOTE_TREE/.sluice/sessions/$owner" ]; then
+			AT=""
+			IFS= read -r AT <"$NOTE_TREE/.sluice/sessions/$owner" 2>/dev/null || true
+			[ "$AT" = "$(cd "$DIR" && pwd -P)" ] && rm -f "$NOTE_TREE/.sluice/sessions/$owner"
 		fi
 		# The summary needs parseable state and close is the one command that
 		# does not, so an unreadable run still gets a line naming where it went.

@@ -125,6 +125,36 @@ describe("session-start.sh", () => {
 		expect(out).not.toContain("widget");
 	});
 
+	// A worktree cut by hand cannot carry the session into it, so a controller
+	// resumed or compacted is still in the main tree while its run is not.
+	test("a session in the main tree is shown the run it opened in a worktree", () => {
+		const main = repo();
+		const git = (...args: string[]) => Bun.spawnSync({ cmd: ["git", "-C", main, ...args], timeout: 10000 });
+		git("init", "-q");
+		git("config", "user.email", "t@example.com");
+		git("config", "user.name", "t");
+		writeFileSync(join(main, "README.md"), "hi\n");
+		git("add", "-A");
+		git("commit", "-qm", "init");
+		const wt = join(mkdtempSync(join(tmpdir(), "sluice-wt-")), "impl");
+		git("worktree", "add", "-q", wt, "-b", "impl");
+		const env = { ...process.env, CLAUDE_CODE_SESSION_ID: "s1", CLAUDE_CONFIG_DIR: repo() };
+		Bun.spawnSync({
+			cmd: ["bash", STATUS, "init", "--topic", "gadget", "--channel", "deep", "--dir", wt],
+			env,
+			timeout: 5000,
+		});
+
+		const proc = Bun.spawnSync({
+			cmd: ["bash", HOOK],
+			stdin: new TextEncoder().encode(JSON.stringify({ cwd: main, session_id: "s1", source: "compact" })),
+			cwd: tmpdir(),
+			env,
+			timeout: 5000,
+		});
+		expect(proc.stdout.toString()).toContain("gadget");
+	});
+
 	test("falls back to the working directory when stdin carries no cwd", () => {
 		const dir = repo();
 		status(dir, "init", "--topic", "widget", "--channel", "deep");

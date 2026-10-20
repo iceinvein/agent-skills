@@ -3,12 +3,13 @@
 # call. The caller passes the directory the session is in and prints whatever
 # comes back.
 #
-#   statusline.sh [--dir <path>]
+#   statusline.sh [--dir <path>] [--session <id>]
 #
-# --dir defaults to $PWD. Always exits 0 in silence on anything it cannot
-# render: a status bar draws on every keystroke and has nowhere to put an error,
-# so a message here would be permanent clutter rather than a report anyone acts
-# on.
+# --dir defaults to $PWD. --session is the harness's session_id, which finds the
+# run that session opened in another worktree while it sits in the main tree.
+# Always exits 0 in silence on anything it cannot render: a status bar draws on
+# every keystroke and has nowhere to put an error, so a message here would be
+# permanent clutter rather than a report anyone acts on.
 #
 # Why this exists as its own script rather than as a snippet in the caller.
 # Whether a run is visible from a given directory is a question about sluice's
@@ -36,12 +37,18 @@ here="$(cd "$(dirname "$0")" && pwd)"
 STATUS="$here/status.sh"
 
 DIR="$PWD"
+SESSION=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--dir)
 			# An omitted value would silently make the next flag the directory.
 			[ $# -ge 2 ] && [ "${2#--}" = "$2" ] || exit 0
 			DIR="$2"
+			shift 2
+			;;
+		--session)
+			[ $# -ge 2 ] && [ "${2#--}" = "$2" ] || exit 0
+			SESSION="$2"
 			shift 2
 			;;
 		*) exit 0 ;;
@@ -65,11 +72,13 @@ done
 d="$(cd "$DIR" 2>/dev/null && pwd -P)" || exit 0
 [ -n "$d" ] || exit 0
 
-# Five answers end the walk. A state file is a run, wherever it was found. So is
+# Six answers end the walk. A state file is a run, wherever it was found. So is
 # a forwarding note beside where one used to be: the run moved out into a
 # worktree, this tree is where the session that moved it is still sitting, and
 # testing only the state file blanked its bar on a live run -- ahead of the
-# `.git` directory below, which would otherwise answer for this tree first. A
+# `.git` directory below, which would otherwise answer for this tree first. So
+# is this session's pointer, for a run it opened in a worktree it never
+# entered, which is the same blank bar reached without a `move`. A
 # `.git` that is a regular file is a linked worktree or a submodule, which may
 # hold no state of its own and still belong to a set that does, so it is a maybe
 # and status.sh resolves it. A `.git` that is a directory is the top of an
@@ -83,6 +92,7 @@ d="$(cd "$DIR" 2>/dev/null && pwd -P)" || exit 0
 while :; do
 	[ -f "$d/.sluice/run.json" ] && break
 	[ -f "$d/.sluice/run.at" ] && break
+	[ -n "$SESSION" ] && [ -f "$d/.sluice/sessions/$SESSION" ] && break
 	[ -f "$d/.git" ] && break
 	[ -d "$d/.git" ] && exit 0
 	[ "$d" = "${HOME:-}" ] && exit 0
@@ -100,6 +110,8 @@ done
 # already coloured: the mapping from state to colour belongs next to the state,
 # and a caller that applied it would have to re-derive each cell's meaning from
 # its glyph.
-rendered="$(bash "$STATUS" line --full --dir "$DIR" 2>/dev/null)" || exit 0
+# --session only when given, so a caller passing none leaves status.sh its own
+# default rather than an empty override.
+rendered="$(bash "$STATUS" line --full --dir "$DIR" ${SESSION:+--session "$SESSION"} 2>/dev/null)" || exit 0
 [ -n "$rendered" ] || exit 0
 printf '%s\n' "$rendered"
