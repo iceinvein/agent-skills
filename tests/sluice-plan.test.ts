@@ -388,6 +388,31 @@ describe("the plan tied to its spec", () => {
 		expect(r.out).not.toMatch(/D2/);
 	});
 
+	// The repo's older plans write the path as code, often with prose after it.
+	test("a backticked Spec path resolves", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** `spec.md`"));
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+	});
+
+	test("a backticked Spec path followed by prose resolves", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** `spec.md` (signed off in review)"));
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+	});
+
+	test("a Spec line naming no path is rejected", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:**"));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}the \*\*Spec:\*\* line names no path/);
+	});
+
+	test("an empty Builds line is rejected", () => {
+		const r = validate(broken("**Builds:** D2\n", "**Builds:**\n"), "# Spec: widget\n\n### D1. render\nAll of it.\n");
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}task 2 has an empty Builds line; write D<n>, or none, <why>/);
+	});
+
 	test("an absolute Spec path resolves", () => {
 		const elsewhere = join(mkdtempSync(join(tmpdir(), "sluice-spec-")), "design.md");
 		writeFileSync(elsewhere, SPEC);

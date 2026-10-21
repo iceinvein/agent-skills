@@ -153,6 +153,9 @@ fenced { next }
 # file, not the plan naming its design.
 ntasks == 0 && /^\*\*Spec:\*\*/ {
 	spec_path = trim(substr($0, length("**Spec:**") + 1))
+	# Older plans write the path as code with prose after it, so a backticked
+	# span is the path and the rest is commentary.
+	if (match(spec_path, /`[^`]+`/)) spec_path = trim(substr(spec_path, RSTART + 1, RLENGTH - 2))
 	has_spec = 1
 	next
 }
@@ -264,6 +267,10 @@ in_rules && /^- / { nrules++ }
 /^\*\*Builds:\*\*/ {
 	has_builds[cur] = 1
 	body = trim(substr($0, length("**Builds:**") + 1))
+	if (body == "") {
+		finding("error", "task " cur " has an empty Builds line; write D<n>, or none, <why>")
+		next
+	}
 	if (tolower(body) ~ /^none([ \t,]|$)/) next
 	n = split(body, parts, /[, \t]+/)
 	for (i = 1; i <= n; i++) {
@@ -354,6 +361,10 @@ END {
 	if (check_spec) {
 		if (!has_spec) {
 			finding("error", "no **Spec:** line, so nothing ties the plan to the design it builds")
+		} else if (spec_path == "") {
+			# Checked before the read: getline on an empty filename is a fatal
+			# awk error, which would surface as the plan being unreadable.
+			finding("error", "the **Spec:** line names no path")
 		} else if ((getline line < spec_path) < 0) {
 			finding("error", "**Spec:** names " spec_path ", which does not exist")
 		} else {
