@@ -150,6 +150,14 @@
       "unpinned": "Only local-mode-hands-back runs cleanup, and local cleanup prints no view-later line by design; no PR case reaches stage 10, and the PR fakes have no cleanup subcommand."
     },
     {
+      "id": "bare-invocation-is-local-mode",
+      "states": "SKILL.md: 0. Identify the PR",
+      "origin": "commit:fdda718",
+      "cases": [
+        "bare-invocation-goes-local"
+      ]
+    },
+    {
       "id": "local-mode-hands-back-via-handoff",
       "states": "SKILL.md: Local mode",
       "origin": "commit:9353023",

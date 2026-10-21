@@ -212,6 +212,14 @@ test('SKILL.md sends each stage to the reference file it needs', async () => {
   expect(section('### 7. Peer review')).toContain('references/peer-review.md')
 })
 
+test('a bare /magpie is routed to local mode and the hint says so', async () => {
+  const text = await readFile(SKILL, 'utf8')
+  expect(text).toMatch(/^argument-hint: ".*local \(default\).*"$/m)
+  const start = text.indexOf('### 0. Identify the PR')
+  const routing = text.slice(start, text.indexOf('\n### ', start + 1))
+  expect(routing).toMatch(/bare invocation \(no arguments and no PR named\)[^.]*is local mode/)
+})
+
 test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
   const text = await readFile(SKILL, 'utf8')
   for (const tag of ['magpie-specialist-', 'magpie-critic', 'magpie-peer-review', 'magpie-scout']) {

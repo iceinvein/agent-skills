@@ -1,7 +1,7 @@
 # magpie evals
 
-Six cases for `claude plugin eval`. Every one starts mid-pipeline, because the
-decisions this skill owns are the ones between the CLI calls: `scripts/__tests__/`
+Seven cases for `claude plugin eval`. Each starts at a decision rather than at
+the top of a run, most of them mid-pipeline, because the decisions this skill owns are the ones between the CLI calls: `scripts/__tests__/`
 already pins what `magpie setup`, `dedupe`, `shard`, `post` and `status` compute.
 What no unit test can reach is whether the agent stops where the walkthrough says
 stop, falls back where it says fall back, and keeps its hands off the things it
@@ -15,6 +15,7 @@ must not touch.
 | `post-folds-selection-events` | The user typed `post` after re-ticking | Folds `state/events` last-event-wins, posts `bugs-1,perf-1` only |
 | `resume-finds-active-run` | A fresh review ask on a PR with a live run | Checks `--list-runs` first, never calls `setup`, surfaces the interrupted run |
 | `local-mode-hands-back` | A local run resumed after peer review | Runs `handoff` then `cleanup`, replies with both finding titles, never serves, renders, posts or calls `gh` |
+| `bare-invocation-goes-local` | A bare `/magpie` on a branch with an open PR | Runs `setup --local`, never `--pr`, never calls `gh` |
 
 ## Running
 
@@ -120,6 +121,16 @@ either. Repeat that check after changing either command. The report and post cas
 reported as pass/fail indicators, because they can never pass without the
 plugin. They are there to tell you whether a score came from magpie or from the
 model's own habits.
+
+`bare-invocation-goes-local` has no such grader. Its prompt is `/magpie`, which
+the child expands as a slash command, so the skill loads without a `Skill` call
+and the trace does not record the load. `setup-ran-local` stands in for it: only
+SKILL.md tells the agent to run `magpie setup --local`.
+
+That case needs git in the child for the branch slug, and the xcrun shim at
+`/usr/bin/git` fails in the sandbox, so its fixture puts a `git` wrapper on the
+shims path that execs `/Library/Developer/CommandLineTools/usr/bin/git`. On a
+machine without the Command Line Tools, point the wrapper at that machine's git.
 
 **Every `llm` grader carries `focus: last_message`.** Without it the judge is
 handed a window of the whole trace, and in a case that reads a 40,000-line diff
