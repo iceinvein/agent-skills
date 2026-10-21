@@ -267,8 +267,10 @@ in_rules && /^- / { nrules++ }
 /^\*\*Builds:\*\*/ {
 	has_builds[cur] = 1
 	body = trim(substr($0, length("**Builds:**") + 1))
+	# Validate-only, like the spec coverage below: a plan that imported before
+	# Builds lines existed must not be refused over one it cannot parse.
 	if (body == "") {
-		finding("error", "task " cur " has an empty Builds line; write D<n>, or none, <why>")
+		if (check_spec) finding("error", "task " cur " has an empty Builds line; write D<n>, or none, <why>")
 		next
 	}
 	if (tolower(body) ~ /^none([ \t,]|$)/) next
@@ -276,7 +278,7 @@ in_rules && /^- / { nrules++ }
 	for (i = 1; i <= n; i++) {
 		if (parts[i] == "") continue
 		if (parts[i] ~ /^D[0-9]+$/) builds[cur] = builds[cur] " " parts[i]
-		else finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; write D<n>, or none, <why>")
+		else if (check_spec) finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; write D<n>, or none, <why>")
 	}
 	next
 }

@@ -551,6 +551,22 @@ describe("import", () => {
 		expect(tasks(dir)).toHaveLength(2);
 	});
 
+	// Builds lines tie a plan to its spec, which is validate's job; a plan that
+	// imported before they existed must still import with a malformed one.
+	test("import ignores an empty Builds line", () => {
+		const dir = repoWithRun();
+		const r = imp(dir, broken("**Builds:** D1\n", "**Builds:**\n"));
+		expect(r.out).toMatch(/imported 2 tasks from plan\.md/);
+		expect(r.code).toBe(0);
+	});
+
+	test("import ignores a Builds line written in prose", () => {
+		const dir = repoWithRun();
+		const r = imp(dir, broken("**Builds:** D1\n", "**Builds:** D1 and part of D2\n"));
+		expect(r.out).toMatch(/imported 2 tasks from plan\.md/);
+		expect(r.code).toBe(0);
+	});
+
 	// A row already flipped to done must not be reset by re-importing the plan it
 	// came from, or resuming after a compaction silently rewinds the run.
 	test("does not reset progress already recorded against a task", () => {
