@@ -337,7 +337,17 @@ describe("the plan tied to its spec", () => {
 
 	test("a Spec path that exists but cannot be read is rejected as unreadable, not missing", () => {
 		const path = planFile(GOOD);
-		chmodSync(join(dirname(path), "spec.md"), 0o000);
+		const spec = join(dirname(path), "spec.md");
+		chmodSync(spec, 0o000);
+		// Root reads a mode-000 file anyway, which would fail this test for a
+		// reason that has nothing to do with plan.sh, so say that instead.
+		let readable = true;
+		try {
+			readFileSync(spec);
+		} catch {
+			readable = false;
+		}
+		expect(readable, "spec.md is still readable after chmod 000; run the suite as a non-root user").toBe(false);
 		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", path], cwd: dirname(path), timeout: 5000 });
 		const out = proc.stdout.toString();
 		expect(proc.exitCode).toBe(2);
@@ -443,6 +453,34 @@ describe("the plan tied to its spec", () => {
 		const r = validate(broken("**Builds:** D2\n", "**Builds:**\n"), "# Spec: widget\n\n### D1. render\nAll of it.\n");
 		expect(r.code).toBe(2);
 		expect(r.out).toMatch(/error {2}task 2 has an empty Builds line; write D<n>, or none, <why>/);
+	});
+
+	test("none closing a sentence, or followed by a colon, still says the task builds nothing", () => {
+		for (const line of ["**Builds:** None.", "**Builds:** none: version bump"]) {
+			const r = validate(broken("**Builds:** D2\n", `${line}\n`), "# Spec: widget\n\n### D1. render\nAll of it.\n");
+			expect(r.code, line).toBe(0);
+			expect(r.out, line).not.toMatch(/not a decision id/);
+		}
+	});
+
+	test("a relative Spec path resolves from the plan's repo root, wherever validate runs", () => {
+		const repo = mkdtempSync(join(tmpdir(), "sluice-repo-"));
+		Bun.spawnSync({ cmd: ["git", "init", "-q", repo] });
+		mkdirSync(join(repo, "docs", "specs"), { recursive: true });
+		mkdirSync(join(repo, "docs", "plans"), { recursive: true });
+		writeFileSync(join(repo, "docs", "specs", "widget.md"), SPEC);
+		const plan = join(repo, "docs", "plans", "widget.md");
+		writeFileSync(plan, broken("**Spec:** spec.md", "**Spec:** docs/specs/widget.md"));
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", plan], cwd: tmpdir(), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toMatch(/no errors/);
+	});
+
+	test("outside a git repo, a relative Spec path resolves from the plan's own directory", () => {
+		const path = planFile(GOOD);
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", path], cwd: tmpdir(), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toMatch(/no errors/);
 	});
 
 	test("an absolute Spec path resolves", () => {

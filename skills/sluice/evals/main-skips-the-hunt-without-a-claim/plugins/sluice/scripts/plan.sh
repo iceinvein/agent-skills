@@ -14,7 +14,8 @@
 # validate prints one line per finding. An error means the plan cannot be
 # dispatched as written; a warning is a judgement call left to its author.
 # Besides the plan's own skeleton, it reads the spec the plan's **Spec:** line
-# names (from the cwd, as the plan path is) and checks every "### D<n>." decision
+# names (a relative path from the plan's repo root, or from the plan's own
+# directory outside a repo) and checks every "### D<n>." decision
 # there is built by some task's **Builds:** line, and that no task builds one the
 # spec does not have.
 # import seeds the run state's task rows from the plan, so the ids, names, the
@@ -61,7 +62,11 @@ usage() {
 # than free markdown. Fenced blocks are skipped: a plan carries signatures and
 # commands in them, and a `- [ ]` inside a fence is an example, not a step.
 PARSER='
-BEGIN { SEP = sprintf("%c", 31) }
+BEGIN {
+	SEP = sprintf("%c", 31)
+	# The one form a Builds line takes, said once for every message that asks for it.
+	BUILDS_HINT = "write D<n>, or none, <why>"
+}
 
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
@@ -275,17 +280,17 @@ in_rules && /^- / { nrules++ }
 	# Validate-only, like the spec coverage below: a plan that imported before
 	# Builds lines existed must not be refused over one it cannot parse.
 	if (body == "") {
-		if (check_spec) finding("error", "task " cur " has an empty Builds line; write D<n>, or none, <why>")
+		if (check_spec) finding("error", "task " cur " has an empty Builds line; " BUILDS_HINT)
 		next
 	}
-	if (tolower(body) ~ /^none([ \t,]|$)/) next
+	if (tolower(body) ~ /^none([ \t,.;:]|$)/) next
 	n = split(body, parts, /[, \t]+/)
 	for (i = 1; i <= n; i++) {
 		# Authors write the line as prose, so "D2." closing a sentence is D2.
 		sub(/[.;:]+$/, "", parts[i])
 		if (parts[i] == "") continue
 		if (parts[i] ~ /^D[0-9]+$/) builds[cur] = builds[cur] " " parts[i]
-		else if (check_spec) finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; write D<n>, or none, <why>")
+		else if (check_spec) finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; " BUILDS_HINT)
 	}
 	next
 }
@@ -368,19 +373,21 @@ END {
 	# the run state lives, so a relative Spec path need not resolve there, and a
 	# plan already validated should not be refused over it.
 	if (check_spec) {
+		spec_file = spec_path
+		if (spec_path != "" && spec_path !~ /^\//) spec_file = spec_base "/" spec_path
 		if (!has_spec) {
 			finding("error", "no **Spec:** line, so nothing ties the plan to the design it builds")
 		} else if (spec_path == "") {
 			# Checked before the read: getline on an empty filename is a fatal
 			# awk error, which would surface as the plan being unreadable.
 			finding("error", "the **Spec:** line names no path")
-		} else if (system("test -e " shq(spec_path)) != 0) {
+		} else if (system("test -e " shq(spec_file)) != 0) {
 			finding("error", "**Spec:** names " spec_path ", which does not exist")
-		} else if (system("test -d " shq(spec_path)) == 0) {
+		} else if (system("test -d " shq(spec_file)) == 0) {
 			# Asked before the read: BSD awk aborts on getline from a directory,
 			# which would surface as the plan being unreadable.
 			finding("error", "**Spec:** names " spec_path ", which is a directory, not a file")
-		} else if ((getline line < spec_path) < 0) {
+		} else if ((getline line < spec_file) < 0) {
 			finding("error", "**Spec:** names " spec_path ", which exists but cannot be read")
 		} else {
 			# The first line is already in hand from the existence probe above.
@@ -391,8 +398,8 @@ END {
 				match(line, /D[0-9]+/)
 				d = substr(line, RSTART, RLENGTH)
 				if (!(d in decision)) { decision[d] = 1; dec_order[++ndec] = d }
-			} while ((getline line < spec_path) > 0)
-			close(spec_path)
+			} while ((getline line < spec_file) > 0)
+			close(spec_file)
 			if (ndec == 0)
 				finding("error", "the spec " spec_path " has no \"### D<n>.\" decisions, so no task can say which one it builds")
 		}
@@ -401,7 +408,7 @@ END {
 			if (!(id in has_builds)) {
 				# An error, not a warning: `none, <why>` is how a task says it
 				# builds nothing, so a task without the line has left it unsaid.
-				finding("error", "task " id " has no Builds line; write D<n>, or none, <why>")
+				finding("error", "task " id " has no Builds line; " BUILDS_HINT)
 				continue
 			}
 			n = split(builds[id], cited, " ")
@@ -485,7 +492,13 @@ END {
 # NWARN.
 parse_plan() {
 	local plan="$1" check_spec="${2-0}" raw
-	raw="$(awk -v check_spec="$check_spec" "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
+	# A relative Spec path names a file from the plan's repo root, the way plans
+	# write it (docs/specs/...), so validate means the same thing from any cwd.
+	# Outside a repo there is no root, and the plan's own directory stands in.
+	local plan_dir spec_base
+	plan_dir="$(cd "$(dirname "$plan")" && pwd)" || { err "could not read $plan"; exit 4; }
+	spec_base="$(git -C "$plan_dir" rev-parse --show-toplevel 2>/dev/null)" || spec_base="$plan_dir"
+	raw="$(awk -v check_spec="$check_spec" -v spec_base="$spec_base" "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
 
 	local summary
 	summary="$(printf '%s\n' "$raw" | grep "^summary$SEP" | head -1)"

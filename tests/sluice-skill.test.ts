@@ -1069,16 +1069,24 @@ describe("sluice plans cite the decisions they build", () => {
 		expect(builds).toMatch(/does not count/);
 	});
 
-	test("the validate paragraph names a missing Builds line among the errors, not the warnings", () => {
+	test("the validate paragraph states what the spec check requires, among the errors, and leaves the messages to plan.sh", () => {
 		const format = section(DEEP, "Plan format").replace(/\s+/g, " ");
 		const para = format.split("**Run `scripts/plan.sh validate")[1] ?? "";
 		const [errors, rest] = para.split("The warnings are");
 		const warnings = (rest ?? "").split(/(?<=\.)\s/)[0] ?? "";
-		expect(para).toContain('"no **Spec:** line, so nothing ties the plan to the design it builds"');
-		expect(errors).toContain("built by no task");
-		expect(errors).toContain("no Builds line");
+		expect(errors).toContain("a Builds line on every task");
+		expect(errors).toContain("every decision built");
+		expect(errors).toMatch(/none (?:cited is )?invented/);
+		expect(para).not.toContain('"no **Spec:** line');
 		expect(warnings).toContain("overlap");
 		expect(warnings).not.toContain("Builds");
+	});
+
+	test("the Spec line says what a relative path is relative to", () => {
+		const bullets = section(DEEP, "Plan format").split("\n- ").map((b) => b.replace(/\s+/g, " "));
+		const spec = bullets.find((b) => b.startsWith("A **Spec** line")) ?? "";
+		expect(spec).toContain("repo root");
+		expect(spec).toMatch(/outside a (?:git )?repo/);
 	});
 
 	test("the run record opens with the two check outcomes", () => {

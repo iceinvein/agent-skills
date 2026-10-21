@@ -11,7 +11,10 @@
 - A **Spec** line, `**Spec:** <path>` directly under the title, names the
   signed-off design the plan builds. It is a line rather than a mention in
   the Goal because `plan.sh validate` reads the spec's `### D<n>.` decisions
-  from that path, and a path written into prose gives it nothing to parse.
+  from that path, and a path written into prose gives it nothing to parse. A
+  relative path is read from the plan's repo root, as `docs/specs/...`, so
+  validate means the same thing from any directory; outside a git repo it is
+  read from the plan's own directory.
 - A **Builds** line on every task names the decisions it builds,
   `**Builds:** D1, D3`, or `**Builds:** none, <why>` for a task such as a
   version bump that builds none. Validate checks coverage from these lines
@@ -64,11 +67,11 @@ Most of what this section asks for needs no judgement to check: a `Needs` no
 task `Offers`, a "TBD", a step deferring to a neighbour, a missing `Contract`,
 a plan with no flip or two of them, an `Effort` mark on a task the tier table
 sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
-task number on them. It also ties the plan to its spec, and those come back
-as errors too: "no **Spec:** line, so nothing ties the plan to the design
-it builds", a Spec path that does not exist, a spec with no `### D<n>.`
-decisions, a task with no Builds line, a task that Builds a decision "which
-the spec does not have", and a "spec decision D<n> is built by no task". The
+task number on them. It also checks the plan against its spec, and a miss
+there is an error too: a Spec line naming a readable file whose decisions are
+`### D<n>.` headings, a Builds line on every task of `D<n>` ids or
+`none, <why>`, every decision built and none invented. Each message names the
+task and the fix, so read them as validate prints them. The
 warnings are the judgement calls left to you: a step with no proof, a `Needs`
 satisfied only by a later task, two tasks whose `Touches` overlap. Reading
 the plan yourself catches these on a good day, and the point of a check is

@@ -78,6 +78,11 @@ The checker runs on the session's model and effort and is never downshifted, as 
   - **warn**: a task with no Builds line.
 - The awk parser reads the spec in its END block with `getline` from the Spec path, the same one-pass shape as now. `plan.sh import` ignores the new lines.
 
+**Amended 2026-10-21, after sign-off, by the partner's decisions** (the run record's `## After the merge` holds the reasons):
+- A task with no Builds line is an **error**, not a warning; an empty Builds line, and a Builds word that is not a decision id, are errors too. `none` may close a sentence (`None.`, `none: <why>`), and so may a decision id (`D2.`).
+- A relative Spec path resolves from the plan's repo root, or from the plan's own directory outside a git repo, not from the current directory.
+- A Spec path that is a directory, or a file that cannot be read, gets its own error rather than "does not exist".
+
 ### D5. The plan check, before pre-flight
 
 After `plan.sh validate` is clean and before pre-flight's questions, the controller dispatches a fresh-context checker with the spec and plan paths. Its brief, in the same `## The alignment checks` section, asks:
