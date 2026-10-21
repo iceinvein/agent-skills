@@ -85,6 +85,30 @@
       ]
     },
     {
+      "id": "deep-reads-the-ground-before-the-design",
+      "states": "references/deep-channel.md: The ground",
+      "origin": "docs/specs/2026-10-21-sluice-deep-alignment.md",
+      "cases": [
+        "deep-plan-reads-the-prior-spec"
+      ]
+    },
+    {
+      "id": "deep-checks-the-spec-against-the-intent",
+      "states": "references/deep-channel.md: The alignment checks",
+      "origin": "docs/specs/2026-10-21-sluice-deep-alignment.md",
+      "cases": [
+        "deep-plan-checks-the-intent"
+      ]
+    },
+    {
+      "id": "deep-checks-the-plan-against-the-spec",
+      "states": "references/deep-channel.md: The alignment checks",
+      "origin": "docs/specs/2026-10-21-sluice-deep-alignment.md",
+      "cases": [
+        "deep-plan-checks-the-plan"
+      ]
+    },
+    {
       "id": "deep-stops-for-plan-and-pre-flight",
       "states": "SKILL.md: Deep channel",
       "origin": "commit:371804f",

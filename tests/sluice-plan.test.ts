@@ -1,19 +1,35 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "..", "skills", "sluice", "scripts", "plan.sh");
 
-function planFile(body: string): string {
+/** The design the fixtures build: two decisions, one per task of GOOD. */
+const SPEC = `# Spec: widget
+
+## Decisions
+
+### D1. render
+A helper renders the widget.
+
+### D2. wire
+The CLI calls it.
+`;
+
+function planFile(body: string, spec = SPEC): string {
 	const dir = mkdtempSync(join(tmpdir(), "sluice-plan-"));
 	const path = join(dir, "plan.md");
 	writeFileSync(path, body);
+	writeFileSync(join(dir, "spec.md"), spec);
 	return path;
 }
 
-function validate(body: string) {
-	const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", planFile(body)], timeout: 5000 });
+// Run from the plan's directory, so the fixtures' relative `**Spec:** spec.md`
+// resolves the way a plan path does: from the cwd.
+function validate(body: string, spec?: string) {
+	const path = planFile(body, spec);
+	const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", path], cwd: dirname(path), timeout: 5000 });
 	return {
 		code: proc.exitCode,
 		signal: proc.signalCode,
@@ -28,6 +44,8 @@ function validate(body: string) {
  */
 const GOOD = `# Plan: widget
 
+**Spec:** spec.md
+
 ## Goal
 Ship the widget.
 
@@ -39,12 +57,14 @@ One module.
 - No \`git add -A\`
 
 ### Task 1: render helper
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`renderWidget(spec, width)\` -> string
 **Touches:** src/widget.ts (new) | tests/widget.test.ts (test)
 - [ ] write the failing test -> it fails on the missing export
 - [ ] implement renderWidget -> the test passes
 
 ### Task 2: wire it up
+**Builds:** D2
 **Contract:** Needs: \`renderWidget(spec, width)\` | Offers: none
 **Touches:** src/cli.ts (edit)
 **Flips:** the CLI renders widgets, from printing nothing
@@ -81,7 +101,7 @@ describe("a plan that satisfies the format", () => {
 
 describe("structure the plan cannot be dispatched without", () => {
 	test("a plan with no tasks is not a plan", () => {
-		const r = validate("# Plan: widget\n\n## Ground Rules\n- none\n");
+		const r = validate("# Plan: widget\n\n**Spec:** spec.md\n\n## Ground Rules\n- none\n");
 		expect(r.code).toBe(2);
 		expect(r.out).toMatch(/no tasks/i);
 	});
@@ -302,6 +322,106 @@ describe("concurrency the Touches lines rule out", () => {
 	});
 });
 
+describe("the plan tied to its spec", () => {
+	test("a plan with no Spec line is rejected", () => {
+		const r = validate(broken("**Spec:** spec.md\n", ""));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}no \*\*Spec:\*\* line, so nothing ties the plan to the design it builds/);
+	});
+
+	test("a Spec path that does not exist is rejected, naming it", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** docs/gone.md"));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}\*\*Spec:\*\* names docs\/gone\.md, which does not exist/);
+	});
+
+	test("a spec with no decision headings is rejected", () => {
+		const r = validate(GOOD, "# Spec: widget\n\n## Decisions\nRender it, then wire it.\n");
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(
+			/error {2}the spec spec\.md has no "### D<n>\." decisions, so no task can say which one it builds/,
+		);
+	});
+
+	test("a task citing a decision the spec does not have is rejected", () => {
+		const r = validate(broken("**Builds:** D1\n", "**Builds:** D1, D9\n"));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}task 1 Builds D9, which the spec does not have/);
+	});
+
+	test("a spec decision no task builds is rejected", () => {
+		const r = validate(GOOD, `${SPEC}\n### D3. document\nThe README says so.\n`);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}spec decision D3 is built by no task/);
+	});
+
+	test("a task with no Builds line warns without blocking", () => {
+		const r = validate(broken("**Builds:** D2\n", ""), "# Spec: widget\n\n### D1. render\nAll of it.\n");
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/warn {3}task 2 has no Builds line, so nothing says which decision it builds/);
+	});
+
+	test("a Builds token that is not a decision id is rejected", () => {
+		const r = validate(broken("**Builds:** D1\n", "**Builds:** D1, render\n"));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}task 1 Builds render, which is not a decision id; write D<n>, or none, <why>/);
+	});
+
+	test("Builds none with a reason passes with no finding", () => {
+		const r = validate(
+			broken("**Builds:** D2\n", "**Builds:** none, version bump\n"),
+			"# Spec: widget\n\n### D1. render\nAll of it.\n",
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+		expect(r.out).not.toMatch(/^\s+(error|warn)\b/m);
+	});
+
+	// A spec quotes the plan skeleton in a fence, and a `### D2.` there is an
+	// example of the format rather than a decision anything has to build.
+	test("a decision heading inside a fenced block in the spec is not a decision", () => {
+		const r = validate(
+			broken("**Builds:** D2\n", "**Builds:** D1\n"),
+			"# Spec: widget\n\n### D1. render\nAll of it.\n\n```md\n### D2. an example\n```\n",
+		);
+		expect(r.code).toBe(0);
+		expect(r.out).not.toMatch(/D2/);
+	});
+
+	// The repo's older plans write the path as code, often with prose after it.
+	test("a backticked Spec path resolves", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** `spec.md`"));
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+	});
+
+	test("a backticked Spec path followed by prose resolves", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** `spec.md` (signed off in review)"));
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+	});
+
+	test("a Spec line naming no path is rejected", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:**"));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}the \*\*Spec:\*\* line names no path/);
+	});
+
+	test("an empty Builds line is rejected", () => {
+		const r = validate(broken("**Builds:** D2\n", "**Builds:**\n"), "# Spec: widget\n\n### D1. render\nAll of it.\n");
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}task 2 has an empty Builds line; write D<n>, or none, <why>/);
+	});
+
+	test("an absolute Spec path resolves", () => {
+		const elsewhere = join(mkdtempSync(join(tmpdir(), "sluice-spec-")), "design.md");
+		writeFileSync(elsewhere, SPEC);
+		const r = validate(broken("**Spec:** spec.md", `**Spec:** ${elsewhere}`), "# Spec: unrelated\n");
+		expect(r.code).toBe(0);
+		expect(r.out).toMatch(/no errors/);
+	});
+});
+
 describe("argument handling", () => {
 	test("a missing file exits 4 and names it", () => {
 		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", "/nope/plan.md"], timeout: 5000 });
@@ -431,6 +551,22 @@ describe("import", () => {
 		expect(tasks(dir)).toHaveLength(2);
 	});
 
+	// Builds lines tie a plan to its spec, which is validate's job; a plan that
+	// imported before they existed must still import with a malformed one.
+	test("import ignores an empty Builds line", () => {
+		const dir = repoWithRun();
+		const r = imp(dir, broken("**Builds:** D1\n", "**Builds:**\n"));
+		expect(r.out).toMatch(/imported 2 tasks from plan\.md/);
+		expect(r.code).toBe(0);
+	});
+
+	test("import ignores a Builds line written in prose", () => {
+		const dir = repoWithRun();
+		const r = imp(dir, broken("**Builds:** D1\n", "**Builds:** D1 and part of D2\n"));
+		expect(r.out).toMatch(/imported 2 tasks from plan\.md/);
+		expect(r.code).toBe(0);
+	});
+
 	// A row already flipped to done must not be reset by re-importing the plan it
 	// came from, or resuming after a compaction silently rewinds the run.
 	test("does not reset progress already recorded against a task", () => {
@@ -459,10 +595,13 @@ describe("import", () => {
 describe("findings a reader can actually act on", () => {
 	const NO_PROOF = `# Plan: widget
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit convention: \`feat(widget): <subject>\`
 
 ### Task 1: render helper
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`renderWidget(spec)\` -> string
 **Touches:** src/widget.ts (new)
 - [ ] step one
@@ -470,6 +609,7 @@ describe("findings a reader can actually act on", () => {
 - [ ] step three
 
 ### Task 2: wire it up
+**Builds:** D2
 **Contract:** Needs: \`renderWidget(spec)\` | Offers: none
 **Touches:** src/cli.ts (edit)
 **Flips:** the CLI renders widgets, from printing nothing
@@ -513,15 +653,19 @@ describe("contract sides read as supply and demand", () => {
 	function plan(offers1: string, needs2: string, offers2 = "none"): string {
 		return `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: produce
+**Builds:** D1
 **Contract:** Needs: none | Offers: ${offers1}
 **Touches:** src/a.ts (new)
 - [ ] do it -> proof
 
 ### Task 2: consume
+**Builds:** D2
 **Contract:** Needs: ${needs2} | Offers: ${offers2}
 **Touches:** src/b.ts (edit)
 **Flips:** on, from off
@@ -567,10 +711,13 @@ describe("contract sides read as supply and demand", () => {
 describe("what counts as part of a task", () => {
 	const TAIL = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: only task
+**Builds:** D1, D2
 **Contract:** Needs: none | Offers: \`f()\`
 **Touches:** src/a.ts (new)
 **Flips:** on, from off
@@ -598,10 +745,13 @@ describe("what counts as part of a task", () => {
 	test("an indented fenced block is skipped like a flush one", () => {
 		const r = validate(`# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: only task
+**Builds:** D1, D2
 **Contract:** Needs: none | Offers: \`f()\`
 **Touches:** src/a.ts (new)
 **Flips:** on, from off
@@ -621,20 +771,25 @@ describe("overlapping Touches", () => {
 	test("names every task sharing a path, not one pair of them", () => {
 		const out = validate(`# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: a
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`f()\`
 **Touches:** src/shared.ts (edit)
 - [ ] do -> p
 
 ### Task 2: b
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/shared.ts (edit)
 - [ ] do -> p
 
 ### Task 3: c
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/shared.ts (edit)
 **Flips:** on, from off
@@ -754,15 +909,19 @@ describe("tier derived from Touches", () => {
 	function task(touches: string, extra = ""): string {
 		return `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: under test
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`f()\`
 **Touches:** ${touches}
 ${extra}- [ ] do it -> proof
 
 ### Task 2: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/z.ts (edit)
 **Flips:** on, from off
@@ -823,15 +982,19 @@ describe("tier derivation, corrected", () => {
 	function two(touches1: string, offers1 = "`f()`", needs2 = "none"): string {
 		return `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: producer
+**Builds:** D1
 **Contract:** Needs: none | Offers: ${offers1}
 **Touches:** ${touches1}
 - [ ] do it -> proof
 
 ### Task 2: the flip
+**Builds:** D2
 **Contract:** Needs: ${needs2} | Offers: none
 **Touches:** src/z.ts (edit)
 **Flips:** on, from off
@@ -935,30 +1098,37 @@ describe("tier 1 from the contract graph, corrected", () => {
 	// every later one and the task nobody else could see dropped to tier 0.
 	const EARLY_AND_LATE = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: unrelated
+**Builds:** D1
 **Contract:** Needs: none | Offers: none
 **Touches:** src/one.ts (new) | tests/one.test.ts (test)
 - [ ] do -> p
 
 ### Task 2: early consumer
+**Builds:** D2
 **Contract:** Needs: \`helperFn()\` | Offers: none
 **Touches:** src/two.ts (new) | tests/two.test.ts (test)
 - [ ] do -> p
 
 ### Task 3: the producer
+**Builds:** D2
 **Contract:** Needs: none | Offers: \`helperFn()\`
 **Touches:** src/three.ts (new) | tests/three.test.ts (test)
 - [ ] do -> p
 
 ### Task 4: later consumer
+**Builds:** D2
 **Contract:** Needs: \`helperFn()\` | Offers: none
 **Touches:** src/four.ts (new) | tests/four.test.ts (test)
 - [ ] do -> p
 
 ### Task 5: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/five.ts (edit)
 **Flips:** on, from off
@@ -978,30 +1148,37 @@ describe("tier 1 from the contract graph, corrected", () => {
 	test("a shared symbol name does not hide the later producer", () => {
 		const body = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: first producer
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`parseOne(p)\` -> \`PlanDoc\`
 **Touches:** src/one.ts (new) | tests/one.test.ts (test)
 - [ ] do -> p
 
 ### Task 2: consumer
+**Builds:** D2
 **Contract:** Needs: \`PlanDoc\` | Offers: none
 **Touches:** src/two.ts (new) | tests/two.test.ts (test)
 - [ ] do -> p
 
 ### Task 3: second producer
+**Builds:** D2
 **Contract:** Needs: none | Offers: \`parseTwo(p)\` -> \`PlanDoc\`
 **Touches:** src/three.ts (new) | tests/three.test.ts (test)
 - [ ] do -> p
 
 ### Task 4: later consumer
+**Builds:** D2
 **Contract:** Needs: \`PlanDoc\` | Offers: none
 **Touches:** src/four.ts (new) | tests/four.test.ts (test)
 - [ ] do -> p
 
 ### Task 5: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/five.ts (edit)
 **Flips:** on, from off
@@ -1015,15 +1192,19 @@ describe("tier 1 from the contract graph, corrected", () => {
 	test("a task whose only path is a test still owes a review", () => {
 		const body = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: add cases to the existing suite
+**Builds:** D1
 **Contract:** Needs: none | Offers: none
 **Touches:** tests/existing.test.ts (test)
 - [ ] add cases -> they pass
 
 ### Task 2: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/z.ts (edit)
 **Flips:** on, from off
@@ -1038,15 +1219,19 @@ describe("tier 1 from the contract graph, corrected", () => {
 	test("moving the flip in the plan moves it in the run", () => {
 		const at = (n: number) => `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: first
+**Builds:** D1
 **Contract:** Needs: none | Offers: none
 **Touches:** src/one.ts (edit)
 ${n === 1 ? "**Flips:** on, from off\n" : ""}- [ ] do -> p
 
 ### Task 2: second
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/two.ts (edit)
 ${n === 2 ? "**Flips:** on, from off\n" : ""}- [ ] do -> p
@@ -1065,15 +1250,19 @@ ${n === 2 ? "**Flips:** on, from off\n" : ""}- [ ] do -> p
 	test("a recognised annotation with trailing text does not claim nothing was edited", () => {
 		const out = validate(`# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: one
+**Builds:** D1
 **Contract:** Needs: none | Offers: none
 **Touches:** src/a.ts (edit) and notes | tests/a.test.ts (test)
 - [ ] do -> p
 
 ### Task 2: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/z.ts (edit)
 **Flips:** on, from off
@@ -1090,25 +1279,31 @@ describe("import keeps the graph it parses", () => {
 	const STATUS = join(import.meta.dir, "..", "skills", "sluice", "scripts", "status.sh");
 	const WAVE = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: producer
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`seam(a)\`
 **Touches:** src/one.ts (new) | tests/one.test.ts (test)
 - [ ] do -> p
 
 ### Task 2: consumer
+**Builds:** D2
 **Contract:** Needs: \`seam(a)\` | Offers: none
 **Touches:** src/two.ts (edit)
 - [ ] do -> p
 
 ### Task 3: independent
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/two.ts (edit)
 - [ ] do -> p
 
 ### Task 4: the flip
+**Builds:** D2
 **Contract:** Needs: none | Offers: none
 **Touches:** src/four.ts (edit)
 **Flips:** on, from off
@@ -1161,15 +1356,19 @@ describe("primitives are not dependencies", () => {
 		Bun.spawnSync({ cmd: ["bash", STATUS, "init", "--topic", "t", "--channel", "deep", "--dir", dir] });
 		const body = `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: producer
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`writeBundle(a, b)\`, \`f(x)\`, \`parse(p)\`, \`PlanDoc\`
 **Touches:** src/one.ts (new) | tests/one.test.ts (test)
 - [ ] do -> p
 
 ### Task 2: consumer
+**Builds:** D2
 **Contract:** Needs: ${needs} | Offers: none
 **Touches:** src/two.ts (edit)
 **Flips:** on, from off
@@ -1212,15 +1411,19 @@ describe("graph extraction, corrected again", () => {
 	function two(needs2: string, touches1 = "src/a.ts (new) | tests/a.test.ts (test)"): string {
 		return `# Plan: x
 
+**Spec:** spec.md
+
 ## Ground Rules
 - Commit: \`feat(x): <s>\`
 
 ### Task 1: producer
+**Builds:** D1
 **Contract:** Needs: none | Offers: \`makeConfig()\` -> \`Config\`
 **Touches:** ${touches1}
 - [ ] do -> p
 
 ### Task 2: the flip
+**Builds:** D2
 **Contract:** Needs: ${needs2} | Offers: none
 **Touches:** src/b.ts (edit)
 **Flips:** on, from off

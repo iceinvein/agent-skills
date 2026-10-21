@@ -8,6 +8,16 @@
   message convention is one of them, written out at literal value along with
   anything the repo forbids a message from carrying. An implementer arrives
   with its own defaults and will use them on anything you left unsaid.
+- A **Spec** line, `**Spec:** <path>` directly under the title, names the
+  signed-off design the plan builds. It is a line rather than a mention in
+  the Goal because `plan.sh validate` reads the spec's `### D<n>.` decisions
+  from that path, and a path written into prose gives it nothing to parse.
+- A **Builds** line on every task names the decisions it builds,
+  `**Builds:** D1, D3`, or `**Builds:** none, <why>` for a task such as a
+  version bump that builds none. Validate checks coverage from these lines
+  and nothing else: every decision built by some task, no task building one
+  the spec lacks. Step prose mentioning `D1` does not count, because a docs
+  task that reads its work back "against D1 to D4" builds none of them.
 - No implementer sees a neighbouring task, so each task carries a
   **Contract**, not optional: a symbol absent from it does not exist for
   whoever builds the task. `Needs` names what this task calls but another
@@ -54,18 +64,25 @@ Most of what this section asks for needs no judgement to check: a `Needs` no
 task `Offers`, a "TBD", a step deferring to a neighbour, a missing `Contract`,
 a plan with no flip or two of them, an `Effort` mark on a task the tier table
 sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
-task number on them. The warnings are the judgement calls left to you: a step
-with no proof, a `Needs` satisfied only by a later task, two tasks whose
-`Touches` overlap. Reading the plan yourself catches these on a good day, and
-the point of a check is the other kind of day.
+task number on them. It also ties the plan to its spec, and those come back
+as errors too: "no **Spec:** line, so nothing ties the plan to the design
+it builds", a Spec path that does not exist, a spec with no `### D<n>.`
+decisions, a task that Builds a decision "which the spec does not have", and
+a "spec decision D<n> is built by no task". The warnings are the judgement
+calls left to you: a step with no proof, a `Needs` satisfied only by a later
+task, two tasks whose `Touches` overlap, a task with no Builds line. Reading
+the plan yourself catches these on a good day, and the point of a check is
+the other kind of day.
 
 ```
 # Plan: <topic>
+**Spec:** <path to the signed-off design>
 ## Ground Rules
 - <exact value>
 ### Task N: <name>
 **Contract:** Needs: <sig> | Offers: <sig>
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
+**Builds:** <D<n>, ..., or none and why>
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
 **Effort:** <low, and why the work is mechanical, or omit>
@@ -118,6 +135,10 @@ Pre-flight lands in both, which is the one deliberate overlap: `run.json` holds
 the answer, so the file can say whether the stop happened at all, and the record
 holds the reason, so a reader can tell whether it should have gone that way.
 Those rows come first and open the record for the same reason they always did.
+The outcomes of the intent check and the plan check sit among those opening
+rows, each with its finding count and what came of them: both ran before the
+record existed, so they are held until it opens, as pre-flight's answers are,
+and written in with them.
 
 Where it goes follows the repo if the repo has a convention, and
 `docs/plans/YYYY-MM-DD-<topic>-record.md` if it does not. It belongs to you
@@ -183,6 +204,58 @@ on it, and let the next instruction start the plan. Nothing else about this
 section changes, because the obligation was never the mode's, only the
 enforcement was.
 
+## The ground
+
+Read the repo before you walk anything through it. A prior spec often settles
+the very fork you were about to ask about, and "anything you can settle from
+the repo is not that fork" only holds once the repo has been read: until then
+every fork looks like your partner's, and every pattern looks like yours to
+invent. So the ground comes first, then the trace, then the fork question,
+then the draft.
+
+Ask for three things, each cited by path:
+
+1. **Prior designs.** Specs and plans under the repo's spec and plan
+   directories that touch the same subsystems or files, and what each settled
+   that the new design must build on, supersede or leave alone.
+2. **The code beside the path.** How the nearest similar feature is built (its
+   shape, where its state lives, how it is tested), so the design matches the
+   repo rather than inventing a pattern beside it.
+3. **Stated constraints.** Repo instructions, CI gates, the test runner and its
+   conventions, and release steps that the design or its plan will answer to.
+
+Dispatch it as a read-only Explore agent where the harness has one, for the
+reason the reviewer is dispatched: the file dumps fill its context instead of
+yours, and you only need what it concluded. Where there is no dispatch, it is
+your own read, with the same three questions. Either way the findings go into
+the spec's `## Context`, one line each with the path it came from, so the
+intent check and every later reader can see what the design was built on and
+go and look.
+
+A design whose `## Context` cites no earlier spec, when one covers the same
+scripts, is the gap this section exists to close. Read for it rather than
+assuming there is none.
+
+The spec has a fixed shape, because the intent check reads it by section:
+
+```
+# Design: <topic>
+## Intent
+## Context
+## Decisions
+### D1. <title>
+## Out of scope
+## Trace
+```
+
+`## Intent` holds the request quoted verbatim, each question asked through
+`AskUserQuestion` with the answer it got, and a table mapping each ask to the
+`D<n>` decisions that deliver it, or to `## Out of scope` with the reason.
+Decisions are headed `### D<n>. <title>`, which is what `plan.sh validate`
+reads. Out of scope is its own section and never a numbered decision, because
+a decision is something a task builds, and one no task could build would fail
+the plan's coverage check for being honest.
+
 ## The trace
 
 A design written from the shape of the code (which functions exist, which slots
@@ -212,14 +285,72 @@ the spec on approval):
    what the design does instead. An empty list is a result, not a skipped
    step.
 
-Walking first is also what puts a fork where **The design stop and plan mode**
-wants it: one the walk turns up only your partner can settle is asked before
-the design is written, and the trace goes into the design with the answer.
+The order is the ground, the walk, the fork, the draft. Walking after the
+ground and before the fork is what puts a fork where **The design stop and
+plan mode** wants it: one the walk turns up only your partner can settle is
+asked before the design is written, and the trace goes into the design with
+the answer.
 
 The trace is what the sign-off is signing: a design without the section is
 incomplete, however good the rest reads. It is not a prototype and not a hunt;
 anything that only shows at runtime (routing, timing, a renderer) stays with
 the hunt after the flip.
+
+## The alignment checks
+
+A spec can mention every ask and deliver none of them, and a plan can cite
+every decision and build half of one. Its author reads past both, because the
+author knows what was meant. So each of the two stops gets a fresh reader
+first: a dispatch with fresh context on this session's model and effort,
+never downshifted, as with the final review, since a cheaper reader is the one
+that misses a gap in meaning.
+
+**The intent check runs before sign-off**, once the draft and its trace are
+written and before `ExitPlanMode` or the prose stop. Send it the path the
+design is drafted at, the harness's plan file under plan mode and the spec
+file otherwise, and ask it to read the design's `## Intent` section by that
+name, then:
+
+- Does each ask in `## Intent` reach a decision that actually delivers it, not
+  one that merely mentions it?
+- Is any decision traceable to no ask, an addition nobody asked for?
+- Is any ask dropped, or moved to Out of scope without a reason?
+- Does the design honour every answer recorded in `## Intent` and every
+  constraint in `## Context`?
+
+Run it before the stop rather than after because a partner who signs first
+signs a spec whose gaps were not yet known. On a redraft after the stop, run
+it again only if a decision changed, since the map is what it reads.
+
+**The plan check runs after `plan.sh validate` is clean and before
+pre-flight**'s questions, with the spec and plan paths both in the brief:
+
+- Does each task citing `D<n>` actually build what `D<n>` says? Across its
+  tasks, is each decision covered whole rather than in part?
+- Does any task build something listed in Out of scope, or a shape the Trace
+  ruled out?
+- Do the Ground Rules contradict a constraint in the spec's Context?
+- Does the `Flips` task turn on what the spec says turns on?
+
+Validate has already settled what a parser can, so this reader is spent on
+what it cannot: whether the words of a task do what the words of a decision
+say.
+
+Fix each finding you agree with, in the draft for the intent check and in the
+plan for the plan check, before the stop; the spec is signed by the time the
+plan check runs, so nothing it finds edits the spec.
+What you dispute goes into that stop's message, one line each, so your partner
+signs with the disagreements in view rather than finding them later. The
+sign-off message says the intent check ran, how many findings it returned and
+how many were fixed; a stop that says nothing about it reads the same as one
+where it never ran. After the plan check's fixes, re-run `plan.sh validate`,
+because a fix to a Builds line is exactly what validate checks and the check
+it passed was on the plan before the fix. Both outcomes go into the run
+record's opening rows when it opens, for the reason that section gives.
+
+Without dispatch there is no fresh reader to send. Say so at the stop and ask
+the same questions yourself, as **When dispatch is unavailable** says for
+review: your own read is weaker, and your partner should know it was yours.
 
 ## Pre-flight
 
@@ -530,7 +661,9 @@ who will carry it out, only your partner's read of work you will do yourself.
 Task isolation is gone, so
 `run.json` and the record now carry all of the state that outlives compaction
 and matter more, not less. And fresh context is unavailable, which was the entire thing
-review was buying.
+review was buying. The alignment checks fall back to your own read of the
+same questions, and you say so at the stop, so the sign-off is not mistaken
+for one a fresh reader cleared.
 
 One thing does not change: the work still owes a review. Reading your own diff
 is not one, and the table below still names which tasks needed the stronger
