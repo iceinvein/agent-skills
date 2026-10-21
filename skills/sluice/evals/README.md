@@ -1,6 +1,6 @@
 # sluice evals
 
-Twenty-two cases for `claude plugin eval`. Fifteen pin the routing decision: which
+Twenty-five cases for `claude plugin eval`. Eighteen pin the routing decision: which
 channel the run names, and whether the behaviour that channel owes actually
 happened. Seven pin what a deep run does after pre-flight, where the question is
 no longer which channel but whether the run keeps going.
@@ -13,6 +13,9 @@ no longer which channel but whether the run keeps going.
 | `deep-plan-across-subsystems` | A plan asked for, three subsystems | Deep channel; design written to `docs/specs/`; stops before code |
 | `deep-plan-asks-the-fork` | The same plan with nothing saying where the counters can live | One question with a recommendation before any design; no spec yet |
 | `deep-plan-traces-the-example` | A ticket whose own example the obvious design fails: the lookup it says to reuse matches accepted slides, and the smoke deck has none | A `## Trace` section in the spec that walks the example through the smoke deck, a lookup designed around what it found, and no write under `src/` or `tests/` |
+| `deep-plan-reads-the-prior-spec` | A ticket whose obvious design keeps a counter in memory, against an earlier spec the prompt never names that settled counters in a file | The new spec's Context cites `docs/specs/2026-09-01-counters.md`, the design keeps the counter in that file or asks whether to supersede it, and no write under `src/` or `tests/` |
+| `deep-plan-checks-the-intent` | A ticket with three numbered asks | An Intent section that quotes the ticket and maps each ask to a decision or to Out of scope, an Agent dispatch naming the spec, and a sign-off message that says what the check found |
+| `deep-plan-checks-the-plan` | A signed-off spec with D1 to D3, and the plan asked for | A `**Spec:**` line and a Builds line on every task covering D1 to D3, `plan.sh validate` run, a dispatch naming both files, and a stop at the pre-flight questions with no task started |
 | `explicit-instruction-collapses-to-fast` | Main-shaped work plus "just do it" | Collapses to fast; no design, no proposal |
 | `superpowers-conflict-stands-down` | Repo mandates the superpowers sequence | Stands down once, names no channel |
 | `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
@@ -37,7 +40,7 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Twenty-one cases scaffold a small Node repo and then change it, so they need the
+Twenty-four cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
 inherit it, and pin the judge, because `--model` does not reach it and the
 `llm` graders otherwise run on Haiku. From the repo root:
