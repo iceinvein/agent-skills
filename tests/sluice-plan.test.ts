@@ -380,10 +380,10 @@ describe("the plan tied to its spec", () => {
 		expect(r.out).toMatch(/error {2}spec decision D3 is built by no task/);
 	});
 
-	test("a task with no Builds line warns without blocking", () => {
+	test("a task with no Builds line is rejected, since none is how a task says it builds nothing", () => {
 		const r = validate(broken("**Builds:** D2\n", ""), "# Spec: widget\n\n### D1. render\nAll of it.\n");
-		expect(r.code).toBe(0);
-		expect(r.out).toMatch(/warn {3}task 2 has no Builds line, so nothing says which decision it builds/);
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}task 2 has no Builds line; write D<n>, or none, <why>/);
 	});
 
 	test("a decision id ending a sentence with a full stop still counts as that decision", () => {

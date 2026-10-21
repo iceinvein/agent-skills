@@ -1069,12 +1069,16 @@ describe("sluice plans cite the decisions they build", () => {
 		expect(builds).toMatch(/does not count/);
 	});
 
-	test("the validate paragraph names the coverage errors and the warning", () => {
+	test("the validate paragraph names a missing Builds line among the errors, not the warnings", () => {
 		const format = section(DEEP, "Plan format").replace(/\s+/g, " ");
 		const para = format.split("**Run `scripts/plan.sh validate")[1] ?? "";
+		const [errors, rest] = para.split("The warnings are");
+		const warnings = (rest ?? "").split(/(?<=\.)\s/)[0] ?? "";
 		expect(para).toContain('"no **Spec:** line, so nothing ties the plan to the design it builds"');
-		expect(para).toContain("built by no task");
-		expect(para).toContain("no Builds line");
+		expect(errors).toContain("built by no task");
+		expect(errors).toContain("no Builds line");
+		expect(warnings).toContain("overlap");
+		expect(warnings).not.toContain("Builds");
 	});
 
 	test("the run record opens with the two check outcomes", () => {

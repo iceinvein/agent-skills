@@ -67,10 +67,10 @@ sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
 task number on them. It also ties the plan to its spec, and those come back
 as errors too: "no **Spec:** line, so nothing ties the plan to the design
 it builds", a Spec path that does not exist, a spec with no `### D<n>.`
-decisions, a task that Builds a decision "which the spec does not have", and
-a "spec decision D<n> is built by no task". The warnings are the judgement
-calls left to you: a step with no proof, a `Needs` satisfied only by a later
-task, two tasks whose `Touches` overlap, a task with no Builds line. Reading
+decisions, a task with no Builds line, a task that Builds a decision "which
+the spec does not have", and a "spec decision D<n> is built by no task". The
+warnings are the judgement calls left to you: a step with no proof, a `Needs`
+satisfied only by a later task, two tasks whose `Touches` overlap. Reading
 the plan yourself catches these on a good day, and the point of a check is
 the other kind of day.
 

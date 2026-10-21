@@ -399,7 +399,9 @@ END {
 		for (i = 1; i <= ntasks; i++) {
 			id = order[i]
 			if (!(id in has_builds)) {
-				finding("warn", "task " id " has no Builds line, so nothing says which decision it builds")
+				# An error, not a warning: `none, <why>` is how a task says it
+				# builds nothing, so a task without the line has left it unsaid.
+				finding("error", "task " id " has no Builds line; write D<n>, or none, <why>")
 				continue
 			}
 			n = split(builds[id], cited, " ")
