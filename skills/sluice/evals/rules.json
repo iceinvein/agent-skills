@@ -79,7 +79,7 @@
     {
       "id": "deep-design-traces-the-example",
       "states": "SKILL.md: Deep channel",
-      "origin": "skills/sluice/references/deep-channel.md",
+      "origin": "commit:7decf60",
       "cases": [
         "deep-plan-traces-the-example"
       ]
