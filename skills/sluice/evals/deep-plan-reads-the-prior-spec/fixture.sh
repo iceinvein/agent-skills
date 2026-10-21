@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # A sign-in service where an earlier spec already settled where counters live:
 # `data/counters.json`, never only in memory, because a restart must not reset
-# a count. The three subsystems run in one process, so a Map in the sign-in
-# handler is the obvious design and nothing in the code forbids it. Only the
-# earlier spec does, and the prompt never names it, so the case pins whether
-# the run reads the repo's prior specs before it designs. The README fixes
-# where the design goes, so the graders can read it.
+# a count. No code keeps a counter yet, and the three subsystems run in one
+# process, so a Map in the sign-in handler is the obvious design and nothing in
+# the code points elsewhere. Only the earlier spec does, and the prompt never
+# names it, so the case pins whether the run reads the repo's prior specs
+# before it designs. The README fixes where the design goes, so the graders can
+# read it.
 set -euo pipefail
 
-mkdir -p src/api src/worker src/report data tests docs/specs
+mkdir -p src/api src/worker src/report tests docs/specs
 
 cat > package.json <<'JSON'
 {
@@ -46,16 +47,13 @@ export async function verify(password, hash) {
 }
 JS
 
-cat > src/report/exports.js <<'JS'
-import { readFileSync, writeFileSync } from "node:fs";
-
-const counters = new URL("../../data/counters.json", import.meta.url);
-
-export function recordExport() {
-  const current = JSON.parse(readFileSync(counters, "utf8"));
-  current.exports = (current.exports ?? 0) + 1;
-  writeFileSync(counters, JSON.stringify(current, null, 2) + "\n");
-  return current.exports;
+cat > src/report/daily.js <<'JS'
+// One line per account that signed in on the given day, oldest first.
+export function dailyReport(signIns, day) {
+  return signIns
+    .filter((entry) => entry.at.startsWith(day))
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .map((entry) => `${entry.at} ${entry.account}`);
 }
 JS
 
@@ -69,41 +67,43 @@ export async function nightly(jobs) {
 }
 JS
 
-cat > data/counters.json <<'JSON'
-{
-  "exports": 12
-}
-JSON
-
 cat > docs/specs/2026-09-01-counters.md <<'MD'
 # Design: counters
 
 ## Context
 
-The export count was a module variable in `src/report/exports.js`, and every
-deploy restarted the process and reset it to zero. Finance reads the count.
+Finance asked for counts of sign-ups and exports, and more counters will
+follow. The service runs as one process that restarts on every deploy, so a
+count held in a module variable would reset to zero each time.
 
 ### D1. Counters persist in data/counters.json
 
-Every counter the service keeps, today's and any later one, persists in
+Every counter the service keeps, the first one and any later one, persists in
 `data/counters.json`, one top-level key per counter, read and written whole.
-A counter is never held only in memory, because the process restarts on every
-deploy and a count that resets on deploy is wrong. A cache in front of the file
-is fine; the file is the truth.
+The file is created on the first write. A counter is never held only in
+memory, because a count that resets on deploy is wrong. A cache in front of
+the file is fine; the file is the truth.
 
 ## Out of scope
 
 A database. One file is enough at this traffic.
 MD
 
-cat > tests/exports.test.js <<'JS'
+cat > tests/daily.test.js <<'JS'
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recordExport } from "../src/report/exports.js";
+import { dailyReport } from "../src/report/daily.js";
 
-test("each export adds one to the stored count", () => {
-  const before = recordExport();
-  assert.equal(recordExport(), before + 1);
+test("the report lists only the day's sign-ins, oldest first", () => {
+  const signIns = [
+    { at: "2026-10-02T09:00:00Z", account: "bo" },
+    { at: "2026-10-01T17:00:00Z", account: "al" },
+    { at: "2026-10-01T08:00:00Z", account: "cy" },
+  ];
+  assert.deepEqual(dailyReport(signIns, "2026-10-01"), [
+    "2026-10-01T08:00:00Z cy",
+    "2026-10-01T17:00:00Z al",
+  ]);
 });
 JS
 
