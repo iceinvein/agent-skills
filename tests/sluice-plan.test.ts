@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -335,6 +335,31 @@ describe("the plan tied to its spec", () => {
 		expect(r.out).toMatch(/error {2}\*\*Spec:\*\* names docs\/gone\.md, which does not exist/);
 	});
 
+	test("a Spec path that exists but cannot be read is rejected as unreadable, not missing", () => {
+		const path = planFile(GOOD);
+		chmodSync(join(dirname(path), "spec.md"), 0o000);
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", path], cwd: dirname(path), timeout: 5000 });
+		const out = proc.stdout.toString();
+		expect(proc.exitCode).toBe(2);
+		expect(out).toMatch(/error {2}\*\*Spec:\*\* names spec\.md, which exists but cannot be read/);
+		expect(out).not.toMatch(/which does not exist/);
+	});
+
+	test("a Spec path with an apostrophe in it resolves", () => {
+		const path = planFile(broken("**Spec:** spec.md", "**Spec:** it's/spec.md"));
+		mkdirSync(join(dirname(path), "it's"));
+		writeFileSync(join(dirname(path), "it's", "spec.md"), SPEC);
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", path], cwd: dirname(path), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toMatch(/no errors/);
+	});
+
+	test("a Spec path that is a directory is rejected, naming it, rather than failing the read", () => {
+		const r = validate(broken("**Spec:** spec.md", "**Spec:** ."));
+		expect(r.code).toBe(2);
+		expect(r.out).toMatch(/error {2}\*\*Spec:\*\* names \., which is a directory, not a file/);
+	});
+
 	test("a spec with no decision headings is rejected", () => {
 		const r = validate(GOOD, "# Spec: widget\n\n## Decisions\nRender it, then wire it.\n");
 		expect(r.code).toBe(2);
@@ -359,6 +384,13 @@ describe("the plan tied to its spec", () => {
 		const r = validate(broken("**Builds:** D2\n", ""), "# Spec: widget\n\n### D1. render\nAll of it.\n");
 		expect(r.code).toBe(0);
 		expect(r.out).toMatch(/warn {3}task 2 has no Builds line, so nothing says which decision it builds/);
+	});
+
+	test("a decision id ending a sentence with a full stop still counts as that decision", () => {
+		const r = validate(broken("**Builds:** D2\n", "**Builds:** D2.\n"));
+		expect(r.code).toBe(0);
+		expect(r.out).not.toMatch(/not a decision id/);
+		expect(r.out).not.toMatch(/D2 is built by no task/);
 	});
 
 	test("a Builds token that is not a decision id is rejected", () => {

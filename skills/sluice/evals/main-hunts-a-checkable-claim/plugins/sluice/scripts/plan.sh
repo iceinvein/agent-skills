@@ -65,6 +65,11 @@ BEGIN { SEP = sprintf("%c", 31) }
 
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
+# Single-quoted for system(). The quote is built rather than written because
+# this program is itself a single-quoted shell string, and an embedded quote
+# becomes '"'"' because a backslash in a gsub replacement differs between awks.
+function shq(s,    q) { q = sprintf("%c", 39); gsub(q, q "\"" q "\"" q, s); return q s q }
+
 # Symbols on one side of a Contract line. The two sides are read differently
 # because a mistake costs differently on each.
 #
@@ -276,6 +281,8 @@ in_rules && /^- / { nrules++ }
 	if (tolower(body) ~ /^none([ \t,]|$)/) next
 	n = split(body, parts, /[, \t]+/)
 	for (i = 1; i <= n; i++) {
+		# Authors write the line as prose, so "D2." closing a sentence is D2.
+		sub(/[.;:]+$/, "", parts[i])
 		if (parts[i] == "") continue
 		if (parts[i] ~ /^D[0-9]+$/) builds[cur] = builds[cur] " " parts[i]
 		else if (check_spec) finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; write D<n>, or none, <why>")
@@ -367,8 +374,14 @@ END {
 			# Checked before the read: getline on an empty filename is a fatal
 			# awk error, which would surface as the plan being unreadable.
 			finding("error", "the **Spec:** line names no path")
-		} else if ((getline line < spec_path) < 0) {
+		} else if (system("test -e " shq(spec_path)) != 0) {
 			finding("error", "**Spec:** names " spec_path ", which does not exist")
+		} else if (system("test -d " shq(spec_path)) == 0) {
+			# Asked before the read: BSD awk aborts on getline from a directory,
+			# which would surface as the plan being unreadable.
+			finding("error", "**Spec:** names " spec_path ", which is a directory, not a file")
+		} else if ((getline line < spec_path) < 0) {
+			finding("error", "**Spec:** names " spec_path ", which exists but cannot be read")
 		} else {
 			# The first line is already in hand from the existence probe above.
 			sfenced = 0; ndec = 0
