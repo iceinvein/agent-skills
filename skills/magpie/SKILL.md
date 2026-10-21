@@ -1,7 +1,7 @@
 ---
 name: magpie
 description: Use when the user asks to review a GitHub pull request (a PR number, PR URL, or "review this PR"), or to self-review the current branch diff before a PR exists, typically requested by an implementing or orchestrating agent, with findings handed back in the terminal. Interactive PR review pipeline; five parallel specialist subagents, dedupe, critic, codex/Claude peer review, and an interactive HTML report for posting selected findings via gh. Follow the stage walkthrough in this skill; the description is not the procedure.
-argument-hint: "[<pr#>|<pr-url>|local] [--base <ref>] [--intent-file <path>]"
+argument-hint: "[<pr#>|<pr-url>|local (default)] [--base <ref>] [--intent-file <path>]"
 ---
 
 # Magpie
@@ -16,7 +16,7 @@ Stop reading and follow these steps in order. Do not skip stages. Use the exact 
 
 ### 0. Identify the PR
 
-A request with no PR that asks to review the current branch, the working tree, or work in progress, or arguments starting `local` (any `--base` or `--intent-file` after it go to setup), is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written, taking `TARGET` from Local mode.
+A bare invocation (no arguments and no PR named), a request with no PR that asks to review the current branch, the working tree, or work in progress, or arguments starting `local` or `--` (any `--base` or `--intent-file` go to setup), is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written, taking `TARGET` from Local mode.
 
 Parse the user's request for a PR number, URL, or "this PR" (current branch). If ambiguous, ask one clarifying terminal question. Capture the PR number into `$PR_NUMBER` and the repo path into `$REPO` (default: the current working directory).
 
