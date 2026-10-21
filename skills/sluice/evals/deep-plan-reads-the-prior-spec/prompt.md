@@ -12,5 +12,6 @@ Plan CNT-7 for us.
 
 > Lock an account after five failed sign-ins in a row. The sign-in API counts
 > the failures per account and refuses a locked account with a 423, the nightly
-> worker clears every count, and the daily report lists the accounts locked
-> that day.
+> worker clears every failure count (which is also what unlocks an account; a
+> lock is nothing more than a count at five), a successful sign-in resets that
+> account's count, and the daily report lists the accounts locked that day.
