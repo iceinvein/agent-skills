@@ -132,8 +132,9 @@ the design's shape turns on a fork only your partner can settle, ask that one
 question through `AskUserQuestion`, with your recommendation, before the design
 is written. `references/deep-channel.md` has the test for what counts.
 
-Read the repo before the walk: prior designs, the code beside the path and the
-stated constraints, each cited by path in the spec's `## Context`. A prior spec
+Read the repo before the walk and before any fork question: prior designs, the
+code beside the path and the stated constraints, each cited by path in the
+spec's `## Context`. A prior spec
 often settles the fork, and nothing can be settled from a repo nobody read.
 `references/deep-channel.md` has it under `## The ground`.
 

@@ -65,7 +65,7 @@ task `Offers`, a "TBD", a step deferring to a neighbour, a missing `Contract`,
 a plan with no flip or two of them, an `Effort` mark on a task the tier table
 sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
 task number on them. It also ties the plan to its spec, and those come back
-as errors too: "no `**Spec:**` line, so nothing ties the plan to the design
+as errors too: "no **Spec:** line, so nothing ties the plan to the design
 it builds", a Spec path that does not exist, a spec with no `### D<n>.`
 decisions, a task that Builds a decision "which the spec does not have", and
 a "spec decision D<n> is built by no task". The warnings are the judgement
@@ -306,8 +306,10 @@ never downshifted, as with the final review, since a cheaper reader is the one
 that misses a gap in meaning.
 
 **The intent check runs before sign-off**, once the draft and its trace are
-written and before `ExitPlanMode` or the prose stop. Send it the spec's path
-and ask it to read the spec's `## Intent` section by that name, then:
+written and before `ExitPlanMode` or the prose stop. Send it the path the
+design is drafted at, the harness's plan file under plan mode and the spec
+file otherwise, and ask it to read the design's `## Intent` section by that
+name, then:
 
 - Does each ask in `## Intent` reach a decision that actually delivers it, not
   one that merely mentions it?
@@ -334,7 +336,9 @@ Validate has already settled what a parser can, so this reader is spent on
 what it cannot: whether the words of a task do what the words of a decision
 say.
 
-Fix each finding you agree with, in the spec or the plan, before the stop.
+Fix each finding you agree with, in the draft for the intent check and in the
+plan for the plan check, before the stop; the spec is signed by the time the
+plan check runs, so nothing it finds edits the spec.
 What you dispute goes into that stop's message, one line each, so your partner
 signs with the disagreements in view rather than finding them later. The
 sign-off message says the intent check ran, how many findings it returned and

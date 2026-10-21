@@ -938,8 +938,18 @@ describe("sluice deep designs read the ground first", () => {
 	test("the trace's ordering sentence puts the walk after the ground and before the fork", () => {
 		const trace = flat(section(DEEP, "The trace"));
 		const sentence = trace.split(/(?<=\.)\s+/).find((s) => /^Walking/.test(s)) ?? "";
-		expect(sentence).toMatch(/ground/);
-		expect(sentence).toMatch(/fork/);
+		const after = sentence.indexOf("after the ground");
+		const before = sentence.indexOf("before the fork");
+		expect(after).toBeGreaterThan(-1);
+		expect(after).toBeLessThan(before);
+	});
+
+	test("the router reads the ground before any fork question is asked", () => {
+		const paras = section(SKILL, "Deep channel").split("\n\n").map((p) => p.replace(/\s+/g, " "));
+		const ground = paras.findIndex((p) => p.includes("## The ground"));
+		const fork = paras.findIndex((p) => /\bfork\b/.test(p) && p.includes("AskUserQuestion"));
+		expect(ground).toBeGreaterThan(-1);
+		expect(ground < fork || /before any fork question/.test(paras[ground] as string)).toBe(true);
 	});
 });
 
@@ -985,9 +995,24 @@ describe("sluice alignment checks", () => {
 
 	test("the intent check runs before sign-off and reads the spec's Intent", () => {
 		const s = checks();
-		expect(s).toMatch(/intent check/i);
-		expect(s).toMatch(/before (the )?sign-off/);
+		const sentence = s.split(/(?<=\.)\s+/).find((x) => /intent check runs/i.test(x)) ?? "";
+		expect(sentence).toMatch(/before (the )?sign-off/);
 		expect(s).toContain("`## Intent`");
+	});
+
+	// Under plan mode the design has no spec file until approval, so a checker
+	// sent "the spec's path" before sign-off is sent a file that does not exist.
+	test("the intent check is sent the path the design is drafted at, plan file or spec file", () => {
+		const sentence = checks().split(/(?<=\.)\s+/).find((x) => /^Send it/.test(x)) ?? "";
+		expect(sentence).toMatch(/plan file under plan mode/);
+		expect(sentence).toMatch(/spec file otherwise/);
+	});
+
+	// The spec is signed before the plan check runs, so its fixes go in the plan.
+	test("each check's agreed findings are fixed in what that check read", () => {
+		const sentence = checks().split(/(?<=\.)\s+/).find((x) => /agree with/.test(x)) ?? "";
+		expect(sentence).toMatch(/in the draft for the intent check/);
+		expect(sentence).toMatch(/in the plan for the plan check/);
 	});
 
 	test("the plan check runs after plan.sh validate and before pre-flight, with the spec and plan paths", () => {
@@ -1012,9 +1037,9 @@ describe("sluice alignment checks", () => {
 	});
 
 	test("disputed findings go into the stop's message one line each", () => {
-		const s = checks();
-		expect(s).toMatch(/disputes?/);
-		expect(s).toMatch(/one line each/);
+		const sentence = checks().split(/(?<=\.)\s+/).find((x) => /disputes?/.test(x)) ?? "";
+		expect(sentence).toMatch(/message/);
+		expect(sentence).toMatch(/one line each/);
 	});
 
 	test("validate is re-run after the plan check's fixes", () => {
@@ -1047,7 +1072,7 @@ describe("sluice plans cite the decisions they build", () => {
 	test("the validate paragraph names the coverage errors and the warning", () => {
 		const format = section(DEEP, "Plan format").replace(/\s+/g, " ");
 		const para = format.split("**Run `scripts/plan.sh validate")[1] ?? "";
-		expect(para).toContain("no `**Spec:**` line");
+		expect(para).toContain('"no **Spec:** line, so nothing ties the plan to the design it builds"');
 		expect(para).toContain("built by no task");
 		expect(para).toContain("no Builds line");
 	});
@@ -1056,6 +1081,7 @@ describe("sluice plans cite the decisions they build", () => {
 		const record = section(DEEP, "The run record").replace(/\s+/g, " ");
 		const sentence =
 			record.split(/(?<=\.)\s+/).find((s) => /intent check/.test(s) && /plan check/.test(s)) ?? "";
-		expect(sentence).toMatch(/open|first/);
+		expect(sentence).toMatch(/sit among those opening rows/);
+		expect(sentence).not.toMatch(/\b(never|not)\b/);
 	});
 });
