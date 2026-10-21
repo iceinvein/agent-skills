@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const SCRIPT = join(import.meta.dir, "..", "skills", "sluice", "scripts", "plan.sh");
 
@@ -472,6 +472,30 @@ describe("the plan tied to its spec", () => {
 		const plan = join(repo, "docs", "plans", "widget.md");
 		writeFileSync(plan, broken("**Spec:** spec.md", "**Spec:** docs/specs/widget.md"));
 		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", plan], cwd: tmpdir(), timeout: 5000 });
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toMatch(/no errors/);
+	});
+
+	test("an exported CDPATH does not change where a relative plan's Spec resolves", () => {
+		// cd consults CDPATH only for a path that does not start with "." or "/",
+		// and then prints where it went, so the plan is named as <dir>/plan.md.
+		const path = planFile(GOOD);
+		const proc = Bun.spawnSync({
+			cmd: ["bash", SCRIPT, "validate", join(basename(dirname(path)), "plan.md")],
+			cwd: dirname(dirname(path)),
+			env: { ...process.env, CDPATH: `.:${tmpdir()}` },
+			timeout: 5000,
+		});
+		expect(proc.exitCode).toBe(0);
+		expect(proc.stdout.toString()).toMatch(/no errors/);
+	});
+
+	test("a backslash in the plan's directory does not change where its Spec resolves", () => {
+		const dir = join(mkdtempSync(join(tmpdir(), "sluice-plan-")), "back\\tslash");
+		mkdirSync(dir);
+		writeFileSync(join(dir, "plan.md"), GOOD);
+		writeFileSync(join(dir, "spec.md"), SPEC);
+		const proc = Bun.spawnSync({ cmd: ["bash", SCRIPT, "validate", join(dir, "plan.md")], cwd: tmpdir(), timeout: 5000 });
 		expect(proc.exitCode).toBe(0);
 		expect(proc.stdout.toString()).toMatch(/no errors/);
 	});

@@ -374,7 +374,7 @@ END {
 	# plan already validated should not be refused over it.
 	if (check_spec) {
 		spec_file = spec_path
-		if (spec_path != "" && spec_path !~ /^\//) spec_file = spec_base "/" spec_path
+		if (spec_path != "" && spec_path !~ /^\//) spec_file = ENVIRON["SLUICE_SPEC_BASE"] "/" spec_path
 		if (!has_spec) {
 			finding("error", "no **Spec:** line, so nothing ties the plan to the design it builds")
 		} else if (spec_path == "") {
@@ -495,10 +495,13 @@ parse_plan() {
 	# A relative Spec path names a file from the plan's repo root, the way plans
 	# write it (docs/specs/...), so validate means the same thing from any cwd.
 	# Outside a repo there is no root, and the plan's own directory stands in.
+	# CDPATH is cleared because a cd it steers prints where it went, which would
+	# land in plan_dir. The base reaches awk through the environment: a -v value
+	# has its backslash escapes processed, and a path may hold a backslash.
 	local plan_dir spec_base
-	plan_dir="$(cd "$(dirname "$plan")" && pwd)" || { err "could not read $plan"; exit 4; }
+	plan_dir="$(CDPATH= cd -- "$(dirname -- "$plan")" && pwd)" || { err "could not read $plan"; exit 4; }
 	spec_base="$(git -C "$plan_dir" rev-parse --show-toplevel 2>/dev/null)" || spec_base="$plan_dir"
-	raw="$(awk -v check_spec="$check_spec" -v spec_base="$spec_base" "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
+	raw="$(SLUICE_SPEC_BASE="$spec_base" awk -v check_spec="$check_spec" "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
 
 	local summary
 	summary="$(printf '%s\n' "$raw" | grep "^summary$SEP" | head -1)"
