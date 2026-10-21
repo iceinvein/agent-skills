@@ -183,6 +183,44 @@ on it, and let the next instruction start the plan. Nothing else about this
 section changes, because the obligation was never the mode's, only the
 enforcement was.
 
+## The trace
+
+A design written from the shape of the code (which functions exist, which slots
+they fill) can be sound on paper and still fail the request's own example,
+and nothing after it notices: per-task reviews read each task against its own
+text, and the hunt runs once every task is done. So walk the request through
+the system as it stands before you draft, and give the design a `## Trace`
+section that records the walk (in the plan file under plan mode, carried into
+the spec on approval):
+
+1. **The example, verbatim.** Quote the sentence, command or scenario the
+   request gives. Where it gives none, write the acceptance criterion as one
+   concrete case and say that you did.
+2. **Through the real data.** Follow that case step by step through the rows,
+   files or fixtures it would touch, as they exist now rather than as the
+   design assumes them: read the record, run the query, open the fixture, and
+   cite what each step read. "A deck built in chat has no accepted slides" is
+   a fact one read away, and a design keyed on accepted slides is wrong without
+   it.
+3. **What each reused path requires and writes.** For every function the
+   design reuses, its preconditions and its side effects, read from the code
+   and not from its name. Run the example a second time where the request
+   implies a repeat (a redraft of a redraft, an edit after an edit), because
+   what the first pass wrote is what the second pass reads.
+4. **What the walk ruled out.** Each place it contradicted the obvious design
+   (the reuse the request suggests, the first shape that came to mind), and
+   what the design does instead. An empty list is a result, not a skipped
+   step.
+
+Walking first is also what puts a fork where **The design stop and plan mode**
+wants it: one the walk turns up only your partner can settle is asked before
+the design is written, and the trace goes into the design with the answer.
+
+The trace is what the sign-off is signing: a design without the section is
+incomplete, however good the rest reads. It is not a prototype and not a hunt;
+anything that only shows at runtime (routing, timing, a renderer) stays with
+the hunt after the flip.
+
 ## Pre-flight
 
 Design signed off, plan written, nothing built yet. Before Task 1, stop once

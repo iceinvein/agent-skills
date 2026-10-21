@@ -1,6 +1,6 @@
 # sluice evals
 
-Twenty-one cases for `claude plugin eval`. Fourteen pin the routing decision: which
+Twenty-two cases for `claude plugin eval`. Fifteen pin the routing decision: which
 channel the run names, and whether the behaviour that channel owes actually
 happened. Seven pin what a deep run does after pre-flight, where the question is
 no longer which channel but whether the run keeps going.
@@ -12,6 +12,7 @@ no longer which channel but whether the run keeps going.
 | `main-new-interface` | Adds a port the repo does not have | Main channel; shape stated with a recommendation before building |
 | `deep-plan-across-subsystems` | A plan asked for, three subsystems | Deep channel; design written to `docs/specs/`; stops before code |
 | `deep-plan-asks-the-fork` | The same plan with nothing saying where the counters can live | One question with a recommendation before any design; no spec yet |
+| `deep-plan-traces-the-example` | A ticket whose own example the obvious design fails: the lookup it says to reuse matches accepted slides, and the smoke deck has none | A `## Trace` section in the spec that walks the example through the smoke deck, a lookup designed around what it found, and no write under `src/` or `tests/` |
 | `explicit-instruction-collapses-to-fast` | Main-shaped work plus "just do it" | Collapses to fast; no design, no proposal |
 | `superpowers-conflict-stands-down` | Repo mandates the superpowers sequence | Stands down once, names no channel |
 | `announcement-reaches-the-ledger` | A flag that a surface test turns into a new export | `status.sh route main` before any write under `src/` and before any fast or deep route |
@@ -36,7 +37,7 @@ Execution, where the run is already past both stops:
 
 ## Running
 
-Twenty cases scaffold a small Node repo and then change it, so they need the
+Twenty-one cases scaffold a small Node repo and then change it, so they need the
 scaffold flag and a tool grant. Pin the model, because the eval child does not
 inherit it, and pin the judge, because `--model` does not reach it and the
 `llm` graders otherwise run on Haiku. From the repo root:

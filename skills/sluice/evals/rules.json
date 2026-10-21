@@ -31,7 +31,8 @@
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
         "deep-plan-across-subsystems",
-        "deep-plan-asks-the-fork"
+        "deep-plan-asks-the-fork",
+        "deep-plan-traces-the-example"
       ]
     },
     {
@@ -63,7 +64,8 @@
       "origin": "docs/specs/2026-08-07-sluice-design.md",
       "cases": [
         "deep-plan-across-subsystems",
-        "deep-plan-asks-the-fork"
+        "deep-plan-asks-the-fork",
+        "deep-plan-traces-the-example"
       ]
     },
     {
@@ -72,6 +74,14 @@
       "origin": "commit:4d9d252",
       "cases": [
         "deep-plan-asks-the-fork"
+      ]
+    },
+    {
+      "id": "deep-design-traces-the-example",
+      "states": "SKILL.md: Deep channel",
+      "origin": "skills/sluice/references/deep-channel.md",
+      "cases": [
+        "deep-plan-traces-the-example"
       ]
     },
     {
