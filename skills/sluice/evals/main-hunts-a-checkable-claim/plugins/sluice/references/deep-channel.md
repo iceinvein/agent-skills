@@ -70,8 +70,9 @@ sends to tier 3, a `Model` mark anywhere. Those come back as errors with the
 task number on them. It also checks the plan against its spec, and a miss
 there is an error too: a Spec line naming a readable file whose decisions are
 `### D<n>.` headings, a Builds line on every task of `D<n>` ids or
-`none, <why>`, every decision built and none invented. Each message names the
-task and the fix, so read them as validate prints them. The
+`none, <why>`, every decision built and none invented. Each message says what
+to fix, and names the task where one is at fault, so read them as validate
+prints them. The
 warnings are the judgement calls left to you: a step with no proof, a `Needs`
 satisfied only by a later task, two tasks whose `Touches` overlap. Reading
 the plan yourself catches these on a good day, and the point of a check is
