@@ -132,6 +132,11 @@ the design's shape turns on a fork only your partner can settle, ask that one
 question through `AskUserQuestion`, with your recommendation, before the design
 is written. `references/deep-channel.md` has the test for what counts.
 
+Read the repo before the walk: prior designs, the code beside the path and the
+stated constraints, each cited by path in the spec's `## Context`. A prior spec
+often settles the fork, and nothing can be settled from a repo nobody read.
+`references/deep-channel.md` has it under `## The ground`.
+
 The design carries a `## Trace` section before it goes up for sign-off: the
 request's own example, quoted, walked through the data as it stands, with what
 each reused function requires and writes read from the code. Per-task reviews
@@ -139,6 +144,11 @@ never run that example and the hunt runs it only once every task is built, so
 a design checked only against the shape of the code is wrong for a whole plan
 before anything catches it.
 `references/deep-channel.md` has what the section holds.
+
+Each stop gets a fresh reader first: the intent check before sign-off, the plan
+check after `plan.sh validate` and before pre-flight, because an author reads
+past the gap between what was meant and what was written.
+`references/deep-channel.md` has the briefs under `## The alignment checks`.
 
 Take the design stop through the harness's plan mode where there is one. Its
 gate is enforced rather than requested and it holds edits shut while it is open,
@@ -168,11 +178,13 @@ plan:
 
 ```
 # Plan: <topic>
+**Spec:** <path to the signed-off design>
 ## Ground Rules
 - <exact value>
 ### Task N: <name>
 **Contract:** Needs: <sig> | Offers: <sig>
 **Touches:** <path> (new) | <path> (edit) | <path> (test)
+**Builds:** <D<n>, ..., or none and why>
 **Flips:** <what changes, from what, or omit>
 **Review:** <reason, or omit>
 **Effort:** <low, and why the work is mechanical, or omit>

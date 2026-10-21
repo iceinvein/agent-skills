@@ -892,3 +892,170 @@ describe("sluice verification gates in the references", () => {
 		expect(stop).toBeLessThan(options);
 	});
 });
+
+// A design drafted before anyone read the repo reinvents what an earlier spec
+// already settled, and "anything you can settle from the repo" is empty until
+// the repo has been read. The ground is that read, and it comes before the walk.
+describe("sluice deep designs read the ground first", () => {
+	const flat = (s: string) => s.replace(/\s+/g, " ");
+
+	test("the router's Deep channel names the ground before the trace", () => {
+		const deep = section(SKILL, "Deep channel");
+		const ground = deep.indexOf("## The ground");
+		const trace = deep.indexOf("## Trace");
+		expect(ground).toBeGreaterThan(-1);
+		expect(trace).toBeGreaterThan(-1);
+		expect(ground).toBeLessThan(trace);
+	});
+
+	test("the reference puts the ground section before the trace section", () => {
+		const ground = DEEP.indexOf("\n## The ground\n");
+		const trace = DEEP.indexOf("\n## The trace\n");
+		expect(ground).toBeGreaterThan(-1);
+		expect(ground).toBeLessThan(trace);
+	});
+
+	test("the ground asks for prior designs, the code beside the path and stated constraints", () => {
+		const ground = flat(section(DEEP, "The ground"));
+		expect(ground).toMatch(/prior designs/i);
+		expect(ground).toMatch(/the code beside the path/i);
+		expect(ground).toMatch(/stated constraints/i);
+	});
+
+	test("the ground is read by a read-only dispatch, with the controller's own read as the fallback", () => {
+		const ground = flat(section(DEEP, "The ground"));
+		expect(ground).toMatch(/read-only/);
+		expect(ground).toContain("Explore");
+		expect(ground).toMatch(/your own read|read (the repo|it) yourself/);
+	});
+
+	test("the ground's findings land in the spec's Context, one line each with a path", () => {
+		const ground = flat(section(DEEP, "The ground"));
+		expect(ground).toContain("`## Context`");
+		expect(ground).toMatch(/one line (per|each)/);
+	});
+
+	test("the trace's ordering sentence puts the walk after the ground and before the fork", () => {
+		const trace = flat(section(DEEP, "The trace"));
+		const sentence = trace.split(/(?<=\.)\s+/).find((s) => /^Walking/.test(s)) ?? "";
+		expect(sentence).toMatch(/ground/);
+		expect(sentence).toMatch(/fork/);
+	});
+});
+
+// The intent check reads the spec's own map of asks to decisions, so the spec
+// has to have that shape before anything can check it.
+describe("sluice deep specs carry an intent map", () => {
+	test("the reference carries a spec skeleton with its sections in order", () => {
+		const skeleton = fencedBlocks(DEEP).find((b) => b.startsWith("# Design:"));
+		expect(skeleton).toBeDefined();
+		const lines = (skeleton as string).split("\n");
+		const order = ["## Intent", "## Context", "## Decisions", "### D1.", "## Out of scope", "## Trace"];
+		const at = order.map((h) => lines.findIndex((l) => l.startsWith(h)));
+		for (const i of at) expect(i).toBeGreaterThan(-1);
+		expect([...at].sort((a, b) => a - b)).toEqual(at);
+	});
+
+	test("the spec skeleton sits before the trace section", () => {
+		const skeleton = DEEP.indexOf("# Design: <topic>");
+		expect(skeleton).toBeGreaterThan(-1);
+		expect(skeleton).toBeLessThan(DEEP.indexOf("\n## The trace\n"));
+	});
+
+	test("it says why Out of scope is not a numbered decision", () => {
+		const flat = DEEP.replace(/\s+/g, " ");
+		const sentence = flat
+			.split(/(?<=\.)\s+/)
+			.find((s) => /Out of scope/.test(s) && /(never|not) a numbered decision/.test(s));
+		expect(sentence).toBeDefined();
+		expect(sentence).toMatch(/task builds/);
+	});
+});
+
+// A spec can mention every ask and deliver none of them, and a plan can cite
+// every decision and build half of one. A fresh reader catches what the author
+// reads past, so each check is a dispatch at the stop it guards.
+describe("sluice alignment checks", () => {
+	const checks = () => section(DEEP, "The alignment checks").replace(/\s+/g, " ");
+
+	test("the alignment checks section follows the trace", () => {
+		const at = DEEP.indexOf("\n## The alignment checks\n");
+		expect(at).toBeGreaterThan(DEEP.indexOf("\n## The trace\n"));
+	});
+
+	test("the intent check runs before sign-off and reads the spec's Intent", () => {
+		const s = checks();
+		expect(s).toMatch(/intent check/i);
+		expect(s).toMatch(/before (the )?sign-off/);
+		expect(s).toContain("`## Intent`");
+	});
+
+	test("the plan check runs after plan.sh validate and before pre-flight, with the spec and plan paths", () => {
+		const s = checks();
+		const sentence =
+			s.split(/(?<=\.)\s+/).find((x) => /plan check/.test(x) && /plan\.sh validate/.test(x)) ?? "";
+		expect(sentence).toMatch(/before pre-flight/);
+		expect(s).toMatch(/spec and plan paths|paths of the spec and the plan/);
+	});
+
+	test("the checker is never downshifted", () => {
+		expect(checks()).toMatch(/never downshifted/);
+	});
+
+	test("the sign-off message reports the intent check's finding count and how many were fixed", () => {
+		const sentence =
+			checks()
+				.split(/(?<=\.)\s+/)
+				.find((x) => /sign-off message/.test(x) && /how many/.test(x)) ?? "";
+		expect(sentence).toMatch(/findings/);
+		expect(sentence).toMatch(/fixed/);
+	});
+
+	test("disputed findings go into the stop's message one line each", () => {
+		const s = checks();
+		expect(s).toMatch(/disputes?/);
+		expect(s).toMatch(/one line each/);
+	});
+
+	test("validate is re-run after the plan check's fixes", () => {
+		expect(checks()).toMatch(/re-run `plan\.sh validate`|`plan\.sh validate` is re-run/);
+	});
+
+	test("without dispatch the checks fall back to the controller's own read, said at the stop", () => {
+		expect(checks()).toContain("When dispatch is unavailable");
+		const unavailable = section(DEEP, "When dispatch is unavailable").replace(/\s+/g, " ");
+		expect(unavailable).toMatch(/alignment checks/);
+		expect(unavailable).toMatch(/at the stop/);
+	});
+});
+
+// validate checks coverage from lines it can parse; a plan that names its spec
+// only in prose, or its decisions only in step text, gives it nothing to read.
+describe("sluice plans cite the decisions they build", () => {
+	test("the plan skeleton carries Spec and Builds lines", () => {
+		const skeleton = fencedBlocks(DEEP).find((b) => b.startsWith("# Plan:")) ?? "";
+		expect(skeleton).toContain("**Spec:**");
+		expect(skeleton).toContain("**Builds:**");
+	});
+
+	test("the plan format says step prose mentioning a decision does not count as building it", () => {
+		const bullets = section(DEEP, "Plan format").split("\n- ").map((b) => b.replace(/\s+/g, " "));
+		const builds = bullets.find((b) => b.startsWith("A **Builds** line") || b.includes("`**Builds:**")) ?? "";
+		expect(builds).toMatch(/does not count/);
+	});
+
+	test("the validate paragraph names the coverage errors and the warning", () => {
+		const format = section(DEEP, "Plan format").replace(/\s+/g, " ");
+		const para = format.split("**Run `scripts/plan.sh validate")[1] ?? "";
+		expect(para).toContain("no `**Spec:**` line");
+		expect(para).toContain("built by no task");
+		expect(para).toContain("no Builds line");
+	});
+
+	test("the run record opens with the two check outcomes", () => {
+		const record = section(DEEP, "The run record").replace(/\s+/g, " ");
+		const sentence =
+			record.split(/(?<=\.)\s+/).find((s) => /intent check/.test(s) && /plan check/.test(s)) ?? "";
+		expect(sentence).toMatch(/open|first/);
+	});
+});
