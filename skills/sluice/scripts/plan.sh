@@ -13,6 +13,10 @@
 #
 # validate prints one line per finding. An error means the plan cannot be
 # dispatched as written; a warning is a judgement call left to its author.
+# Besides the plan's own skeleton, it reads the spec the plan's **Spec:** line
+# names (from the cwd, as the plan path is) and checks every "### D<n>." decision
+# there is built by some task's **Builds:** line, and that no task builds one the
+# spec does not have.
 # import seeds the run state's task rows from the plan, so the ids, names, the
 # flip, the effort marks and the tiers come from the file rather than from a
 # dozen hand-typed commands. It is safe to re-run: a status, a review mark or a
@@ -145,6 +149,14 @@ fenced { next }
 
 /^# Plan:/ { has_title = 1 }
 
+# Before the first task only: a Spec line inside a task is that task naming a
+# file, not the plan naming its design.
+ntasks == 0 && /^\*\*Spec:\*\*/ {
+	spec_path = trim(substr($0, length("**Spec:**") + 1))
+	has_spec = 1
+	next
+}
+
 /^## / {
 	in_rules = (tolower($0) ~ /^## ground rules/) ? 1 : 0
 	if (in_rules) has_rules_heading = 1
@@ -249,6 +261,19 @@ in_rules && /^- / { nrules++ }
 	next
 }
 
+/^\*\*Builds:\*\*/ {
+	has_builds[cur] = 1
+	body = trim(substr($0, length("**Builds:**") + 1))
+	if (tolower(body) ~ /^none([ \t,]|$)/) next
+	n = split(body, parts, /[, \t]+/)
+	for (i = 1; i <= n; i++) {
+		if (parts[i] == "") continue
+		if (parts[i] ~ /^D[0-9]+$/) builds[cur] = builds[cur] " " parts[i]
+		else finding("error", "task " cur " Builds " parts[i] ", which is not a decision id; write D<n>, or none, <why>")
+	}
+	next
+}
+
 /^\*\*Flips:\*\*/ { has_flips[cur] = 1; nflips++; flips_list = flips_list (flips_list == "" ? "" : ", ") cur; next }
 /^\*\*Review:\*\*/ { has_review[cur] = 1; next }
 /^\*\*Model:\*\*/  { has_model[cur] = 1; next }
@@ -323,6 +348,48 @@ END {
 		}
 	}
 
+	# Gated, because only validate reads the spec. Import is run from wherever
+	# the run state lives, so a relative Spec path need not resolve there, and a
+	# plan already validated should not be refused over it.
+	if (check_spec) {
+		if (!has_spec) {
+			finding("error", "no **Spec:** line, so nothing ties the plan to the design it builds")
+		} else if ((getline line < spec_path) < 0) {
+			finding("error", "**Spec:** names " spec_path ", which does not exist")
+		} else {
+			# The first line is already in hand from the existence probe above.
+			sfenced = 0; ndec = 0
+			do {
+				if (line ~ /^[ \t]*```/) { sfenced = 1 - sfenced; continue }
+				if (sfenced || line !~ /^### D[0-9]+\./) continue
+				match(line, /D[0-9]+/)
+				d = substr(line, RSTART, RLENGTH)
+				if (!(d in decision)) { decision[d] = 1; dec_order[++ndec] = d }
+			} while ((getline line < spec_path) > 0)
+			close(spec_path)
+			if (ndec == 0)
+				finding("error", "the spec " spec_path " has no \"### D<n>.\" decisions, so no task can say which one it builds")
+		}
+		for (i = 1; i <= ntasks; i++) {
+			id = order[i]
+			if (!(id in has_builds)) {
+				finding("warn", "task " id " has no Builds line, so nothing says which decision it builds")
+				continue
+			}
+			n = split(builds[id], cited, " ")
+			for (j = 1; j <= n; j++) {
+				if (cited[j] == "") continue
+				built[cited[j]] = 1
+				if (ndec > 0 && !(cited[j] in decision))
+					finding("error", "task " id " Builds " cited[j] ", which the spec does not have")
+			}
+		}
+		if (ntasks > 0)
+			for (i = 1; i <= ndec; i++)
+				if (!(dec_order[i] in built))
+					finding("error", "spec decision " dec_order[i] " is built by no task")
+	}
+
 	for (p in owners) {
 		n = split(owners[p], who, " ")
 		if (n < 2) continue
@@ -389,8 +456,8 @@ END {
 # FINDINGS (newline-separated sev\tmsg), TASKROWS (newline-separated), NERR,
 # NWARN.
 parse_plan() {
-	local plan="$1" raw
-	raw="$(awk "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
+	local plan="$1" check_spec="${2-0}" raw
+	raw="$(awk -v check_spec="$check_spec" "$PARSER" "$plan")" || { err "could not read $plan"; exit 4; }
 
 	local summary
 	summary="$(printf '%s\n' "$raw" | grep "^summary$SEP" | head -1)"
@@ -421,7 +488,7 @@ case "$SUB" in
 		shift
 		[ $# -eq 0 ] || { err "unknown argument: $1"; exit 4; }
 
-		parse_plan "$PLAN"
+		parse_plan "$PLAN" 1
 
 		head="$(basename "$PLAN"): $(plural "$NTASKS" task)"
 		[ "$FLIP" != "0" ] && head="$head, flip at task $FLIP"
