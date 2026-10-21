@@ -60,8 +60,8 @@ bun run eval:fresh accept skills/magpie <result.json>
 
 `rules.json` maps each rule the skill states to the cases that pin it, or says
 why none does; `diff` reads it to name rules at risk or ready to expire. What
-each verdict means is in `skills/sluice/evals/README.md`. No baseline has been
-accepted yet.
+each verdict means is in `skills/sluice/evals/README.md`. The accepted baseline
+is `baselines/claude-opus-5-5.json`.
 
 ## How the fixtures fake the pipeline
 
@@ -186,7 +186,10 @@ Its default effort is `medium` where Claude Opus 5's is `high`, so a rubric that
 starts failing there is worth reading as a real behavioural difference before
 it is loosened.
 
-Not yet known: no case has been run with the no-plugin baseline arm, so the
-ablation delta is unmeasured, and no case other than the shard gate has been
-repeated within one invocation, so the per-case variance is only bounded by
-those two clean passes.
+The current baseline (skill 0.15.0, CLI 2.1.306, 2026-10-21) ran every case
+three times in both arms on Claude Opus 5.5, USD 10.31 and nine and a half
+minutes at `-j 3`. Every case scored 1.00 with the plugin on all three runs
+except `local-mode-hands-back`, which scored 0.80 once: the judge failed
+`reply-lists-both-findings` 3/3 on that run, and its trace was not kept. Without
+the plugin the cases score 0.40 to 0.78, so each one measures the skill rather
+than the model's habits.
