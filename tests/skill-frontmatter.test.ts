@@ -24,7 +24,7 @@ test.each(skills)("%s frontmatter parses with string name, description and hint"
 });
 
 test.each([
-	["magpie", "[<pr#>|<pr-url>|local] [--base <ref>] [--intent-file <path>]"],
+	["magpie", "[<pr#>|<pr-url>|local (default)] [--base <ref>] [--intent-file <path>]"],
 	["bug-hunter", "[<commit>|<base>..<head>|<path>...]"],
 	["sluice", "[fast|main|deep] [<what to change>]"],
 ])("%s shows its argument hint when typed as a slash command", (name, hint) => {
