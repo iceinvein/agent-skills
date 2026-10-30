@@ -67,12 +67,12 @@ const throughPeerReview: [string, string][] = [
   ['peer-review', 'done'],
 ]
 
-test('a local run after peer-review resumes at handoff', async () => {
+test('a local run after peer-review resumes at proof', async () => {
   await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: runDir }))
   await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
   const result = await runStatus(runDir)
   expect(result.lastCompleted).toBe('peer-review')
-  expect(result.next).toBe('handoff')
+  expect(result.next).toBe('proof')
 })
 
 test('a local run with handoff done goes to cleanup', async () => {
@@ -83,17 +83,29 @@ test('a local run with handoff done goes to cleanup', async () => {
   expect(result.next).toBe('cleanup')
 })
 
-test('a PR or archived run with no target.json resumes at report after peer-review', async () => {
-  await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
+test('a PR or archived run with no target.json resumes at report after proof', async () => {
+  await writeFile(join(runDir, 'log.jsonl'), logLines([...throughPeerReview, ['proof', 'done']]))
   const result = await runStatus(runDir)
-  expect(result.lastCompleted).toBe('peer-review')
+  expect(result.lastCompleted).toBe('proof')
   expect(result.next).toBe('report')
 })
 
-test('a PR run with target.json resumes at report after peer-review', async () => {
+test('a PR run with target.json resumes at report after proof', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'pr', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines([...throughPeerReview, ['proof', 'done']]))
+  const result = await runStatus(runDir)
+  expect(result.lastCompleted).toBe('proof')
+  expect(result.next).toBe('report')
+})
+
+test('a PR run after peer-review resumes at proof', async () => {
   await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'pr', root: runDir }))
   await writeFile(join(runDir, 'log.jsonl'), logLines(throughPeerReview))
-  const result = await runStatus(runDir)
-  expect(result.lastCompleted).toBe('peer-review')
-  expect(result.next).toBe('report')
+  expect((await runStatus(runDir)).next).toBe('proof')
+})
+
+test('a local run after proof resumes at handoff', async () => {
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: runDir }))
+  await writeFile(join(runDir, 'log.jsonl'), logLines([...throughPeerReview, ['proof', 'done']]))
+  expect((await runStatus(runDir)).next).toBe('handoff')
 })

@@ -418,3 +418,49 @@ test('parseBrief keeps review rules with a non-empty rule and source', () => {
 test('parseBrief yields no review rules when the key is absent', () => {
   expect(parseBrief({ purpose: 'Does a thing.' })?.reviewRules).toEqual([])
 })
+
+test('parseFinding keeps a reproduced proof with its repro', () => {
+  const proof = {
+    status: 'reproduced',
+    reason: 'fails as described',
+    repro: { path: 'a.test.ts', command: 'bun test a.test.ts', source: 'src', output: 'out' },
+  }
+  const f = parseFinding({
+    id: 'a',
+    file: 'a.ts',
+    line: 1,
+    title: 't',
+    description: 'd',
+    risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+    proof,
+  })
+  expect(f.proof).toEqual(proof as never)
+})
+
+test('parseFinding rejects a proof that is neither reproduced nor not-proven', () => {
+  expect(() =>
+    parseFinding({
+      id: 'a',
+      file: 'a.ts',
+      line: 1,
+      title: 't',
+      description: 'd',
+      risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+      proof: { status: 'disproved', reason: 'r' },
+    }),
+  ).toThrow('Finding.proof.status must be reproduced or not-proven')
+})
+
+test('parseFinding rejects a proof with an empty reason', () => {
+  expect(() =>
+    parseFinding({
+      id: 'a',
+      file: 'a.ts',
+      line: 1,
+      title: 't',
+      description: 'd',
+      risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
+      proof: { status: 'not-proven', reason: '' },
+    }),
+  ).toThrow('Finding.proof.reason must be a non-empty string')
+})

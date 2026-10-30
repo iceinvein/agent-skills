@@ -42,6 +42,19 @@ export type MergedFromEntry = {
   title: string
 }
 
+export type Repro = {
+  /** Where the prover wrote the repro, relative to the worktree. It is deleted after the run. */
+  path: string
+  command: string
+  source: string
+  output: string
+}
+
+/** A disproved finding is dropped, so a kept finding carries only these two. */
+export type Proof =
+  | { status: 'reproduced'; reason: string; repro: Repro }
+  | { status: 'not-proven'; reason: string }
+
 export type ReviewFinding = {
   id: string
   file: string
@@ -62,6 +75,8 @@ export type ReviewFinding = {
   onChangedLine?: boolean | null
   /** Verbatim code the reviewer quoted as grounds for the finding. */
   evidence?: string
+  /** Set by the proof stage on the findings it tried to reproduce. */
+  proof?: Proof
 }
 
 const IMPACT_SYNONYMS: Record<string, Impact> = {
@@ -262,6 +277,29 @@ export function looksLikeProse(body: string): boolean {
   return false
 }
 
+export function isRepro(raw: unknown): raw is Repro {
+  if (!raw || typeof raw !== 'object') return false
+  const r = raw as Record<string, unknown>
+  return [r.path, r.command, r.source, r.output].every((v) => typeof v === 'string' && v !== '')
+}
+
+function parseProof(raw: unknown): Proof {
+  if (!raw || typeof raw !== 'object') throw new Error('Finding.proof must be an object')
+  const p = raw as Record<string, unknown>
+  if (typeof p.reason !== 'string' || p.reason === '') {
+    throw new Error('Finding.proof.reason must be a non-empty string')
+  }
+  if (p.status === 'not-proven') return { status: 'not-proven', reason: p.reason }
+  if (p.status !== 'reproduced') {
+    throw new Error('Finding.proof.status must be reproduced or not-proven')
+  }
+  if (!isRepro(p.repro)) {
+    throw new Error('Finding.proof.repro needs path, command, source and output')
+  }
+  const { path, command, source, output } = p.repro
+  return { status: 'reproduced', reason: p.reason, repro: { path, command, source, output } }
+}
+
 export function parseFinding(raw: unknown): ReviewFinding {
   if (!raw || typeof raw !== 'object') {
     throw new Error(`Finding must be an object, got ${typeof raw}`)
@@ -306,6 +344,7 @@ export function parseFinding(raw: unknown): ReviewFinding {
       ? { onChangedLine: r.onChangedLine as boolean | null }
       : {}),
     ...(typeof r.evidence === 'string' && r.evidence.length > 0 ? { evidence: r.evidence } : {}),
+    ...(r.proof !== undefined ? { proof: parseProof(r.proof) } : {}),
   }
 }
 

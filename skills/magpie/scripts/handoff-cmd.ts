@@ -31,12 +31,22 @@ function formatSuggestion(s: Suggestion): string {
   return `Suggested replacement for ${lines}:\n${fence}\n${s.body}\n${fence}`
 }
 
+function formatProof(f: ReviewFinding): string | null {
+  if (f.proof?.status === 'not-proven') return `Not proven: ${f.proof.reason}`
+  if (f.proof?.status !== 'reproduced') return null
+  const { command, source } = f.proof.repro
+  const fence = fenceFor(source)
+  return `Reproduced with \`${command}\`:\n${fence}\n${source}\n${fence}`
+}
+
 function formatItem(n: number, f: ReviewFinding): string {
   const anchor = f.line === null ? f.file : `${f.file}:${f.line}`
   const parts = [`${n}. [${f.risk.action}] ${anchor}: ${f.title}`]
   const body = formatFindingDescriptionMarkdown(f.description)
   if (body) parts.push(body)
   if (f.suggestion) parts.push(formatSuggestion(f.suggestion))
+  const proof = formatProof(f)
+  if (proof) parts.push(proof)
   return parts.join('\n\n')
 }
 

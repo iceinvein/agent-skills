@@ -317,3 +317,38 @@ test('runHandoff still prints, stale, when the review root is gone', async () =>
   expect(stdout).toContain(WARNING)
   expect(stderr).toContain('magpie: handoff: could not recompute the diff: ')
 })
+
+test('formatHandoff shows a reproduced finding with its command and repro source', () => {
+  const out = formatHandoff({
+    target: 't',
+    findings: [
+      {
+        ...mustFix,
+        suggestion: undefined,
+        proof: {
+          status: 'reproduced',
+          reason: 'fails as described',
+          repro: {
+            path: 'a.test.ts',
+            command: 'bun test a.test.ts',
+            source: "expect(log).not.toContain('tok')",
+            output: 'received tok',
+          },
+        },
+      },
+    ],
+    stale: false,
+  })
+  expect(out).toContain(
+    "Reproduced with `bun test a.test.ts`:\n```\nexpect(log).not.toContain('tok')\n```",
+  )
+})
+
+test('formatHandoff says why a finding is not proven', () => {
+  const out = formatHandoff({
+    target: 't',
+    findings: [{ ...shouldFix, proof: { status: 'not-proven', reason: 'needs a live database' } }],
+    stale: false,
+  })
+  expect(out).toContain('Not proven: needs a live database')
+})

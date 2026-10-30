@@ -12,6 +12,7 @@ export const ORDER = [
   'dedupe',
   'critic',
   'peer-review',
+  'proof',
   'report',
   'post',
 ] as const
@@ -24,6 +25,7 @@ export const LOCAL_ORDER = [
   'dedupe',
   'critic',
   'peer-review',
+  'proof',
   'handoff',
 ] as const
 

@@ -152,6 +152,31 @@ function buildSuggestion(f: ReviewFinding): SuggestionParts {
   }
 }
 
+/** GitHub renders the `<summary>` line as HTML, where a raw `<` in a command would start a tag. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** The repro rides folded under the finding, so the comment stays short on GitHub. */
+function buildRepro(f: ReviewFinding): string | null {
+  if (f.proof?.status !== 'reproduced') return null
+  const { command, source, output } = f.proof.repro
+  const fence = (code: string) => '`'.repeat(Math.max(3, maxBacktickRun(code) + 1))
+  return [
+    `<details><summary>Reproduced with <code>${escapeHtml(command)}</code></summary>`,
+    '',
+    fence(source),
+    source,
+    fence(source),
+    '',
+    fence(output),
+    output,
+    fence(output),
+    '',
+    '</details>',
+  ].join('\n')
+}
+
 function buildFindingMarker(f: ReviewFinding): string {
   const normalized = JSON.stringify({
     file: f.file || '',
@@ -182,6 +207,7 @@ export function formatInlineBody(f: ReviewFinding): string {
   const metaLine = buildMetaLine([...buildRiskParts(f), focus ? `Focus · ${focus}` : null])
   const { block: suggestion, preamble: sugPre, postamble: sugPost } = buildSuggestion(f)
   const sections = formatFindingDescriptionMarkdown(f.description)
+  const repro = buildRepro(f)
 
   return joinBlock([
     `### ${icon} ${label}: ${f.title}`,
@@ -195,6 +221,8 @@ export function formatInlineBody(f: ReviewFinding): string {
     suggestion,
     sugPost ? '' : null,
     sugPost,
+    repro ? '' : null,
+    repro,
     '',
     buildFindingMarker(f),
   ])
@@ -215,6 +243,7 @@ export function formatConversationBody(f: ReviewFinding): string {
     ...buildRiskParts(f),
   ])
   const sections = formatFindingDescriptionMarkdown(f.description)
+  const repro = buildRepro(f)
   const { block: suggestion, preamble: sugPre, postamble: sugPost } = buildSuggestion(f)
 
   return joinBlock([
@@ -229,6 +258,8 @@ export function formatConversationBody(f: ReviewFinding): string {
     suggestion,
     sugPost ? '' : null,
     sugPost,
+    repro ? '' : null,
+    repro,
     '',
     buildFindingMarker(f),
   ])

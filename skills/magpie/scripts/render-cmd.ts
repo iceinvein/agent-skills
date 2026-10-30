@@ -49,6 +49,7 @@ function summarizeStages(log: Array<Record<string, unknown>>): {
     dedupe: 'pending',
     critic: 'pending',
     'peer-review': 'pending',
+    proof: 'pending',
     report: 'pending',
     post: 'pending',
   }

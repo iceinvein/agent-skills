@@ -24,7 +24,7 @@ test('references/ ships in the install bundle', async () => {
   }
   const covers = (p: string) =>
     manifest.bundle.include.some((inc) => inc === p || p.startsWith(`${inc}/`))
-  for (const name of ['specialists.md', 'critic.md', 'peer-review.md', 'scout.md']) {
+  for (const name of ['specialists.md', 'critic.md', 'peer-review.md', 'scout.md', 'proof.md']) {
     expect(covers(`references/${name}`)).toBe(true)
   }
 })
@@ -94,6 +94,26 @@ test('references/critic.md carries every placeholder critic-prompt fills', async
     '<<OUTPUT_PATH>>',
   ]) {
     expect(block).toContain(ph)
+  }
+})
+
+test('references/proof.md carries every placeholder proof-prompt fills', async () => {
+  const text = await readFile(ref('proof.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-proof\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  expect(block.length).toBeGreaterThan(0)
+  for (const ph of ['<<FINDING>>', '<<WORKTREE>>', '<<DIFF_PATH>>', '<<OUTPUT_PATH>>']) {
+    expect(block).toContain(ph)
+  }
+})
+
+test('references/proof.md asks for the result shape proof-apply accepts', async () => {
+  const text = await readFile(ref('proof.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-proof\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  for (const outcome of ['"reproduced"', '"disproved"', '"not-proven"']) {
+    expect(block).toContain(outcome)
+  }
+  for (const field of ['"path"', '"command"', '"source"', '"output"']) {
+    expect(block).toContain(field)
   }
 })
 
@@ -211,6 +231,7 @@ test('SKILL.md sends each stage to the reference file it needs', async () => {
   expect(section('### 4. Specialists')).toContain('references/specialists.md')
   expect(section('### 6. Critic')).toContain('references/critic.md')
   expect(section('### 7. Peer review')).toContain('references/peer-review.md')
+  expect(section('### 7b. Proof')).toContain('references/proof.md')
 })
 
 test('a bare /magpie is routed to local mode and the hint says so', async () => {
@@ -223,7 +244,13 @@ test('a bare /magpie is routed to local mode and the hint says so', async () => 
 
 test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
   const text = await readFile(SKILL, 'utf8')
-  for (const tag of ['magpie-specialist-', 'magpie-critic', 'magpie-peer-review', 'magpie-scout']) {
+  for (const tag of [
+    'magpie-specialist-',
+    'magpie-critic',
+    'magpie-peer-review',
+    'magpie-scout',
+    'magpie-proof',
+  ]) {
     expect(text).not.toContain(`\`\`\`${tag}`)
   }
   // The walkthrough is the always-read part; keep it small enough to be cheap.
@@ -274,6 +301,7 @@ test('rendered HTML opts into light/dark with a color-scheme meta tag', async ()
       dedupe: 'pending',
       critic: 'pending',
       'peer-review': 'pending',
+      proof: 'pending',
       report: 'pending',
       post: 'pending',
     },

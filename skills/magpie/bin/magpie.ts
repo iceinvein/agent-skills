@@ -22,6 +22,9 @@ Subcommands:
   critic-apply <run-dir> [--design-cap N]
                              Apply critic verdicts, write findings.kept.json (no cap on
                              code-smells + architecture keeps unless --design-cap is given)
+  proof-prompt <run-dir>     Write one proof prompt per serious finding, print prompt and
+                             output paths
+  proof-apply <run-dir>      Fold proof results into findings.final.json, drop the disproved
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards (and the
                              impact map's per-shard files, when impact.json exists)
@@ -248,6 +251,24 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runCriticApply } = await import('../scripts/critic-cmd.ts')
     return runCriticApply(runDir, designCap !== undefined ? { designCap } : {})
+  },
+  'proof-prompt': async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('proof-prompt: missing <run-dir>\n')
+      return 2
+    }
+    const { runProofPrompt } = await import('../scripts/proof-cmd.ts')
+    return runProofPrompt(runDir)
+  },
+  'proof-apply': async (args) => {
+    const runDir = args[0]
+    if (!runDir) {
+      process.stderr.write('proof-apply: missing <run-dir>\n')
+      return 2
+    }
+    const { runProofApply } = await import('../scripts/proof-cmd.ts')
+    return runProofApply(runDir)
   },
   shard: async (args) => {
     const runDir = args[0]

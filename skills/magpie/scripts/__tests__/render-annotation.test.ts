@@ -221,4 +221,38 @@ describe('renderAnnotation', () => {
     expect(reasons).toEqual(['wrong', 'not-worth-it', 'duplicate', 'style'])
     expect(html).not.toContain('data-dismissed=')
   })
+  test('a reproduced finding shows a reproduced chip and its repro', () => {
+    const html = renderAnnotation(
+      {
+        ...finding,
+        proof: {
+          status: 'reproduced',
+          reason: 'fails as described',
+          repro: {
+            path: 'cache.test.ts',
+            command: 'bun test cache.test.ts',
+            source: 'expect(a).toBe(b)',
+            output: 'expected <b>',
+          },
+        },
+      },
+      { checked: false, posted: false, asCard: true, highlighter: hl },
+    )
+    expect(html).toContain(
+      '<span class="proof-chip reproduced" title="fails as described">REPRODUCED</span>',
+    )
+    expect(html).toContain('<code class="inline-code">bun test cache.test.ts</code>')
+    expect(html).toContain('<pre class="repro">expect(a).toBe(b)</pre>')
+    expect(html).toContain('<pre class="repro">expected &lt;b&gt;</pre>')
+  })
+
+  test('a not-proven finding shows a not-proven chip with the reason', () => {
+    const html = renderAnnotation(
+      { ...finding, proof: { status: 'not-proven', reason: 'needs a live database' } },
+      { checked: false, posted: false, asCard: true, highlighter: hl },
+    )
+    expect(html).toContain(
+      '<span class="proof-chip not-proven" title="needs a live database">NOT PROVEN</span>',
+    )
+  })
 })

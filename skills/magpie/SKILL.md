@@ -16,7 +16,7 @@ Stop reading and follow these steps in order. Do not skip stages. Use the exact 
 
 ### 0. Identify the PR
 
-A bare invocation (no arguments and no PR named), a request with no PR that asks to review the current branch, the working tree, or work in progress, or arguments starting `local` or `--` (any `--base` or `--intent-file` go to setup), is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7 as written, taking `TARGET` from Local mode.
+A bare invocation (no arguments and no PR named), a request with no PR that asks to review the current branch, the working tree, or work in progress, or arguments starting `local` or `--` (any `--base` or `--intent-file` go to setup), is local mode: follow "Local mode" below in place of this step and stages 1 and 2, then run stages 3 to 7b as written, taking `TARGET` from Local mode.
 
 Parse the user's request for a PR number, URL, or "this PR" (current branch). If ambiguous, ask one clarifying terminal question. Capture the PR number into `$PR_NUMBER` and the repo path into `$REPO` (default: the current working directory).
 
@@ -54,14 +54,12 @@ Setup then splits the filtered diff into shards, writing `$RUN_DIR/shards/manife
 and, when more than one shard results, `$RUN_DIR/shards/shard-<n>.patch`. `diff.patch`
 itself is never modified: shards are views over it. Re-split with a different budget
 using `magpie shard "$RUN_DIR" --budget <lines> --max-files <n>` (defaults: 6000 patch
-lines, 80 files). Re-splitting invalidates every existing
-`findings/<focus>.shard-<n>.json`, since a shard id then names a different file set:
-delete those files first, or stage 4's resume rule counts a pair as covered that
-nothing reviewed.
+lines, 80 files). Delete every `findings/<focus>.shard-<n>.json` before re-splitting:
+shard ids then name different files, and stage 4's resume rule would trust them.
 
 Setup writes `pr-activity.json` (checks, review threads, comments) and, on a re-review, `incremental.json` and `previous-findings.json` (last run's posted findings, whether their quoted code changed, and its dismissals).
 
-Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. That domain flows through dedupe/critic/peer-review like the LLM findings; no subagent is dispatched for it.
+Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`, reviewed downstream like the rest; no subagent is dispatched for it.
 
 ### 2. Serve
 
@@ -71,9 +69,9 @@ Start the HTML server in the background using the Bash tool with `run_in_backgro
 magpie serve "$RUN_DIR"
 ```
 
-Read `$RUN_DIR/state/server-info` for the URL; the server writes it asynchronously, so if it is missing, wait a moment and re-read (it appears within ~1s). Print to the user: "Open <url> in your browser to follow along."
+Read `$RUN_DIR/state/server-info` for the URL (written within ~1s; re-read if missing). Print to the user: "Open <url> in your browser to follow along."
 
-The server shuts down after 30 idle minutes (an open report tab keeps it up) and deletes `state/server-info`. Nothing in the pipeline depends on it: re-run `magpie serve "$RUN_DIR"` to bring the report back.
+The server stops after 30 idle minutes (an open report tab keeps it up); nothing depends on it, so re-run `magpie serve "$RUN_DIR"` to bring the report back.
 
 Render the first progress paint:
 
@@ -96,7 +94,7 @@ Append `{stage: context, status: done}` and re-render progress. If the scout wro
 Read `references/specialists.md` now, before dispatching anything: it holds the five focus blocks and the output contract every specialist prompt is built from. Assemble prompts from that file verbatim; written from memory they drift off the JSON contract, and `magpie dedupe` drops findings it cannot parse.
 
 Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render
-progress, so the served page shows the stage as active rather than "Paused". Then read
+progress. Then read
 `$RUN_DIR/shards/manifest.json`.
 
 Run `magpie history "$RUN_DIR"` once; any output is part 6 of every specialist prompt.
@@ -121,13 +119,10 @@ nothing); or review only the highest-risk shards, which means appending
 `{stage: shard-coverage, status: partial, reviewed: [<ids>], skipped: [<ids>]}` to
 `$RUN_DIR/log.jsonl` and telling the user in the terminal which shards go unreviewed.
 That log entry is the only record of the gap: the report has no unreviewed marker.
-Wait for the answer. This is the only interactive gate in the pipeline before the
-report, and it exists so that neither the cost nor a coverage gap is ever silent.
+Wait for the answer; neither cost nor a coverage gap is ever silent.
 
 Dispatch by wave, one shard per wave, the five focuses in parallel within a wave,
-re-rendering progress between waves. That holds in-flight agents at five and makes a
-crash cheap to resume: only the `(focus, shard)` pairs whose findings file is missing
-need re-dispatching.
+re-rendering progress between waves. That holds in-flight agents at five.
 
 After each subagent returns, append
 `{stage: specialist, focus: <focus>, shard: <n>, status: done, findings: <count>}` to
@@ -206,13 +201,17 @@ If codex returns non-zero on a batch, do not abort: record `{stage: peer-review,
 
 **Apply the verdicts (both paths).** Parse the merged verdicts and apply the `update` / `add` entries (an empty array means no change). A peer `fields.severity` (or `finding.severity` on an `add`) is ignored: severity is derived from `risk.impact`. Mint each `add`'s `id` as above before merging, since the peer contract does not carry ids. Then write `findings.final.json`. Re-render progress.
 
+### 7b. Proof
+
+Append `{stage: proof, status: running}` and re-render progress. `magpie proof-prompt "$RUN_DIR"` fills `references/proof.md` for up to 8 serious findings, printing `<prompt path>\t<output path>` each. On a PR run with any printed, first install `$WORKTREE`'s dependencies once with the repo's frozen-lockfile command (`npm ci`, `uv sync --frozen`, ...); on failure log `{stage: proof-deps, status: skipped, error}` and go on. Dispatch the prompts as stage 6 does its batches, then `magpie proof-apply "$RUN_DIR"`: it drops disproved findings to `proof-dropped.json`, marks the rest and logs `done`. On a non-zero exit, delete only the `proof-<id>.json` files or leftovers stderr names, then re-dispatch or re-apply.
+
 ### 8. Report
 
 ```
 magpie render "$RUN_DIR" findings
 ```
 
-The report shows the top 10 recommended (`must-fix`/`should-fix`, highest score first) and folds the rest. `--top <n>` is not saved (the stage 9 re-render and `magpie serve`'s auto-refresh show 10 again), so use it only when nothing will re-render.
+The report shows the top 10 recommended (`must-fix`/`should-fix`, highest score first) and folds the rest. `--top <n>` is not saved, so use it only when nothing will re-render.
 
 Append `{stage: report, status: done}` to `$RUN_DIR/log.jsonl` and re-render progress (the render CLI does not log this itself, and `magpie status` needs the `done` entry to resume past `report`).
 

@@ -1785,3 +1785,33 @@ code.inline-code {
   color: var(--accent);
   text-decoration: none;
 }
+
+.proof-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.proof-chip.reproduced {
+  background: var(--badge-posted-bg);
+  color: var(--badge-posted-ink);
+}
+
+.proof-chip.not-proven {
+  background: var(--card-inset);
+  color: var(--ink-muted);
+}
+
+pre.repro {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--card-inset);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}

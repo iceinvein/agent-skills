@@ -53,9 +53,9 @@ test('renders both pages by default from the bundled fixture', async () => {
   expect(findings).toContain('medium')
   expect(findings).toContain('low')
   expect(progress).toContain('PR #1337')
-  // Default stage is report-done so the connector should fill 7/7 segments
+  // Default stage is report-done so the connector should fill 8/8 segments
   // before the final post stage.
-  expect(progress).toContain('--done-count: 7')
+  expect(progress).toContain('--done-count: 8')
 })
 
 test('honors --page findings: progress is not rendered', async () => {
@@ -154,8 +154,8 @@ test('--done-count in the progress page reflects the chosen preset', async () =>
     { stage: 'setup-done', expectedDone: 1 },
     { stage: 'specialists-done', expectedDone: 3 },
     { stage: 'critic-done', expectedDone: 5 },
-    { stage: 'report-done', expectedDone: 7 },
-    { stage: 'post-done', expectedDone: 8 },
+    { stage: 'report-done', expectedDone: 8 },
+    { stage: 'post-done', expectedDone: 9 },
   ]
   for (const { stage, expectedDone } of cases) {
     const stageDir = join(workDir, stage)

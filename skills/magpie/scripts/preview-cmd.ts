@@ -96,6 +96,7 @@ export const STAGE_PRESETS = {
       dedupe: 'done',
       critic: 'done',
       'peer-review': 'done',
+      proof: 'done',
       report: 'done',
     },
     counts: { security: 1, bugs: 2, performance: 2, 'code-smells': 2, architecture: 1 },
@@ -109,6 +110,7 @@ export const STAGE_PRESETS = {
       dedupe: 'done',
       critic: 'done',
       'peer-review': 'done',
+      proof: 'done',
       report: 'done',
       post: 'done',
     },
@@ -124,6 +126,7 @@ function pending(): Record<StageId, StageStatus> {
     dedupe: 'pending',
     critic: 'pending',
     'peer-review': 'pending',
+    proof: 'pending',
     report: 'pending',
     post: 'pending',
   }

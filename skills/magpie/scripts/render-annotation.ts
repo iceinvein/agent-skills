@@ -108,6 +108,21 @@ function renderSuggestion(f: ReviewFinding, highlighter: Highlighter): string {
   return `<section class="section"><div class="section-label">Suggested change</div>${withClass}</section>`
 }
 
+function renderProofChip(f: ReviewFinding): string {
+  if (!f.proof) return ''
+  const label = f.proof.status === 'reproduced' ? 'REPRODUCED' : 'NOT PROVEN'
+  return `<span class="proof-chip ${f.proof.status}" title="${esc(f.proof.reason)}">${label}</span>`
+}
+
+function renderProof(f: ReviewFinding): string {
+  if (f.proof?.status === 'not-proven') {
+    return `<section class="section"><div class="section-label">Not proven</div><div class="section-body">${renderInline(f.proof.reason)}</div></section>`
+  }
+  if (f.proof?.status !== 'reproduced') return ''
+  const { command, source, output } = f.proof.repro
+  return `<section class="section"><div class="section-label">Reproduced with <code class="inline-code">${esc(command)}</code></div><pre class="repro">${esc(source)}</pre><pre class="repro">${esc(output)}</pre></section>`
+}
+
 function renderRisk(f: ReviewFinding): string {
   return `<div class="risk">Impact: <span class="tag">${esc(f.risk.impact)}</span> · Likelihood: <span class="tag">${esc(f.risk.likelihood)}</span> · Confidence: <span class="tag">${esc(f.risk.confidence)}</span> · Action: <span class="tag">${esc(f.risk.action)}</span></div>`
 }
@@ -140,10 +155,12 @@ export function renderAnnotation(f: ReviewFinding, opts: RenderAnnotationOptions
         <span class="sev-label sev-${f.severity}">${sevLabel}</span>
         <span class="annot-title">${esc(f.title)}</span>
         <span class="domain-chip">${esc(domainLabel)}</span>
+        ${renderProofChip(f)}
         ${statusChip}
       </div>
       ${renderSections(f.description)}
       ${renderSuggestion(f, opts.highlighter)}
+      ${renderProof(f)}
       ${renderRisk(f)}
       ${opts.posted ? '' : renderDismiss(f.id, dismissed)}
     </div>

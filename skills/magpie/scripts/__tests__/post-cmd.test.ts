@@ -632,3 +632,44 @@ test('runPost writes the given via onto each successful post log entry', async (
   const ok = (await logEntries(runDir)).filter((e) => e.status === 'ok')
   expect(ok.map((e) => ({ id: e.id, via: e.via }))).toEqual([{ id: 'sec-1', via: 'cli' }])
 })
+
+test('formatInlineBody folds a reproduced finding repro into a details block', () => {
+  const body = formatInlineBody({
+    ...findingA,
+    line: 12,
+    proof: {
+      status: 'reproduced',
+      reason: 'fails as described',
+      repro: {
+        path: 'secret.test.ts',
+        command: 'bun test secret.test.ts',
+        source: 'expect(env).not.toContain("sk_")',
+        output: 'expected not to contain sk_',
+      },
+    },
+  } as never)
+  expect(body).toContain(
+    [
+      '<details><summary>Reproduced with <code>bun test secret.test.ts</code></summary>',
+      '',
+      '```',
+      'expect(env).not.toContain("sk_")',
+      '```',
+      '',
+      '```',
+      'expected not to contain sk_',
+      '```',
+      '',
+      '</details>',
+    ].join('\n'),
+  )
+})
+
+test('formatInlineBody leaves a not-proven note out of the posted comment', () => {
+  const body = formatInlineBody({
+    ...findingA,
+    line: 12,
+    proof: { status: 'not-proven', reason: 'needs a live database' },
+  } as never)
+  expect(body).not.toContain('needs a live database')
+})

@@ -408,3 +408,38 @@ test('history prints nothing for a run with no history', async () => {
     await rm(runDir, { recursive: true, force: true })
   }
 })
+
+test('proof-prompt fills the bundled prover prompt for a serious finding', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-cli-proof-'))
+  try {
+    await writeFile(join(runDir, 'log.jsonl'), '')
+    await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'pr', root: '/wt' }))
+    await writeFile(
+      join(runDir, 'findings.final.json'),
+      JSON.stringify([
+        {
+          id: 'bugs-1',
+          file: 'src/a.ts',
+          line: 3,
+          title: 'Cache never evicts',
+          description: 'Observation: x',
+          domain: 'bugs',
+          risk: { impact: 'high', likelihood: 'likely', confidence: 'medium', action: 'must-fix' },
+        },
+      ]),
+    )
+    const proc = Bun.spawn(['bun', CLI, 'proof-prompt', runDir], { stdout: 'pipe', stderr: 'pipe' })
+    const exit = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    expect(exit).toBe(0)
+    const promptPath = join(runDir, 'proof-prompt-bugs-1.md')
+    expect(stdout).toBe(`${promptPath}\t${join(runDir, 'proof-bugs-1.json')}\n`)
+    const prompt = await readFile(promptPath, 'utf8')
+    expect(prompt).toContain('"title": "Cache never evicts"')
+    expect(prompt).toContain('/wt')
+    expect(prompt).toContain(join(runDir, 'proof-bugs-1.json'))
+    expect(prompt).not.toContain('<<')
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
+})

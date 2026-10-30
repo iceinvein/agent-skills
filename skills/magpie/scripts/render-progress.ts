@@ -7,6 +7,7 @@ const STAGES = [
   'dedupe',
   'critic',
   'peer-review',
+  'proof',
   'report',
   'post',
 ] as const
@@ -20,6 +21,7 @@ const STAGE_HINT: Record<StageId, string> = {
   dedupe: 'merge overlaps',
   critic: 'keep the high-signal ones',
   'peer-review': 'independent second opinion',
+  proof: 'reproduce the serious ones',
   report: 'render this page',
   post: 'comment on the PR',
 }
@@ -31,6 +33,7 @@ const STAGE_NOW_DOING: Record<StageId, string> = {
   dedupe: 'Merging overlapping findings',
   critic: 'Keeping only the high-signal ones',
   'peer-review': 'Getting an independent second opinion',
+  proof: 'Writing failing tests for the serious findings',
   report: 'Composing the report page',
   post: 'Ready to post; switch tabs to pick findings',
 }
