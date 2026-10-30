@@ -33,7 +33,7 @@ If you cloned this repo and want to run from source, you can also invoke `./inst
 
 ## Use
 
-Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads SKILL.md and walks the pipeline; the CLI runs as `magpie setup`, `magpie impact`, `magpie serve`, etc.
+Inside Claude Code, ask: "Review PR 1234" (or paste a PR URL). The agent reads SKILL.md and walks the pipeline; the CLI runs as `magpie setup`, `magpie serve`, etc.
 
 An implementing or orchestrating agent can also ask for a review of its own branch before a PR exists: local mode (`magpie setup <run-dir> --local [--base <ref>]`) reviews the merge base to working tree diff in place and hands the ranked findings back as terminal text via `magpie handoff`, with no server, report or posting. `/magpie` with no arguments runs local mode; pass a PR number or URL to review a PR.
 
@@ -65,7 +65,6 @@ The fixture lives at `fixtures/example-pr/` (pr.json + findings.final.json + pos
 
 - `SKILL.md` is the agent-facing prompt: the stage walkthrough and nothing else. Installed by the agent-skills CLI.
 - `references/` holds the prompt bodies the walkthrough loads on demand, one file per stage that needs one: `scout.md` (stage 3, the PR-brief prompt and the `brief.json` contract, including the repository review rules), `checks.md` (stage 3, the once-per-PR checks pass that writes `findings/checks.json`), `specialists.md` (stage 4, the five focus blocks plus the shared output contract), `critic.md` (stage 6, the critic subagent prompt `magpie critic-prompt` fills), `peer-review.md` (stage 7, including the Claude-fallback preamble). They ship in the bundle and sit next to `SKILL.md` once installed.
-- Stage 3 starts with `magpie impact <run-dir>`, which finds by `git grep` what sits outside the diff (references to changed symbols, definitions the change calls, other writers of the same tables or files, sibling routes, docs naming what changed) and writes `impact.json` plus `impact[.shard-<n>].md` and `.brief.md` renders for the specialists and the critic.
 - `skill.json` is the agent-skills manifest.
 - `bin/magpie` is the CLI invoked by the agent during stages; symlinked onto PATH by `install.sh`.
 - `scripts/` holds the implementation (server, dedupe, render, setup, cleanup, etc.).

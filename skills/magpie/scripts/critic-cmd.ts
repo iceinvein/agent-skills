@@ -7,7 +7,6 @@ import {
   DEFAULT_BATCH_SIZE,
   parseCriticVerdicts,
 } from './critic.ts'
-import { readImpactMap } from './impact-cmd.ts'
 import { reviewRoot } from './target.ts'
 import { parseBrief, parseFinding, type ReviewFinding, type ReviewRule } from './types.ts'
 
@@ -90,7 +89,6 @@ export async function runCriticPrompt(
       diffPath: join(runDir, 'diff.patch'),
       runDir,
       batchSize: options.batchSize ?? DEFAULT_BATCH_SIZE,
-      impact: await readImpactMap(runDir),
     })
     const lines: string[] = []
     for (const p of prompts) {

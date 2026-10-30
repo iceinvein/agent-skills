@@ -1,7 +1,7 @@
 # Critic prompt
 
 Stage 6 of the walkthrough does not read this file by hand. `magpie critic-prompt
-"$RUN_DIR"` takes the fenced `magpie-critic` block below, fills its seven placeholders
+"$RUN_DIR"` takes the fenced `magpie-critic` block below, fills its six placeholders
 from the run directory, and writes one prompt file per batch of candidates:
 
 - `<<CANDIDATES>>`: the batch's candidates from `findings.deduped.json`, with `id`,
@@ -13,13 +13,12 @@ from the run directory, and writes one prompt file per batch of candidates:
   or `(none)`.
 - `<<WORKTREE>>`, `<<DIFF_PATH>>`: the run's worktree and `diff.patch`.
 - `<<OUTPUT_PATH>>`: where this batch's verdicts go, `critic.json` or `critic-<k>.json`.
-- `<<IMPACT>>`: the `impact.json` entries touching this batch's files, or `(none)`.
 
 Each prompt file is the entire task of one `general-purpose` subagent. `magpie
 critic-apply "$RUN_DIR"` then reads every output file, rejects the set if any verdict
 is malformed, and writes `findings.kept.json` and `critic-dropped.json`. The output
 contract in the block is exactly what critic-apply accepts; change one only with the
-other. All seven placeholders must stay in the block, or critic-prompt exits 1.
+other. All six placeholders must stay in the block, or critic-prompt exits 1.
 
 ````magpie-critic
 You are a senior code reviewer auditing candidate review findings that other agents
@@ -44,9 +43,6 @@ Treat every candidate as a claim to verify, not a conclusion to grade. For each 
    guard the description relies on into whatever other files it takes: search the
    worktree for callers, definitions and existing checks. A guard the specialist did
    not see is a reason to drop.
-   The Outside the diff section lists locations found by text search: treat them as
-   leads to where a guard, caller or other writer may be, and read them before relying
-   on them.
 3. Use the diff to see what the PR changed. A candidate with `onChangedLine: false` is
    anchored on code this PR did not touch; keep it only if the description shows how
    this PR newly triggers the problem, and you confirmed that it does.
@@ -114,10 +110,6 @@ file it came from. A candidate that flags a breach of one of these is stronger f
 it; a candidate that asks for something one of these rules forbids should be dropped.
 
 <<REVIEW_RULES>>
-
-## Outside the diff
-
-<<IMPACT>>
 
 ## Merge candidates
 

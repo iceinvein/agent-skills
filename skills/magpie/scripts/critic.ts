@@ -1,6 +1,4 @@
 import { join } from 'node:path'
-import type { ImpactMap } from './impact.ts'
-import { renderImpactForCandidates } from './impact-render.ts'
 import { scoreRisk } from './score.ts'
 import {
   ACTIONS,
@@ -24,7 +22,6 @@ export const CRITIC_PLACEHOLDERS = [
   '<<WORKTREE>>',
   '<<DIFF_PATH>>',
   '<<OUTPUT_PATH>>',
-  '<<IMPACT>>',
 ] as const
 
 const PLACEHOLDER_PATTERN = new RegExp(CRITIC_PLACEHOLDERS.join('|'), 'g')
@@ -244,7 +241,6 @@ export function buildCriticPrompts(input: {
   diffPath: string
   runDir: string
   batchSize: number
-  impact: ImpactMap | null
 }): Array<{ batch: number; prompt: string; outputPath: string }> {
   const missing = CRITIC_PLACEHOLDERS.filter((p) => !input.template.includes(p))
   if (missing.length > 0) {
@@ -265,7 +261,6 @@ export function buildCriticPrompts(input: {
       '<<WORKTREE>>': input.worktree,
       '<<DIFF_PATH>>': input.diffPath,
       '<<OUTPUT_PATH>>': outputPath,
-      '<<IMPACT>>': renderImpactForCandidates(input.impact, batch),
     }
     // One pass, so placeholder-shaped text inside a finding is never expanded,
     // and a replacer function, so `$` in finding text stays literal.

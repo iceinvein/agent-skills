@@ -87,8 +87,6 @@ Append `{stage: context, status: running}` to `$RUN_DIR/log.jsonl` and re-render
 
 Set `WORKTREE=$(magpie target "$RUN_DIR")`, the directory findings are anchored against (the run's own `worktree/` checkout on a PR run), and `TARGET` to `PR #$PR_NUMBER`. Every prompt from here on takes both.
 
-Run `magpie impact "$RUN_DIR"` first; re-run it on resume when `impact.json` is missing.
-
 Read `references/scout.md` and `references/checks.md`, then dispatch two subagents (Agent tool, `general-purpose`) in one message: the scout, carrying the `magpie-scout` block with `<<RUN_DIR>>`, `<<WORKTREE>>` and `<<TARGET>>` substituted, which writes `$RUN_DIR/brief.json`; and the checks pass, built as `references/checks.md` says, which writes `$RUN_DIR/findings/checks.json` once for the run.
 
 Append `{stage: context, status: done}` and re-render progress. If the scout wrote no `brief.json`, append `{stage: context, status: skipped}` instead and continue: the brief is optional everywhere it is read. If the checks pass wrote no `checks.json`, append `{stage: checks, status: skipped}`; nothing downstream needs it.
