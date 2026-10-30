@@ -4,6 +4,13 @@ Spec: `docs/specs/2026-10-30-magpie-impact-map.md`. Plan: `docs/plans/2026-10-30
 Requested by the agent-skills-40 session on the user's behalf; design and plan signed off by
 the user on 2026-10-30.
 
+**Status (2026-10-30):** `magpie impact` (D1 to D3, D6's own logging and the `magpie shard`
+re-run) and the specialist probe (D7) shipped. The flip that wired the map into the specialist
+and critic prompts and stage 3 (D4, D5, D6's SKILL.md line) was built, measured in phase A
+with no recall gain (1 of 21 targeted misses caught with the map, 1 of 21 without, full map
+file opened in 0 of 21 runs), and reverted along with the 0.16.0 bump. Phase B was not run.
+Nothing in a review calls `magpie impact` now. Details in the last section below.
+
 ## Alignment checks
 
 - **Intent check** (before design sign-off): 5 findings, all 5 fixed in the spec. D4 was a
@@ -246,3 +253,23 @@ Pooled: 1 of 21 (miss, repeat) catches. Eight runs wrote zero findings (unjudged
   change what specialists raise on these shards. The facts were present (pr-70 shard 4's brief
   led with the writers behind miss-1) and still produced one catch in three, the same rate as
   the base arm's single catch elsewhere.
+
+## Hunt and final review
+
+- Final review on e4b245a: nothing left behind changes a normal review (no stage or reference
+  calls `magpie impact`, so the `magpie shard` re-run cannot fire). 2 blocking: the probe's
+  impact arm needs the reverted `magpie-impact-part` block and the eval README still described
+  it as working; the three docs lacked status notes. 4 non-blocking: a comment naming
+  `critic-prompt`; `readImpactMap` and `renderImpactForCandidates` dead after the revert;
+  `impactBytes` always null in normal runs; `magpie shard` ignoring impact's code (left).
+- Hunt (bug-hunter) on 9c95a2a..HEAD against the spec: 3 proven bugs.
+  - header-derived symbols take the hunk's `newStart` as their definition line, which is not
+    the definition (an `impact-cmd.test.ts` expectation written in T3 pinned the wrong line);
+  - the 160-character cut splits a surrogate pair;
+  - in PR mode `.magpie.json` is read from `dirname(--git-common-dir)`, which is the main
+    repo, not the linked worktree the user ran setup from. Not fixed: setup records the user's
+    checkout only in local mode (`{stage: setup, status: done, root}`), so the clean fix is
+    setup writing its repo path, and `setup-cmd.ts` belongs to the other branch. Inert while
+    nothing calls `magpie impact`; to fix when the map is next wired in.
+- Cleanup round: status notes (controller), the probe README note, dead code removed, the two
+  provable bugs fixed with the hunter's reproductions folded into the suites.

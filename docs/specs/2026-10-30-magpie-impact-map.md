@@ -1,7 +1,14 @@
 # Design: magpie impact map
 
-(Sluice deep channel. Draft for sign-off, 2026-10-30. No code is written until this is
-signed.)
+(Sluice deep channel. Design signed off 2026-10-30; the task plan is
+`docs/plans/2026-10-30-magpie-impact-map.md`.)
+
+**Status (2026-10-30):** `magpie impact` (D1 to D3, D6's own logging and the `magpie shard`
+re-run) and the specialist probe (D7) shipped. The flip that wired the map into the specialist
+and critic prompts and stage 3 (D4, D5, D6's SKILL.md line) was built, measured in phase A
+with no recall gain (1 of 21 targeted misses caught with the map, 1 of 21 without, full map
+file opened in 0 of 21 runs), and reverted along with the 0.16.0 bump. Phase B was not run.
+Nothing in a review calls `magpie impact` now. See `docs/plans/2026-10-30-magpie-impact-map-record.md`.
 
 ## Intent
 

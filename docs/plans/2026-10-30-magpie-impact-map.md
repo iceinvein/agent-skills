@@ -1,6 +1,13 @@
 # Plan: magpie impact map
 **Spec:** docs/specs/2026-10-30-magpie-impact-map.md
 
+**Status (2026-10-30):** T1 to T8 are done, T6 and T7 were reverted in e3fdfd0, and T9 was not run. `magpie impact` (D1 to D3, D6's own logging and the `magpie shard`
+re-run) and the specialist probe (D7) shipped. The flip that wired the map into the specialist
+and critic prompts and stage 3 (D4, D5, D6's SKILL.md line) was built, measured in phase A
+with no recall gain (1 of 21 targeted misses caught with the map, 1 of 21 without, full map
+file opened in 0 of 21 runs), and reverted along with the 0.16.0 bump. Phase B was not run.
+Nothing in a review calls `magpie impact` now. See `docs/plans/2026-10-30-magpie-impact-map-record.md`.
+
 **Goal:** Give magpie's specialists and critic deterministic facts about code outside the diff
 (references, definitions the diff relies on, other writers of the same data, sibling routes,
 docs), and measure whether it raises recall on the replayable misses.
