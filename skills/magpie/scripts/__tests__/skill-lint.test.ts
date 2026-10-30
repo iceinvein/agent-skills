@@ -114,6 +114,15 @@ test('references/proof.md carries every placeholder proof-prompt fills', async (
   }
 })
 
+test("references/proof.md keeps each prover's scratch output in a directory of its own", async () => {
+  // On PR 254 a prover picked up another prover's run output from the session
+  // scratchpad every subagent shares, and nearly reported it as its own.
+  const text = await readFile(ref('proof.md'), 'utf8')
+  const block = text.match(/^(`{3,4})magpie-proof\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''
+  expect(block).toContain('mktemp -d')
+  expect(block).toMatch(/never a scratchpad or\s+temp path another session shares/)
+})
+
 test('references/proof.md asks for the result shape proof-apply accepts', async () => {
   const text = await readFile(ref('proof.md'), 'utf8')
   const block = text.match(/^(`{3,4})magpie-proof\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''

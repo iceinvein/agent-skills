@@ -56,7 +56,10 @@ Diff: <<DIFF_PATH>>
    real dependency never would proves nothing.
 4. Run only that file, with colour off (`--no-color`, `CI=1`), and in a way that does
    not compile or type-check the whole project: other provers' half-written files sit
-   beside yours. Read the output.
+   beside yours. Read the output. Anything you save outside the test file, such as the
+   run's output, goes in a directory of your own from `mktemp -d`, never a scratchpad or
+   temp path another session shares: other provers write there too, and their output
+   is not your result.
 5. Copy the test's full source and the last 40 lines of output (at most) into your
    result. Then, whatever the outcome, `not-proven` included, delete the test file and
    anything its run created (snapshots, fixtures). Change no other file in the working
