@@ -273,3 +273,12 @@ Pooled: 1 of 21 (miss, repeat) catches. Eight runs wrote zero findings (unjudged
     nothing calls `magpie impact`; to fix when the map is next wired in.
 - Cleanup round: status notes (controller), the probe README note, dead code removed, the two
   provable bugs fixed with the hunter's reproductions folded into the suites.
+- Cleanup 5fa646d: header-derived symbols take their line from the definitions search (and
+  are dropped when none matches); the 160-character cut is by code point; `readImpactMap` and
+  `renderImpactForCandidates` removed; README notes for the probe's impact arm and
+  `impactBytes`. Changed expectations, all written on this branch and pinning the old
+  `newStart` line: `impact-cmd.test.ts` (definedAt line 2 to 1, and `:2` to `:1` in two
+  rendered expectations), `impact.test.ts` (header-derived `line: 10` to `null`). One choice
+  beyond the brief: the header lookup ignores the `.magpie.json` filter, since the header's
+  file is in the diff. Gates: 869 pass, lint, tsc. The only pre-existing test changed on the
+  branch is `replay-full.test.ts` (additive `impactBytes`); sluice found no record needed.
