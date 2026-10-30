@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import { applyCriticVerdicts, buildCriticPrompts, type CriticVerdict } from '../critic.ts'
+import type { ImpactMap } from '../impact.ts'
 import type { ReviewFinding, Risk } from '../types.ts'
 
 const MEDIUM_RISK: Risk = {
@@ -216,6 +217,7 @@ const ALL_PLACEHOLDERS = [
   'R=<<REVIEW_RULES>>',
   'W=<<WORKTREE>>',
   'D=<<DIFF_PATH>>',
+  'I=<<IMPACT>>',
   'O=<<OUTPUT_PATH>>',
 ].join('\n')
 
@@ -244,6 +246,7 @@ test('three candidates yield one prompt with every placeholder replaced and crit
     diffPath: '/run/diff.patch',
     runDir: '/run',
     batchSize: 30,
+    impact: null,
   })
   expect(prompts).toHaveLength(1)
   const only = prompts[0]
@@ -280,6 +283,7 @@ test('sixty-five candidates at batch size thirty yield three numbered prompts', 
     diffPath: '/run/diff.patch',
     runDir: '/run',
     batchSize: 30,
+    impact: null,
   })
   expect(prompts.map((p) => p.outputPath)).toEqual([
     '/run/critic-1.json',
@@ -302,6 +306,7 @@ test('a merge group straddling a batch boundary is placed whole in the batch of 
     diffPath: '/run/diff.patch',
     runDir: '/run',
     batchSize: 30,
+    impact: null,
   })
   expect(prompts).toHaveLength(2)
   const first = section(prompts[0]?.prompt ?? '', 'C', 'M') as Array<{ id: string }>
@@ -323,6 +328,79 @@ test('a template missing placeholders throws naming each missing one', () => {
       diffPath: '/run/diff.patch',
       runDir: '/run',
       batchSize: 30,
+      impact: null,
     }),
   ).toThrow('<<MERGE_CANDIDATES>>, <<REVIEW_RULES>>, <<WORKTREE>>, <<DIFF_PATH>>')
+})
+
+test('a template missing <<IMPACT>> throws naming it', () => {
+  expect(() =>
+    buildCriticPrompts({
+      template: ALL_PLACEHOLDERS.replace('I=<<IMPACT>>', ''),
+      candidates: candidates(1),
+      mergeCandidates: [],
+      reviewRules: [],
+      worktree: '/run/worktree',
+      diffPath: '/run/diff.patch',
+      runDir: '/run',
+      batchSize: 30,
+      impact: null,
+    }),
+  ).toThrow('critic template is missing placeholders: <<IMPACT>>')
+})
+
+test('each batch prompt carries only the impact entries touching its candidates files', () => {
+  const impact: ImpactMap = {
+    version: 1,
+    symbols: [
+      {
+        name: 'lockNamespace',
+        kind: 'changed',
+        definedAt: [{ file: 'src/z.ts', line: 3 }],
+        shard: null,
+        hits: 1,
+        references: [{ file: 'src/api/route.ts', line: 8, text: 'lockNamespace(id)' }],
+      },
+    ],
+    uses: [],
+    stores: [
+      {
+        name: 'orders',
+        kind: 'table',
+        usedIn: [{ file: 'src/a.ts', line: 12 }],
+        shard: null,
+        writers: [{ file: 'src/jobs/sync.ts', line: 40, text: "db.insert('orders')" }],
+      },
+    ],
+    routes: [],
+    docs: [],
+  }
+  const prompts = buildCriticPrompts({
+    template: ALL_PLACEHOLDERS,
+    candidates: [finding('c1', 'bugs'), finding('c2', 'bugs', { file: 'src/z.ts' })],
+    mergeCandidates: [],
+    reviewRules: [],
+    worktree: '/run/worktree',
+    diffPath: '/run/diff.patch',
+    runDir: '/run',
+    batchSize: 1,
+    impact,
+  })
+  expect(prompts).toHaveLength(2)
+  expect(prompts[0]?.prompt).toContain(
+    [
+      'I=### Other writers of the same data',
+      '- `orders` (diff: src/a.ts:12)',
+      "  - src/jobs/sync.ts:40 `db.insert('orders')`",
+      'O=/run/critic-1.json',
+    ].join('\n'),
+  )
+  expect(prompts[1]?.prompt).toContain(
+    [
+      'I=### References to changed symbols',
+      '- `lockNamespace` (diff: src/z.ts:3)',
+      '  - src/api/route.ts:8 `lockNamespace(id)`',
+      'O=/run/critic-2.json',
+    ].join('\n'),
+  )
 })

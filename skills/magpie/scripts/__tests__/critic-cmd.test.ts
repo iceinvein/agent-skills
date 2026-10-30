@@ -57,6 +57,7 @@ const TEMPLATE_DOC = [
   'Rules: <<REVIEW_RULES>>',
   'Worktree: <<WORKTREE>>',
   'Diff: <<DIFF_PATH>>',
+  'Impact: <<IMPACT>>',
   'Write to: <<OUTPUT_PATH>>',
   '````',
   '',
@@ -119,6 +120,49 @@ test('critic-prompt writes one numbered prompt per batch', async () => {
       `${join(runDir, 'critic-prompt-2.md')}\t${join(runDir, 'critic-2.json')}\n`,
   )
   expect(existsSync(join(runDir, 'critic-prompt-2.md'))).toBe(true)
+})
+
+test('critic-prompt fills <<IMPACT>> from impact.json in the run dir', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+  await writeFile(
+    join(runDir, 'impact.json'),
+    JSON.stringify({
+      version: 1,
+      symbols: [],
+      uses: [],
+      stores: [
+        {
+          name: 'orders',
+          kind: 'table',
+          usedIn: [{ file: 'src/a.ts', line: 12 }],
+          shard: null,
+          writers: [{ file: 'src/jobs/sync.ts', line: 40, text: "db.insert('orders')" }],
+        },
+      ],
+      routes: [],
+      docs: [],
+    }),
+  )
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain("\n  - src/jobs/sync.ts:40 `db.insert('orders')`\n")
+})
+
+test('critic-prompt with no impact.json fills <<IMPACT>> with (none)', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain('Impact: (none)\n')
 })
 
 test('critic-prompt with a template using old placeholders exits 1 naming the missing ones', async () => {

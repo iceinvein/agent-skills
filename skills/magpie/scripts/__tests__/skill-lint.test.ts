@@ -91,6 +91,7 @@ test('references/critic.md carries every placeholder critic-prompt fills', async
     '<<WORKTREE>>',
     '<<DIFF_PATH>>',
     '<<OUTPUT_PATH>>',
+    '<<IMPACT>>',
   ]) {
     expect(block).toContain(ph)
   }
@@ -229,7 +230,8 @@ test('SKILL.md no longer inlines the prompt bodies it moved out', async () => {
   // Raised from 2600 when the sharded-dispatch and fallback-diff prose was added:
   // that's real, load-bearing procedure, not bloat. Raised from 3000 for the
   // local-mode section, which the walkthrough already sat 3 words under.
-  expect(text.split(/\s+/).length).toBeLessThan(3500)
+  // Raised from 3500 for the impact-map step in stage 3.
+  expect(text.split(/\s+/).length).toBeLessThan(3600)
 })
 
 test('styles.css declares a prefers-color-scheme:dark block that overrides core tokens', async () => {

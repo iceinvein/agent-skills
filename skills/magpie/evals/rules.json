@@ -23,6 +23,13 @@
       "unpinned": "No case starts at the context stage, so no scout runs and none returns without a brief."
     },
     {
+      "id": "impact-runs-before-the-scout",
+      "states": "SKILL.md: 3. Context",
+      "origin": "docs/specs/2026-10-30-magpie-impact-map.md",
+      "cases": [],
+      "unpinned": "No case starts at the context stage, so no run reaches magpie impact."
+    },
+    {
       "id": "specialist-prompts-from-the-reference-verbatim",
       "states": "SKILL.md: 4. Specialists",
       "origin": "commit:e49534b",

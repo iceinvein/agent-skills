@@ -1,7 +1,7 @@
 # Specialist prompts
 
 Stage 4 of the walkthrough dispatches five subagents per shard from this file. Build
-each prompt from up to five parts, in this order, and send it as the agent's entire
+each prompt from up to six parts, in this order, and send it as the agent's entire
 task. Each part is a fenced block or the named section it points at; the prose around
 them is instruction to you, not text for the specialist.
 
@@ -27,6 +27,8 @@ in parallel: do not review files outside your shard, and do not report findings
 anchored to them. Reading any file in the worktree for context is expected and
 encouraged.
 ```
+
+When `<RUN_DIR>/impact.md` exists, add the line `Outside the diff: <path>` directly under `Diff:`, where `<path>` is `<RUN_DIR>/impact.md` on an unsharded run, and `<RUN_DIR>/impact.shard-<n>.md` on a sharded run when that file exists. A shard with no impact file gets no line and no part 6: never the whole run's map.
 
 3. The `## Output Contract` section below, verbatim.
 4. The excluded-files block below, verbatim, when `<RUN_DIR>/excluded-files.json`
@@ -66,6 +68,22 @@ your domain, not a correction to the brief. A watch item is a pointer, not a ver
 escalate it into a finding with your own risk fields, or leave it alone. A repository
 review rule is a convention the maintainers wrote down: a change that breaks one is a
 finding in your domain when the rule bears on it, citing the rule's source.
+```
+
+6. The impact map, when the header carries an `Outside the diff:` line, with the matching `.brief.md` file's content in place of `<top entries>` (`impact.brief.md` or `impact.shard-<n>.brief.md`, beside the `.md` file that line names) and that line's path in place of `<the path above>`:
+
+```magpie-impact-part
+## Outside the diff
+
+<top entries>
+
+<the path above> has the full list. For the code in your scope it shows what sits outside the diff:
+references to the symbols this change defines or alters, the definitions it calls,
+other code that writes the same tables or files, sibling routes, and docs that name
+what changed. It was computed by text search, so a name shared by unrelated code shows
+up too. Read it before the diff. A finding that rests on one of these locations
+anchors on the diff line that triggers it and cites the outside location in
+Observation.
 ```
 
 Replace every `<RUN_DIR>`, `<WORKTREE>` and `<TARGET>` with the real values before
