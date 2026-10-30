@@ -282,3 +282,13 @@ Pooled: 1 of 21 (miss, repeat) catches. Eight runs wrote zero findings (unjudged
   beyond the brief: the header lookup ignores the `.magpie.json` filter, since the header's
   file is in the diff. Gates: 869 pass, lint, tsc. The only pre-existing test changed on the
   branch is `replay-full.test.ts` (additive `impactBytes`); sluice found no record needed.
+
+## Finish
+
+- User chose a local merge into master. Master had gained 3 commits (69d5328, a535488,
+  0d2c977); merged into the branch in the worktree as bf781fc with no conflicts, gates green
+  there (skills/magpie 918 pass, lint, tsc), then master fast-forwarded. Not pushed.
+- Root suite on the merged tree: 2697 pass, 1 fail. The failure (`tests/eval-plugins.test.ts`,
+  six stale sluice eval plugin copies) fails identically on master before the merge and comes
+  from master's sluice commits; this branch touches no sluice file, so it is left for
+  `bun run eval:plugins` by whoever owns those commits.
