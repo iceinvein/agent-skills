@@ -601,8 +601,43 @@ describe('buildImpactMap', () => {
         line: 7,
         text: 'Use scheduleJob from jobs.ts to queue work.',
         mentions: ['scheduleJob', 'jobs.ts'],
+        shards: [],
       },
     ])
+  })
+
+  test('a doc carries the sorted shards of the symbols and changed files it names', () => {
+    const names = noNames()
+    names.defined = [
+      { name: 'scheduleJob', kind: 'changed', file: 'src/jobs.ts', line: 4 },
+      { name: 'rotateKeys', kind: 'added', file: 'src/keys.ts', line: 1 },
+    ]
+    names.changedFiles = ['src/jobs.ts', 'src/keys.ts', 'src/queue.ts']
+    const shards: Record<string, number> = { 'src/jobs.ts': 2, 'src/keys.ts': 0, 'src/queue.ts': 2 }
+    const hits = noHits()
+    hits.docs = [
+      {
+        file: 'README.md',
+        line: 3,
+        text: 'rotateKeys then scheduleJob, see queue.ts',
+        indented: false,
+      },
+      { file: 'README.md', line: 9, text: 'jobs.ts is old', indented: false },
+    ]
+    const map = buildImpactMap({
+      names,
+      hits,
+      shardOf: (f) => shards[f] ?? null,
+      excluded: keepAll,
+    })
+    expect(map.docs.map((d) => d.shards)).toEqual([[0, 2], [2]])
+  })
+
+  test('a doc whose names resolve to no shard carries no shards', () => {
+    const hits = noHits()
+    hits.docs = [{ file: 'README.md', line: 1, text: 'see scheduleJob', indented: false }]
+    const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
+    expect(map.docs.map((d) => d.shards)).toEqual([[]])
   })
 })
 
@@ -697,7 +732,13 @@ new file mode 100644
         ],
       ])
       expect(map.docs).toEqual([
-        { file: 'docs/ops.md', line: 1, text: 'Run rotateKeys nightly.', mentions: ['rotateKeys'] },
+        {
+          file: 'docs/ops.md',
+          line: 1,
+          text: 'Run rotateKeys nightly.',
+          mentions: ['rotateKeys'],
+          shards: [],
+        },
       ])
     } finally {
       await rm(repo, { recursive: true, force: true })

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import type { ImpactMap } from '../impact.ts'
 import {
+  IMPACT_BRIEF_CAP_BYTES,
+  IMPACT_BRIEF_MAX_CHILDREN,
   IMPACT_FULL_CAP_BYTES,
   renderImpactForCandidates,
   renderImpactMarkdown,
@@ -79,6 +81,7 @@ function sampleMap(): ImpactMap {
         line: 4,
         text: 'Call loadUser before render.',
         mentions: ['loadUser', 'render'],
+        shards: [1],
       },
     ],
   }
@@ -155,12 +158,6 @@ const SHARD_0_CUT_AFTER_TWO = `### Other writers of the same data
 
 1 more entries in impact.json`
 
-const SHARD_0_CUT_AFTER_ONE = `### Other writers of the same data
-- \`orders\` (diff: src/db.ts:10)
-  - jobs/sync.ts:4 \`INSERT INTO orders (id) VALUES (1)\`
-
-2 more entries in impact.json`
-
 const bytes = (s: string): number => Buffer.byteLength(s, 'utf8')
 
 describe('renderImpactMarkdown', () => {
@@ -185,9 +182,185 @@ describe('renderImpactMarkdown', () => {
     expect(renderImpactMarkdown(sampleMap(), { shard: 0, capBytes })).toBe(SHARD_0_CUT_AFTER_TWO)
   })
 
-  test('drops a whole entry rather than cutting inside it', () => {
-    const capBytes = bytes(SHARD_0_CUT_AFTER_TWO) - 1
-    expect(renderImpactMarkdown(sampleMap(), { shard: 0, capBytes })).toBe(SHARD_0_CUT_AFTER_ONE)
+  test('skips an entry too big for the cap and keeps a later one that fits', () => {
+    const map = emptyMap()
+    for (const [name, text] of [
+      ['aaaa', 'write(aaaa)'],
+      ['bbbb', 'y'.repeat(300)],
+      ['cccc', 'write(cccc)'],
+    ] as const) {
+      map.stores.push({
+        name,
+        kind: 'file',
+        usedIn: [{ file: `${name}.ts`, line: 1 }],
+        shard: null,
+        writers: [{ file: 'w.ts', line: 1, text }],
+      })
+    }
+    expect(renderImpactMarkdown(map, { shard: null, capBytes: 200 })).toBe(
+      `### Other writers of the same data
+- \`aaaa\` (diff: aaaa.ts:1)
+  - w.ts:1 \`write(aaaa)\`
+- \`cccc\` (diff: cccc.ts:1)
+  - w.ts:1 \`write(cccc)\`
+
+1 more entries in impact.json`,
+    )
+  })
+
+  test('limits each entry to maxChildren and says how many were shown', () => {
+    const refText = (i: number): string => `${'z'.repeat(116)}(${String(i).padStart(2, '0')})`
+    const twelveRefs = (file: string) =>
+      Array.from({ length: 12 }, (_, i) => ({ file, line: i + 1, text: refText(i + 1) }))
+    const map = emptyMap()
+    map.symbols.push(
+      {
+        name: 'alpha',
+        kind: 'changed',
+        definedAt: [{ file: 'src/a.ts', line: 1 }],
+        shard: null,
+        hits: 12,
+        references: twelveRefs('src/ra.ts'),
+      },
+      {
+        name: 'beta',
+        kind: 'changed',
+        definedAt: [{ file: 'src/b.ts', line: 1 }],
+        shard: null,
+        hits: 12,
+        references: twelveRefs('src/rb.ts'),
+      },
+      {
+        name: 'gamma',
+        kind: 'changed',
+        definedAt: [{ file: 'src/c.ts', line: 1 }],
+        shard: null,
+        hits: 1,
+        references: [{ file: 'src/g.ts', line: 5, text: 'gamma()' }],
+      },
+    )
+    const z = 'z'.repeat(116)
+    expect(
+      renderImpactMarkdown(map, {
+        shard: null,
+        capBytes: IMPACT_BRIEF_CAP_BYTES,
+        maxChildren: IMPACT_BRIEF_MAX_CHILDREN,
+      }),
+    ).toBe(`### References to changed symbols
+- \`alpha\` (diff: src/a.ts:1)
+  - src/ra.ts:1 \`${z}(01)\`
+  - src/ra.ts:2 \`${z}(02)\`
+  - src/ra.ts:3 \`${z}(03)\`
+  - 3 of 12 shown
+- \`beta\` (diff: src/b.ts:1)
+  - src/rb.ts:1 \`${z}(01)\`
+  - src/rb.ts:2 \`${z}(02)\`
+  - src/rb.ts:3 \`${z}(03)\`
+  - 3 of 12 shown
+- \`gamma\` (diff: src/c.ts:1)
+  - src/g.ts:5 \`gamma()\``)
+  })
+
+  test('counts children of a non-symbol entry against their own number', () => {
+    const map = emptyMap()
+    map.routes.push({
+      path: '/api/x',
+      usedIn: { file: 'r.ts', line: 1 },
+      shard: null,
+      siblings: [
+        { file: 's.ts', line: 1, text: 'a' },
+        { file: 's.ts', line: 2, text: 'b' },
+      ],
+    })
+    expect(renderImpactMarkdown(map, { shard: null, capBytes: 1000, maxChildren: 1 })).toBe(
+      `### Sibling routes
+- \`/api/x\` (diff: r.ts:1)
+  - s.ts:1 \`a\`
+  - 1 of 2 shown`,
+    )
+  })
+
+  test('throws naming the cap when the cap cannot hold the count line', () => {
+    expect(() => renderImpactMarkdown(sampleMap(), { shard: null, capBytes: 10 })).toThrow('10')
+  })
+
+  test('wraps text containing a backtick in a double-backtick span', () => {
+    const map = emptyMap()
+    map.routes.push({
+      path: '/api/:id',
+      usedIn: { file: 'r.ts', line: 1 },
+      shard: null,
+      siblings: [{ file: 's.ts', line: 4, text: `const u = \`/api/\${id}\`` }],
+    })
+    expect(renderImpactMarkdown(map, { shard: null, capBytes: 1000 })).toBe(
+      `### Sibling routes
+- \`/api/:id\` (diff: r.ts:1)
+  - s.ts:4 \`\` const u = \`/api/\${id}\` \`\``,
+    )
+  })
+
+  test('leaves out entries with no facts outside the diff, without counting them', () => {
+    const map = emptyMap()
+    map.stores.push({
+      name: 'orders',
+      kind: 'table',
+      usedIn: [{ file: 'a.ts', line: 1 }],
+      shard: null,
+      writers: [],
+    })
+    map.routes.push({ path: '/x', usedIn: { file: 'a.ts', line: 2 }, shard: null, siblings: [] })
+    map.uses.push({
+      name: 'getUser',
+      usedIn: { file: 'a.ts', line: 3 },
+      shard: null,
+      definedAt: [],
+    })
+    map.symbols.push(
+      {
+        name: 'lonely',
+        kind: 'added',
+        definedAt: [{ file: 'a.ts', line: 4 }],
+        shard: null,
+        hits: 0,
+        references: [],
+      },
+      {
+        name: 'render',
+        kind: 'changed',
+        definedAt: [{ file: 'a.ts', line: 5 }],
+        shard: null,
+        hits: 300,
+        references: [],
+      },
+    )
+    map.docs.push({
+      file: 'README.md',
+      line: 1,
+      text: 'see render',
+      mentions: ['render'],
+      shards: [],
+    })
+    expect(renderImpactMarkdown(map, { shard: null, capBytes: 1000 })).toBe(
+      `### References to changed symbols
+- \`render\`: 300 hits, too common to list
+
+### Docs naming what changed
+- README.md:1 \`see render\` (names: render)`,
+    )
+  })
+
+  test('renders a doc in each shard it names', () => {
+    const map = emptyMap()
+    map.docs.push({ file: 'd.md', line: 2, text: 'see jobs', mentions: ['jobs'], shards: [2, 4] })
+    expect(renderImpactMarkdown(map, { shard: 4, capBytes: 1000 })).toBe(
+      '### Docs naming what changed\n- d.md:2 `see jobs` (names: jobs)',
+    )
+  })
+
+  test('leaves a doc out of a shard it does not name', () => {
+    const map = emptyMap()
+    map.docs.push({ file: 'd.md', line: 2, text: 'see jobs', mentions: ['jobs'], shards: [2, 4] })
+    expect(renderImpactMarkdown(map, { shard: 3, capBytes: 1000 })).toBe('')
   })
 
   test('counts the cap in UTF-8 bytes, not characters', () => {

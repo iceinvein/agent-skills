@@ -85,7 +85,13 @@ export type ImpactRoute = {
   shard: number | null
   siblings: ImpactRef[]
 }
-export type ImpactDoc = { file: string; line: number; text: string; mentions: string[] }
+export type ImpactDoc = {
+  file: string
+  line: number
+  text: string
+  mentions: string[]
+  shards: number[]
+}
 export type ImpactMap = {
   version: 1
   symbols: ImpactSymbol[]
@@ -562,12 +568,24 @@ export function buildImpactMap(input: {
 
   const mentionable = unique([...names.defined.map((d) => d.name), ...changedBasenames(names)])
   const mentionWords = mentionable.map((m) => ({ name: m, word: wholeWord(m) }))
+  const shardsNamed = (mentions: string[]): number[] => {
+    const found = new Set<number>()
+    for (const m of mentions) {
+      const symbolShard = symbolIndex.get(m)?.shard
+      if (symbolShard !== undefined && symbolShard !== null) found.add(symbolShard)
+      for (const f of names.changedFiles) {
+        const fileShard = basename(f) === m ? shardOf(f) : null
+        if (fileShard !== null) found.add(fileShard)
+      }
+    }
+    return [...found].sort((a, b) => a - b)
+  }
   const docs: ImpactDoc[] = []
   for (const h of outside(hits.docs)) {
     if (!isDoc(h.file)) continue
     const mentions = mentionWords.filter((m) => m.word.test(h.text)).map((m) => m.name)
     if (mentions.length === 0) continue
-    docs.push({ file: h.file, line: h.line, text: h.text, mentions })
+    docs.push({ file: h.file, line: h.line, text: h.text, mentions, shards: shardsNamed(mentions) })
   }
 
   return { version: 1, symbols, uses, stores, routes, docs }
