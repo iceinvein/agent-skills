@@ -21,7 +21,10 @@ Subcommands:
                              Apply critic verdicts, write findings.kept.json (no cap on
                              code-smells + architecture keeps unless --design-cap is given)
   shard <run-dir> [--budget N] [--max-files N]
-                             Re-split diff.patch into budgeted shards
+                             Re-split diff.patch into budgeted shards (and the
+                             impact map's per-shard files, when impact.json exists)
+  impact <run-dir>           Write impact.json and impact*.md: what outside the diff
+                             the change touches
   render <run-dir> <page> [--top N]
                              Render progress.html or findings.html (findings recommends
                              the top N, default 10, and folds the rest)
@@ -283,7 +286,23 @@ const HANDLERS: Record<string, Handler> = {
     process.stdout.write(
       `${manifest.shards.length} shard(s), ${manifest.totalFiles} files, ${manifest.totalLines} patch lines\n`,
     )
+    // The impact map's per-shard files name shard ids, which the re-split just renumbered.
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    if (existsSync(join(runDir, 'impact.json'))) {
+      const { runImpact } = await import('../scripts/impact-cmd.ts')
+      return runImpact(runDir)
+    }
     return 0
+  },
+  impact: async (args) => {
+    const runDir = args[0]
+    if (!runDir || runDir.startsWith('-')) {
+      process.stderr.write('impact: missing <run-dir>\n')
+      return 2
+    }
+    const { runImpact } = await import('../scripts/impact-cmd.ts')
+    return runImpact(runDir)
   },
   render: async (args) => {
     const runDir = args[0]
