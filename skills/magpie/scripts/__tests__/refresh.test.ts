@@ -151,3 +151,74 @@ test('refreshFindings rejects on a truncated events line and leaves the previous
   const kept = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
   expect(kept).toBe('<html>OLD</html>')
 })
+
+test('refreshFindings keeps the disproved-by-test panel on re-render', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([sampleFinding]))
+  await writeFile(
+    join(runDir, 'proof-dropped.json'),
+    JSON.stringify([
+      {
+        id: 'b',
+        file: 'src/y.ts',
+        line: 4,
+        title: 'Cache never evicts',
+        reason: 'evict runs on every put',
+        repro: { path: 'p', command: 'bun test p', source: 's', output: 'o' },
+      },
+    ]),
+  )
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toContain('Disproved by test (1)')
+  expect(fresh).toContain('Cache never evicts: evict runs on every put')
+})
+
+test('refreshFindings keeps the skipped-shards note on re-render', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([sampleFinding]))
+  await mkdir(join(runDir, 'shards'))
+  await writeFile(
+    join(runDir, 'shards', 'manifest.json'),
+    JSON.stringify({
+      budget: 6000,
+      maxFiles: 80,
+      totalFiles: 2,
+      totalLines: 20,
+      shards: [
+        { id: 1, path: 'shards/shard-1.patch', files: ['src/x.ts'], lines: 10 },
+        { id: 2, path: 'shards/shard-2.patch', files: ['src/z.ts'], lines: 10 },
+      ],
+    }),
+  )
+  await writeFile(
+    join(runDir, 'log.jsonl'),
+    `${JSON.stringify({ stage: 'shard-coverage', status: 'partial', reviewed: [1], skipped: [2] })}\n`,
+  )
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toContain('Not reviewed: shard 2 (1 file)')
+})
+
+test('refreshFindings keeps the previous-run line on a re-review', async () => {
+  await writeFile(join(runDir, 'findings.final.json'), JSON.stringify([sampleFinding]))
+  await writeFile(
+    join(runDir, 'previous-findings.json'),
+    JSON.stringify({
+      previousRunId: 'pr-7-100',
+      findings: [
+        {
+          id: 'bugs-1',
+          fromRunId: 'pr-7-100',
+          file: 'src/x.ts',
+          line: 1,
+          title: 't',
+          domain: 'bugs',
+          label: 'posted',
+          anchor: 'changed',
+        },
+      ],
+    }),
+  )
+  await refreshFindings(runDir)
+  const fresh = await readFile(join(runDir, 'screen', 'findings.html'), 'utf8')
+  expect(fresh).toContain('Last review: 1 posted · 1 on changed code · 0 on unchanged code')
+})

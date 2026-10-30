@@ -75,12 +75,15 @@ finding in your domain when the rule bears on it, citing the rule's source.
    specialist gets the same text. It prints nothing on a local run or a first review
    of a quiet PR, and then the part is left out.
 
-Replace every `<RUN_DIR>`, `<WORKTREE>` and `<TARGET>` with the real values before
-sending. `<WORKTREE>` is what `magpie target "$RUN_DIR"` prints. `<TARGET>` is `PR #<n>`,
+Replace every `<RUN_DIR>`, `<WORKTREE>`, `<TARGET>` and `<focus>` with the real values
+before sending. `<focus>` is the focus id exactly as in the block's tag (`security`,
+`bugs`, `performance`, `code-smells`, `architecture`): a subagent left to fill it in names
+the file after its own reading of the focus (a bugs specialist wrote
+`correctness.shard-4.json`), which nothing reads. `<WORKTREE>` is what `magpie target "$RUN_DIR"` prints. `<TARGET>` is `PR #<n>`,
 or on a local run `local branch <branch> against <baseRef>` (`detached HEAD
 against <baseRef>` when HEAD has no branch). The subagent has no shell variables from
 your session, so an unexpanded path means it writes its findings where nothing will
-read them. Leave `<focus>` as written; the contract tells the subagent to substitute it.
+read them.
 
 Parts 1, 2, and 3 go every time; 4, 5 and 6 only when their source exists. The contract is what makes the output parseable by
 `magpie dedupe`, and the focus blocks are what keep the five reviews from collapsing

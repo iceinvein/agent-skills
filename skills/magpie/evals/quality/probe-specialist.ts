@@ -105,12 +105,13 @@ function outputContract(md: string): string {
 
 function fillRunPlaceholders(
   text: string,
-  values: { runDir: string; worktree: string; target: string },
+  values: { runDir: string; worktree: string; target: string; focus: string },
 ): string {
   return text
     .replaceAll('<RUN_DIR>', values.runDir)
     .replaceAll('<WORKTREE>', values.worktree)
     .replaceAll('<TARGET>', values.target)
+    .replaceAll('<focus>', values.focus)
 }
 
 /** The specialist prompt as references/specialists.md tells the orchestrator to build it. */

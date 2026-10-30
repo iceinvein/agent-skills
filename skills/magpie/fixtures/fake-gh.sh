@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # The activity fetch asks pr view for different fields than setup's first call.
 case "$*" in
+  # cleanup asks each saved PR ref's state: 1234 is open, 9 closed, 5 in a state
+  # gh never reports, 404 errors, and any other PR is merged.
+  *"--json state"*)
+    case "$3" in
+      1234) echo '{"state":"OPEN"}' ;;
+      9) echo '{"state":"CLOSED"}' ;;
+      5) echo '{"state":"WEIRD"}' ;;
+      404) echo 'GraphQL: Could not resolve to a PullRequest' >&2; exit 1 ;;
+      *) echo '{"state":"MERGED"}' ;;
+    esac
+    exit 0
+    ;;
   *statusCheckRollup*)
     cat <<'JSON'
 {

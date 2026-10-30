@@ -1,8 +1,12 @@
 import { readdir, readFile, rename, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { readHistory } from './history.ts'
 import { readDismissed } from './labels.ts'
+import { describePreviousPosted } from './previous-findings.ts'
+import { readProofDropped } from './proof-cmd.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { DEFAULT_TOP_N } from './render-issues-list.ts'
+import { readShardCoverage } from './shard-coverage.ts'
 import { type PrFileEntry, parseBrief, parseFinding } from './types.ts'
 
 export type RefreshResult = {
@@ -96,6 +100,10 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
   // to a temp file first, so a failure leaves the previous findings.html
   // in place instead of an empty screen dir.
   const dismissed = await readDismissed(runDir)
+  const { previous } = await readHistory(runDir)
+  const previousRun = previous ? (describePreviousPosted(previous) ?? undefined) : undefined
+  const unreviewed = await readShardCoverage(runDir)
+  const disproved = await readProofDropped(runDir)
   const screenDir = join(runDir, 'screen')
   const tempPath = join(screenDir, '.findings.html.tmp')
   await renderFindingsToDisk(
@@ -109,6 +117,9 @@ export async function refreshFindings(runDir: string): Promise<RefreshResult> {
       brief: brief ?? undefined,
       issues,
       diffSource,
+      ...(previousRun ? { previousRun } : {}),
+      ...(unreviewed ? { unreviewed } : {}),
+      disproved,
       dismissed,
       topN: DEFAULT_TOP_N,
     },

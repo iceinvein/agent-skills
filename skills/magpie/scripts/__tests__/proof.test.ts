@@ -193,7 +193,16 @@ test('a disproved finding is removed and recorded with its repro', () => {
     results: [{ id: 'a', outcome: 'disproved', reason: 'the guard at a.ts:4 holds', repro: REPRO }],
   })
   expect(result.findings.map((f) => f.id)).toEqual(['b'])
-  expect(result.dropped).toEqual([{ id: 'a', reason: 'the guard at a.ts:4 holds', repro: REPRO }])
+  expect(result.dropped).toEqual([
+    {
+      id: 'a',
+      file: 'src/a.ts',
+      line: 10,
+      title: 'title a',
+      reason: 'the guard at a.ts:4 holds',
+      repro: REPRO,
+    },
+  ])
 })
 
 test('findings with no result pass through unchanged', () => {

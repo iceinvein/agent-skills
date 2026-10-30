@@ -89,7 +89,7 @@ test('setup -> dedupe -> render(progress) -> render(findings) -> cleanup compose
   expect(findingsHtml.includes('class="annot-body')).toBe(true)
   expect(findingsHtml.includes('class="issue-card')).toBe(true)
 
-  expect(await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })).toBe(0)
+  expect(await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })).toBe(0)
   const parent = dirname(runDir)
   const entries = await readdir(parent)
   expect(entries.find((e) => e.startsWith(`${basename(runDir)}.archived-`))).toBeDefined()

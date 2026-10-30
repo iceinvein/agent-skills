@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runProofApply, runProofPrompt } from '../proof-cmd.ts'
+import { readProofDropped, runProofApply, runProofPrompt } from '../proof-cmd.ts'
 import type { ReviewFinding, Risk } from '../types.ts'
 
 let runDir: string
@@ -127,7 +127,7 @@ test('proof-apply folds results into the final findings and records the disprove
     ['b', null],
   ])
   expect(await readJson('proof-dropped.json')).toEqual([
-    { id: 'c', reason: 'guarded', repro: REPRO },
+    { id: 'c', file: 'src/a.ts', line: 10, title: 'title c', reason: 'guarded', repro: REPRO },
   ])
   const log = (await readFile(join(runDir, 'log.jsonl'), 'utf8')).trim().split('\n')
   expect(JSON.parse(log.at(-1) as string)).toMatchObject({
@@ -248,4 +248,13 @@ test('proof-apply rewrites the worktree path in a repro to a relative one', asyn
       output: 'at ./src/a.ts:10',
     },
   })
+})
+
+test('a run with no proof-dropped.json has no disproved findings', async () => {
+  expect(await readProofDropped(runDir)).toEqual([])
+})
+
+test('readProofDropped fails on a file that does not parse, naming it', async () => {
+  await writeFile(join(runDir, 'proof-dropped.json'), '{nope')
+  await expect(readProofDropped(runDir)).rejects.toThrow(join(runDir, 'proof-dropped.json'))
 })

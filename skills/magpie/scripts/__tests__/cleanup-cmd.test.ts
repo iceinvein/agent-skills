@@ -47,7 +47,7 @@ afterEach(async () => {
 })
 
 test('cleanup removes worktree and archives run dir', async () => {
-  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
   expect(exit).toBe(0)
   const original = await Bun.file(join(runDir, 'worktree', 'a.txt')).exists()
   expect(original).toBe(false)
@@ -65,7 +65,7 @@ test('cleanup prints a view-later hint line with the archived id', async () => {
     return true
   }) as typeof process.stdout.write
   try {
-    await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+    await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
   } finally {
     process.stdout.write = origWrite
   }
@@ -85,7 +85,7 @@ test('cleanup of a local run prints the archive path but no view-later hint', as
     return true
   }) as typeof process.stdout.write
   try {
-    await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+    await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
   } finally {
     process.stdout.write = origWrite
   }
@@ -98,7 +98,9 @@ test('cleanup with a malformed target.json rejects before archiving or writing l
   await writeFile(join(runDir, 'log.jsonl'), '')
   await writeFile(join(runDir, 'findings.final.json'), '[]')
   await writeFile(join(runDir, 'target.json'), '{not json')
-  await expect(runCleanup({ runDir, repoPath: repo, gitBin: 'git' })).rejects.toThrow('target.json')
+  await expect(
+    runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH }),
+  ).rejects.toThrow('target.json')
   const entries = await readdir(dirname(runDir))
   expect(entries.some((e) => e.startsWith(`${basename(runDir)}.archived-`))).toBe(false)
   expect(await Bun.file(join(runDir, 'labels.json')).exists()).toBe(false)
@@ -169,7 +171,7 @@ test('cleanup leaves labels.json in the archived dir when findings.final.json ex
     join(runDir, 'state', 'events'),
     `${JSON.stringify({ type: 'dismiss', findingId: 'sec-1', reason: 'wrong', timestamp: 1 })}\n`,
   )
-  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
   expect(exit).toBe(0)
   const parent = dirname(runDir)
   const archived = (await readdir(parent)).find((e) =>
@@ -183,7 +185,7 @@ test('cleanup leaves labels.json in the archived dir when findings.final.json ex
 
 test('runCleanup logs kill outcome to log.jsonl', async () => {
   await writeFile(join(runDir, 'log.jsonl'), '')
-  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git' })
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
   expect(exit).toBe(0)
   const parent = dirname(runDir)
   const entries = await readdir(parent)
@@ -222,7 +224,12 @@ test('cleanup after a local setup archives the run and leaves the repo as it was
     })
     expect(setupExit).toBe(0)
 
-    const exit = await runCleanup({ runDir: localRun, repoPath: localRepo, gitBin: 'git' })
+    const exit = await runCleanup({
+      runDir: localRun,
+      repoPath: localRepo,
+      gitBin: 'git',
+      ghBin: FAKE_GH,
+    })
     expect(exit).toBe(0)
 
     const parent = dirname(localRun)
@@ -244,4 +251,93 @@ test('cleanup after a local setup archives the run and leaves the repo as it was
     await rm(localRepo, { recursive: true, force: true })
     await rm(localRun, { recursive: true, force: true })
   }
+})
+
+async function refExists(ref: string): Promise<boolean> {
+  const proc = Bun.spawn(['git', 'rev-parse', '--verify', '-q', ref], { cwd: repo, stdout: 'pipe' })
+  return (await proc.exited) === 0
+}
+
+test('cleanup of a PR run deletes saved refs of merged or closed PRs and keeps open ones', async () => {
+  await sh(repo, 'git', 'update-ref', 'refs/magpie/pr-1234', 'HEAD')
+  await sh(repo, 'git', 'update-ref', 'refs/magpie/pr-7', 'HEAD')
+
+  const exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
+
+  expect(exit).toBe(0)
+  expect(await refExists('refs/magpie/pr-1234')).toBe(true)
+  expect(await refExists('refs/magpie/pr-7')).toBe(false)
+})
+
+test('cleanup of a local run leaves saved PR refs alone', async () => {
+  await sh(repo, 'git', 'worktree', 'remove', '--force', join(runDir, 'worktree'))
+  await writeFile(join(runDir, 'target.json'), JSON.stringify({ mode: 'local', root: repo }))
+  await sh(repo, 'git', 'update-ref', 'refs/magpie/pr-7', 'HEAD')
+
+  await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
+
+  expect(await refExists('refs/magpie/pr-7')).toBe(true)
+})
+
+test('cleanup still archives the run and keeps the refs when gh cannot say a PR state', async () => {
+  await sh(repo, 'git', 'update-ref', 'refs/magpie/pr-7', 'HEAD')
+  const err: string[] = []
+  const origWrite = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    err.push(s)
+    return true
+  }) as typeof process.stderr.write
+  let exit: number
+  try {
+    exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: '/usr/bin/false' })
+  } finally {
+    process.stderr.write = origWrite
+  }
+
+  expect(exit).toBe(0)
+  expect(await refExists('refs/magpie/pr-7')).toBe(true)
+  expect(err.join('')).toContain(
+    'magpie: warning: could not prune refs/magpie: gh pr view 7 exit 1',
+  )
+  const entries = await readdir(dirname(runDir))
+  expect(entries.some((e) => e.startsWith(`${basename(runDir)}.archived-`))).toBe(true)
+})
+
+test('cleanup prunes the other refs when gh cannot answer for one, and names the one it skipped', async () => {
+  for (const n of [404, 5, 7, 9, 1234]) {
+    await sh(repo, 'git', 'update-ref', `refs/magpie/pr-${n}`, 'HEAD')
+  }
+  const err: string[] = []
+  const origWrite = process.stderr.write.bind(process.stderr)
+  process.stderr.write = ((s: string) => {
+    err.push(s)
+    return true
+  }) as typeof process.stderr.write
+  let exit: number
+  try {
+    exit = await runCleanup({ runDir, repoPath: repo, gitBin: 'git', ghBin: FAKE_GH })
+  } finally {
+    process.stderr.write = origWrite
+  }
+
+  expect(exit).toBe(0)
+  expect(await refExists('refs/magpie/pr-7')).toBe(false)
+  expect(await refExists('refs/magpie/pr-9')).toBe(false)
+  expect(await refExists('refs/magpie/pr-1234')).toBe(true)
+  expect(await refExists('refs/magpie/pr-404')).toBe(true)
+  expect(await refExists('refs/magpie/pr-5')).toBe(true)
+  expect(err.join('')).toBe(
+    'magpie: warning: could not prune refs/magpie: gh pr view 404 exit 1: GraphQL: Could not resolve to a PullRequest; gh pr view 5: unexpected state "WEIRD"\n',
+  )
+  const archived = (await readdir(dirname(runDir))).find((e) =>
+    e.startsWith(`${basename(runDir)}.archived-`),
+  ) as string
+  const log = await readFile(join(dirname(runDir), archived, 'log.jsonl'), 'utf8')
+  const entry = log
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as Record<string, unknown>)
+    .find((e) => e.status === 'prune-refs')
+  expect(entry?.deleted).toEqual(['refs/magpie/pr-7', 'refs/magpie/pr-9'])
+  expect(entry?.failed).toEqual(['refs/magpie/pr-404', 'refs/magpie/pr-5'])
 })

@@ -3,6 +3,8 @@ import { appendFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import { diffSha256, localBranchDiff } from './local-diff.ts'
+import type { ProofDropped } from './proof.ts'
+import { readProofDropped } from './proof-cmd.ts'
 import { rankActionable } from './render-issues-list.ts'
 import { describeUnreviewed, readShardCoverage, type ShardCoverage } from './shard-coverage.ts'
 import { readTarget } from './target.ts'
@@ -19,6 +21,16 @@ export type FormatHandoffInput = {
   stale: boolean
   /** Shards skipped at the stage 4 gate; absent when every shard was reviewed. */
   unreviewed?: ShardCoverage
+  /** Findings the proof stage removed because a passing test showed the code is right. */
+  disproved?: ProofDropped[]
+}
+
+function formatDisproved(disproved: ProofDropped[]): string {
+  const lines = disproved.map((d) => {
+    const anchor = d.line === null ? d.file : `${d.file}:${d.line}`
+    return `- ${anchor}: ${d.title} (${d.reason}; \`${d.repro.command}\`)`
+  })
+  return ['Dropped because a passing test disproved them:', ...lines].join('\n')
 }
 
 /** A fence longer than any backtick run in the body, so the body cannot close it early. */
@@ -54,7 +66,7 @@ function formatItem(n: number, f: ReviewFinding): string {
 }
 
 export function formatHandoff(input: FormatHandoffInput): string {
-  const { target, findings, stale, unreviewed } = input
+  const { target, findings, stale, unreviewed, disproved = [] } = input
   const header = [`# magpie local review: ${target}`]
   if (stale) {
     header.push('Warning: the tree changed since this review began; line anchors may be off.')
@@ -63,7 +75,8 @@ export function formatHandoff(input: FormatHandoffInput): string {
     const files = unreviewed.skipped.flatMap((s) => s.files.map((f) => `- ${f}`))
     header.push(`Warning: ${describeUnreviewed(unreviewed)}:`, ...files)
   }
-  if (findings.length === 0) return `${header.join('\n')}\n\nNo findings.\n`
+  const tail = disproved.length > 0 ? [formatDisproved(disproved)] : []
+  if (findings.length === 0) return `${[header.join('\n'), 'No findings.', ...tail].join('\n\n')}\n`
 
   const mustFix = findings.filter((f) => f.risk.action === 'must-fix').length
   const shouldFix = findings.filter((f) => f.risk.action === 'should-fix').length
@@ -77,6 +90,7 @@ export function formatHandoff(input: FormatHandoffInput): string {
     `${mustFix} must-fix, ${shouldFix} should-fix, ${optional} optional`,
     ...ordered.map((f, i) => formatItem(i + 1, f)),
     'Address every must-fix and should-fix, or say why not. The rest are optional.',
+    ...tail,
   ]
   return `${sections.join('\n\n')}\n`
 }
@@ -142,12 +156,14 @@ export async function runHandoff(runDir: string, opts: { gitBin?: string } = {})
 
   const subject = meta.branch === null ? 'detached HEAD' : `local branch ${meta.branch}`
   const unreviewed = await readShardCoverage(runDir)
+  const disproved = await readProofDropped(runDir)
   process.stdout.write(
     formatHandoff({
       target: `${subject} against ${meta.baseRef}`,
       findings,
       stale,
       ...(unreviewed ? { unreviewed } : {}),
+      disproved,
     }),
   )
   await logLine(runDir, { stage: 'handoff', status: 'done', findings: findings.length })

@@ -23,7 +23,14 @@ export type ProofResult =
   | { id: string; outcome: 'reproduced' | 'disproved'; reason: string; repro: Repro }
   | { id: string; outcome: 'not-proven'; reason: string }
 
-export type ProofDropped = { id: string; reason: string; repro: Repro }
+export type ProofDropped = {
+  id: string
+  file: string
+  line: number | null
+  title: string
+  reason: string
+  repro: Repro
+}
 
 export function selectForProof(findings: ReviewFinding[], cap: number): ReviewFinding[] {
   const eligible = findings.filter(
@@ -118,7 +125,14 @@ export function applyProofResults(input: { findings: ReviewFinding[]; results: P
     if (r === undefined) {
       findings.push(f)
     } else if (r.outcome === 'disproved') {
-      dropped.push({ id: f.id, reason: r.reason, repro: r.repro })
+      dropped.push({
+        id: f.id,
+        file: f.file,
+        line: f.line,
+        title: f.title,
+        reason: r.reason,
+        repro: r.repro,
+      })
     } else if (r.outcome === 'not-proven') {
       findings.push({ ...f, proof: { status: 'not-proven', reason: r.reason } })
     } else {

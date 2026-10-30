@@ -97,6 +97,14 @@ test('references/critic.md carries every placeholder critic-prompt fills', async
   }
 })
 
+test('references/specialists.md has the orchestrator fill in the focus id', async () => {
+  // A bugs specialist left to fill in <focus> itself wrote correctness.shard-4.json,
+  // which nothing reads.
+  const text = await readFile(ref('specialists.md'), 'utf8')
+  expect(text).toMatch(/Replace every `<RUN_DIR>`, `<WORKTREE>`, `<TARGET>` and `<focus>`/)
+  expect(text).not.toContain('Leave `<focus>` as written')
+})
+
 test('references/proof.md carries every placeholder proof-prompt fills', async () => {
   const text = await readFile(ref('proof.md'), 'utf8')
   const block = text.match(/^(`{3,4})magpie-proof\n([\s\S]*?)\n\1[ \t]*$/m)?.[2] ?? ''

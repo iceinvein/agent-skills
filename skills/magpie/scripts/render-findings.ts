@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import type { Highlighter } from 'shiki'
 import { parseUnifiedDiffToHunks, splitDiffByFile } from './diff-utils.ts'
 import { getHighlighter } from './highlight.ts'
+import type { ProofDropped } from './proof.ts'
 import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
@@ -70,6 +71,8 @@ export type RenderFindingsInput = {
   previousRun?: string
   /** Shards skipped at the stage 4 gate; absent when every shard was reviewed. */
   unreviewed?: ShardCoverage
+  /** Findings the proof stage removed because a passing test showed the code is right. */
+  disproved?: ProofDropped[]
 }
 
 function esc(s: string): string {
@@ -93,6 +96,24 @@ const BRAND_MARK_SVG = `<svg class="brand-mark" viewBox="0 0 24 24" aria-hidden=
 
 function brandBlock(): string {
   return `<div class="brand">${BRAND_MARK_SVG}<span class="brand-text">magpie</span></div>`
+}
+
+// Closed by default: these are not findings any more, but a reader should be able
+// to check the one test that removed each of them.
+function disprovedBlock(disproved: ProofDropped[] | undefined): string {
+  if (!disproved || disproved.length === 0) return ''
+  const items = disproved
+    .map((d) => {
+      const anchor = d.line === null ? d.file : `${d.file}:${d.line}`
+      return `<li><code>${esc(anchor)}</code> ${esc(d.title)}: ${esc(d.reason)}
+        <div>Test: <code>${esc(d.repro.command)}</code></div>
+        <pre class="repro">${esc(d.repro.source)}</pre>
+        <pre class="repro">${esc(d.repro.output)}</pre></li>`
+    })
+    .join('\n')
+  return `<details class="pr-brief disproved"><summary class="brief-summary">Disproved by test (${disproved.length})</summary>
+    <ul class="brief-changes">${items}</ul>
+  </details>`
 }
 
 function prHeader(input: RenderFindingsInput): string {
@@ -265,6 +286,7 @@ export function renderFindingsHtml(input: RenderFindingsInput): string {
 <body data-run-id="${esc(runId)}" data-page="findings" data-view="files" data-diff-mode="unified" data-show-suggestions="false">
 ${prHeader(input)}
 ${briefHtml}
+${disprovedBlock(input.disproved)}
 <main class="page-main">
   <div class="empty-state"><h1>No findings</h1><p>All specialists returned cleanly.</p></div>
 </main>
@@ -323,6 +345,7 @@ ${briefHtml}
 <body data-run-id="${esc(runId)}" data-page="findings" data-view="files" data-diff-mode="unified" data-show-suggestions="false">
 ${prHeader(input)}
 ${briefHtml}
+${disprovedBlock(input.disproved)}
 <main class="page-main">
   <div class="view files-view">
     ${tree}

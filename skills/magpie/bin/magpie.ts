@@ -34,7 +34,8 @@ Subcommands:
                              Render progress.html or findings.html (findings recommends
                              the top N, default 10, and folds the rest)
   labels <run-dir>           Write labels.json (posted, dismissed, ignored per finding)
-  cleanup <run-dir>          Remove worktree, stop server, write labels, archive run
+  cleanup <run-dir>          Remove worktree, stop server, write labels, archive run,
+                             delete saved refs of closed PRs
   status <run-dir>           Print highest completed stage
   open [id]                  Open findings.html in your browser (defaults to latest run)
   post <run-dir> --ids a,b   Post the given finding ids via gh (rich body + optional summary)
@@ -394,6 +395,7 @@ const HANDLERS: Record<string, Handler> = {
       runDir,
       repoPath,
       gitBin: process.env.MAGPIE_GIT_BIN || 'git',
+      ghBin: process.env.MAGPIE_GH_BIN || 'gh',
       killGraceMs,
     })
   },

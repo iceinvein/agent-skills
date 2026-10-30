@@ -394,6 +394,53 @@ test('findings header carries the previous-run line on a re-review', () => {
   expect(html).toContain('Last review: 3 posted · 2 on changed code · 1 on unchanged code')
 })
 
+test('the page lists findings a passing test disproved, folded, with reason and repro', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    disproved: [
+      {
+        id: 'bugs-2',
+        file: 'src/cache.ts',
+        line: 40,
+        title: 'Cache <never> evicts',
+        reason: 'evict() runs on every put at cache.ts:12',
+        repro: {
+          path: 'cache.magpie-proof-bugs-2.test.ts',
+          command: 'bun test cache.magpie-proof-bugs-2.test.ts',
+          source: 'expect(size()).toBe(1)',
+          output: '1 pass',
+        },
+      },
+    ],
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
+  expect(html).toContain(
+    '<details class="pr-brief disproved"><summary class="brief-summary">Disproved by test (1)</summary>',
+  )
+  expect(html).toContain(
+    '<li><code>src/cache.ts:40</code> Cache &lt;never&gt; evicts: evict() runs on every put at cache.ts:12',
+  )
+  expect(html).toContain('<code>bun test cache.magpie-proof-bugs-2.test.ts</code>')
+  expect(html).toContain('<pre class="repro">expect(size()).toBe(1)</pre>')
+  expect(html).toContain('<pre class="repro">1 pass</pre>')
+})
+
+test('the page has no disproved panel when proof dropped nothing', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
+  expect(html).not.toContain('Disproved by test')
+})
+
 test('findings header names the shards nobody reviewed, with their files on hover', () => {
   const html = renderFindingsHtml({
     findings: [],

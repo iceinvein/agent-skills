@@ -8,7 +8,77 @@ export type RunCleanupInput = {
   runDir: string
   repoPath: string
   gitBin: string
+  ghBin: string
   killGraceMs?: number
+}
+
+async function run(
+  cmd: string[],
+  cwd: string,
+): Promise<{ exit: number; stdout: string; stderr: string }> {
+  const proc = Bun.spawn(cmd, { cwd, stdout: 'pipe', stderr: 'pipe' })
+  const [exit, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  return { exit, stdout, stderr }
+}
+
+/**
+ * Setup fetches a PR head into `refs/magpie/pr-<n>` when the commit is not local,
+ * and the ref keeps that head reachable for the next re-review's changed-files
+ * list. Once the PR is closed or merged nothing will re-review it.
+ */
+export type PruneResult = { deleted: string[]; failed: Array<{ ref: string; error: string }> }
+
+/** The decision for one ref: true to delete. Throws when its PR state cannot be known. */
+async function isClosedPr(ghBin: string, repoPath: string, n: string): Promise<boolean> {
+  const view = await run([ghBin, 'pr', 'view', n, '--json', 'state'], repoPath)
+  if (view.exit !== 0) throw new Error(`gh pr view ${n} exit ${view.exit}: ${view.stderr.trim()}`)
+  let state: unknown
+  try {
+    state = (JSON.parse(view.stdout) as { state?: unknown }).state
+  } catch (err) {
+    throw new Error(`gh pr view ${n}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  if (state === 'OPEN') return false
+  if (state === 'CLOSED' || state === 'MERGED') return true
+  throw new Error(`gh pr view ${n}: unexpected state ${JSON.stringify(state)}`)
+}
+
+/**
+ * Setup fetches a PR head into `refs/magpie/pr-<n>` when the commit is not local,
+ * and the ref keeps that head reachable for the next re-review's changed-files
+ * list. Once the PR is closed or merged nothing will re-review it. A ref whose
+ * PR cannot be checked is kept and reported, without holding up the others.
+ */
+export async function pruneClosedPrRefs(input: {
+  gitBin: string
+  ghBin: string
+  repoPath: string
+}): Promise<PruneResult> {
+  const list = await run(
+    [input.gitBin, 'for-each-ref', '--format=%(refname)', 'refs/magpie/'],
+    input.repoPath,
+  )
+  if (list.exit !== 0) throw new Error(`git for-each-ref exit ${list.exit}: ${list.stderr.trim()}`)
+  const result: PruneResult = { deleted: [], failed: [] }
+  for (const ref of list.stdout.split('\n').filter(Boolean)) {
+    const match = ref.match(/^refs\/magpie\/pr-(\d+)$/)
+    if (!match) continue
+    try {
+      if (!(await isClosedPr(input.ghBin, input.repoPath, match[1] as string))) continue
+      const del = await run([input.gitBin, 'update-ref', '-d', ref], input.repoPath)
+      if (del.exit !== 0) {
+        throw new Error(`git update-ref -d ${ref} exit ${del.exit}: ${del.stderr.trim()}`)
+      }
+      result.deleted.push(ref)
+    } catch (err) {
+      result.failed.push({ ref, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return result
 }
 
 export type KillOutcome =
@@ -95,12 +165,30 @@ export async function runCleanup(input: RunCleanupInput): Promise<number> {
     await writeLabels(input.runDir)
   }
 
+  // Pruning is housekeeping for the repo, so a failure warns rather than leaving the run unarchived.
+  let pruneError: string | null = null
+  if (mode === 'pr') {
+    try {
+      const pruned = await pruneClosedPrRefs(input)
+      await appendFile(
+        join(input.runDir, 'log.jsonl'),
+        `${JSON.stringify({ stage: 'cleanup', status: 'prune-refs', deleted: pruned.deleted, failed: pruned.failed.map((f) => f.ref), ts: Date.now() })}\n`,
+      )
+      if (pruned.failed.length > 0) pruneError = pruned.failed.map((f) => f.error).join('; ')
+    } catch (err) {
+      pruneError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
   const target = `${input.runDir}.archived-${Date.now()}`
   await rename(input.runDir, target)
   process.stdout.write(`archived to ${target}\n`)
   const archivedId = target.split('/').filter(Boolean).pop()
   if (archivedId && mode !== 'local') {
     process.stdout.write(`view later: magpie open ${archivedId}\n`)
+  }
+  if (pruneError !== null) {
+    process.stderr.write(`magpie: warning: could not prune refs/magpie: ${pruneError}\n`)
   }
   if (kill.outcome === 'failed') {
     process.stderr.write(

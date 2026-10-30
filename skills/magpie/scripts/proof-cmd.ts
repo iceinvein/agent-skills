@@ -4,12 +4,13 @@ import {
   applyProofResults,
   buildProofPrompts,
   DEFAULT_PROOF_CAP,
+  type ProofDropped,
   type ProofResult,
   parseProofResult,
   selectForProof,
 } from './proof.ts'
 import { reviewRoot } from './target.ts'
-import { parseFinding, type ReviewFinding } from './types.ts'
+import { isRepro, parseFinding, type ReviewFinding } from './types.ts'
 
 const DEFAULT_TEMPLATE_PATH = new URL('../references/proof.md', import.meta.url).pathname
 
@@ -182,4 +183,44 @@ export async function runProofApply(
     process.stderr.write(`proof-apply: ${err instanceof Error ? err.message : String(err)}\n`)
     return 1
   }
+}
+
+/** What proof-apply removed, for the report and the handoff; a run before proof has none. */
+export async function readProofDropped(runDir: string): Promise<ProofDropped[]> {
+  const path = join(runDir, 'proof-dropped.json')
+  let text: string
+  try {
+    text = await readFile(path, 'utf8')
+  } catch (err) {
+    if (isMissingFile(err)) return []
+    throw err
+  }
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch (err) {
+    throw new Error(`${path}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  if (!Array.isArray(raw)) throw new Error(`${path}: expected a JSON array`)
+  return raw.map((entry, i) => {
+    const e = (entry ?? {}) as Record<string, unknown>
+    if (
+      typeof e.id !== 'string' ||
+      typeof e.file !== 'string' ||
+      (e.line !== null && typeof e.line !== 'number') ||
+      typeof e.title !== 'string' ||
+      typeof e.reason !== 'string' ||
+      !isRepro(e.repro)
+    ) {
+      throw new Error(`${path}: entry ${i} needs id, file, line, title, reason and repro`)
+    }
+    return {
+      id: e.id,
+      file: e.file,
+      line: e.line as number | null,
+      title: e.title,
+      reason: e.reason,
+      repro: e.repro,
+    }
+  })
 }

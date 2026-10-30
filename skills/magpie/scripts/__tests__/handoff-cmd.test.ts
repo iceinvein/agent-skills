@@ -364,3 +364,24 @@ test('formatHandoff warns which files went unreviewed', () => {
     '# magpie local review: t\nWarning: Not reviewed: shard 3 (2 files):\n- docs/d.md\n- src/e.ts\n\nNo findings.\n',
   )
 })
+
+test('formatHandoff lists findings a passing test disproved after the rest', () => {
+  const out = formatHandoff({
+    target: 't',
+    findings: [],
+    stale: false,
+    disproved: [
+      {
+        id: 'bugs-2',
+        file: 'src/cache.ts',
+        line: null,
+        title: 'Cache never evicts',
+        reason: 'evict() runs on every put',
+        repro: { path: 'p', command: 'bun test p', source: 's', output: 'o' },
+      },
+    ],
+  })
+  expect(out).toBe(
+    '# magpie local review: t\n\nNo findings.\n\nDropped because a passing test disproved them:\n- src/cache.ts: Cache never evicts (evict() runs on every put; `bun test p`)\n',
+  )
+})

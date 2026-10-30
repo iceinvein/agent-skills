@@ -81,7 +81,7 @@ const base = {
 
 const SECURITY_BLOCK = 'You are a security reviewer.\n\n## What to look for\n\nInjection.'
 const CONTRACT =
-  '## Output Contract\n\nWrite findings to /runs/r1/findings/<focus>.json.\n\n' +
+  '## Output Contract\n\nWrite findings to /runs/r1/findings/security.json.\n\n' +
   '```\n{ "id": string }\n```\n\nIf you have no findings, write [].'
 
 test('an unsharded prompt is the focus block, the run header and the output contract', () => {
@@ -90,6 +90,12 @@ test('an unsharded prompt is the focus block, the run header and the output cont
       'You are reviewing PR #70.\nWorking directory: /runs/r1/worktree\nDiff: /runs/r1/diff.patch\n\n' +
       CONTRACT,
   )
+})
+
+test('the output contract names the focus id, not a placeholder the session fills in', () => {
+  const prompt = assembleSpecialistPrompt(base)
+  expect(prompt).toContain('Write findings to /runs/r1/findings/security.json.')
+  expect(prompt).not.toContain('<focus>')
 })
 
 test('a sharded prompt names the shard, its patch and the scope rule', () => {
@@ -439,7 +445,7 @@ test('a base prompt from the live specialists.md carries the focus block and the
   )
   expect(prompt).toContain(
     'If you have no findings, write []. Return as your final tool result a single line: ' +
-      '`<focus>: <N> findings (<critical>/<high>/<medium>/<low> by risk.impact)`. ' +
+      '`bugs: <N> findings (<critical>/<high>/<medium>/<low> by risk.impact)`. ' +
       'Do not include other prose.',
   )
 })

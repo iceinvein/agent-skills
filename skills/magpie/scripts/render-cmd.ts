@@ -3,6 +3,7 @@ import { basename, join } from 'node:path'
 import { readHistory } from './history.ts'
 import { readDismissed } from './labels.ts'
 import { describePreviousPosted } from './previous-findings.ts'
+import { readProofDropped } from './proof-cmd.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import { renderProgressToDisk } from './render-progress.ts'
@@ -157,6 +158,7 @@ export async function runRender(
   const { previous } = await readHistory(runDir)
   const previousRun = previous ? (describePreviousPosted(previous) ?? undefined) : undefined
   const unreviewed = await readShardCoverage(runDir)
+  const disproved = await readProofDropped(runDir)
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
     {
@@ -171,6 +173,7 @@ export async function runRender(
       diffSource,
       ...(previousRun ? { previousRun } : {}),
       ...(unreviewed ? { unreviewed } : {}),
+      disproved,
       dismissed,
       topN: opts.topN ?? DEFAULT_TOP_N,
     },
