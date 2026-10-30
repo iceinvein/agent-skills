@@ -184,3 +184,47 @@ files `~/.magpie/corpus/results/2026-10-30T*-probe-*-base-r*.json`.
 | pr-50 miss-9 | bugs s5 | 4, 0, 3 | 1/3 (r3) |
 
 Pooled: 1 of 21 (miss, repeat) catches. Eight runs wrote zero findings (unjudged by design).
+- T6 brief settles: part 6's block holds `<top entries>` and `<the path above>`, and the part 6
+  instruction tells the orchestrator to fill both (the probe already does); proof includes a
+  `--dry-run` of the probe's impact arm assembling from the live specialists.md.
+- T6 review (tier 3) on 731a686: no blocking findings. Production prose and the probe build the
+  same prompt for sharded, unsharded and no-impact-file shards. Changed existing lines in the
+  shared files: 3 count words (specialists "five" to "six", critic "six" to "seven" twice), all
+  required. Changed tests ask no less of the code. Taken in a fix round (T6 Touches widened to
+  `scripts/impact-cmd.ts` and its test):
+  - specialists.md: the impact part is pasted as-is (no `<RUN_DIR>` substitution inside it),
+    and part 6 and the header line are skipped when the matching `.brief.md` is absent;
+  - `runImpact` writes each file to a temp name and renames it into place, so an interrupted
+    run cannot leave a truncated `impact.json` that blocks `critic-prompt`.
+  Left: the resume clause sits in stage 3 prose, so a run resumed past stage 3 never re-runs
+  impact; harmless because the map is optional.
+- T6 closed at 5c2652c on the controller's gate run (878 pass, lint, tsc); atomic writes, pasted-as-is and skip-without-brief rules in.
+- T7 (low effort) and T8 (controller-run script) run together: disjoint paths, and T8's probe reads no file T7 edits.
+- T7 e371d6d: 0.16.0 in the three manifest files; root suite 2658 pass. Skipped review per pre-flight.
+
+## Phase A, impact arm (T8) and the gate
+
+21 runs, no errors, $14.71. Phase A total $29.58 (estimate was about $50, ceiling $60).
+
+| Pair | Focus, shard | Findings per run (impact) | Caught: base | Caught: impact |
+|---|---|---|---|---|
+| pr-70 miss-1 | security s4 | 1, 1, 0 | 0/3 | 1/3 (r2) |
+| pr-70 miss-2 | security s5 | 1, 1, 1 | 0/3 | 0/3 |
+| pr-70 miss-3 | bugs s4 | 0, 0, 1 | 0/3 | 0/3 |
+| pr-50 miss-1 | architecture s6 | 3, 1, 2 | 0/3 | 0/3 |
+| pr-50 miss-5 | architecture s3 | 1, 2, 2 | 0/3 | 0/3 |
+| pr-50 miss-6 | bugs s3 | 0, 0, 0 | 0/3 | 0/3 |
+| pr-50 miss-9 | bugs s5 | 4, 0, 2 | 1/3 | 0/3 |
+| **Pooled** | | | **1/21** | **1/21** |
+
+- Read rate of the full impact file: 0 of 21. Every impact-arm run had a map (the probe refuses
+  a shard without one, and none was refused), so the facts reached the agents only through the
+  inline brief (about 2 KB).
+- `citesOutside`: 0 on both arms. A lower bound (exact `file:line` only), so it does not show
+  the facts went unused, but nothing shows they were used either.
+- **Gate verdict: fails on both terms** (catch gain 0, bar 3 or more; read rate 0, bar above
+  0.5). The one impact catch (pr-70 miss-1, the uuid namespace whose writers the shard-4 brief
+  lists first) is one run in three and the base arm swapped in its own single catch, which is
+  the run-to-run variance the 2026-10-17 record warned of.
+- Per the plan, T9 (phase B) does not start without the user's go-ahead.
+- The scratch `real-pr70` worktree is removed from the workings clone; no probe worktree remains.
