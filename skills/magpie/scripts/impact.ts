@@ -574,10 +574,25 @@ export function buildImpactMap(input: {
     }
     return [...found].sort((a, b) => a - b)
   }
+  const docHits = outside(hits.docs)
+    .filter((h) => isDoc(h.file))
+    .map((h) => ({ hit: h, mentions: mentionWords.filter((m) => m.word.test(h.text)) }))
+  // The symbol rules, per name: a name on too many doc lines is a common word
+  // that names nothing, and a rare one lists only its first few lines.
+  const docLineCount = new Map<string, number>()
+  for (const d of docHits) {
+    for (const m of d.mentions) docLineCount.set(m.name, (docLineCount.get(m.name) ?? 0) + 1)
+  }
+  const docLinesKept = new Map<string, number>()
   const docs: ImpactDoc[] = []
-  for (const h of outside(hits.docs)) {
-    if (!isDoc(h.file)) continue
-    const mentions = mentionWords.filter((m) => m.word.test(h.text)).map((m) => m.name)
+  for (const { hit: h, mentions: found } of docHits) {
+    const mentions: string[] = []
+    for (const { name } of found) {
+      const kept = docLinesKept.get(name) ?? 0
+      if ((docLineCount.get(name) ?? 0) > COMMON_NAME_HITS || kept >= MAX_REFS_PER_NAME) continue
+      docLinesKept.set(name, kept + 1)
+      mentions.push(name)
+    }
     if (mentions.length === 0) continue
     docs.push({ file: h.file, line: h.line, text: h.text, mentions, shards: shardsNamed(mentions) })
   }

@@ -701,6 +701,54 @@ describe('buildImpactMap', () => {
     ])
   })
 
+  function docLines(count: number, text: string): GrepHit[] {
+    return Array.from({ length: count }, (_, i) => ({
+      file: 'docs/guide.md',
+      line: i + 1,
+      text,
+      indented: false,
+    }))
+  }
+
+  test('a name with more than two hundred doc lines appears in no doc', () => {
+    const hits = noHits()
+    hits.docs = docLines(201, 'scheduleJob runs here.')
+    const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
+    expect(map.docs).toEqual([])
+  })
+
+  test('a name with fifteen doc lines keeps the first twelve', () => {
+    const hits = noHits()
+    hits.docs = docLines(15, 'scheduleJob runs here.')
+    const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
+    expect(map.docs.map((d) => d.line)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+  })
+
+  test('a line naming a common and a rare name keeps only the rare one', () => {
+    const names = oneSymbol()
+    names.defined.push({ name: 'rotateKeys', kind: 'changed', file: 'src/keys.ts', line: 2 })
+    const hits = noHits()
+    hits.docs = [
+      ...docLines(201, 'scheduleJob runs here.'),
+      { file: 'README.md', line: 4, text: 'scheduleJob calls rotateKeys.', indented: false },
+    ]
+    const map = buildImpactMap({
+      names,
+      hits,
+      shardOf: (f) => (f === 'src/jobs.ts' ? 1 : f === 'src/keys.ts' ? 2 : null),
+      excluded: keepAll,
+    })
+    expect(map.docs).toEqual([
+      {
+        file: 'README.md',
+        line: 4,
+        text: 'scheduleJob calls rotateKeys.',
+        mentions: ['rotateKeys'],
+        shards: [2],
+      },
+    ])
+  })
+
   test('a doc carries the sorted shards of the symbols and changed files it names', () => {
     const names = noNames()
     names.defined = [
