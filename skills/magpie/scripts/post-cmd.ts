@@ -6,6 +6,7 @@ import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import { readHistory } from './history.ts'
 import type { PostVia } from './labels.ts'
 import { describePreviousPosted } from './previous-findings.ts'
+import { describeUnreviewed, readShardCoverage } from './shard-coverage.ts'
 import {
   type FocusId,
   type PrFileEntry,
@@ -295,6 +296,8 @@ export type ReviewSummaryOptions = {
   incremental?: { previousSha: string; sameSha: boolean }
   /** `describePreviousPosted` on a re-review. */
   previousRun?: string
+  /** `describeUnreviewed` when shards were skipped at the stage 4 gate. */
+  unreviewed?: string
 }
 
 /** Effort score 1 (trivial) to 5 (substantial), derived from changed files and lines. */
@@ -419,6 +422,7 @@ export function formatReviewSummaryBody(
     lines.push('', `<sub>${msg}</sub>`)
   }
   if (options.previousRun) lines.push('', `<sub>${options.previousRun}</sub>`)
+  if (options.unreviewed) lines.push('', `<sub>${options.unreviewed}</sub>`)
 
   if (findings.length > 0) {
     const inlineText =
@@ -900,6 +904,7 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
 
   const { previous } = await readHistory(input.runDir)
   const previousRun = previous ? describePreviousPosted(previous) : null
+  const coverage = await readShardCoverage(input.runDir)
 
   if (shouldPostSummary) {
     const summaryBody = formatReviewSummaryBody(selectedFindings, {
@@ -907,6 +912,7 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
       files: prFiles,
       ...(incremental ? { incremental } : {}),
       ...(previousRun ? { previousRun } : {}),
+      ...(coverage ? { unreviewed: describeUnreviewed(coverage) } : {}),
     })
     const summaryCmd = buildPrCommentCommand(repo, prNumber, summaryBody)
     if (input.dryRun) {

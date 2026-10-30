@@ -18,13 +18,20 @@ JSON
 esac
 case "$1 $2" in
   "pr view")
-    cat <<'JSON'
+    # setup runs gh in the repo, so the PR head is read from it: a fake-pr-head file
+    # in the git dir for a head the clone does not have yet, a fake-pr-head tag,
+    # else feature-x, else a SHA no clone has.
+    head=$(cat "$(git rev-parse --git-dir)/fake-pr-head" 2>/dev/null ||
+      git rev-parse --verify -q 'refs/tags/fake-pr-head^{commit}' ||
+      git rev-parse --verify -q 'refs/heads/feature-x' ||
+      echo deadbeefdeadbeefdeadbeefdeadbeefdeadbeef)
+    cat <<JSON
 {
   "number": 1234,
   "title": "Fake PR",
   "headRefName": "feature-x",
   "baseRefName": "main",
-  "headRefOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  "headRefOid": "$head",
   "baseRefOid": "cafebabecafebabecafebabecafebabecafebabe",
   "author": { "login": "octocat" },
   "body": "Fake body",

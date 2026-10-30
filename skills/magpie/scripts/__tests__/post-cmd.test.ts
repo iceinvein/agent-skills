@@ -391,6 +391,13 @@ test('formatReviewSummaryBody carries the previous-run line under the incrementa
   )
 })
 
+test('formatReviewSummaryBody says which shards went unreviewed', () => {
+  const body = formatReviewSummaryBody([], {
+    unreviewed: 'Not reviewed: shards 2, 3 (3 files)',
+  })
+  expect(body).toContain('<sub>Not reviewed: shards 2, 3 (3 files)</sub>')
+})
+
 test('formatReviewSummaryBody renders re-review trailer when sameSha', () => {
   const body = formatReviewSummaryBody([], {
     incremental: { previousSha: 'abcdef0123456', sameSha: true },

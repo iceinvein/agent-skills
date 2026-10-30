@@ -31,6 +31,12 @@ async function sh(cwd: string, ...cmd: string[]): Promise<void> {
   }
 }
 
+async function revParse(cwd: string, ref: string): Promise<string> {
+  const proc = Bun.spawn(['git', 'rev-parse', ref], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  if ((await proc.exited) !== 0) throw new Error(await new Response(proc.stderr).text())
+  return (await new Response(proc.stdout).text()).trim()
+}
+
 beforeEach(async () => {
   repo = await mkdtemp(join(tmpdir(), 'magpie-setup-repo-'))
   runDir = await mkdtemp(join(tmpdir(), 'magpie-setup-run-'))
@@ -746,5 +752,210 @@ test('local setup with --repo outside any git repository fails with exit 2 and c
     expect(await readdir(runDir)).toEqual([])
   } finally {
     await rm(notRepo, { recursive: true, force: true })
+  }
+})
+
+test('the worktree is the PR head commit even when the local branch has moved past it', async () => {
+  const prHead = await revParse(repo, 'feature-x')
+  await sh(repo, 'git', 'tag', 'fake-pr-head', prHead)
+  await sh(repo, 'git', 'checkout', '-q', 'feature-x')
+  await writeFile(join(repo, 'a.txt'), 'unpushed\n')
+  await sh(repo, 'git', 'commit', '-q', '-am', 'local only')
+  await sh(repo, 'git', 'checkout', '-q', 'main')
+
+  const exit = await runSetup({
+    mode: 'pr',
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+
+  expect(exit).toBe(0)
+  expect(await revParse(join(runDir, 'worktree'), 'HEAD')).toBe(prHead)
+  expect(await readFile(join(runDir, 'worktree', 'a.txt'), 'utf8')).toBe('one\n')
+})
+
+test('setup works when no local branch carries the PR head name, as on a fork PR', async () => {
+  const prHead = await revParse(repo, 'feature-x')
+  await sh(repo, 'git', 'tag', 'fake-pr-head', prHead)
+  await sh(repo, 'git', 'branch', '-q', '-D', 'feature-x')
+
+  const exit = await runSetup({
+    mode: 'pr',
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+
+  expect(exit).toBe(0)
+  expect(await revParse(join(runDir, 'worktree'), 'HEAD')).toBe(prHead)
+})
+
+test('setup fails and cleans up when the PR head commit is not in the clone', async () => {
+  await sh(repo, 'git', 'branch', '-q', '-D', 'feature-x')
+
+  const exit = await runSetup({
+    mode: 'pr',
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+
+  expect(exit).toBe(5)
+  const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+  expect(log).toContain('cannot resolve PR head deadbeefdeadbeefdeadbeefdeadbeefdeadbeef locally')
+  const contents = await readdir(runDir)
+  expect(contents.filter((c) => c !== 'log.jsonl')).toHaveLength(0)
+})
+
+test('a re-review after the author force-pushed checks out the new PR head', async () => {
+  const origin = await mkdtemp(join(tmpdir(), 'magpie-setup-origin-'))
+  try {
+    await sh(origin, 'git', 'init', '-q', '--bare')
+    await sh(repo, 'git', 'remote', 'add', 'origin', origin)
+    await sh(repo, 'git', 'checkout', '-q', 'feature-x')
+    await writeFile(join(repo, 'a.txt'), 'first\n')
+    await sh(repo, 'git', 'commit', '-q', '-am', 'first')
+    const first = await revParse(repo, 'HEAD')
+    await sh(repo, 'git', 'checkout', '-q', 'main')
+    await sh(repo, 'git', 'push', '-q', 'origin', `${first}:refs/pull/1234/head`)
+    await sh(repo, 'git', 'tag', 'fake-pr-head', first)
+    expect(
+      await runSetup({
+        mode: 'pr',
+        runDir,
+        prNumber: 1234,
+        repoPath: repo,
+        deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+      }),
+    ).toBe(0)
+
+    // The amended head does not descend from the first, as after `git commit --amend`.
+    await sh(repo, 'git', 'checkout', '-q', '--detach', 'main')
+    await writeFile(join(repo, 'a.txt'), 'amended\n')
+    await sh(repo, 'git', 'commit', '-q', '-am', 'amended')
+    const amended = await revParse(repo, 'HEAD')
+    await sh(repo, 'git', 'checkout', '-q', 'main')
+    await sh(repo, 'git', 'push', '-q', '-f', 'origin', `${amended}:refs/pull/1234/head`)
+    await sh(repo, 'git', 'tag', '-f', 'fake-pr-head', amended)
+    const secondRun = await mkdtemp(join(tmpdir(), 'magpie-setup-run-'))
+    try {
+      const exit = await runSetup({
+        mode: 'pr',
+        runDir: secondRun,
+        prNumber: 1234,
+        repoPath: repo,
+        deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+      })
+      expect(exit).toBe(0)
+      expect(await revParse(join(secondRun, 'worktree'), 'HEAD')).toBe(amended)
+    } finally {
+      await rm(secondRun, { recursive: true, force: true })
+    }
+  } finally {
+    await rm(origin, { recursive: true, force: true })
+  }
+})
+
+test('offline, a PR head commit already in the clone wins over a stale PR ref', async () => {
+  const stale = await revParse(repo, 'main')
+  await sh(repo, 'git', 'checkout', '-q', 'feature-x')
+  await writeFile(join(repo, 'a.txt'), 'new head\n')
+  await sh(repo, 'git', 'commit', '-q', '-am', 'new head')
+  const head = await revParse(repo, 'HEAD')
+  await sh(repo, 'git', 'checkout', '-q', 'main')
+  await sh(repo, 'git', 'update-ref', 'refs/magpie/pr-1234', stale)
+
+  const exit = await runSetup({
+    mode: 'pr',
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+
+  expect(exit).toBe(0)
+  expect(await revParse(join(runDir, 'worktree'), 'HEAD')).toBe(head)
+})
+
+test('setup fetches nothing when the PR head commit is already in the clone', async () => {
+  const origin = await mkdtemp(join(tmpdir(), 'magpie-setup-origin-'))
+  try {
+    await sh(origin, 'git', 'init', '-q', '--bare')
+    await sh(repo, 'git', 'remote', 'add', 'origin', origin)
+    await sh(repo, 'git', 'push', '-q', 'origin', 'feature-x:refs/pull/1234/head')
+
+    const exit = await runSetup({
+      mode: 'pr',
+      runDir,
+      prNumber: 1234,
+      repoPath: repo,
+      deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+    })
+
+    expect(exit).toBe(0)
+    const ref = Bun.spawn(['git', 'rev-parse', '--verify', '-q', 'refs/magpie/pr-1234'], {
+      cwd: repo,
+      stdout: 'pipe',
+    })
+    expect(await ref.exited).toBe(1)
+  } finally {
+    await rm(origin, { recursive: true, force: true })
+  }
+})
+
+test('a re-review lists the files changed since the last review when the new head is not yet local', async () => {
+  const origin = await mkdtemp(join(tmpdir(), 'magpie-setup-origin-'))
+  const other = await mkdtemp(join(tmpdir(), 'magpie-setup-other-'))
+  const magpieHome = await mkdtemp(join(tmpdir(), 'magpie-home-fetch-'))
+  const originalHome = process.env.MAGPIE_HOME
+  try {
+    await sh(origin, 'git', 'init', '-q', '--bare')
+    await sh(repo, 'git', 'remote', 'add', 'origin', origin)
+    await sh(repo, 'git', 'push', '-q', 'origin', 'feature-x')
+    const previousHead = await revParse(repo, 'feature-x')
+    // The author pushes from another clone, so this clone has never seen the new head.
+    await sh(other, 'git', 'clone', '-q', '-b', 'feature-x', origin, '.')
+    await sh(other, 'git', 'config', 'user.email', 't@t.t')
+    await sh(other, 'git', 'config', 'user.name', 't')
+    await sh(other, 'git', 'config', 'commit.gpgsign', 'false')
+    await writeFile(join(other, 'b.txt'), 'new\n')
+    await sh(other, 'git', 'add', '.')
+    await sh(other, 'git', 'commit', '-q', '-m', 'new')
+    const newHead = await revParse(other, 'HEAD')
+    await sh(other, 'git', 'push', '-q', 'origin', 'HEAD:refs/pull/1234/head')
+    await writeFile(join(repo, '.git', 'fake-pr-head'), newHead)
+
+    await mkdir(join(magpieHome, 'pr-1234-100'))
+    await writeFile(
+      join(magpieHome, 'pr-1234-100', 'pr.json'),
+      JSON.stringify({
+        headRefOid: previousHead,
+        number: 1234,
+        url: 'https://github.com/octocat/Hello-World/pull/1234',
+      }),
+    )
+    process.env.MAGPIE_HOME = magpieHome
+
+    const exit = await runSetup({
+      mode: 'pr',
+      runDir,
+      prNumber: 1234,
+      repoPath: repo,
+      deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+    })
+
+    expect(exit).toBe(0)
+    const incremental = JSON.parse(await readFile(join(runDir, 'incremental.json'), 'utf8'))
+    expect(incremental.changedSincePrevious).toEqual(['b.txt'])
+  } finally {
+    if (originalHome === undefined) delete process.env.MAGPIE_HOME
+    else process.env.MAGPIE_HOME = originalHome
+    await rm(origin, { recursive: true, force: true })
+    await rm(other, { recursive: true, force: true })
+    await rm(magpieHome, { recursive: true, force: true })
   }
 })

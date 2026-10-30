@@ -6,6 +6,7 @@ import { deduplicateFindings, findMergeCandidates } from './dedupe.ts'
 import { verifyEvidence } from './evidence-filter.ts'
 import { namespaceId, parseFindingsFilename } from './findings-files.ts'
 import { DEFAULT_THRESHOLD, scoreRisk } from './score.ts'
+import { readShardCoverage } from './shard-coverage.ts'
 import { readTarget } from './target.ts'
 import { FOCUS_IDS, parseFinding, type ReviewFinding } from './types.ts'
 
@@ -53,9 +54,12 @@ async function reconcileCoverage(runDir: string, present: Set<string>): Promise<
   // A single-shard manifest means stage 4 took the unsharded path, so its
   // specialists write `<focus>.json` with no shard suffix.
   const sharded = shards.length > 1
+  // A shard skipped at the stage 4 gate has no findings by design, and the report says so.
+  const skipped = new Set((await readShardCoverage(runDir))?.skipped.map((s) => s.id))
   const expected: string[] = []
   for (const [i, shard] of shards.entries()) {
     const id = typeof shard?.id === 'number' ? shard.id : i + 1
+    if (skipped.has(id)) continue
     for (const focus of SPECIALIST_FOCUS_IDS) {
       expected.push(sharded ? `${focus}.shard-${id}.json` : `${focus}.json`)
     }

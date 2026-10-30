@@ -118,7 +118,7 @@ many small files is split by the 80-file cap, so a larger `--budget` alone chang
 nothing); or review only the highest-risk shards, which means appending
 `{stage: shard-coverage, status: partial, reviewed: [<ids>], skipped: [<ids>]}` to
 `$RUN_DIR/log.jsonl` and telling the user in the terminal which shards go unreviewed.
-That log entry is the only record of the gap: the report has no unreviewed marker.
+The report, summary comment and handoff name the skipped shards from that entry.
 Wait for the answer; neither cost nor a coverage gap is ever silent.
 
 Dispatch by wave, one shard per wave, the five focuses in parallel within a wave,
@@ -295,9 +295,9 @@ The JSON output tells you `lastCompleted` and `next`. Resume from `next`:
 - Local run at `next: cleanup`: if the caller has not been sent the findings, re-run `magpie handoff` first (it only reads files).
 - If a specialist focus has no findings file but its sibling stages are done,
   re-dispatch only that focus. On a sharded run the unit is the `(focus, shard)` pair:
-  read `shards/manifest.json`, and re-dispatch only the pairs with no
-  `findings/<focus>.shard-<n>.json`. Never re-shard mid-run without deleting those
-  files first (stage 1): the check would otherwise trust ids that moved.
+  re-dispatch only the pairs with no `findings/<focus>.shard-<n>.json`, skipping
+  shards a `shard-coverage: partial` entry skipped. Never re-shard mid-run without
+  deleting those files first (stage 1): shard ids move.
 - Non-null `error` means the run stopped on a failed stage. Report which stage to the user and confirm before re-running it.
 
 The original server is gone. Restart it with `magpie serve "$RUN_DIR"` (step 2) before re-rendering, so the user gets a live URL again.

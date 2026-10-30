@@ -500,6 +500,8 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       notJudged: null as string | null,
       findings: null as number | null,
       missingFindings: null as string | null,
+      /** Kept only when the session wrote no findings file, the case no one could explain. */
+      transcript: null as string | null,
       readImpact: null as boolean | null,
       citesOutside: null as number | null,
       costUsd: outcome.costUsd,
@@ -523,6 +525,11 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
         : []
       result.findings = findings.length
       result.missingFindings = existsSync(findingsPath) ? null : `session wrote no ${findingsName}`
+      if (result.missingFindings !== null) {
+        const transcript = outPath.replace(/\.json$/, '.transcript.jsonl')
+        await writeFile(transcript, session.stdout)
+        result.transcript = transcript
+      }
       result.readImpact = impact === null ? null : transcriptReadPath(session.stdout, impact.path)
       await save()
 

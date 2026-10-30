@@ -6,6 +6,7 @@ import { describePreviousPosted } from './previous-findings.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import { renderProgressToDisk } from './render-progress.ts'
+import { readShardCoverage } from './shard-coverage.ts'
 import { parseBrief, parseFinding } from './types.ts'
 
 async function nextVersionedPath(screenDir: string, base: string): Promise<string> {
@@ -155,6 +156,7 @@ export async function runRender(
   const dismissed = await readDismissed(runDir)
   const { previous } = await readHistory(runDir)
   const previousRun = previous ? (describePreviousPosted(previous) ?? undefined) : undefined
+  const unreviewed = await readShardCoverage(runDir)
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
     {
@@ -168,6 +170,7 @@ export async function runRender(
       issues,
       diffSource,
       ...(previousRun ? { previousRun } : {}),
+      ...(unreviewed ? { unreviewed } : {}),
       dismissed,
       topN: opts.topN ?? DEFAULT_TOP_N,
     },

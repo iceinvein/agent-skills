@@ -352,3 +352,15 @@ test('formatHandoff says why a finding is not proven', () => {
   })
   expect(out).toContain('Not proven: needs a live database')
 })
+
+test('formatHandoff warns which files went unreviewed', () => {
+  const out = formatHandoff({
+    target: 't',
+    findings: [],
+    stale: false,
+    unreviewed: { skipped: [{ id: 3, files: ['docs/d.md', 'src/e.ts'] }] },
+  })
+  expect(out).toBe(
+    '# magpie local review: t\nWarning: Not reviewed: shard 3 (2 files):\n- docs/d.md\n- src/e.ts\n\nNo findings.\n',
+  )
+})

@@ -1,6 +1,7 @@
 import { appendFile, mkdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fetchPr } from './gh.ts'
+import { resolvePrHead } from './git-diff.ts'
 import { buildIncrementalContext, changedFilesSince, findPreviousRun } from './incremental.ts'
 import { diffSha256, localBranchDiff, localBranchMeta } from './local-diff.ts'
 import { filterDiff, loadPathFilterConfig } from './path-filter.ts'
@@ -122,6 +123,20 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     return 0
   }
 
+  const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as { headRefOid: string }
+  const head = await resolvePrHead({
+    gitBin: deps.git,
+    repoPath,
+    prNumber: input.prNumber,
+    headRefOid: prJson.headRefOid,
+  })
+  if (!head.ok) {
+    await logLine(runDir, { stage: 'worktree', status: 'error', error: head.error })
+    process.stderr.write(`magpie: ${head.error}\n`)
+    await cleanup(runDir)
+    return 5
+  }
+
   let previous: { runId: string; runDir: string } | null
   try {
     previous = await detectIncrementalReview(runDir, deps.git, repoPath, input.prNumber)
@@ -133,13 +148,10 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     return 4
   }
 
-  const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as { headRefName: string }
-  const branch = prJson.headRefName
-
   const wt = await createWorktree({
     gitBin: deps.git,
     repoPath,
-    branch,
+    branch: head.sha,
     runDir: runDir,
   })
   if (!wt.ok) {

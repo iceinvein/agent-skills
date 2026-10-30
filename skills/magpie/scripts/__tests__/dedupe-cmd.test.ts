@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runDedupe } from '../dedupe-cmd.ts'
@@ -335,6 +335,25 @@ test('runDedupe names the (focus, shard) pairs that have no findings file', asyn
     expected: 10,
     missing: ['security.shard-2.json', 'bugs.shard-2.json'],
   })
+})
+
+test('runDedupe does not count a shard skipped at the gate as missing', async () => {
+  await writeManifest(2)
+  for (const focus of LLM_FOCUSES) {
+    await writeFile(
+      join(runDir, 'findings', `${focus}.shard-1.json`),
+      JSON.stringify([f(`${focus}-1`, 'a.ts', 1, `${focus} on shard 1`, focus)]),
+    )
+  }
+  await appendFile(
+    join(runDir, 'log.jsonl'),
+    `${JSON.stringify({ stage: 'shard-coverage', status: 'partial', reviewed: [1], skipped: [2] })}\n`,
+  )
+  const { exit, stdout } = await dedupeCapturingStdout()
+  expect(exit).toBe(0)
+  expect(stdout).not.toContain('missing')
+  const done = await dedupeLogEntry('done')
+  expect(done?.coverage).toEqual({ expected: 5, missing: [] })
 })
 
 test('a single-shard manifest expects the unsharded findings filenames', async () => {

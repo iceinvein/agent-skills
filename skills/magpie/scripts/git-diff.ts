@@ -14,8 +14,14 @@ async function git(
   gitBin: string,
   cwd: string,
   args: string[],
+  env?: Record<string, string>,
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
-  const proc = Bun.spawn([gitBin, ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  const proc = Bun.spawn([gitBin, ...args], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    ...(env ? { env: { ...process.env, ...env } } : {}),
+  })
   const stdout = await new Response(proc.stdout).text()
   const stderr = await new Response(proc.stderr).text()
   const exit = await proc.exited
@@ -49,31 +55,47 @@ function fetchDiagnostic(result: { exit: number; stderr: string }): string {
  * `gh pr diff`'s three-dot semantics: the PR's own changes, not every commit
  * the base branch gained since the branch point.
  */
-export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResult> {
-  const { gitBin, repoPath, prNumber, baseRefName, headRefOid } = input
+export type PrHeadInput = {
+  gitBin: string
+  repoPath: string
+  prNumber: number
+  headRefOid: string
+}
+
+/**
+ * The PR's head commit in the local clone, exactly `headRefOid`. The local
+ * branch named `headRefName` can be behind, ahead with unpushed commits, or
+ * absent on a fork PR, so it is never what gets reviewed.
+ */
+export async function resolvePrHead(
+  input: PrHeadInput,
+): Promise<{ ok: true; sha: string } | { ok: false; error: string }> {
+  const { gitBin, repoPath, prNumber, headRefOid } = input
   const prRef = `refs/magpie/pr-${prNumber}`
 
-  // Best effort. `pull/<n>/head` is a GitHub convention and resolves fork PRs
-  // that `headRefName` cannot, but a repo with no `origin`, an offline run, or
-  // a non-GitHub remote must still work when the commits are already local.
-  // Each fetch's own result is kept (not discarded) so, if resolution below
-  // still fails, the error can say why the fetch didn't help.
-  const headFetch = await git(gitBin, repoPath, [
-    'fetch',
-    'origin',
-    `pull/${prNumber}/head:${prRef}`,
-  ])
-  const baseFetch = await git(gitBin, repoPath, ['fetch', 'origin', baseRefName])
+  // Present, the SHA is the PR head by definition, so there is nothing to fetch
+  // and a stale ref from an earlier run does not matter.
+  const local = await resolveCommit(gitBin, repoPath, headRefOid)
+  if (local) return { ok: true, sha: local }
 
-  let head: string | null = null
-  for (const ref of [prRef, headRefOid]) {
-    head = await resolveCommit(gitBin, repoPath, ref)
-    if (head) break
-  }
+  // Best effort. `pull/<n>/head` is a GitHub convention and resolves fork PRs
+  // that `headRefName` cannot. The fetch's own result is kept (not discarded)
+  // so, if resolution below still fails, the error can say why the fetch didn't
+  // help. The `+` lets the ref follow a force-push; without it git keeps the head
+  // an earlier run fetched. No terminal prompt, so missing credentials fail
+  // instead of waiting on a tty nobody is watching.
+  const headFetch = await git(
+    gitBin,
+    repoPath,
+    ['fetch', 'origin', `+pull/${prNumber}/head:${prRef}`],
+    { GIT_TERMINAL_PROMPT: '0' },
+  )
+
+  const head = await resolveCommit(gitBin, repoPath, prRef)
   if (!head) {
     return {
       ok: false,
-      error: `cannot resolve PR head ${headRefOid} locally (tried ${prRef} and the SHA); fetch the PR branch and retry${fetchDiagnostic(headFetch)}`,
+      error: `cannot resolve PR head ${headRefOid} locally (tried the SHA and ${prRef}); run \`git fetch <remote> pull/${prNumber}/head\` from the remote that holds the PR, then retry${fetchDiagnostic(headFetch)}`,
     }
   }
   // Reviewing a stale local ref and reporting it as a review of the PR is worse
@@ -84,6 +106,15 @@ export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResul
       error: `local PR head ${head} does not match the PR head ${headRefOid}; the local ref is stale`,
     }
   }
+  return { ok: true, sha: head }
+}
+
+export async function localPrDiff(input: LocalDiffInput): Promise<LocalDiffResult> {
+  const { gitBin, repoPath, prNumber, baseRefName, headRefOid } = input
+  const resolved = await resolvePrHead({ gitBin, repoPath, prNumber, headRefOid })
+  if (!resolved.ok) return resolved
+  const head = resolved.sha
+  const baseFetch = await git(gitBin, repoPath, ['fetch', 'origin', baseRefName])
 
   let base: string | null = null
   for (const ref of [`origin/${baseRefName}`, baseRefName]) {

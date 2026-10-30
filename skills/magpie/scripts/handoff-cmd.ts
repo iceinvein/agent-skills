@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
 import { diffSha256, localBranchDiff } from './local-diff.ts'
 import { rankActionable } from './render-issues-list.ts'
+import { describeUnreviewed, readShardCoverage, type ShardCoverage } from './shard-coverage.ts'
 import { readTarget } from './target.ts'
 import { isSuggestion, parseFinding, type ReviewFinding, type Suggestion } from './types.ts'
 
@@ -16,6 +17,8 @@ export type FormatHandoffInput = {
   target: string
   findings: ReviewFinding[]
   stale: boolean
+  /** Shards skipped at the stage 4 gate; absent when every shard was reviewed. */
+  unreviewed?: ShardCoverage
 }
 
 /** A fence longer than any backtick run in the body, so the body cannot close it early. */
@@ -51,10 +54,14 @@ function formatItem(n: number, f: ReviewFinding): string {
 }
 
 export function formatHandoff(input: FormatHandoffInput): string {
-  const { target, findings, stale } = input
+  const { target, findings, stale, unreviewed } = input
   const header = [`# magpie local review: ${target}`]
   if (stale) {
     header.push('Warning: the tree changed since this review began; line anchors may be off.')
+  }
+  if (unreviewed) {
+    const files = unreviewed.skipped.flatMap((s) => s.files.map((f) => `- ${f}`))
+    header.push(`Warning: ${describeUnreviewed(unreviewed)}:`, ...files)
   }
   if (findings.length === 0) return `${header.join('\n')}\n\nNo findings.\n`
 
@@ -134,8 +141,14 @@ export async function runHandoff(runDir: string, opts: { gitBin?: string } = {})
   const stale = recorded === null || currentSha === null || currentSha !== recorded
 
   const subject = meta.branch === null ? 'detached HEAD' : `local branch ${meta.branch}`
+  const unreviewed = await readShardCoverage(runDir)
   process.stdout.write(
-    formatHandoff({ target: `${subject} against ${meta.baseRef}`, findings, stale }),
+    formatHandoff({
+      target: `${subject} against ${meta.baseRef}`,
+      findings,
+      stale,
+      ...(unreviewed ? { unreviewed } : {}),
+    }),
   )
   await logLine(runDir, { stage: 'handoff', status: 'done', findings: findings.length })
   return 0

@@ -394,6 +394,21 @@ test('findings header carries the previous-run line on a re-review', () => {
   expect(html).toContain('Last review: 3 posted · 2 on changed code · 1 on unchanged code')
 })
 
+test('findings header names the shards nobody reviewed, with their files on hover', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    unreviewed: { skipped: [{ id: 3, files: ['docs/d.md', 'src/<x>.ts'] }] },
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
+  expect(html).toContain(
+    '<span class="diff-source" title="docs/d.md, src/&lt;x&gt;.ts">Not reviewed: shard 3 (2 files)</span>',
+  )
+})
+
 test('findings header stays quiet when the diff came from gh', () => {
   const html = renderFindingsHtml({
     findings: [],

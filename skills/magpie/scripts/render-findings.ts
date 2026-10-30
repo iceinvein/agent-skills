@@ -7,6 +7,7 @@ import { renderActionBar } from './render-action-bar.ts'
 import { renderSplitDiff, renderUnifiedDiff } from './render-diff.ts'
 import { renderFileTree } from './render-file-tree.ts'
 import { renderIssuesList } from './render-issues-list.ts'
+import { describeUnreviewed, type ShardCoverage } from './shard-coverage.ts'
 import type { PostStatusMap, PrBrief, PrFileEntry, ReviewFinding } from './types.ts'
 
 export type { PostStatusEntry, PostStatusMap } from './types.ts'
@@ -67,6 +68,8 @@ export type RenderFindingsInput = {
   diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
   /** `describePreviousPosted` on a re-review; absent on a first run. */
   previousRun?: string
+  /** Shards skipped at the stage 4 gate; absent when every shard was reviewed. */
+  unreviewed?: ShardCoverage
 }
 
 function esc(s: string): string {
@@ -104,6 +107,9 @@ function prHeader(input: RenderFindingsInput): string {
   const previousNote = input.previousRun
     ? `<span class="diff-source" title="Changed code is not the same as fixed: the defect can survive an edit">${esc(input.previousRun)}</span>`
     : ''
+  const unreviewedNote = input.unreviewed
+    ? `<span class="diff-source" title="${esc(input.unreviewed.skipped.flatMap((s) => s.files).join(', '))}">${esc(describeUnreviewed(input.unreviewed))}</span>`
+    : ''
   const prMeta = pr
     ? `<div class="pr-meta">
         <span class="pr-number">PR #${pr.number}</span>
@@ -111,8 +117,9 @@ function prHeader(input: RenderFindingsInput): string {
         <code>${esc(pr.headSha.slice(0, 12))}</code>
         ${diffNote}
         ${previousNote}
+        ${unreviewedNote}
       </div>`
-    : `<div class="pr-meta">${diffNote}${previousNote}</div>`
+    : `<div class="pr-meta">${diffNote}${previousNote}${unreviewedNote}</div>`
   const total = input.findings.length
   return `<header class="pr-header">
     ${brandBlock()}

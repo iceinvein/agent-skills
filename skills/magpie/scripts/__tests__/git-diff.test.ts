@@ -60,7 +60,7 @@ test('localPrDiff errors when the base branch is not present locally', async () 
   expect(result.error).toContain('cannot resolve base branch')
 })
 
-test('localPrDiff errors when a stale refs/magpie/pr-<n> ref points at an older commit', async () => {
+test('localPrDiff uses the PR head SHA when it is local, whatever a stale refs/magpie/pr-<n> says', async () => {
   const { repoPath, head } = await createGitFixtureRepo()
   repo = repoPath
   // Simulate a previous run's fetch having landed an older commit under the
@@ -75,9 +75,28 @@ test('localPrDiff errors when a stale refs/magpie/pr-<n> ref points at an older 
     baseRefName: 'main',
     headRefOid: head,
   })
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.mergeBase).toBe(staleSha)
+  expect(result.diff).toContain('+export const x = 2')
+})
+
+test('localPrDiff errors when the PR head SHA is missing and refs/magpie/pr-<n> points elsewhere', async () => {
+  const { repoPath, head } = await createGitFixtureRepo()
+  repo = repoPath
+  const staleSha = await git(repoPath, 'rev-parse', `${head}~1`)
+  await git(repoPath, 'update-ref', 'refs/magpie/pr-7', staleSha)
+  const missing = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+  const result = await localPrDiff({
+    gitBin: 'git',
+    repoPath,
+    prNumber: 7,
+    baseRefName: 'main',
+    headRefOid: missing,
+  })
   expect(result.ok).toBe(false)
   if (result.ok) return
-  expect(result.error).toContain('stale')
-  expect(result.error).toContain(staleSha)
-  expect(result.error).toContain(head)
+  expect(result.error).toBe(
+    `local PR head ${staleSha} does not match the PR head ${missing}; the local ref is stale`,
+  )
 })
