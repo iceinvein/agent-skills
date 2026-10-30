@@ -8,6 +8,7 @@ import {
   extractDiffNames,
   type GrepHit,
   type GrepPlan,
+  type ImpactRef,
   parseGrepOutput,
   planSearches,
 } from '../impact.ts'
@@ -198,6 +199,44 @@ describe('extractDiffNames: uses, stores, routes', () => {
   test('a Python from-import yields no store', () => {
     const diff = fileDiff('src/q.py', '@@ -1,0 +1,1 @@\n+from report_tools import build\n')
     expect(extractDiffNames(diff).stores).toEqual([])
+  })
+
+  function storesOnAddedLine(file: string, line: string): DiffNames['stores'] {
+    return extractDiffNames(fileDiff(file, `@@ -1,0 +1,1 @@\n+${line}\n`)).stores
+  }
+
+  test('English "read from" inside an error message yields no store', () => {
+    expect(storesOnAddedLine('src/a.ts', 'throw new Error("could not read from disk")')).toEqual([])
+  })
+
+  test('English "update" inside a toast message yields no store', () => {
+    expect(storesOnAddedLine('src/a.ts', 'toast("Please update your password")')).toEqual([])
+  })
+
+  test('English "from" inside a template literal yields no store', () => {
+    expect(storesOnAddedLine('src/a.ts', 'log(`Loaded items from cache`)')).toEqual([])
+  })
+
+  test('a Python import naming SQL verbs yields no store', () => {
+    expect(storesOnAddedLine('app/db.py', 'from sqlalchemy import select, update')).toEqual([])
+  })
+
+  test('a lowercase insert statement in a string yields its table', () => {
+    expect(
+      storesOnAddedLine('src/db.rs', 'sqlx::query("insert into report_locks (id) values ($1)")'),
+    ).toEqual([{ name: 'report_locks', kind: 'table', file: 'src/db.rs', line: 1 }])
+  })
+
+  test('an uppercase SELECT in a string yields its table', () => {
+    expect(storesOnAddedLine('src/db.ts', 'db.query("SELECT id FROM report_locks")')).toEqual([
+      { name: 'report_locks', kind: 'table', file: 'src/db.ts', line: 1 },
+    ])
+  })
+
+  test('a lowercase statement in a .sql file yields its table', () => {
+    expect(storesOnAddedLine('db/up.sql', 'delete from report_locks where id = 1;')).toEqual([
+      { name: 'report_locks', kind: 'table', file: 'db/up.sql', line: 1 },
+    ])
   })
 
   test('addedLines records the new-side numbers of added lines only', () => {
@@ -505,6 +544,43 @@ describe('buildImpactMap', () => {
     expect(map.stores[0]?.writers).toEqual([
       { file: 'src/w.py', line: 5, text: 'cur.execute("delete from report_locks")' },
     ])
+  })
+
+  function tableWriters(writerHits: GrepHit[]): ImpactRef[] | undefined {
+    const names = noNames()
+    names.stores = [{ name: 'report_locks', kind: 'table', file: 'src/q.py', line: 1 }]
+    const hits = noHits()
+    hits.writers = writerHits
+    return buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll }).stores[0]?.writers
+  }
+
+  test('a comment mentioning an update of the table is not a writer', () => {
+    expect(
+      tableWriters([
+        { file: 'src/job.ts', line: 3, text: '// we update report_locks nightly', indented: true },
+      ]),
+    ).toEqual([])
+  })
+
+  test('a markdown line is not a writer', () => {
+    expect(
+      tableWriters([
+        { file: 'docs/ops.md', line: 2, text: 'UPDATE report_locks SET owner', indented: false },
+      ]),
+    ).toEqual([])
+  })
+
+  test('an UPDATE statement in a .sql file is a writer', () => {
+    expect(
+      tableWriters([
+        {
+          file: 'db/fix.sql',
+          line: 1,
+          text: 'UPDATE report_locks SET owner = 1;',
+          indented: false,
+        },
+      ]),
+    ).toEqual([{ file: 'db/fix.sql', line: 1, text: 'UPDATE report_locks SET owner = 1;' }])
   })
 
   test('docs list markdown lines with the changed names they mention', () => {

@@ -209,17 +209,38 @@ function tableCalls(text: string): string[] {
   )
 }
 
-function insideStringLiteral(text: string, index: number): boolean {
+const PYTHON_IMPORT = /^\s*from\s+\S+\s+import(?![A-Za-z0-9_])/
+const SQL_START = /^\s*(?:select|insert|update|delete|replace|with)(?![A-Za-z0-9_])/i
+
+// The content of the string literal open at `index`, from its opening quote,
+// or null when `index` is outside any literal.
+function openLiteral(text: string, index: number): string | null {
   const before = text.slice(0, index)
-  return ['"', "'", '`'].some((q) => before.split(q).length % 2 === 0)
+  let open = -1
+  for (const q of ['"', "'", '`']) {
+    if (before.split(q).length % 2 === 0) open = Math.max(open, before.lastIndexOf(q))
+  }
+  return open < 0 ? null : text.slice(open + 1)
 }
 
-// Without SQL context, `from x import y` in Python would read as a table.
-function sqlTables(text: string): string[] {
+// Lowercase `from`, `update` and the rest are everyday English, so they count
+// only in a literal that reads as SQL, or in a .sql file. Uppercase ones are
+// trusted with any SQL context on the line.
+function sqlTables(file: string, text: string): string[] {
+  if (PYTHON_IMPORT.test(text)) return []
   const sqlLine = SQL_VERB.test(text)
-  return [...text.matchAll(TABLE_SQL)].flatMap((m) =>
-    m[1] && (sqlLine || insideStringLiteral(text, m.index)) ? [m[1]] : [],
-  )
+  return [...text.matchAll(TABLE_SQL)].flatMap((m) => {
+    if (!m[1]) return []
+    const keyword = m[0].slice(0, m[0].search(/\s/))
+    const literal = openLiteral(text, m.index)
+    const counts =
+      keyword === keyword.toUpperCase()
+        ? sqlLine || literal !== null
+        : literal !== null
+          ? SQL_START.test(literal)
+          : extname(file) === '.sql' && sqlLine
+    return counts ? [m[1]] : []
+  })
 }
 
 function routePrefix(path: string): string {
@@ -281,7 +302,7 @@ export function extractDiffNames(diff: string): DiffNames {
         for (const name of captures(CALL, l.content)) {
           if (!CALL_KEYWORDS.includes(name)) calls.push({ name, file, line })
         }
-        const tables = [...tableCalls(l.content), ...sqlTables(l.content)]
+        const tables = [...tableCalls(l.content), ...sqlTables(file, l.content)]
         for (const name of new Set(tables)) {
           if (isSearchableName(name)) stores.push({ name, kind: 'table', file, line })
         }
@@ -365,15 +386,17 @@ function writerSqlEre(table: string): string {
   return `(insert[[:space:]]+into|replace[[:space:]]+into|delete[[:space:]]+from|update)[[:space:]]+["\`]?${table}${ERE_END}`
 }
 
-function writerRegexes(table: string): RegExp[] {
+const COMMENT_START = /^(?:\/\/|#|\*|\/\*|--)/
+
+function isTableWriter(table: string, text: string): boolean {
   const t = escapeRegex(table)
-  return [
-    new RegExp(`\\.(?:insert|update|delete|into)\\(\\s*["'\`]?${t}(?![A-Za-z0-9_])`),
-    new RegExp(
-      `(?:INSERT\\s+INTO|REPLACE\\s+INTO|DELETE\\s+FROM|UPDATE)\\s+["\`]?${t}(?![A-Za-z0-9_])`,
-      'i',
-    ),
-  ]
+  const call = new RegExp(`\\.(?:insert|update|delete|into)\\(\\s*["'\`]?${t}(?![A-Za-z0-9_])`)
+  const sql = new RegExp(
+    `(?:INSERT\\s+INTO|REPLACE\\s+INTO|DELETE\\s+FROM|UPDATE)\\s+["\`]?${t}(?![A-Za-z0-9_])`,
+    'i',
+  )
+  // A case-insensitive verb in a comment is prose about the table, not a write.
+  return call.test(text) || (sql.test(text) && !COMMENT_START.test(text))
 }
 
 function patternArgs(patterns: string[]): string[] {
@@ -494,7 +517,7 @@ export function buildImpactMap(input: {
     })
   }
 
-  const writers = outside(hits.writers)
+  const writers = outside(hits.writers).filter((h) => !isDoc(h.file))
   const stores: ImpactStore[] = []
   const storeIndex = new Map<string, ImpactStore>()
   for (const s of names.stores) {
@@ -506,7 +529,7 @@ export function buildImpactMap(input: {
     const matches =
       s.kind === 'file'
         ? (h: GrepHit) => h.text.includes(s.name)
-        : (h: GrepHit) => writerRegexes(s.name).some((re) => re.test(h.text))
+        : (h: GrepHit) => isTableWriter(s.name, h.text)
     const store: ImpactStore = {
       name: s.name,
       kind: s.kind,
