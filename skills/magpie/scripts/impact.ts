@@ -118,11 +118,13 @@ export type DiffNames = {
 // `indented` survives trimming because a column-0 TS `const` is a module
 // definition while an indented one is a local.
 export type GrepHit = { file: string; line: number; text: string; indented: boolean }
-// `args` is the argv after `git`, starting `-c core.quotePath=false grep -n`:
-// quoted non-ASCII paths would never match the diff's paths.
+// `args` is the argv after `git`, starting `-c core.quotePath=false grep`:
+// quoted non-ASCII paths would never match the diff's paths. `patterns` are
+// fixed strings for `-f -`, one per line on stdin.
 export type GrepPlan = {
   kind: 'references' | 'definitions' | 'writers' | 'routes' | 'docs'
   args: string[]
+  patterns: string[]
 }
 
 const IDENT = '[A-Za-z_][A-Za-z0-9_]*'
@@ -371,27 +373,6 @@ export function parseGrepOutput(out: string): GrepHit[] {
   return hits
 }
 
-// POSIX ERE for git grep -E: this git's `\b` silently matched nothing.
-const ERE_END = '([^[:alnum:]_]|$)'
-const ERE_START = '(^|[^[:alnum:]_])'
-
-function definitionEre(name: string): string[] {
-  return [
-    `${ERE_START}(function|class|interface|type|enum|const|let|var|fn|struct|trait|static|def|func)[[:space:]]+${name}${ERE_END}`,
-    `${ERE_START}func[[:space:]]*\\([^)]*\\)[[:space:]]*${name}\\(`,
-    `${ERE_START}${name}[[:space:]]*\\(\\)`,
-  ]
-}
-
-function writerCallEre(table: string): string {
-  return `(insert|update|delete|into)\\([[:space:]]*["'\`]?${table}${ERE_END}`
-}
-
-// Run with -i: SQL keywords appear in either case.
-function writerSqlEre(table: string): string {
-  return `(insert[[:space:]]+into|replace[[:space:]]+into|delete[[:space:]]+from|update)[[:space:]]+["\`]?${table}${ERE_END}`
-}
-
 const COMMENT_START = /^(?:\/\/|#|\*|\/\*|--)/
 
 function isTableWriter(table: string, text: string): boolean {
@@ -405,10 +386,6 @@ function isTableWriter(table: string, text: string): boolean {
   return call.test(text) || (sql.test(text) && !COMMENT_START.test(text))
 }
 
-function patternArgs(patterns: string[]): string[] {
-  return patterns.flatMap((p) => ['-e', p])
-}
-
 function unique(values: string[]): string[] {
   return [...new Set(values)]
 }
@@ -417,48 +394,51 @@ function changedBasenames(names: DiffNames): string[] {
   return unique(names.changedFiles.filter((f) => !isDoc(f)).map((f) => basename(f)))
 }
 
-const GREP = ['-c', 'core.quotePath=false', 'grep']
+// Fixed strings read from stdin: thousands of names stay under ARG_MAX, and
+// -F matching is fast where ERE alternations ran for minutes. The shape checks
+// a regex would have made run in buildImpactMap instead.
+const GREP = ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F']
+const WORDS = [...GREP, '-w']
+const STDIN = ['-f', '-']
+// git grep checks every pattern on every line once it has more than one, so a
+// search's time grows with its pattern count. On a 4000-file repo, 50 names
+// took 4.9s as one search, 2.2s as 50 searches and 0.9s as ten searches of five.
+const GREP_BATCH = 5
 
 export function planSearches(names: DiffNames): GrepPlan[] {
   const plans: GrepPlan[] = []
+  const add = (plan: GrepPlan): void => {
+    for (let i = 0; i < plan.patterns.length; i += GREP_BATCH) {
+      plans.push({ ...plan, patterns: plan.patterns.slice(i, i + GREP_BATCH) })
+    }
+  }
   const definedNames = unique(names.defined.map((d) => d.name))
   if (definedNames.length > 0) {
-    plans.push({
-      kind: 'references',
-      args: [...GREP, '-n', '-I', '-w', '-F', ...patternArgs(definedNames)],
-    })
+    add({ kind: 'references', args: [...WORDS, ...STDIN], patterns: definedNames })
   }
   const usedNames = unique(names.used.map((u) => u.name))
   if (usedNames.length > 0) {
-    plans.push({
-      kind: 'definitions',
-      args: [...GREP, '-n', '-I', '-E', ...patternArgs(usedNames.flatMap(definitionEre))],
-    })
+    add({ kind: 'definitions', args: [...WORDS, ...STDIN], patterns: usedNames })
   }
   const tables = unique(names.stores.filter((s) => s.kind === 'table').map((s) => s.name))
   if (tables.length > 0) {
-    plans.push({
-      kind: 'writers',
-      args: [...GREP, '-n', '-I', '-E', ...patternArgs(tables.map(writerCallEre))],
-    })
-    plans.push({
-      kind: 'writers',
-      args: [...GREP, '-n', '-I', '-i', '-E', ...patternArgs(tables.map(writerSqlEre))],
-    })
+    // -i because SQL verbs and table names appear in either case.
+    add({ kind: 'writers', args: [...WORDS, '-i', ...STDIN], patterns: tables })
   }
   const files = unique(names.stores.filter((s) => s.kind === 'file').map((s) => s.name))
   if (files.length > 0) {
-    plans.push({ kind: 'writers', args: [...GREP, '-n', '-I', '-F', ...patternArgs(files)] })
+    add({ kind: 'writers', args: [...GREP, ...STDIN], patterns: files })
   }
   const prefixes = unique(names.routes.map((r) => routePrefix(r.path)))
   if (prefixes.length > 0) {
-    plans.push({ kind: 'routes', args: [...GREP, '-n', '-I', '-F', ...patternArgs(prefixes)] })
+    add({ kind: 'routes', args: [...GREP, ...STDIN], patterns: prefixes })
   }
   const mentions = unique([...definedNames, ...changedBasenames(names)])
   if (mentions.length > 0) {
-    plans.push({
+    add({
       kind: 'docs',
-      args: [...GREP, '-n', '-I', '-w', '-F', ...patternArgs(mentions), '--', '*.md', '*.mdx'],
+      args: [...WORDS, ...STDIN, '--', '*.md', '*.mdx'],
+      patterns: mentions,
     })
   }
   return plans
@@ -476,10 +456,18 @@ export function buildImpactMap(input: {
   excluded: (file: string) => boolean
 }): ImpactMap {
   const { names, hits, shardOf, excluded } = input
-  const outside = (list: GrepHit[]): GrepHit[] =>
-    list
-      .filter((h) => !excluded(h.file) && !names.addedLines.get(h.file)?.has(h.line))
+  // Batched searches return a line once per batch whose names it holds.
+  const outside = (list: GrepHit[]): GrepHit[] => {
+    const seen = new Set<string>()
+    return list
+      .filter((h) => {
+        const key = `${h.file}:${h.line}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return !excluded(h.file) && !names.addedLines.get(h.file)?.has(h.line)
+      })
       .sort(byFileThenLine)
+  }
   const ref = (h: GrepHit): ImpactRef => ({ file: h.file, line: h.line, text: h.text })
 
   const references = outside(hits.references)
@@ -506,14 +494,20 @@ export function buildImpactMap(input: {
     symbols.push(symbol)
   }
 
-  const definitions = outside(hits.definitions)
+  // Indexed once: a definitions search returns every line naming a used name,
+  // and only the lines shaped as a definition of it count.
+  const definedBy = new Map<string, ImpactRef[]>()
+  for (const h of outside(hits.definitions)) {
+    // The leading space restores the indentation the column-0 TS rule reads.
+    for (const name of new Set(definedNamesIn(h.file, h.indented ? ` ${h.text}` : h.text))) {
+      const list = definedBy.get(name)
+      if (list) list.push(ref(h))
+      else definedBy.set(name, [ref(h)])
+    }
+  }
   const uses: ImpactUse[] = []
   for (const u of names.used) {
-    const definedAt = definitions
-      // The leading space restores the indentation the column-0 TS rule reads.
-      .filter((h) => definedNamesIn(h.file, h.indented ? ` ${h.text}` : h.text).includes(u.name))
-      .slice(0, MAX_REFS_PER_NAME)
-      .map(ref)
+    const definedAt = (definedBy.get(u.name) ?? []).slice(0, MAX_REFS_PER_NAME)
     if (definedAt.length === 0) continue
     uses.push({
       name: u.name,

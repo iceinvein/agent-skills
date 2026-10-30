@@ -1,5 +1,5 @@
 import { appendFile, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   buildImpactMap,
   extractDiffNames,
@@ -17,7 +17,7 @@ import {
 } from './impact-render.ts'
 import { loadPathFilterConfig, matchesAny, type PathFilterConfig } from './path-filter.ts'
 import type { ShardEntry } from './shard.ts'
-import { reviewRoot } from './target.ts'
+import { type ReviewTarget, readTarget } from './target.ts'
 
 const IMPACT_FILE = /^impact(?:\.brief)?\.md$|^impact\.json$|^impact\.shard-.*\.md$/
 
@@ -41,7 +41,12 @@ async function readDiff(runDir: string): Promise<string> {
 
 // git grep exits 1 when nothing matches, which is an empty result, not a failure.
 async function runGrep(root: string, plan: GrepPlan): Promise<GrepHit[]> {
-  const proc = Bun.spawn(['git', ...plan.args], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+  const proc = Bun.spawn(['git', ...plan.args], {
+    cwd: root,
+    stdin: new TextEncoder().encode(`${plan.patterns.join('\n')}\n`),
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   const [out, err, exit] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -103,9 +108,29 @@ async function writeRenders(runDir: string, map: ImpactMap, prefix: string, shar
   )
 }
 
-async function buildMap(runDir: string, root: string, shards: ShardEntry[]): Promise<ImpactMap> {
+// setup reads .magpie.json from the user's checkout. A PR run's root is a worktree
+// at the PR head, so the checkout is the one owning the shared git dir.
+async function configDir(target: ReviewTarget): Promise<string> {
+  if (target.mode === 'local') return target.root
+  const args = ['rev-parse', '--path-format=absolute', '--git-common-dir']
+  const proc = Bun.spawn(['git', ...args], { cwd: target.root, stdout: 'pipe', stderr: 'pipe' })
+  const [out, err, exit] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  if (exit !== 0) throw new Error(`git ${args.join(' ')} exited ${exit}: ${err.trim()}`)
+  return dirname(out.trim())
+}
+
+async function buildMap(
+  runDir: string,
+  target: ReviewTarget,
+  shards: ShardEntry[],
+): Promise<ImpactMap> {
+  const root = target.root
   const names = extractDiffNames(await readDiff(runDir))
-  const config = await loadPathFilterConfig(root)
+  const config = await loadPathFilterConfig(await configDir(target))
   const hits: Record<GrepPlan['kind'], GrepHit[]> = {
     references: [],
     definitions: [],
@@ -131,9 +156,9 @@ export async function runImpact(runDir: string): Promise<number> {
     process.stderr.write(`impact: no such run directory: ${runDir}\n`)
     return 2
   }
-  let root: string
+  let target: ReviewTarget
   try {
-    root = await reviewRoot(runDir)
+    target = await readTarget(runDir)
   } catch (err) {
     process.stderr.write(`impact: ${err instanceof Error ? err.message : String(err)}\n`)
     return 2
@@ -143,7 +168,7 @@ export async function runImpact(runDir: string): Promise<number> {
     // Cleared before the search so a skipped re-run leaves no map from an older diff.
     await removeImpactFiles(runDir)
     const shards = await readShards(runDir)
-    const map = await buildMap(runDir, root, shards)
+    const map = await buildMap(runDir, target, shards)
     await writeFile(join(runDir, 'impact.json'), `${JSON.stringify(map, null, 2)}\n`)
     await writeRenders(runDir, map, 'impact', null)
     if (shards.length > 1) {

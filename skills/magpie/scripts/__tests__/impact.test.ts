@@ -290,25 +290,44 @@ describe('parseGrepOutput', () => {
 })
 
 describe('planSearches', () => {
-  test('references search each defined name as a whole fixed word', () => {
+  test('references search each defined name as a whole fixed word read from stdin', () => {
     const names = noNames()
     names.defined = [
       { name: 'scheduleJob', kind: 'added', file: 'src/a.ts', line: 1 },
       { name: 'JobRunner', kind: 'removed', file: 'src/a.ts', line: 9 },
     ]
     const refs = planSearches(names).find((p) => p.kind === 'references')
-    expect(refs?.args).toEqual([
-      '-c',
-      'core.quotePath=false',
-      'grep',
-      '-n',
-      '-I',
-      '-w',
-      '-F',
-      '-e',
-      'scheduleJob',
-      '-e',
-      'JobRunner',
+    expect(refs).toEqual({
+      kind: 'references',
+      args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-w', '-f', '-'],
+      patterns: ['scheduleJob', 'JobRunner'],
+    })
+  })
+
+  test('used names are searched as whole fixed words, not definition regexes', () => {
+    const names = noNames()
+    names.used = [{ name: 'verifyToken', file: 'src/a.ts', line: 2 }]
+    expect(planSearches(names)).toEqual([
+      {
+        kind: 'definitions',
+        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-w', '-f', '-'],
+        patterns: ['verifyToken'],
+      },
+    ])
+  })
+
+  test('table names are one case-insensitive whole-word search', () => {
+    const names = noNames()
+    names.stores = [
+      { name: 'report_locks', kind: 'table', file: 'src/a.ts', line: 3 },
+      { name: 'asset_salts', kind: 'table', file: 'src/a.ts', line: 4 },
+    ]
+    expect(planSearches(names)).toEqual([
+      {
+        kind: 'writers',
+        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-w', '-i', '-f', '-'],
+        patterns: ['report_locks', 'asset_salts'],
+      },
     ])
   })
 
@@ -319,8 +338,60 @@ describe('planSearches', () => {
     expect(writers).toEqual([
       {
         kind: 'writers',
-        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-e', 'history.db'],
+        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-f', '-'],
+        patterns: ['history.db'],
       },
+    ])
+  })
+
+  test('route prefixes are searched as fixed strings without -w', () => {
+    const names = noNames()
+    names.routes = [{ path: '/api/verify/x', file: 'src/r.ts', line: 1 }]
+    expect(planSearches(names)).toEqual([
+      {
+        kind: 'routes',
+        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-f', '-'],
+        patterns: ['/api/verify'],
+      },
+    ])
+  })
+
+  test('docs search names and changed basenames as whole words in markdown only', () => {
+    const names = noNames()
+    names.changedFiles = ['src/jobs.ts']
+    expect(planSearches(names)).toEqual([
+      {
+        kind: 'docs',
+        args: [
+          '-c',
+          'core.quotePath=false',
+          'grep',
+          '-n',
+          '-I',
+          '-F',
+          '-w',
+          '-f',
+          '-',
+          '--',
+          '*.md',
+          '*.mdx',
+        ],
+        patterns: ['jobs.ts'],
+      },
+    ])
+  })
+
+  test('more than five names are split into searches of at most five', () => {
+    const names = noNames()
+    names.used = Array.from({ length: 12 }, (_, i) => ({
+      name: `helper${i}`,
+      file: 'src/a.ts',
+      line: i + 1,
+    }))
+    expect(planSearches(names).map((p) => [p.kind, p.patterns])).toEqual([
+      ['definitions', ['helper0', 'helper1', 'helper2', 'helper3', 'helper4']],
+      ['definitions', ['helper5', 'helper6', 'helper7', 'helper8', 'helper9']],
+      ['definitions', ['helper10', 'helper11']],
     ])
   })
 
@@ -385,6 +456,22 @@ describe('buildImpactMap', () => {
     })
     expect(map.symbols[0]?.references).toEqual([
       { file: 'src/cron.ts', line: 2, text: 'scheduleJob(b)' },
+    ])
+  })
+
+  test('a line returned by two searches counts once', () => {
+    const hit = {
+      file: 'src/a.ts',
+      line: 7,
+      text: 'scheduleJob(rotateKeys())',
+      indented: true,
+    }
+    const hits = noHits()
+    hits.references = [hit, { ...hit }]
+    const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
+    expect(map.symbols[0]?.hits).toBe(1)
+    expect(map.symbols[0]?.references).toEqual([
+      { file: 'src/a.ts', line: 7, text: 'scheduleJob(rotateKeys())' },
     ])
   })
 
@@ -554,6 +641,14 @@ describe('buildImpactMap', () => {
     return buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll }).stores[0]?.writers
   }
 
+  test('a line that only reads the table is not a writer', () => {
+    expect(
+      tableWriters([
+        { file: 'src/q.ts', line: 3, text: 'db.select().from(report_locks)', indented: true },
+      ]),
+    ).toEqual([])
+  })
+
   test('a comment mentioning an update of the table is not a writer', () => {
     expect(
       tableWriters([
@@ -675,8 +770,13 @@ new file mode 100644
 +}
 `
 
-  async function gitIn(cwd: string, args: string[]): Promise<string> {
-    const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+  async function gitIn(cwd: string, args: string[], stdin = ''): Promise<string> {
+    const proc = Bun.spawn(['git', ...args], {
+      cwd,
+      stdin: new TextEncoder().encode(stdin),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
     const [out, err, code] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
@@ -701,7 +801,9 @@ new file mode 100644
       const names = extractDiffNames(DIFF)
       const hits = noHits()
       for (const plan of planSearches(names)) {
-        hits[plan.kind].push(...parseGrepOutput(await gitIn(repo, plan.args)))
+        hits[plan.kind].push(
+          ...parseGrepOutput(await gitIn(repo, plan.args, `${plan.patterns.join('\n')}\n`)),
+        )
       }
       const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
 

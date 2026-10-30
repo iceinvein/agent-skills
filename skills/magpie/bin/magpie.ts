@@ -287,11 +287,12 @@ const HANDLERS: Record<string, Handler> = {
       `${manifest.shards.length} shard(s), ${manifest.totalFiles} files, ${manifest.totalLines} patch lines\n`,
     )
     // The impact map's per-shard files name shard ids, which the re-split just renumbered.
+    // runImpact reports its own outcome; the split itself has already succeeded.
     const { existsSync } = await import('node:fs')
     const { join } = await import('node:path')
     if (existsSync(join(runDir, 'impact.json'))) {
       const { runImpact } = await import('../scripts/impact-cmd.ts')
-      return runImpact(runDir)
+      await runImpact(runDir)
     }
     return 0
   },

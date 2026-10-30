@@ -81,16 +81,21 @@ async function tempDir(prefix: string): Promise<string> {
   return dir
 }
 
+async function buildRepo(): Promise<string> {
+  const root = await tempDir('magpie-impact-repo-')
+  await git(root, 'init', '-b', 'main')
+  await git(root, 'config', 'user.email', 'test@example.com')
+  await git(root, 'config', 'user.name', 'Test')
+  await writeFiles(root, BASE_FILES)
+  await git(root, 'add', '.')
+  await git(root, 'commit', '-m', 'base')
+  await writeFiles(root, HEAD_FILES)
+  await git(root, 'commit', '-am', 'change')
+  return root
+}
+
 beforeAll(async () => {
-  repo = await tempDir('magpie-impact-repo-')
-  await git(repo, 'init', '-b', 'main')
-  await git(repo, 'config', 'user.email', 'test@example.com')
-  await git(repo, 'config', 'user.name', 'Test')
-  await writeFiles(repo, BASE_FILES)
-  await git(repo, 'add', '.')
-  await git(repo, 'commit', '-m', 'base')
-  await writeFiles(repo, HEAD_FILES)
-  await git(repo, 'commit', '-am', 'change')
+  repo = await buildRepo()
   diff = `${await git(repo, 'diff', 'HEAD~1', 'HEAD')}\n`
 })
 
@@ -109,10 +114,10 @@ const TWO_SHARDS = {
   ],
 }
 
-async function makeRunDir(root: string): Promise<string> {
+async function makeRunDir(root: string, mode: 'pr' | 'local' = 'pr'): Promise<string> {
   const dir = await tempDir('magpie-impact-run-')
   await writeFile(join(dir, 'diff.patch'), diff)
-  await writeFile(join(dir, 'target.json'), JSON.stringify({ mode: 'pr', root }))
+  await writeFile(join(dir, 'target.json'), JSON.stringify({ mode, root }))
   await mkdir(join(dir, 'shards'))
   await writeFile(join(dir, 'shards', 'manifest.json'), JSON.stringify(TWO_SHARDS))
   await writeFile(join(dir, 'log.jsonl'), `${JSON.stringify({ stage: 'setup', status: 'done' })}\n`)
@@ -313,6 +318,46 @@ describe('runImpact on a sharded PR run', () => {
     ])
     expect(await readFile(join(runDir, 'impact.shard-2.md'), 'utf8')).toBe(REPORT_SHARD_MD)
     expect(await readFile(join(runDir, 'impact.shard-3.md'), 'utf8')).toBe(ROUTES_MD)
+  })
+})
+
+describe('magpie shard', () => {
+  test('a successful split exits 0 even when the impact re-run cannot start', async () => {
+    // No target.json and no log.jsonl: runImpact rejects the dir, the split does not care.
+    const dir = await tempDir('magpie-impact-shard-')
+    await writeFile(join(dir, 'diff.patch'), diff)
+    await writeFile(join(dir, 'impact.json'), '{}')
+    const proc = Bun.spawn(['bun', CLI, 'shard', dir], { stdout: 'pipe', stderr: 'pipe' })
+    expect(await proc.exited).toBe(0)
+  })
+})
+
+describe('runImpact path filter config', () => {
+  // Only dist/ is admitted, so the one listed reference is the default-excluded build output.
+  const DIST_ONLY = JSON.stringify({ include: ['dist/**'] })
+
+  async function referencesIn(dir: string): Promise<unknown> {
+    expect(await runImpact(dir)).toBe(0)
+    const map = JSON.parse(await readFile(join(dir, 'impact.json'), 'utf8'))
+    return map.symbols[0].references
+  }
+
+  test('an include pattern re-admits a default-excluded path', async () => {
+    const root = await buildRepo()
+    await writeFile(join(root, '.magpie.json'), DIST_ONLY)
+    expect(await referencesIn(await makeRunDir(root, 'local'))).toEqual([
+      { file: 'dist/bundle.js', line: 1, text: 'sealReport(x)' },
+    ])
+  })
+
+  test('a PR run reads .magpie.json from the main checkout, not the PR worktree', async () => {
+    const root = await buildRepo()
+    await writeFile(join(root, '.magpie.json'), DIST_ONLY)
+    const worktree = join(await tempDir('magpie-impact-wt-'), 'head')
+    await git(root, 'worktree', 'add', '--detach', worktree, 'HEAD')
+    expect(await referencesIn(await makeRunDir(worktree))).toEqual([
+      { file: 'dist/bundle.js', line: 1, text: 'sealReport(x)' },
+    ])
   })
 })
 
