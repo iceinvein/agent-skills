@@ -398,8 +398,6 @@ For each potential smell:
 
 Do not flag formatting, naming, or stylistic preference unless it is evidence of a deeper maintainability problem. Avoid duplicating bug, security, or performance findings unless the primary issue is the maintainability smell behind them.
 
-Report at most 3 findings for the scope your run header names, strongest first. If you have more candidates, keep the three whose breaking change is nearest and most concrete and drop the rest.
-
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
 
@@ -463,8 +461,6 @@ Boundary with Code Smells: focus on module boundaries, public contracts, ownersh
 Boundary with Security: flag validation gaps as design/contract issues (where validation belongs, which boundary should enforce it). Leave exploitability assessment to Security.
 
 Focus on design decisions introduced or materially worsened by this PR that affect the long-term health of the codebase. Don't flag things that are "technically impure" but work well in practice.
-
-Report at most 3 findings for the scope your run header names, strongest first. If you have more candidates, keep the three whose breaking change is nearest and most concrete and drop the rest.
 
 Use the JSON schema defined in the orchestrator's `## Output Contract` block; do not invent fields.
 ```
