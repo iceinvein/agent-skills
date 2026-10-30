@@ -55,6 +55,7 @@ const TEMPLATE_DOC = [
   'Candidates: <<CANDIDATES>>',
   'Groups: <<MERGE_CANDIDATES>>',
   'Rules: <<REVIEW_RULES>>',
+  'Raised: <<ALREADY_RAISED>>',
   'Worktree: <<WORKTREE>>',
   'Diff: <<DIFF_PATH>>',
   'Write to: <<OUTPUT_PATH>>',
@@ -88,6 +89,51 @@ test('critic-prompt writes the prompt file from the magpie-critic block and prin
   expect(prompt).toContain(`Worktree: ${join(runDir, 'worktree')}\n`)
   expect(prompt).toContain(`Diff: ${join(runDir, 'diff.patch')}\n`)
   expect(prompt).toContain(`Write to: ${outputPath}`)
+})
+
+test('critic-prompt fills <<ALREADY_RAISED>> from the PR activity and previous dismissals', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+  await writeFile(
+    join(runDir, 'pr-activity.json'),
+    JSON.stringify({
+      checks: [{ name: 'build', conclusion: 'FAILURE', url: null }],
+      threads: [
+        {
+          file: 'src/a.ts',
+          line: 10,
+          resolved: false,
+          outdated: false,
+          author: 'dave',
+          body: 'Off by one here.',
+          replies: 0,
+          magpie: false,
+        },
+      ],
+      comments: [],
+    }),
+  )
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain(
+    'Raised: Open review threads:\n- src/a.ts:10 (dave, 0 replies): Off by one here.\nWorktree',
+  )
+})
+
+test('critic-prompt fills <<ALREADY_RAISED>> with (none) on a run with no history', async () => {
+  const templatePath = join(runDir, 'critic.md')
+  await writeFile(templatePath, TEMPLATE_DOC)
+  await writeDeduped([finding('a', 'bugs')])
+
+  const exit = await runCriticPrompt(runDir, { templatePath })
+
+  expect(exit).toBe(0)
+  const prompt = await readFile(join(runDir, 'critic-prompt.md'), 'utf8')
+  expect(prompt).toContain('Raised: (none)\n')
 })
 
 test('critic-prompt points <<WORKTREE>> at the review root named in target.json', async () => {

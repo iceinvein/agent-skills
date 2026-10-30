@@ -7,6 +7,7 @@ import {
   DEFAULT_BATCH_SIZE,
   parseCriticVerdicts,
 } from './critic.ts'
+import { readHistory, renderAlreadyRaised } from './history.ts'
 import { reviewRoot } from './target.ts'
 import { parseBrief, parseFinding, type ReviewFinding, type ReviewRule } from './types.ts'
 
@@ -85,6 +86,7 @@ export async function runCriticPrompt(
       candidates: await readCandidates(runDir),
       mergeCandidates: await readMergeCandidates(runDir),
       reviewRules: await readReviewRules(runDir),
+      alreadyRaised: renderAlreadyRaised(await readHistory(runDir)),
       worktree: await reviewRoot(runDir),
       diffPath: join(runDir, 'diff.patch'),
       runDir,

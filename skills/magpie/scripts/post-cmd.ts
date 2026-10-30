@@ -3,7 +3,9 @@ import { appendFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildNewSideLineIndex } from './diff-utils.ts'
 import { formatFindingDescriptionMarkdown } from './finding-description.ts'
+import { readHistory } from './history.ts'
 import type { PostVia } from './labels.ts'
+import { describePreviousPosted } from './previous-findings.ts'
 import {
   type FocusId,
   type PrFileEntry,
@@ -260,6 +262,8 @@ export type ReviewSummaryOptions = {
   files?: PrFileEntry[]
   /** Incremental review context. When present, surfaces "since <prev-sha>" trailer. */
   incremental?: { previousSha: string; sameSha: boolean }
+  /** `describePreviousPosted` on a re-review. */
+  previousRun?: string
 }
 
 /** Effort score 1 (trivial) to 5 (substantial), derived from changed files and lines. */
@@ -383,6 +387,7 @@ export function formatReviewSummaryBody(
       : `Incremental review since \`${prevShort}\``
     lines.push('', `<sub>${msg}</sub>`)
   }
+  if (options.previousRun) lines.push('', `<sub>${options.previousRun}</sub>`)
 
   if (findings.length > 0) {
     const inlineText =
@@ -862,11 +867,15 @@ export async function runPost(input: PostInput): Promise<PostOutcome> {
     // No incremental sidecar; first run for this PR.
   }
 
+  const { previous } = await readHistory(input.runDir)
+  const previousRun = previous ? describePreviousPosted(previous) : null
+
   if (shouldPostSummary) {
     const summaryBody = formatReviewSummaryBody(selectedFindings, {
       commitId: headSha,
       files: prFiles,
       ...(incremental ? { incremental } : {}),
+      ...(previousRun ? { previousRun } : {}),
     })
     const summaryCmd = buildPrCommentCommand(repo, prNumber, summaryBody)
     if (input.dryRun) {

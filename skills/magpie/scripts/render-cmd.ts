@@ -1,6 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
+import { readHistory } from './history.ts'
 import { readDismissed } from './labels.ts'
+import { describePreviousPosted } from './previous-findings.ts'
 import { type PostStatusMap, parseClosingIssues, renderFindingsToDisk } from './render-findings.ts'
 import { DEFAULT_TOP_N } from './render-issues-list.ts'
 import { renderProgressToDisk } from './render-progress.ts'
@@ -150,6 +152,8 @@ export async function runRender(
       null,
     )) ?? undefined
   const dismissed = await readDismissed(runDir)
+  const { previous } = await readHistory(runDir)
+  const previousRun = previous ? (describePreviousPosted(previous) ?? undefined) : undefined
   const outPath = await nextVersionedPath(screenDir, 'findings')
   await renderFindingsToDisk(
     {
@@ -162,6 +166,7 @@ export async function runRender(
       brief,
       issues,
       diffSource,
+      ...(previousRun ? { previousRun } : {}),
       dismissed,
       topN: opts.topN ?? DEFAULT_TOP_N,
     },

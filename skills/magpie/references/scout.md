@@ -29,7 +29,12 @@ Diff: <<RUN_DIR>>/diff.patch
 2. `diff.patch` for what the change actually does. This is the evidence.
 3. The worktree for surrounding context on any file the diff changes but does not
    explain.
-4. The repository's written conventions, for the review rules. At the worktree root:
+4. `<<RUN_DIR>>/pr-activity.json`, when it exists, for what has happened on the PR so
+   far: `checks` (CI results), `threads` (review threads with file, line and whether
+   they are resolved) and `comments`. A failing check, or an unresolved question from a
+   human reviewer that bears on the diff, is a watch item. Leave out what magpie itself
+   posted (`magpie: true`) and anything already resolved.
+5. The repository's written conventions, for the review rules. At the worktree root:
    `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING*`, `.github/copilot-instructions.md`, and
    every file under `.cursor/rules/`. Then `CLAUDE.md` and `AGENTS.md` in each
    directory the diff touches. Skip any that do not exist.

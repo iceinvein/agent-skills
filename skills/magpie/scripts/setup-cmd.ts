@@ -1,10 +1,12 @@
 import { appendFile, mkdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fetchPr } from './gh.ts'
-import { buildIncrementalContext, findPreviousRun } from './incremental.ts'
+import { buildIncrementalContext, changedFilesSince, findPreviousRun } from './incremental.ts'
 import { diffSha256, localBranchDiff, localBranchMeta } from './local-diff.ts'
 import { filterDiff, loadPathFilterConfig } from './path-filter.ts'
+import { fetchPrActivity } from './pr-activity.ts'
 import { type Deps, defaultDeps, preflight, renderInstallHint } from './preflight.ts'
+import { readPreviousFindings, writePreviousFindings } from './previous-findings.ts'
 import { shardDiff } from './shard.ts'
 import { writeTarget } from './target.ts'
 import { detectMissingTests } from './tests-check.ts'
@@ -93,6 +95,13 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(runDir)
     return diffExit
   }
+  if (input.mode === 'pr') {
+    const activityExit = await writePrActivity(runDir, deps, repoPath, input.prNumber)
+    if (activityExit !== 0) {
+      await cleanup(runDir)
+      return activityExit
+    }
+  }
 
   await applyPathFilter(runDir, repoPath)
 
@@ -113,7 +122,16 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     return 0
   }
 
-  await detectIncrementalReview(runDir, input.prNumber)
+  let previous: { runId: string; runDir: string } | null
+  try {
+    previous = await detectIncrementalReview(runDir, deps.git, repoPath, input.prNumber)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    await logLine(runDir, { stage: 'incremental', status: 'error', error: message })
+    process.stderr.write(`magpie: ${message}\n`)
+    await cleanup(runDir)
+    return 4
+  }
 
   const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as { headRefName: string }
   const branch = prJson.headRefName
@@ -146,8 +164,88 @@ export async function runSetup(input: RunSetupInput): Promise<number> {
     await cleanup(runDir)
     return 5
   }
+  if (previous) {
+    try {
+      await carryPreviousFindings(runDir, previous, wt.worktreePath)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      await logLine(runDir, { stage: 'previous-findings', status: 'error', error: message })
+      process.stderr.write(`magpie: ${message}\n`)
+      const removed = await removeWorktree({
+        gitBin: deps.git,
+        repoPath,
+        worktreePath: wt.worktreePath,
+      })
+      if (!removed.ok) process.stderr.write(`magpie: ${removed.error}\n`)
+      await cleanup(runDir)
+      return 5
+    }
+  }
   await logLine(runDir, { stage: 'setup', status: 'done', worktree: wt.worktreePath })
   return 0
+}
+
+async function writePrActivity(
+  runDir: string,
+  deps: Deps,
+  repoPath: string,
+  prNumber: number,
+): Promise<number> {
+  const fail = async (error: string): Promise<number> => {
+    await logLine(runDir, { stage: 'pr-activity', status: 'error', error })
+    process.stderr.write(`magpie: ${error}\n`)
+    return 4
+  }
+  const prJson = (await Bun.file(join(runDir, 'pr.json')).json()) as { url?: unknown }
+  if (typeof prJson.url !== 'string') return fail('pr.json has no url')
+  let result: Awaited<ReturnType<typeof fetchPrActivity>>
+  try {
+    result = await fetchPrActivity({
+      ghBin: deps.gh,
+      prNumber,
+      prUrl: prJson.url,
+      runDir,
+      cwd: repoPath,
+    })
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err))
+  }
+  if (!result.ok) return fail(result.error)
+  await logLine(runDir, {
+    stage: 'pr-activity',
+    status: 'done',
+    checks: result.activity.checks.length,
+    threads: result.activity.threads.length,
+    comments: result.activity.comments.length,
+  })
+  return 0
+}
+
+async function carryPreviousFindings(
+  runDir: string,
+  previous: { runId: string; runDir: string },
+  worktree: string,
+): Promise<void> {
+  const carried = await readPreviousFindings({
+    runDir: previous.runDir,
+    runId: previous.runId,
+    worktree,
+  })
+  if (!carried) {
+    await logLine(runDir, {
+      stage: 'previous-findings',
+      status: 'none',
+      previousRunId: previous.runId,
+    })
+    return
+  }
+  await writePreviousFindings(runDir, carried)
+  await logLine(runDir, {
+    stage: 'previous-findings',
+    status: 'done',
+    previousRunId: previous.runId,
+    findings: carried.findings.length,
+  })
 }
 
 /** realpath of the nearest existing ancestor, with the not-yet-created tail re-appended. */
@@ -309,6 +407,8 @@ async function cleanup(runDir: string): Promise<void> {
     'excluded-files.json',
     'shards',
     'incremental.json',
+    'pr-activity.json',
+    'previous-findings.json',
     'findings',
     'screen',
     'state',
@@ -340,25 +440,44 @@ async function runTestsCheck(runDir: string): Promise<void> {
   await logLine(runDir, { stage: 'tests-check', status: 'done', findings: findings.length })
 }
 
-async function detectIncrementalReview(runDir: string, prNumber: number): Promise<void> {
-  const previous = await findPreviousRun(prNumber, runDir)
+/** The previous run, for setup to carry its findings forward once the worktree exists. */
+async function detectIncrementalReview(
+  runDir: string,
+  gitBin: string,
+  repoPath: string,
+  prNumber: number,
+): Promise<{ runId: string; runDir: string } | null> {
+  const currentPr = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
+  if (typeof currentPr.url !== 'string') throw new Error('pr.json has no url')
+  const previous = await findPreviousRun(prNumber, currentPr.url, runDir)
   if (!previous) {
     await logLine(runDir, { stage: 'incremental', status: 'first-run' })
-    return
+    return null
   }
-  const currentPr = (await Bun.file(join(runDir, 'pr.json')).json()) as Record<string, unknown>
   const context = buildIncrementalContext(currentPr, previous)
   if (!context) {
     await logLine(runDir, { stage: 'incremental', status: 'missing-sha' })
-    return
+    return previous
   }
-  await writeFile(join(runDir, 'incremental.json'), `${JSON.stringify(context, null, 2)}\n`)
+  const changedSincePrevious = context.sameSha
+    ? []
+    : await changedFilesSince({
+        gitBin,
+        repoPath,
+        fromSha: context.previousSha,
+        toSha: context.currentSha,
+      })
+  await writeFile(
+    join(runDir, 'incremental.json'),
+    `${JSON.stringify({ ...context, changedSincePrevious }, null, 2)}\n`,
+  )
   await logLine(runDir, {
     stage: 'incremental',
     status: 'done',
     previousRunId: context.previousRunId,
     sameSha: context.sameSha,
   })
+  return previous
 }
 
 async function applyPathFilter(runDir: string, repoPath: string): Promise<void> {
