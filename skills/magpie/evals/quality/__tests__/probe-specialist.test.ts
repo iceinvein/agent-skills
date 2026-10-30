@@ -13,7 +13,10 @@ import {
   RUN_HEADER_SHARDED,
   RUN_HEADER_UNSHARDED,
   BRIEF_CLOSING,
+  PostSessionError,
+  runRepeats,
   sessionOutcome,
+  transcriptBadLines,
   transcriptReadPath,
 } from '../probe-specialist.ts'
 
@@ -279,8 +282,20 @@ test('a transcript that Reads other files does not count as reading the impact f
   expect(transcriptReadPath(stream, '/runs/r1/impact.md')).toBe(false)
 })
 
-test('a transcript line that is not JSON is rejected with its line number', () => {
-  expect(() => transcriptReadPath(`${STREAM_HEAD}not json\n`, '/x')).toThrow('line 2')
+const READ_IMPACT = assistantToolUse('Read', { file_path: '/runs/r1/impact.md' })
+
+test('a transcript cut off mid-line still shows the Read made before the cut', () => {
+  const stream = `${STREAM_HEAD}${READ_IMPACT}\n{"type":"assistant","message":{"con`
+  expect(transcriptReadPath(stream, '/runs/r1/impact.md')).toBe(true)
+})
+
+test('a transcript cut off mid-line counts the cut line as bad', () => {
+  const stream = `${STREAM_HEAD}${READ_IMPACT}\n{"type":"assistant","message":{"con`
+  expect(transcriptBadLines(stream)).toBe(1)
+})
+
+test('a whole transcript has no bad lines', () => {
+  expect(transcriptBadLines(`${STREAM_HEAD}${READ_IMPACT}\n`)).toBe(0)
 })
 
 test('a successful session reports its cost and no error', () => {
@@ -311,10 +326,10 @@ test('a session with no result event records that instead of throwing', () => {
   })
 })
 
-test('a session whose transcript is not JSON records that instead of throwing', () => {
-  expect(sessionOutcome('oops\n', 137, 'killed')).toEqual({
+test('a killed session whose transcript is cut off records no result event and the exit', () => {
+  expect(sessionOutcome(`${STREAM_HEAD}{"type":"res`, 137, 'killed')).toEqual({
     costUsd: null,
-    error: 'stream-json line 1 is not JSON: oops; exit 137: killed',
+    error: 'stream-json has no result event; exit 137: killed',
   })
 })
 
@@ -440,4 +455,38 @@ test('the live specialists.md names the part-5 headings renderBriefPart writes',
   ]) {
     expect(live).toContain(`\n${heading}\n`)
   }
+})
+
+test('a repeat that fails after its session is reported and the next repeat still runs', async () => {
+  const ran: number[] = []
+  const warnings: string[] = []
+  const failed = await runRepeats(
+    3,
+    async (repeat) => {
+      ran.push(repeat)
+      if (repeat === 2) throw new PostSessionError('judge failed (probe result written to /r.json)')
+    },
+    (line) => warnings.push(line),
+  )
+  expect({ ran, failed, warnings }).toEqual({
+    ran: [1, 2, 3],
+    failed: 1,
+    warnings: [
+      'repeat 2 failed after its session: judge failed (probe result written to /r.json)\n',
+    ],
+  })
+})
+
+test('a repeat that fails before its session stops the remaining repeats', async () => {
+  const ran: number[] = []
+  const run = runRepeats(
+    3,
+    async (repeat) => {
+      ran.push(repeat)
+      if (repeat === 1) throw new Error('worktree add failed')
+    },
+    () => {},
+  )
+  await expect(run).rejects.toThrow('worktree add failed')
+  expect(ran).toEqual([1])
 })

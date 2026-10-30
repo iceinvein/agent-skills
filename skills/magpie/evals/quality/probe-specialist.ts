@@ -5,8 +5,17 @@
 // these defects. Spends real money unless --dry-run: one `claude -p` per repeat,
 // capped by --max-cost-usd, plus one judge call.
 
-import { existsSync } from 'node:fs'
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { constants, existsSync } from 'node:fs'
+import {
+  access,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ShardEntry } from '../../scripts/shard.ts'
@@ -179,26 +188,38 @@ export function renderBriefPart(brief: PrBrief): string {
   return sections.join('\n\n')
 }
 
-function streamEvents(streamJson: string): Array<Record<string, unknown>> {
+// A killed session leaves its last line cut off. The lines before it still say
+// what the session did, so a line that does not parse is counted, not fatal.
+function streamEvents(streamJson: string): {
+  events: Array<Record<string, unknown>>
+  badLines: number
+} {
   const events: Array<Record<string, unknown>> = []
-  for (const [i, line] of streamJson.split('\n').entries()) {
+  let badLines = 0
+  for (const line of streamJson.split('\n')) {
     if (line.trim() === '') continue
     let event: unknown
     try {
       event = JSON.parse(line)
     } catch {
-      throw new Error(`stream-json line ${i + 1} is not JSON: ${line.slice(0, 200)}`)
+      badLines++
+      continue
     }
     if (event !== null && typeof event === 'object' && !Array.isArray(event)) {
       events.push(event as Record<string, unknown>)
     }
   }
-  return events
+  return { events, badLines }
+}
+
+/** Transcript lines that are not JSON, most often one cut off when the session was killed. */
+export function transcriptBadLines(streamJson: string): number {
+  return streamEvents(streamJson).badLines
 }
 
 /** Whether the session opened `path` with the Read tool. A Bash `cat` is not counted. */
 export function transcriptReadPath(streamJson: string, path: string): boolean {
-  return streamEvents(streamJson).some((event) => {
+  return streamEvents(streamJson).events.some((event) => {
     if (event.type !== 'assistant') return false
     const message = event.message as { content?: unknown } | undefined
     if (!Array.isArray(message?.content)) return false
@@ -218,18 +239,14 @@ export function sessionOutcome(
 ): { costUsd: number | null; error: string | null } {
   const errors: string[] = []
   let costUsd: number | null = null
-  try {
-    const result = streamEvents(streamJson).find((event) => event.type === 'result')
-    if (result === undefined) {
-      errors.push('stream-json has no result event')
-    } else {
-      if (typeof result.total_cost_usd === 'number') costUsd = result.total_cost_usd
-      if (result.is_error === true) {
-        errors.push(`session ended in error (${String(result.subtype)}): ${String(result.result)}`)
-      }
+  const result = streamEvents(streamJson).events.find((event) => event.type === 'result')
+  if (result === undefined) {
+    errors.push('stream-json has no result event')
+  } else {
+    if (typeof result.total_cost_usd === 'number') costUsd = result.total_cost_usd
+    if (result.is_error === true) {
+      errors.push(`session ended in error (${String(result.subtype)}): ${String(result.result)}`)
     }
-  } catch (err) {
-    errors.push(err instanceof Error ? err.message : String(err))
   }
   if (exit !== 0) errors.push(`exit ${exit}: ${stderr.trim()}`)
   return { costUsd, error: errors.length === 0 ? null : errors.join('; ') }
@@ -275,6 +292,29 @@ export function numberProbeFindings(
       throw new Error(`${path}[${i}]: ${err instanceof Error ? err.message : err}`)
     }
   })
+}
+
+/** A failure after the session was paid for, with its result file already written.
+ *  It belongs to one repeat; any other failure is systematic and stops them all. */
+export class PostSessionError extends Error {}
+
+/** Runs repeats in order, returning how many failed after their session. */
+export async function runRepeats(
+  count: number,
+  runOne: (repeat: number) => Promise<void>,
+  warn: (line: string) => void,
+): Promise<number> {
+  let failed = 0
+  for (let repeat = 1; repeat <= count; repeat++) {
+    try {
+      await runOne(repeat)
+    } catch (err) {
+      if (!(err instanceof PostSessionError)) throw err
+      warn(`repeat ${repeat} failed after its session: ${err.message}\n`)
+      failed++
+    }
+  }
+  return failed
 }
 
 type ProbeOptions = {
@@ -430,15 +470,18 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       return
     }
 
-    const session = await runSession(prompt, worktree, scratch, opts.maxCostUsd)
-    const outcome = sessionOutcome(session.stdout, session.exit, session.stderr)
-
+    // Checked before the session so a corpus root that cannot take the result fails
+    // before anything is spent.
     const resultsDir = join(opts.corpusRoot, 'results')
     await mkdir(resultsDir, { recursive: true })
+    await access(resultsDir, constants.W_OK)
     const outPath = join(
       resultsDir,
       `${resultTimestamp(new Date())}-probe-${run.runId}-${focus}-s${chosen.id}-${opts.arm}-r${opts.repeat}.json`,
     )
+
+    const session = await runSession(prompt, worktree, scratch, opts.maxCostUsd)
+    const outcome = sessionOutcome(session.stdout, session.exit, session.stderr)
     const findingsName = shard === null ? `${focus}.json` : `${focus}.shard-${shard.n}.json`
     const findingsPath = join(scratch, 'findings', findingsName)
     // Null fields are steps not yet reached; a probe that stops early leaves them null
@@ -462,6 +505,7 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       costUsd: outcome.costUsd,
       judgeCostUsd: null as number | null,
       sessionError: outcome.error,
+      transcriptBadLines: transcriptBadLines(session.stdout),
       error: null as string | null,
     }
     const save = () => writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
@@ -508,7 +552,7 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
     } catch (err) {
       result.error = err instanceof Error ? err.message : String(err)
       await save()
-      throw new Error(`${result.error} (probe result written to ${outPath})`)
+      throw new PostSessionError(`${result.error} (probe result written to ${outPath})`)
     }
 
     if (outcome.error !== null) process.exitCode = 1
@@ -583,23 +627,27 @@ async function main(argv: string[]): Promise<number> {
     )
   })
 
-  for (let repeat = 1; repeat <= Number(repeats); repeat++) {
-    await probeOnce({
-      run,
-      repo,
-      sha,
-      target: `PR #${prNumber}`,
-      focus,
-      file,
-      misses,
-      arm: arm as Arm,
-      repeat,
-      maxCostUsd,
-      judgeModel,
-      corpusRoot,
-      dryRun,
-    })
-  }
+  const failed = await runRepeats(
+    Number(repeats),
+    (repeat) =>
+      probeOnce({
+        run,
+        repo,
+        sha,
+        target: `PR #${prNumber}`,
+        focus,
+        file,
+        misses,
+        arm: arm as Arm,
+        repeat,
+        maxCostUsd,
+        judgeModel,
+        corpusRoot,
+        dryRun,
+      }),
+    (line) => process.stderr.write(line),
+  )
+  if (failed > 0) process.exitCode = 1
   return 0
 }
 

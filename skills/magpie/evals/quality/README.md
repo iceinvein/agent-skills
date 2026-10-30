@@ -184,8 +184,13 @@ run one after another, each in its own scratch run dir and worktree:
 5. Writes `results/<ts>-probe-<runId>-<focus>-s<shard>-<arm>-r<k>.json` as soon as the
    session ends, with `costUsd` and `sessionError` (a non-zero exit, an `is_error` result
    such as a spent budget, or no result event; the probe then exits 1 after finishing).
-   Each later step fills its fields and rewrites the file; a step that throws records
-   `error`, rewrites it and exits 1, so a paid session is never lost. In order:
+   `transcriptBadLines` counts transcript lines that are not JSON (a killed session cuts
+   its last line off); they are skipped, not fatal. The results dir is checked writable
+   before the session starts. Each later step fills its fields and rewrites the file; a
+   step that throws records `error`, rewrites it, prints one stderr line naming the
+   repeat and moves on to the next repeat, and the command exits 1 at the end. A failure
+   before the session (setup, worktree, a missing impact file) stops every repeat. In
+   order:
    - `findings`, from the focus's findings file for the shard, numbering any finding
      with no id as `<focus>-s<n>-<i>`. A missing file records `findings: 0` and
      `missingFindings` with the reason rather than failing. `readImpact`: the session
