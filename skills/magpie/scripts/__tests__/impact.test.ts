@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import {
   buildImpactMap,
   type DiffNames,
@@ -172,6 +175,31 @@ describe('extractDiffNames: uses, stores, routes', () => {
     ])
   })
 
+  test('Array.from on a built-in receiver yields no store', () => {
+    const diff = fileDiff('src/q.ts', '@@ -1,0 +1,1 @@\n+  const all = Array.from(rows)\n')
+    expect(extractDiffNames(diff).stores).toEqual([])
+  })
+
+  test('an update( call yields no store', () => {
+    const diff = fileDiff('src/q.ts', '@@ -1,0 +1,1 @@\n+  hash.update(payload)\n')
+    expect(extractDiffNames(diff).stores).toEqual([])
+  })
+
+  test('lowercase SQL inside a string yields a table store', () => {
+    const diff = fileDiff(
+      'src/q.py',
+      '@@ -1,0 +1,1 @@\n+    sql = "select id from report_locks where id = ?"\n',
+    )
+    expect(extractDiffNames(diff).stores).toEqual([
+      { name: 'report_locks', kind: 'table', file: 'src/q.py', line: 1 },
+    ])
+  })
+
+  test('a Python from-import yields no store', () => {
+    const diff = fileDiff('src/q.py', '@@ -1,0 +1,1 @@\n+from report_tools import build\n')
+    expect(extractDiffNames(diff).stores).toEqual([])
+  })
+
   test('addedLines records the new-side numbers of added lines only', () => {
     const diff = fileDiff('src/a.ts', '@@ -3,2 +3,3 @@\n keep\n+one\n-gone\n+two\n')
     const names = extractDiffNames(diff)
@@ -183,7 +211,7 @@ describe('extractDiffNames: uses, stores, routes', () => {
 describe('parseGrepOutput', () => {
   test('splits a path containing a colon at the first colon followed by digits and a colon', () => {
     expect(parseGrepOutput('docs/a:b.md:12:  see foo  \n')).toEqual([
-      { file: 'docs/a:b.md', line: 12, text: 'see foo' },
+      { file: 'docs/a:b.md', line: 12, text: 'see foo', indented: true },
     ])
   })
 
@@ -191,6 +219,30 @@ describe('parseGrepOutput', () => {
     const long = 'x'.repeat(200)
     const hits = parseGrepOutput(`src/a.ts:3:${long}\n`)
     expect(hits[0]?.text).toBe('x'.repeat(160))
+  })
+
+  test('keeps a carriage return line whole', () => {
+    expect(parseGrepOutput('src/win.ts:4:const a = 1\r\n')).toEqual([
+      { file: 'src/win.ts', line: 4, text: 'const a = 1', indented: false },
+    ])
+  })
+
+  test('keeps a line containing U+2028 whole', () => {
+    expect(parseGrepOutput('src/a.ts:2:x = "a\u2028b"\n')).toEqual([
+      { file: 'src/a.ts', line: 2, text: 'x = "a\u2028b"', indented: false },
+    ])
+  })
+
+  test('reads an unquoted non-ASCII path as is', () => {
+    expect(parseGrepOutput('café.ts:1:x\n')).toEqual([
+      { file: 'café.ts', line: 1, text: 'x', indented: false },
+    ])
+  })
+
+  test('records that the matched line was indented', () => {
+    expect(parseGrepOutput('src/a.ts:9:  const helperFn = 2\n')).toEqual([
+      { file: 'src/a.ts', line: 9, text: 'const helperFn = 2', indented: true },
+    ])
   })
 
   test('throws on a line without a line number', () => {
@@ -207,6 +259,8 @@ describe('planSearches', () => {
     ]
     const refs = planSearches(names).find((p) => p.kind === 'references')
     expect(refs?.args).toEqual([
+      '-c',
+      'core.quotePath=false',
       'grep',
       '-n',
       '-I',
@@ -224,8 +278,27 @@ describe('planSearches', () => {
     names.stores = [{ name: 'history.db', kind: 'file', file: 'src/h.py', line: 1 }]
     const writers = planSearches(names).filter((p) => p.kind === 'writers')
     expect(writers).toEqual([
-      { kind: 'writers', args: ['grep', '-n', '-I', '-F', '-e', 'history.db'] },
+      {
+        kind: 'writers',
+        args: ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '-e', 'history.db'],
+      },
     ])
+  })
+
+  test('every plan turns off path quoting before grep', () => {
+    const names = noNames()
+    names.defined = [{ name: 'scheduleJob', kind: 'added', file: 'src/a.ts', line: 1 }]
+    names.used = [{ name: 'verifyToken', file: 'src/a.ts', line: 2 }]
+    names.stores = [
+      { name: 'report_locks', kind: 'table', file: 'src/a.ts', line: 3 },
+      { name: 'history.db', kind: 'file', file: 'src/a.ts', line: 4 },
+    ]
+    names.routes = [{ path: '/api/verify/x', file: 'src/a.ts', line: 5 }]
+    names.changedFiles = ['src/a.ts']
+    const plans = planSearches(names)
+    expect(plans.length).toBeGreaterThan(5)
+    for (const p of plans)
+      expect(p.args.slice(0, 3)).toEqual(['-c', 'core.quotePath=false', 'grep'])
   })
 
   test('no plan is emitted for a kind with nothing to search', () => {
@@ -245,8 +318,13 @@ describe('buildImpactMap', () => {
   test('a reference on an added line of the diff is dropped', () => {
     const hits = noHits()
     hits.references = [
-      { file: 'src/jobs.ts', line: 4, text: 'export function scheduleJob(id, at) {' },
-      { file: 'src/jobs.ts', line: 30, text: 'scheduleJob(id, now)' },
+      {
+        file: 'src/jobs.ts',
+        line: 4,
+        text: 'export function scheduleJob(id, at) {',
+        indented: false,
+      },
+      { file: 'src/jobs.ts', line: 30, text: 'scheduleJob(id, now)', indented: false },
     ]
     const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
     expect(map.symbols[0]?.references).toEqual([
@@ -257,8 +335,8 @@ describe('buildImpactMap', () => {
   test('a reference in an excluded path is dropped', () => {
     const hits = noHits()
     hits.references = [
-      { file: 'dist/jobs.js', line: 1, text: 'scheduleJob(a)' },
-      { file: 'src/cron.ts', line: 2, text: 'scheduleJob(b)' },
+      { file: 'dist/jobs.js', line: 1, text: 'scheduleJob(a)', indented: false },
+      { file: 'src/cron.ts', line: 2, text: 'scheduleJob(b)', indented: false },
     ]
     const map = buildImpactMap({
       names: oneSymbol(),
@@ -277,6 +355,7 @@ describe('buildImpactMap', () => {
       file: 'src/cron.ts',
       line: i + 1,
       text: 'scheduleJob(x)',
+      indented: false,
     }))
     const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
     expect(map.symbols[0]?.hits).toBe(15)
@@ -289,6 +368,7 @@ describe('buildImpactMap', () => {
       file: 'src/cron.ts',
       line: i + 1,
       text: 'scheduleJob(x)',
+      indented: false,
     }))
     const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
     expect(map.symbols[0]?.hits).toBe(201)
@@ -297,7 +377,9 @@ describe('buildImpactMap', () => {
 
   test('a reference hit is assigned only to names it contains as a whole word', () => {
     const hits = noHits()
-    hits.references = [{ file: 'src/cron.ts', line: 2, text: 'scheduleJobLater(x)' }]
+    hits.references = [
+      { file: 'src/cron.ts', line: 2, text: 'scheduleJobLater(x)', indented: false },
+    ]
     const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
     expect(map.symbols[0]?.hits).toBe(0)
   })
@@ -317,8 +399,13 @@ describe('buildImpactMap', () => {
     names.used = [{ name: 'verifyToken', file: 'src/a.ts', line: 1 }]
     const hits = noHits()
     hits.definitions = [
-      { file: 'src/auth.ts', line: 8, text: 'export async function verifyToken(t: string) {' },
-      { file: 'src/b.ts', line: 3, text: '// type verifyToken is legacy' },
+      {
+        file: 'src/auth.ts',
+        line: 8,
+        text: 'export async function verifyToken(t: string) {',
+        indented: false,
+      },
+      { file: 'src/b.ts', line: 3, text: '// type verifyToken is legacy', indented: false },
     ]
     const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
     expect(map.uses).toEqual([
@@ -338,8 +425,8 @@ describe('buildImpactMap', () => {
     names.stores = [{ name: 'report_locks', kind: 'table', file: 'src/q.py', line: 1 }]
     const hits = noHits()
     hits.writers = [
-      { file: 'src/w.py', line: 5, text: 'DELETE FROM report_locks WHERE id = ?' },
-      { file: 'src/w.py', line: 9, text: 'DELETE FROM report_locks_old' },
+      { file: 'src/w.py', line: 5, text: 'DELETE FROM report_locks WHERE id = ?', indented: false },
+      { file: 'src/w.py', line: 9, text: 'DELETE FROM report_locks_old', indented: false },
     ]
     const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
     expect(map.stores[0]?.writers).toEqual([
@@ -351,7 +438,9 @@ describe('buildImpactMap', () => {
     const names = noNames()
     names.stores = [{ name: 'history.db', kind: 'file', file: 'src/h.py', line: 1 }]
     const hits = noHits()
-    hits.writers = [{ file: 'tools/prune.py', line: 2, text: 'open("data/history.db", "w")' }]
+    hits.writers = [
+      { file: 'tools/prune.py', line: 2, text: 'open("data/history.db", "w")', indented: false },
+    ]
     const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
     expect(map.stores[0]?.writers).toEqual([
       { file: 'tools/prune.py', line: 2, text: 'open("data/history.db", "w")' },
@@ -363,9 +452,9 @@ describe('buildImpactMap', () => {
     names.routes = [{ path: '/api/verify/x', file: 'src/r.ts', line: 1 }]
     const hits = noHits()
     hits.routes = [
-      { file: 'src/server.ts', line: 4, text: "app.get('/api/verify/x', h)" },
-      { file: 'src/server.ts', line: 5, text: "app.post('/api/verify/y', h)" },
-      { file: 'src/server.ts', line: 6, text: "app.get('/api/verifyall', h)" },
+      { file: 'src/r.ts', line: 4, text: "app.get('/api/verify/x', h)", indented: false },
+      { file: 'src/server.ts', line: 5, text: "app.post('/api/verify/y', h)", indented: false },
+      { file: 'src/server.ts', line: 6, text: "app.get('/api/verifyall', h)", indented: false },
     ]
     const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
     expect(map.routes[0]?.siblings).toEqual([
@@ -373,11 +462,61 @@ describe('buildImpactMap', () => {
     ])
   })
 
+  test('route siblings keep the same path used in another file', () => {
+    const names = noNames()
+    names.routes = [{ path: '/api/verify/x', file: 'src/r.ts', line: 1 }]
+    const hits = noHits()
+    hits.routes = [
+      { file: 'src/server.ts', line: 4, text: "app.get('/api/verify/x', h)", indented: false },
+    ]
+    const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
+    expect(map.routes[0]?.siblings).toEqual([
+      { file: 'src/server.ts', line: 4, text: "app.get('/api/verify/x', h)" },
+    ])
+  })
+
+  test('an indented TS const is not taken as the definition of a used name', () => {
+    const names = noNames()
+    names.used = [{ name: 'helperFn', file: 'src/a.ts', line: 1 }]
+    const hits = noHits()
+    hits.definitions = [
+      { file: 'src/b.ts', line: 7, text: 'const helperFn = 2', indented: true },
+      { file: 'src/c.ts', line: 1, text: 'export const helperFn = () => 1', indented: false },
+    ]
+    const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
+    expect(map.uses[0]?.definedAt).toEqual([
+      { file: 'src/c.ts', line: 1, text: 'export const helperFn = () => 1' },
+    ])
+  })
+
+  test('a lowercase SQL writer counts for a table store', () => {
+    const names = noNames()
+    names.stores = [{ name: 'report_locks', kind: 'table', file: 'src/q.py', line: 1 }]
+    const hits = noHits()
+    hits.writers = [
+      {
+        file: 'src/w.py',
+        line: 5,
+        text: 'cur.execute("delete from report_locks")',
+        indented: false,
+      },
+    ]
+    const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
+    expect(map.stores[0]?.writers).toEqual([
+      { file: 'src/w.py', line: 5, text: 'cur.execute("delete from report_locks")' },
+    ])
+  })
+
   test('docs list markdown lines with the changed names they mention', () => {
     const hits = noHits()
     hits.docs = [
-      { file: 'README.md', line: 7, text: 'Use scheduleJob from jobs.ts to queue work.' },
-      { file: 'src/notes.ts', line: 1, text: '// scheduleJob' },
+      {
+        file: 'README.md',
+        line: 7,
+        text: 'Use scheduleJob from jobs.ts to queue work.',
+        indented: false,
+      },
+      { file: 'src/notes.ts', line: 1, text: '// scheduleJob', indented: false },
     ]
     const map = buildImpactMap({ names: oneSymbol(), hits, shardOf: noShard, excluded: keepAll })
     expect(map.docs).toEqual([
@@ -388,5 +527,104 @@ describe('buildImpactMap', () => {
         mentions: ['scheduleJob', 'jobs.ts'],
       },
     ])
+  })
+})
+
+describe('impact map over a real repository', () => {
+  const REPO_FILES: Record<string, string> = {
+    'src/caller.ts': [
+      'export function rotateKeys() {',
+      '  scheduleJob(1)',
+      '  load_rows()',
+      '  db.select().from(report_locks)',
+      '}',
+      '',
+    ].join('\n'),
+    'src/jobs.ts': 'export function scheduleJob(id: number) {\n  return id\n}\n',
+    'src/db.rs': 'use std::fmt;\n\npub(crate) async fn load_rows() {\n}\n',
+    'src/w.ts': 'db.insert(report_locks).values(row)\n',
+    'src/w.py': [
+      'def save(cur):',
+      '    cur.execute("INSERT INTO report_locks (id) VALUES (?)")',
+      '    cur.execute("INSERT INTO report_locks_old (id) VALUES (?)")',
+      '',
+    ].join('\n'),
+    'docs/ops.md': 'Run rotateKeys nightly.\n',
+  }
+
+  const DIFF = `diff --git a/src/caller.ts b/src/caller.ts
+new file mode 100644
+--- /dev/null
++++ b/src/caller.ts
+@@ -0,0 +1,5 @@
++export function rotateKeys() {
++  scheduleJob(1)
++  load_rows()
++  db.select().from(report_locks)
++}
+`
+
+  async function gitIn(cwd: string, args: string[]): Promise<string> {
+    const proc = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' })
+    const [out, err, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    // git grep exits 1 when nothing matches.
+    if (code === 1 && args.includes('grep')) return ''
+    if (code !== 0) throw new Error(`git ${args.join(' ')} failed: ${err}`)
+    return out
+  }
+
+  test('real git grep results feed the expected uses, writers and docs', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'magpie-impact-'))
+    try {
+      for (const [file, body] of Object.entries(REPO_FILES)) {
+        await mkdir(dirname(join(repo, file)), { recursive: true })
+        await writeFile(join(repo, file), body)
+      }
+      await gitIn(repo, ['init', '-q'])
+      await gitIn(repo, ['add', '.'])
+
+      const names = extractDiffNames(DIFF)
+      const hits = noHits()
+      for (const plan of planSearches(names)) {
+        hits[plan.kind].push(...parseGrepOutput(await gitIn(repo, plan.args)))
+      }
+      const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
+
+      expect(map.uses).toEqual([
+        {
+          name: 'scheduleJob',
+          usedIn: { file: 'src/caller.ts', line: 2 },
+          shard: null,
+          definedAt: [
+            { file: 'src/jobs.ts', line: 1, text: 'export function scheduleJob(id: number) {' },
+          ],
+        },
+        {
+          name: 'load_rows',
+          usedIn: { file: 'src/caller.ts', line: 3 },
+          shard: null,
+          definedAt: [{ file: 'src/db.rs', line: 3, text: 'pub(crate) async fn load_rows() {' }],
+        },
+      ])
+      expect(map.stores.map((s) => s.writers)).toEqual([
+        [
+          {
+            file: 'src/w.py',
+            line: 2,
+            text: 'cur.execute("INSERT INTO report_locks (id) VALUES (?)")',
+          },
+          { file: 'src/w.ts', line: 1, text: 'db.insert(report_locks).values(row)' },
+        ],
+      ])
+      expect(map.docs).toEqual([
+        { file: 'docs/ops.md', line: 1, text: 'Run rotateKeys nightly.', mentions: ['rotateKeys'] },
+      ])
+    } finally {
+      await rm(repo, { recursive: true, force: true })
+    }
   })
 })

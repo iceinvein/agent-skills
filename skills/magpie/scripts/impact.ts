@@ -109,7 +109,11 @@ export type DiffNames = {
   addedLines: Map<string, Set<number>>
 }
 
-export type GrepHit = { file: string; line: number; text: string }
+// `indented` survives trimming because a column-0 TS `const` is a module
+// definition while an indented one is a local.
+export type GrepHit = { file: string; line: number; text: string; indented: boolean }
+// `args` is the argv after `git`, starting `-c core.quotePath=false grep -n`:
+// quoted non-ASCII paths would never match the diff's paths.
 export type GrepPlan = {
   kind: 'references' | 'definitions' | 'writers' | 'routes' | 'docs'
   args: string[]
@@ -167,20 +171,55 @@ const CALL_KEYWORDS = ['while', 'switch', 'catch', 'function', 'typeof', 'elif',
 const CALL = new RegExp(`(?<![A-Za-z0-9_$])(${IDENT})\\(`, 'g')
 const BACKTICKED = new RegExp(`\`(${IDENT})(?:\\(\\))?\``, 'g')
 
-const TABLE_WRITER_CALL = new RegExp(
-  `\\.(?:insert|update|delete|into)\\(\\s*["'\`]?(${IDENT})`,
+// update( and delete( stay writer verbs on the grep side, but as names they
+// catch hash.update(payload) and map.delete(key), which are not tables.
+const TABLE_CALL = new RegExp(
+  `(?:([A-Za-z_$][\\w$]*)\\s*)?\\.(?:from|insert|into)\\(\\s*["'\`]?(${IDENT})`,
   'g',
 )
-const TABLE_READER_CALL = new RegExp(`\\.from\\(\\s*["'\`]?(${IDENT})`, 'g')
+const BUILTIN_RECEIVERS = [
+  'Array',
+  'Buffer',
+  'Object',
+  'Promise',
+  'JSON',
+  'Math',
+  'Date',
+  'String',
+  'Number',
+  'URL',
+  'Symbol',
+  'Reflect',
+]
 const TABLE_SQL = new RegExp(
   `(?:INSERT\\s+INTO|REPLACE\\s+INTO|DELETE\\s+FROM|UPDATE|FROM|JOIN)\\s+["\`]?(${IDENT})`,
-  'g',
+  'gi',
 )
+const SQL_VERB = /(?<![A-Za-z0-9_])(?:select|insert|update|delete|replace)(?![A-Za-z0-9_])/i
 const FILE_STORE = /["'`]([^"'`\s]+\.(?:db|sqlite|sqlite3))["'`]/g
 const ROUTE = /["'`](\/[A-Za-z0-9_\-.:{}$]+(?:\/[A-Za-z0-9_\-.:{}$]*)+)["'`]/g
 
 function captures(re: RegExp, text: string): string[] {
   return [...text.matchAll(re)].flatMap((m) => (m[1] ? [m[1]] : []))
+}
+
+function tableCalls(text: string): string[] {
+  return [...text.matchAll(TABLE_CALL)].flatMap((m) =>
+    m[2] && !(m[1] && BUILTIN_RECEIVERS.includes(m[1])) ? [m[2]] : [],
+  )
+}
+
+function insideStringLiteral(text: string, index: number): boolean {
+  const before = text.slice(0, index)
+  return ['"', "'", '`'].some((q) => before.split(q).length % 2 === 0)
+}
+
+// Without SQL context, `from x import y` in Python would read as a table.
+function sqlTables(text: string): string[] {
+  const sqlLine = SQL_VERB.test(text)
+  return [...text.matchAll(TABLE_SQL)].flatMap((m) =>
+    m[1] && (sqlLine || insideStringLiteral(text, m.index)) ? [m[1]] : [],
+  )
 }
 
 function routePrefix(path: string): string {
@@ -242,11 +281,7 @@ export function extractDiffNames(diff: string): DiffNames {
         for (const name of captures(CALL, l.content)) {
           if (!CALL_KEYWORDS.includes(name)) calls.push({ name, file, line })
         }
-        const tables = [
-          ...captures(TABLE_WRITER_CALL, l.content),
-          ...captures(TABLE_READER_CALL, l.content),
-          ...captures(TABLE_SQL, l.content),
-        ]
+        const tables = [...tableCalls(l.content), ...sqlTables(l.content)]
         for (const name of new Set(tables)) {
           if (isSearchableName(name)) stores.push({ name, kind: 'table', file, line })
         }
@@ -288,17 +323,23 @@ export function extractDiffNames(diff: string): DiffNames {
   return { defined, used, stores, routes: uniqueRoutes, changedFiles, addedLines }
 }
 
-const GREP_LINE = /^(.*?):(\d+):(.*)$/
+const LINE_NUMBER = /:(\d+):/
 
 export function parseGrepOutput(out: string): GrepHit[] {
   const hits: GrepHit[] = []
   for (const raw of out.split('\n')) {
     if (raw.length === 0) continue
-    const m = raw.match(GREP_LINE)
-    if (!m?.[1] || !m[2] || m[3] === undefined) {
+    const m = raw.match(LINE_NUMBER)
+    if (!m?.[1] || m.index === undefined || m.index === 0) {
       throw new Error(`unparseable git grep line: ${raw.slice(0, TEXT_MAX_CHARS)}`)
     }
-    hits.push({ file: m[1], line: Number(m[2]), text: m[3].trim().slice(0, TEXT_MAX_CHARS) })
+    const rest = raw.slice(m.index + m[0].length)
+    hits.push({
+      file: raw.slice(0, m.index),
+      line: Number(m[1]),
+      text: rest.trim().slice(0, TEXT_MAX_CHARS),
+      indented: /^\s/.test(rest),
+    })
   }
   return hits
 }
@@ -315,11 +356,13 @@ function definitionEre(name: string): string[] {
   ]
 }
 
-function writerEre(table: string): string[] {
-  return [
-    `(insert|update|delete|into)\\([[:space:]]*["'\`]?${table}${ERE_END}`,
-    `(INSERT[[:space:]]+INTO|REPLACE[[:space:]]+INTO|DELETE[[:space:]]+FROM|UPDATE)[[:space:]]+["\`]?${table}${ERE_END}`,
-  ]
+function writerCallEre(table: string): string {
+  return `(insert|update|delete|into)\\([[:space:]]*["'\`]?${table}${ERE_END}`
+}
+
+// Run with -i: SQL keywords appear in either case.
+function writerSqlEre(table: string): string {
+  return `(insert[[:space:]]+into|replace[[:space:]]+into|delete[[:space:]]+from|update)[[:space:]]+["\`]?${table}${ERE_END}`
 }
 
 function writerRegexes(table: string): RegExp[] {
@@ -328,6 +371,7 @@ function writerRegexes(table: string): RegExp[] {
     new RegExp(`\\.(?:insert|update|delete|into)\\(\\s*["'\`]?${t}(?![A-Za-z0-9_])`),
     new RegExp(
       `(?:INSERT\\s+INTO|REPLACE\\s+INTO|DELETE\\s+FROM|UPDATE)\\s+["\`]?${t}(?![A-Za-z0-9_])`,
+      'i',
     ),
   ]
 }
@@ -344,42 +388,48 @@ function changedBasenames(names: DiffNames): string[] {
   return unique(names.changedFiles.filter((f) => !isDoc(f)).map((f) => basename(f)))
 }
 
+const GREP = ['-c', 'core.quotePath=false', 'grep']
+
 export function planSearches(names: DiffNames): GrepPlan[] {
   const plans: GrepPlan[] = []
   const definedNames = unique(names.defined.map((d) => d.name))
   if (definedNames.length > 0) {
     plans.push({
       kind: 'references',
-      args: ['grep', '-n', '-I', '-w', '-F', ...patternArgs(definedNames)],
+      args: [...GREP, '-n', '-I', '-w', '-F', ...patternArgs(definedNames)],
     })
   }
   const usedNames = unique(names.used.map((u) => u.name))
   if (usedNames.length > 0) {
     plans.push({
       kind: 'definitions',
-      args: ['grep', '-n', '-I', '-E', ...patternArgs(usedNames.flatMap(definitionEre))],
+      args: [...GREP, '-n', '-I', '-E', ...patternArgs(usedNames.flatMap(definitionEre))],
     })
   }
   const tables = unique(names.stores.filter((s) => s.kind === 'table').map((s) => s.name))
   if (tables.length > 0) {
     plans.push({
       kind: 'writers',
-      args: ['grep', '-n', '-I', '-E', ...patternArgs(tables.flatMap(writerEre))],
+      args: [...GREP, '-n', '-I', '-E', ...patternArgs(tables.map(writerCallEre))],
+    })
+    plans.push({
+      kind: 'writers',
+      args: [...GREP, '-n', '-I', '-i', '-E', ...patternArgs(tables.map(writerSqlEre))],
     })
   }
   const files = unique(names.stores.filter((s) => s.kind === 'file').map((s) => s.name))
   if (files.length > 0) {
-    plans.push({ kind: 'writers', args: ['grep', '-n', '-I', '-F', ...patternArgs(files)] })
+    plans.push({ kind: 'writers', args: [...GREP, '-n', '-I', '-F', ...patternArgs(files)] })
   }
   const prefixes = unique(names.routes.map((r) => routePrefix(r.path)))
   if (prefixes.length > 0) {
-    plans.push({ kind: 'routes', args: ['grep', '-n', '-I', '-F', ...patternArgs(prefixes)] })
+    plans.push({ kind: 'routes', args: [...GREP, '-n', '-I', '-F', ...patternArgs(prefixes)] })
   }
   const mentions = unique([...definedNames, ...changedBasenames(names)])
   if (mentions.length > 0) {
     plans.push({
       kind: 'docs',
-      args: ['grep', '-n', '-I', '-w', '-F', ...patternArgs(mentions), '--', '*.md', '*.mdx'],
+      args: [...GREP, '-n', '-I', '-w', '-F', ...patternArgs(mentions), '--', '*.md', '*.mdx'],
     })
   }
   return plans
@@ -431,7 +481,8 @@ export function buildImpactMap(input: {
   const uses: ImpactUse[] = []
   for (const u of names.used) {
     const definedAt = definitions
-      .filter((h) => definedNamesIn(h.file, h.text).includes(u.name))
+      // The leading space restores the indentation the column-0 TS rule reads.
+      .filter((h) => definedNamesIn(h.file, h.indented ? ` ${h.text}` : h.text).includes(u.name))
       .slice(0, MAX_REFS_PER_NAME)
       .map(ref)
     if (definedAt.length === 0) continue
@@ -471,7 +522,11 @@ export function buildImpactMap(input: {
   const routes: ImpactRoute[] = names.routes.map((r) => {
     const prefix = routePrefix(r.path)
     const siblings = routeHits
-      .filter((h) => captures(ROUTE, h.text).some((p) => p !== r.path && routePrefix(p) === prefix))
+      .filter((h) =>
+        captures(ROUTE, h.text).some((p) =>
+          p === r.path ? h.file !== r.file : routePrefix(p) === prefix,
+        ),
+      )
       .slice(0, MAX_REFS_PER_NAME)
       .map(ref)
     return {
