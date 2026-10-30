@@ -214,6 +214,7 @@ const ALL_PLACEHOLDERS = [
   'C=<<CANDIDATES>>',
   'M=<<MERGE_CANDIDATES>>',
   'R=<<REVIEW_RULES>>',
+  'A=<<ALREADY_RAISED>>',
   'W=<<WORKTREE>>',
   'D=<<DIFF_PATH>>',
   'O=<<OUTPUT_PATH>>',
@@ -240,6 +241,7 @@ test('three candidates yield one prompt with every placeholder replaced and crit
     ],
     mergeCandidates: [['c1', 'c2']],
     reviewRules: [{ rule: 'no default exports', source: 'CLAUDE.md' }],
+    alreadyRaised: 'Open review threads:\n- src/a.ts:10 (dave, 0 replies): off by one',
     worktree: '/run/worktree',
     diffPath: '/run/diff.patch',
     runDir: '/run',
@@ -265,6 +267,9 @@ test('three candidates yield one prompt with every placeholder replaced and crit
   })
   expect(section(only.prompt, 'M', 'R')).toEqual([['c1', 'c2']])
   expect(only.prompt).toContain('R=- no default exports (CLAUDE.md)\n')
+  expect(only.prompt).toContain(
+    'A=Open review threads:\n- src/a.ts:10 (dave, 0 replies): off by one\n',
+  )
   expect(only.prompt).toContain('W=/run/worktree\n')
   expect(only.prompt).toContain('D=/run/diff.patch\n')
   expect(only.prompt.endsWith('O=/run/critic.json')).toBe(true)
@@ -276,6 +281,7 @@ test('sixty-five candidates at batch size thirty yield three numbered prompts', 
     candidates: candidates(65),
     mergeCandidates: [],
     reviewRules: [],
+    alreadyRaised: '(none)',
     worktree: '/run/worktree',
     diffPath: '/run/diff.patch',
     runDir: '/run',
@@ -298,6 +304,7 @@ test('a merge group straddling a batch boundary is placed whole in the batch of 
     candidates: candidates(35),
     mergeCandidates: [['c30', 'c31']],
     reviewRules: [],
+    alreadyRaised: '(none)',
     worktree: '/run/worktree',
     diffPath: '/run/diff.patch',
     runDir: '/run',
@@ -319,10 +326,13 @@ test('a template missing placeholders throws naming each missing one', () => {
       candidates: candidates(1),
       mergeCandidates: [],
       reviewRules: [],
+      alreadyRaised: '(none)',
       worktree: '/run/worktree',
       diffPath: '/run/diff.patch',
       runDir: '/run',
       batchSize: 30,
     }),
-  ).toThrow('<<MERGE_CANDIDATES>>, <<REVIEW_RULES>>, <<WORKTREE>>, <<DIFF_PATH>>')
+  ).toThrow(
+    '<<MERGE_CANDIDATES>>, <<REVIEW_RULES>>, <<ALREADY_RAISED>>, <<WORKTREE>>, <<DIFF_PATH>>',
+  )
 })

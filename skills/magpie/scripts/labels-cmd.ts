@@ -1,9 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { foldLabels, readJsonLines } from './labels.ts'
+import { type FindingLabel, foldLabels, readJsonLines } from './labels.ts'
 import type { PostStatusMap } from './types.ts'
 
-export async function writeLabels(runDir: string): Promise<number> {
+export async function readRunLabels(runDir: string): Promise<FindingLabel[]> {
   const findingsPath = join(runDir, 'findings.final.json')
   const raw = JSON.parse(await readFile(findingsPath, 'utf8')) as unknown
   if (!Array.isArray(raw)) throw new Error(`${findingsPath} is not an array`)
@@ -21,12 +21,16 @@ export async function writeLabels(runDir: string): Promise<number> {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
   }
 
-  const labels = foldLabels({
+  return foldLabels({
     findingIds,
     postStatus,
     events: await readJsonLines(join(runDir, 'state', 'events')),
     log: await readJsonLines(join(runDir, 'log.jsonl')),
   })
+}
+
+export async function writeLabels(runDir: string): Promise<number> {
+  const labels = await readRunLabels(runDir)
   await writeFile(join(runDir, 'labels.json'), `${JSON.stringify(labels, null, 2)}\n`)
   return labels.length
 }

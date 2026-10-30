@@ -381,6 +381,16 @@ test('formatReviewSummaryBody renders incremental trailer with new commits', () 
   expect(body).toContain('abcdef0')
 })
 
+test('formatReviewSummaryBody carries the previous-run line under the incremental trailer', () => {
+  const body = formatReviewSummaryBody([], {
+    incremental: { previousSha: 'abcdef0123456', sameSha: false },
+    previousRun: 'Last review: 3 posted · 2 on changed code · 1 on unchanged code',
+  })
+  expect(body).toContain(
+    '<sub>Incremental review since `abcdef0`</sub>\n\n<sub>Last review: 3 posted · 2 on changed code · 1 on unchanged code</sub>',
+  )
+})
+
 test('formatReviewSummaryBody renders re-review trailer when sameSha', () => {
   const body = formatReviewSummaryBody([], {
     incremental: { previousSha: 'abcdef0123456', sameSha: true },

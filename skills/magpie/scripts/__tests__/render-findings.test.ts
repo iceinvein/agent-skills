@@ -381,6 +381,19 @@ test('findings header notes a locally-built diff', () => {
   expect(html).toContain('aaaaaaaaaaaa')
 })
 
+test('findings header carries the previous-run line on a re-review', () => {
+  const html = renderFindingsHtml({
+    findings: [],
+    postStatus: {},
+    pr: { number: 7, branch: 'feature-x', headSha: 'abc123abc123' },
+    previousRun: 'Last review: 3 posted · 2 on changed code · 1 on unchanged code',
+    dismissed: new Map(),
+    topN: DEFAULT_TOP_N,
+    highlighter: hl,
+  })
+  expect(html).toContain('Last review: 3 posted · 2 on changed code · 1 on unchanged code')
+})
+
 test('findings header stays quiet when the diff came from gh', () => {
   const html = renderFindingsHtml({
     findings: [],

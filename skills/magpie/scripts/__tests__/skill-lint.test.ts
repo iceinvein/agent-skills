@@ -88,6 +88,7 @@ test('references/critic.md carries every placeholder critic-prompt fills', async
     '<<CANDIDATES>>',
     '<<MERGE_CANDIDATES>>',
     '<<REVIEW_RULES>>',
+    '<<ALREADY_RAISED>>',
     '<<WORKTREE>>',
     '<<DIFF_PATH>>',
     '<<OUTPUT_PATH>>',

@@ -19,6 +19,7 @@ export const CRITIC_PLACEHOLDERS = [
   '<<CANDIDATES>>',
   '<<MERGE_CANDIDATES>>',
   '<<REVIEW_RULES>>',
+  '<<ALREADY_RAISED>>',
   '<<WORKTREE>>',
   '<<DIFF_PATH>>',
   '<<OUTPUT_PATH>>',
@@ -237,6 +238,8 @@ export function buildCriticPrompts(input: {
   candidates: ReviewFinding[]
   mergeCandidates: string[][]
   reviewRules: ReviewRule[]
+  /** Rendered by `renderAlreadyRaised`, `(none)` when there is nothing. */
+  alreadyRaised: string
   worktree: string
   diffPath: string
   runDir: string
@@ -258,6 +261,7 @@ export function buildCriticPrompts(input: {
       '<<CANDIDATES>>': renderCandidates(batch),
       '<<MERGE_CANDIDATES>>': JSON.stringify(groups, null, 2),
       '<<REVIEW_RULES>>': renderRules(input.reviewRules),
+      '<<ALREADY_RAISED>>': input.alreadyRaised,
       '<<WORKTREE>>': input.worktree,
       '<<DIFF_PATH>>': input.diffPath,
       '<<OUTPUT_PATH>>': outputPath,

@@ -1,7 +1,7 @@
 # Specialist prompts
 
 Stage 4 of the walkthrough dispatches five subagents per shard from this file. Build
-each prompt from up to five parts, in this order, and send it as the agent's entire
+each prompt from up to six parts, in this order, and send it as the agent's entire
 task. Each part is a fenced block or the named section it points at; the prose around
 them is instruction to you, not text for the specialist.
 
@@ -68,6 +68,13 @@ review rule is a convention the maintainers wrote down: a change that breaks one
 finding in your domain when the rule bears on it, citing the rule's source.
 ```
 
+6. What is already on the PR: the stdout of `magpie history "<RUN_DIR>"`, verbatim,
+   when it prints anything. It lists the PR's open review threads and comments, the
+   findings a reviewer dismissed in an earlier magpie run, failing CI checks, and on a
+   re-review the files changed since the last one. Run it once per run; every
+   specialist gets the same text. It prints nothing on a local run or a first review
+   of a quiet PR, and then the part is left out.
+
 Replace every `<RUN_DIR>`, `<WORKTREE>` and `<TARGET>` with the real values before
 sending. `<WORKTREE>` is what `magpie target "$RUN_DIR"` prints. `<TARGET>` is `PR #<n>`,
 or on a local run `local branch <branch> against <baseRef>` (`detached HEAD
@@ -75,7 +82,7 @@ against <baseRef>` when HEAD has no branch). The subagent has no shell variables
 your session, so an unexpanded path means it writes its findings where nothing will
 read them. Leave `<focus>` as written; the contract tells the subagent to substitute it.
 
-Parts 1, 2, and 3 go every time. The contract is what makes the output parseable by
+Parts 1, 2, and 3 go every time; 4, 5 and 6 only when their source exists. The contract is what makes the output parseable by
 `magpie dedupe`, and the focus blocks are what keep the five reviews from collapsing
 into the same generic pass. Do not paraphrase, summarise, or trim either one.
 

@@ -1,7 +1,7 @@
 # Critic prompt
 
 Stage 6 of the walkthrough does not read this file by hand. `magpie critic-prompt
-"$RUN_DIR"` takes the fenced `magpie-critic` block below, fills its six placeholders
+"$RUN_DIR"` takes the fenced `magpie-critic` block below, fills its seven placeholders
 from the run directory, and writes one prompt file per batch of candidates:
 
 - `<<CANDIDATES>>`: the batch's candidates from `findings.deduped.json`, with `id`,
@@ -11,6 +11,9 @@ from the run directory, and writes one prompt file per batch of candidates:
   in this batch (a group always rides in one batch).
 - `<<REVIEW_RULES>>`: `brief.json`'s `reviewRules`, one `- <rule> (<source>)` line each,
   or `(none)`.
+- `<<ALREADY_RAISED>>`: from `pr-activity.json` and `previous-findings.json`, the PR's
+  unresolved review threads, its top-level comments, and the findings a reviewer
+  dismissed in an earlier magpie run on this PR, or `(none)`.
 - `<<WORKTREE>>`, `<<DIFF_PATH>>`: the run's worktree and `diff.patch`.
 - `<<OUTPUT_PATH>>`: where this batch's verdicts go, `critic.json` or `critic-<k>.json`.
 
@@ -18,7 +21,7 @@ Each prompt file is the entire task of one `general-purpose` subagent. `magpie
 critic-apply "$RUN_DIR"` then reads every output file, rejects the set if any verdict
 is malformed, and writes `findings.kept.json` and `critic-dropped.json`. The output
 contract in the block is exactly what critic-apply accepts; change one only with the
-other. All six placeholders must stay in the block, or critic-prompt exits 1.
+other. All seven placeholders must stay in the block, or critic-prompt exits 1.
 
 ````magpie-critic
 You are a senior code reviewer auditing candidate review findings that other agents
@@ -53,7 +56,7 @@ Treat every candidate as a claim to verify, not a conclusion to grade. For each 
 
 ## When to drop
 
-Drop a candidate only when the code refutes it, and say how in `reason`:
+Drop a candidate only for one of these reasons, and say which in `reason`:
 - The code does not do what the description says, or an existing guard already
   prevents it (name the guard's file:line).
 - The path it describes cannot be reached: no caller passes the value, or the
@@ -68,6 +71,11 @@ Drop a candidate only when the code refutes it, and say how in `reason`:
   assertion that can no longer fail, cleanup that leaks into other tests) is a
   correctness finding, not maintainability: judge it like any other defect.
 - It asks for something a repository review rule below forbids.
+- It repeats an entry under "Already raised" below: an open review thread or PR
+  comment that makes the same point, or a finding the reviewer dismissed in an earlier
+  run. Name who raised it, or the dismissal reason, in `reason`. A candidate that adds
+  something material the earlier entry lacks (a second path, a worse consequence, the
+  fix the thread asked for) is not a repeat: judge it on its own.
 
 None of these is a refutation, so none is a reason to drop:
 - The same mistake already exists elsewhere in the codebase. A pre-existing instance
@@ -101,7 +109,7 @@ about. Downgrade rather than drop when:
   request body, a file name) is not an unlikely precondition.
 
 Downgrade only for a reason on this list, and name it in `reason`. Everything else you
-keep is at full weight. Drop only what the code refutes.
+keep is at full weight. Drop only for a reason under "When to drop".
 
 ## Repository review rules
 
@@ -110,6 +118,14 @@ file it came from. A candidate that flags a breach of one of these is stronger f
 it; a candidate that asks for something one of these rules forbids should be dropped.
 
 <<REVIEW_RULES>>
+
+## Already raised
+
+What was already said on this pull request before this review, and what the reviewer
+dismissed in an earlier magpie run on it. A candidate that repeats one of these is
+dropped, as above.
+
+<<ALREADY_RAISED>>
 
 ## Merge candidates
 

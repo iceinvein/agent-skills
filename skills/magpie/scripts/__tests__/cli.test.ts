@@ -374,3 +374,37 @@ test('shard with a custom --budget and --max-files reaches shardDiff with those 
     await rm(runDir, { recursive: true, force: true })
   }
 })
+
+test('history prints the already-on-this-PR section for a run with PR activity', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-cli-history-'))
+  try {
+    await writeFile(
+      join(runDir, 'pr-activity.json'),
+      JSON.stringify({
+        checks: [],
+        threads: [],
+        comments: [{ author: 'alice', body: 'Why three retries?', magpie: false }],
+      }),
+    )
+    const proc = Bun.spawn(['bun', CLI, 'history', runDir], { stdout: 'pipe', stderr: 'pipe' })
+    const exit = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    expect(exit).toBe(0)
+    expect(stdout.startsWith('## Already on this PR\n')).toBe(true)
+    expect(stdout).toContain('PR comments:\n- alice: Why three retries?\n')
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
+})
+
+test('history prints nothing for a run with no history', async () => {
+  const runDir = await mkdtemp(join(tmpdir(), 'magpie-cli-history-'))
+  try {
+    const proc = Bun.spawn(['bun', CLI, 'history', runDir], { stdout: 'pipe', stderr: 'pipe' })
+    const exit = await proc.exited
+    expect(exit).toBe(0)
+    expect(await new Response(proc.stdout).text()).toBe('')
+  } finally {
+    await rm(runDir, { recursive: true, force: true })
+  }
+})

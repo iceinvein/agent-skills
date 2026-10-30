@@ -72,6 +72,16 @@ function locateEvidence(fileLines: string[], snippet: string[], line: number): n
   return matches.length === 1 ? (matches[0] ?? null) : null
 }
 
+/** True when `evidence` appears anywhere in `fileText`, whitespace normalised as above. */
+export function containsEvidence(fileText: string, evidence: string): boolean {
+  const lines = fileText.split('\n')
+  const snippet = evidence.trim().split('\n').map(normalise)
+  for (let start = 1; start <= lines.length; start++) {
+    if (matchesAt(lines, snippet, start)) return true
+  }
+  return false
+}
+
 export async function verifyEvidence(
   findings: ReviewFinding[],
   worktreePath: string,

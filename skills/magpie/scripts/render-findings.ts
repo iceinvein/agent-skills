@@ -65,6 +65,8 @@ export type RenderFindingsInput = {
   topN: number
   /** Where diff.patch came from. Absent means gh, which needs no note. */
   diffSource?: { source: 'gh' | 'git'; mergeBase: string | null }
+  /** `describePreviousPosted` on a re-review; absent on a first run. */
+  previousRun?: string
 }
 
 function esc(s: string): string {
@@ -99,14 +101,18 @@ function prHeader(input: RenderFindingsInput): string {
           src.mergeBase ? ` at <code>${esc(src.mergeBase.slice(0, 12))}</code>` : ''
         }</span>`
       : ''
+  const previousNote = input.previousRun
+    ? `<span class="diff-source" title="Changed code is not the same as fixed: the defect can survive an edit">${esc(input.previousRun)}</span>`
+    : ''
   const prMeta = pr
     ? `<div class="pr-meta">
         <span class="pr-number">PR #${pr.number}</span>
         <span class="pr-branch">${esc(pr.branch)}</span>
         <code>${esc(pr.headSha.slice(0, 12))}</code>
         ${diffNote}
+        ${previousNote}
       </div>`
-    : `<div class="pr-meta">${diffNote}</div>`
+    : `<div class="pr-meta">${diffNote}${previousNote}</div>`
   const total = input.findings.length
   return `<header class="pr-header">
     ${brandBlock()}

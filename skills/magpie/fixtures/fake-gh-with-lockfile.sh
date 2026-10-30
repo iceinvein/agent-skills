@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# The activity fetch asks pr view for different fields than setup's first call.
+case "$*" in
+  *statusCheckRollup*)
+    cat <<'JSON'
+{
+  "statusCheckRollup": [
+    { "__typename": "CheckRun", "name": "build", "status": "COMPLETED", "conclusion": "FAILURE", "detailsUrl": "https://ci.example/1" }
+  ],
+  "comments": [
+    { "author": { "login": "alice" }, "body": "Does this retry past three attempts?" }
+  ],
+  "reviews": []
+}
+JSON
+    exit 0
+    ;;
+esac
 case "$1 $2" in
   "pr view")
     cat <<'JSON'
@@ -18,6 +35,17 @@ case "$1 $2" in
     { "path": "dist/x.js", "additions": 1, "deletions": 0, "changeType": "modified" }
   ]
 }
+JSON
+    ;;
+  "api graphql")
+    cat <<'JSON'
+{ "data": { "repository": { "pullRequest": { "reviewThreads": {
+  "pageInfo": { "hasNextPage": false, "endCursor": null },
+  "nodes": [
+    { "path": "src/a.ts", "line": 1, "originalLine": 1, "isResolved": false, "isOutdated": false,
+      "comments": { "totalCount": 1, "nodes": [ { "author": { "login": "dave" }, "body": "Why 2?" } ] } }
+  ]
+} } } } }
 JSON
     ;;
   "pr diff")

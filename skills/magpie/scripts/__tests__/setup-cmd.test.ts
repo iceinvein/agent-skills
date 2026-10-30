@@ -140,7 +140,11 @@ test('runSetup writes incremental.json when a prior run for the same PR exists',
   await sh(magpieHome, 'mkdir', '-p', 'pr-1234-100')
   await writeFile(
     join(magpieHome, 'pr-1234-100', 'pr.json'),
-    JSON.stringify({ headRefOid: 'oldsha', number: 1234 }),
+    JSON.stringify({
+      headRefOid: 'oldsha',
+      number: 1234,
+      url: 'https://github.com/octocat/Hello-World/pull/1234',
+    }),
   )
   const originalHome = process.env.MAGPIE_HOME
   process.env.MAGPIE_HOME = magpieHome
@@ -157,6 +161,166 @@ test('runSetup writes incremental.json when a prior run for the same PR exists',
     expect(incremental.previousRunId).toBe('pr-1234-100')
     expect(incremental.previousSha).toBe('oldsha')
     expect(incremental.sameSha).toBe(false)
+  } finally {
+    if (originalHome === undefined) delete process.env.MAGPIE_HOME
+    else process.env.MAGPIE_HOME = originalHome
+    await rm(magpieHome, { recursive: true, force: true })
+  }
+})
+
+test('runSetup carries the previous run posted findings forward with their anchor status', async () => {
+  const magpieHome = await mkdtemp(join(tmpdir(), 'magpie-home-prev-'))
+  const prev = join(magpieHome, 'pr-1234-100')
+  await mkdir(prev, { recursive: true })
+  await writeFile(
+    join(prev, 'pr.json'),
+    JSON.stringify({
+      headRefOid: 'oldsha',
+      number: 1234,
+      url: 'https://github.com/octocat/Hello-World/pull/1234',
+    }),
+  )
+  await writeFile(
+    join(prev, 'findings.final.json'),
+    JSON.stringify([
+      {
+        id: 'bugs-1',
+        file: 'a.txt',
+        line: 1,
+        evidence: 'one',
+        severity: 'high',
+        risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'should-fix' },
+        title: 'a.txt says one',
+        description: 'Observation: x',
+        domain: 'bugs',
+      },
+    ]),
+  )
+  await writeFile(join(prev, 'post-status.json'), JSON.stringify({ 'bugs-1': 'posted' }))
+  const originalHome = process.env.MAGPIE_HOME
+  process.env.MAGPIE_HOME = magpieHome
+  try {
+    const exit = await runSetup({
+      mode: 'pr',
+      runDir,
+      prNumber: 1234,
+      repoPath: repo,
+      deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+    })
+    expect(exit).toBe(0)
+    const previous = JSON.parse(await readFile(join(runDir, 'previous-findings.json'), 'utf8'))
+    expect(previous).toEqual({
+      previousRunId: 'pr-1234-100',
+      findings: [
+        {
+          id: 'bugs-1',
+          fromRunId: 'pr-1234-100',
+          file: 'a.txt',
+          line: 1,
+          title: 'a.txt says one',
+          domain: 'bugs',
+          label: 'posted',
+          anchor: 'unchanged',
+        },
+      ],
+    })
+    const incremental = JSON.parse(await readFile(join(runDir, 'incremental.json'), 'utf8'))
+    // oldsha is not a commit in the clone, so there is nothing to diff from.
+    expect(incremental.changedSincePrevious).toBeNull()
+  } finally {
+    if (originalHome === undefined) delete process.env.MAGPIE_HOME
+    else process.env.MAGPIE_HOME = originalHome
+    await rm(magpieHome, { recursive: true, force: true })
+  }
+})
+
+test('runSetup writes the PR checks, comments and review threads to pr-activity.json', async () => {
+  const exit = await runSetup({
+    mode: 'pr',
+    runDir,
+    prNumber: 1234,
+    repoPath: repo,
+    deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git: 'git' },
+  })
+  expect(exit).toBe(0)
+  const activity = JSON.parse(await readFile(join(runDir, 'pr-activity.json'), 'utf8'))
+  expect(activity.checks).toEqual([
+    { name: 'build', conclusion: 'FAILURE', url: 'https://ci.example/1' },
+  ])
+  expect(activity.comments).toEqual([
+    { author: 'alice', body: 'Does this retry past three attempts?', magpie: false },
+  ])
+  expect(activity.threads.map((t: { file: string }) => t.file)).toEqual(['src/a.ts'])
+})
+
+test('runSetup fails and cleans up when the PR activity cannot be fetched', async () => {
+  const gh = join(runDir, '..', `gh-noactivity-${Date.now()}.sh`)
+  await writeFile(
+    gh,
+    [
+      '#!/usr/bin/env bash',
+      'if [[ "$1 $2" == "api graphql" ]]; then echo "HTTP 502" >&2; exit 1; fi',
+      `exec "${FAKE_GH}" "$@"`,
+    ].join('\n'),
+  )
+  await sh(runDir, 'chmod', '+x', gh)
+  try {
+    const exit = await runSetup({
+      mode: 'pr',
+      runDir,
+      prNumber: 1234,
+      repoPath: repo,
+      deps: { bun: 'bun', gh, codex: 'echo', git: 'git' },
+    })
+    expect(exit).not.toBe(0)
+    const contents = await readdir(runDir)
+    expect(contents).not.toContain('pr.json')
+    expect(contents).not.toContain('pr-activity.json')
+    const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+    expect(log).toContain('HTTP 502')
+  } finally {
+    await rm(gh, { force: true })
+  }
+})
+
+test('runSetup fails and cleans up when diffing against the previous head fails', async () => {
+  const magpieHome = await mkdtemp(join(tmpdir(), 'magpie-home-gitfail-'))
+  const prev = join(magpieHome, 'pr-1234-100')
+  await mkdir(prev, { recursive: true })
+  await writeFile(
+    join(prev, 'pr.json'),
+    JSON.stringify({
+      headRefOid: 'oldsha',
+      url: 'https://github.com/octocat/Hello-World/pull/1234',
+    }),
+  )
+  // Both commits probe as present, then the diff itself fails, as a corrupt object would.
+  const git = join(magpieHome, 'git.sh')
+  await writeFile(
+    git,
+    [
+      '#!/usr/bin/env bash',
+      'if [[ "$1" == "cat-file" ]]; then exit 0; fi',
+      'if [[ "$1 $2" == "diff --name-only" ]]; then echo "fatal: bad object" >&2; exit 128; fi',
+      'exec git "$@"',
+    ].join('\n'),
+  )
+  await sh(magpieHome, 'chmod', '+x', git)
+  const originalHome = process.env.MAGPIE_HOME
+  process.env.MAGPIE_HOME = magpieHome
+  try {
+    const exit = await runSetup({
+      mode: 'pr',
+      runDir,
+      prNumber: 1234,
+      repoPath: repo,
+      deps: { bun: 'bun', gh: FAKE_GH, codex: 'echo', git },
+    })
+    expect(exit).not.toBe(0)
+    const contents = await readdir(runDir)
+    expect(contents).not.toContain('pr.json')
+    const log = await readFile(join(runDir, 'log.jsonl'), 'utf8')
+    expect(log).toContain('fatal: bad object')
   } finally {
     if (originalHome === undefined) delete process.env.MAGPIE_HOME
     else process.env.MAGPIE_HOME = originalHome

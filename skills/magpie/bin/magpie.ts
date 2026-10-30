@@ -13,6 +13,8 @@ Subcommands:
                              (default origin/HEAD), committed and uncommitted
   target <run-dir>           Print the directory findings are anchored against
   handoff <run-dir>          Print local review findings as a ranked list
+  history <run-dir>          Print what is already on the PR (open threads, comments,
+                             dismissals, failing checks) for the specialist prompts
   serve <run-dir-or-id>      Start the HTML server (accepts active or archived run id)
   dedupe <run-dir>           Merge specialist findings into deduped set
   critic-prompt <run-dir> [--batch-size N]
@@ -325,6 +327,22 @@ const HANDLERS: Record<string, Handler> = {
     }
     const { runRender } = await import('../scripts/render-cmd.ts')
     return runRender(runDir, page, topN !== undefined ? { topN } : {})
+  },
+  history: async (args) => {
+    const runDir = args[0]
+    if (!runDir || runDir.startsWith('-')) {
+      process.stderr.write('history: missing <run-dir>\n')
+      return 2
+    }
+    const { readHistory, renderHistory } = await import('../scripts/history.ts')
+    try {
+      const text = renderHistory(await readHistory(runDir))
+      if (text !== '') process.stdout.write(`${text}\n`)
+    } catch (err) {
+      process.stderr.write(`history: ${err instanceof Error ? err.message : String(err)}\n`)
+      return 1
+    }
+    return 0
   },
   labels: async (args) => {
     const runDir = args[0]

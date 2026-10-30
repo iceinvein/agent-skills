@@ -59,7 +59,7 @@ lines, 80 files). Re-splitting invalidates every existing
 delete those files first, or stage 4's resume rule counts a pair as covered that
 nothing reviewed.
 
-When a prior run exists for the same PR (active or archived under `~/.magpie/`), setup writes `$RUN_DIR/incremental.json` with `{previousRunId, previousSha, currentSha, sameSha}`. The post stage surfaces this as a "Incremental review since `<sha>`" trailer on the summary comment.
+Setup writes `pr-activity.json` (checks, review threads, comments) and, on a re-review, `incremental.json` and `previous-findings.json` (last run's posted findings, whether their quoted code changed, and its dismissals).
 
 Setup also runs a deterministic test-coverage check: when the diff contains zero test or spec files anywhere, each non-test source file with `>= 10` added code lines gets a `domain: "tests"` finding in `$RUN_DIR/findings/tests.json`. That domain flows through dedupe/critic/peer-review like the LLM findings; no subagent is dispatched for it.
 
@@ -98,6 +98,8 @@ Read `references/specialists.md` now, before dispatching anything: it holds the 
 Append `{stage: specialists, status: running}` to `$RUN_DIR/log.jsonl` and re-render
 progress, so the served page shows the stage as active rather than "Paused". Then read
 `$RUN_DIR/shards/manifest.json`.
+
+Run `magpie history "$RUN_DIR"` once; any output is part 6 of every specialist prompt.
 
 **One shard, zero shards, or no manifest** (a diff filtered down to nothing, e.g. a
 lockfile-only PR, yields `shards: []` in an otherwise normal manifest; a run predating

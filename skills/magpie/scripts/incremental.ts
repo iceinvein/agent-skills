@@ -8,6 +8,8 @@ export type IncrementalContext = {
   currentSha: string
   /** True when the head SHA is unchanged from the previous run (no new commits). */
   sameSha: boolean
+  /** Files changed from previousSha to currentSha; null when previousSha is not in the clone. */
+  changedSincePrevious?: string[] | null
 }
 
 const RUN_PATTERN = /^pr-(\d+)-(\d+)(?:\.archived-\d+)?$/
@@ -17,12 +19,15 @@ function reviewHome(): string {
 }
 
 /**
- * Find the most recent prior run (active or archived) for the same PR number,
- * excluding the current run. Returns null when no prior run exists. The current
- * run is identified by basename match so we don't accidentally pick it up.
+ * Find the most recent prior run (active or archived) of the same PR, excluding
+ * the current run. Run ids carry only the PR number, so the repository is
+ * confirmed by matching pr.json's `url`; a run without one is skipped, since
+ * another repository's dismissals would make the critic drop findings here.
+ * Returns null when no prior run exists.
  */
 export async function findPreviousRun(
   prNumber: number,
+  prUrl: string,
   currentRunDir: string,
   home?: string,
 ): Promise<{ runId: string; runDir: string; prJson: Record<string, unknown> } | null> {
@@ -48,12 +53,14 @@ export async function findPreviousRun(
     const s = await stat(runDir).catch(() => null)
     if (!s?.isDirectory()) continue
     const prJsonPath = join(runDir, 'pr.json')
+    let prJson: Record<string, unknown>
     try {
-      const text = await readFile(prJsonPath, 'utf8')
-      return { runId: c.id, runDir, prJson: JSON.parse(text) }
+      prJson = JSON.parse(await readFile(prJsonPath, 'utf8'))
     } catch {
       // Missing or malformed pr.json; try the next candidate.
+      continue
     }
+    if (prJson.url === prUrl) return { runId: c.id, runDir, prJson }
   }
   return null
 }
@@ -72,4 +79,36 @@ export function buildIncrementalContext(
     currentSha,
     sameSha: previousSha === currentSha,
   }
+}
+
+/**
+ * Files changed between two commits, or null when either is not in the clone
+ * (a force-push can leave the earlier head unreachable). Names are the new side.
+ */
+export async function changedFilesSince(input: {
+  gitBin: string
+  repoPath: string
+  fromSha: string
+  toSha: string
+}): Promise<string[] | null> {
+  for (const sha of [input.fromSha, input.toSha]) {
+    const probe = Bun.spawn([input.gitBin, 'cat-file', '-e', `${sha}^{commit}`], {
+      cwd: input.repoPath,
+      stdout: 'ignore',
+      stderr: 'ignore',
+    })
+    if ((await probe.exited) !== 0) return null
+  }
+  const proc = Bun.spawn(
+    [input.gitBin, 'diff', '--name-only', '--no-renames', input.fromSha, input.toSha],
+    { cwd: input.repoPath, stdout: 'pipe', stderr: 'pipe' },
+  )
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  if ((await proc.exited) !== 0) {
+    throw new Error(`git diff --name-only ${input.fromSha} ${input.toSha}: ${stderr.trim()}`)
+  }
+  return stdout.split('\n').filter((l) => l !== '')
 }
