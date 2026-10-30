@@ -1259,6 +1259,37 @@ describe("a worktree set shares one run", () => {
 		expect(done).toHaveLength(6);
 	});
 
+	// Ubuntu 26.04 ships uutils mkdir, which reports success to several racing
+	// callers on one path. The shim stands in for it: it always succeeds, so a
+	// lock that leans on mkdir failing lets every flip in at once.
+	test("concurrent flips keep every row when mkdir does not fail on an existing directory", async () => {
+		const main = gitRepo();
+		run(main, "init", "--topic", "widget", "--channel", "deep");
+		for (let i = 1; i <= 6; i++) run(main, "task", String(i), "--name", `T${i}`);
+		const bin = mkdtempSync(join(tmpdir(), "sluice-mkdir-"));
+		writeFileSync(join(bin, "mkdir"), '#!/bin/bash\nfor a in "$@"; do case "$a" in -*) ;; *) /bin/mkdir -p "$a" ;; esac; done\nexit 0\n');
+		chmodSync(join(bin, "mkdir"), 0o755);
+
+		const trees = [main, worktree(main, "a"), worktree(main, "b")];
+		const { CLAUDE_CODE_SESSION_ID: _, ...env } = process.env;
+		await Promise.all(
+			[1, 2, 3, 4, 5, 6].map((id) =>
+				Bun.spawn({
+					cmd: [
+						"bash", SCRIPT, "task", String(id), "--status", "done",
+						"--dir", trees[id % trees.length],
+					],
+					env: { ...env, PATH: `${bin}:${env.PATH}` },
+					stdout: "ignore",
+					stderr: "ignore",
+				}).exited,
+			),
+		);
+
+		const done = state(main).tasks.filter((t) => t.status === "done");
+		expect(done).toHaveLength(6);
+	});
+
 	// A plain directory is not a work tree, and a submodule's own checkout is the
 	// main worktree of its own repo, so neither is redirected anywhere.
 	test("a tree that is not a git work tree keeps its own run", () => {

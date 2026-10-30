@@ -862,11 +862,13 @@ write_state() {
 # their own task at the same moment. A flip reads the whole file, edits it with
 # jq and writes it back, so unserialised the later write is built on a snapshot
 # taken before the earlier one landed and drops that row without saying so.
-# mkdir is the atomic primitive every platform this runs on has; flock is Linux
-# only. Reads do not take it: write_state installs through a rename, so a reader
-# sees either the whole old file or the whole new one.
+# The lock is a file created with bash's noclobber, which bash opens itself with
+# O_CREAT|O_EXCL, so exactly one racer gets it on every platform. Not mkdir:
+# Ubuntu 26.04's uutils mkdir reports success to several callers racing on one
+# path. flock is Linux only. Reads do not take the lock: write_state installs
+# through a rename, so a reader sees either the whole old file or the whole new one.
 #
-# The holder's pid goes inside the directory so a killed run cannot wedge every
+# The holder's pid is the file's content so a killed run cannot wedge every
 # later one. A lock whose holder is gone is broken rather than waited out, and
 # one whose holder is alive is waited on for a bounded time and then reported,
 # because a command that hangs in a status bar is worse than one that fails.
@@ -874,33 +876,35 @@ write_state() {
 LOCKS_TAKEN=()
 release_lock() {
 	local l
-	for l in "${LOCKS_TAKEN[@]+"${LOCKS_TAKEN[@]}"}"; do rm -rf "$l"; done
+	for l in "${LOCKS_TAKEN[@]+"${LOCKS_TAKEN[@]}"}"; do rm -f "$l"; done
 	LOCKS_TAKEN=()
 }
 
 # Every waiter reads the holder's pid while it holds, so when it exits they all
 # see it dead at once. Each removing the lock on that stale read would remove
-# the directory the next command had just taken, leaving two writers. Breaking
+# the lock the next command had just taken, leaving two writers. Breaking
 # is serialised instead, and the pid is read again once its process is known
 # dead: the holder may have released and a new command taken the lock between
-# the first read and the check. A dead holder cannot remove its own directory,
+# the first read and the check. A dead holder cannot remove its own lock,
 # so the same pid on the second read means the lock is still the stale one.
+# A file read empty is a holder between creating it and writing its pid, alive.
 break_stale_lock() { # <lock path>
 	local lock="$1" holder broke=1
-	mkdir "$lock.break" 2>/dev/null || return 1
-	holder="$(cat "$lock/pid" 2>/dev/null)"
+	(set -o noclobber; : >"$lock.break") 2>/dev/null || return 1
+	holder="$(cat "$lock" 2>/dev/null)"
 	if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null \
-		&& [ "$(cat "$lock/pid" 2>/dev/null)" = "$holder" ]; then
-		rm -rf "$lock"
+		&& [ "$(cat "$lock" 2>/dev/null)" = "$holder" ]; then
+		rm -f "$lock"
 		broke=0
 	fi
-	rmdir "$lock.break"
+	rm -f "$lock.break"
 	return "$broke"
 }
 
 take_lock() { # [<lock path>, default the run's own]
 	local lock="${1:-$LOCK}" waited=0
-	while ! mkdir "$lock" 2>/dev/null; do
+	# $$ in the subshell is still this command's pid.
+	while ! (set -o noclobber; printf '%s\n' "$$" >"$lock") 2>/dev/null; do
 		break_stale_lock "$lock" && continue
 		if [ "$waited" -ge 100 ]; then
 			err "another sluice command has held $lock for 10s; remove it if nothing is running"
@@ -909,7 +913,6 @@ take_lock() { # [<lock path>, default the run's own]
 		sleep 0.1
 		waited=$((waited + 1))
 	done
-	printf '%s\n' "$$" >"$lock/pid" 2>/dev/null || true
 	LOCKS_TAKEN+=("$lock")
 	trap release_lock EXIT INT TERM
 }
