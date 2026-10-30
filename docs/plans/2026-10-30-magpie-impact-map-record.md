@@ -228,3 +228,21 @@ Pooled: 1 of 21 (miss, repeat) catches. Eight runs wrote zero findings (unjudged
   the run-to-run variance the 2026-10-17 record warned of.
 - Per the plan, T9 (phase B) does not start without the user's go-ahead.
 - The scratch `real-pr70` worktree is removed from the workings clone; no probe worktree remains.
+
+## Decision: skip phase B, revert the flip, keep the tooling
+
+- User decision (2026-10-30), from the recommended options: phase B is not run, so T9 is left
+  `blocked` in run.json as "not run by the user's choice" (sluice has no cancelled status).
+  Phase A spend $29.58 is the run's whole measurement spend.
+- Reverted in e3fdfd0: the flip 731a686, the 0.16.0 bump e371d6d, and the specialists.md lines
+  of 5c2652c. Every file the flip and bump touched is byte-identical to its pre-flip state
+  (`git diff 731a686~1` over those paths is empty). Kept: `magpie impact` (scripts/impact.ts,
+  impact-render.ts, impact-cmd.ts with its atomic writes), the `magpie shard` re-run, and the
+  probe harness with replay-full's `impactBytes`. None of it runs in a review until a prompt or
+  stage calls it. Gates after the revert: 874 pass, lint, tsc; SKILL.md back to 3489 words.
+- Reading: a deterministic map pushed into the prompt did not move recall on the targeted
+  misses, and the full file was never opened. With the 2026-10-17 probe (more instructions)
+  and the code-intelligence history (tools on demand), that is a third channel that did not
+  change what specialists raise on these shards. The facts were present (pr-70 shard 4's brief
+  led with the writers behind miss-1) and still produced one catch in three, the same rate as
+  the base arm's single catch elsewhere.
