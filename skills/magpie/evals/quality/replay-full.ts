@@ -5,7 +5,7 @@
 // again, capped by --max-cost-usd.
 
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { detectMissingTests } from '../../scripts/tests-check.ts'
@@ -46,6 +46,7 @@ export type ReplayDiagnostics = {
   criticDropped: unknown | null
   evidenceDropped: unknown | null
   thresholdDropped: unknown | null
+  impactBytes: number | null
 }
 
 async function readJsonIfPresent(path: string): Promise<unknown | null> {
@@ -92,6 +93,9 @@ export async function replayDiagnostics(runDir: string): Promise<ReplayDiagnosti
     criticDropped: await readJsonIfPresent(join(runDir, 'critic-dropped.json')),
     evidenceDropped: await readJsonIfPresent(join(runDir, 'evidence-dropped.json')),
     thresholdDropped: await readJsonIfPresent(join(runDir, 'threshold-dropped.json')),
+    impactBytes: existsSync(join(runDir, 'impact.md'))
+      ? (await stat(join(runDir, 'impact.md'))).size
+      : null,
   }
 }
 
@@ -149,7 +153,7 @@ export function replaySummary(input: {
   )
 }
 
-async function exec(
+export async function exec(
   cmd: string[],
   options: { cwd?: string; stdinText?: string; claudeLabel?: string } = {},
 ): Promise<string> {

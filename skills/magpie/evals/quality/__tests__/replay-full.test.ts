@@ -114,6 +114,7 @@ test('diagnostics carry the log, manifest, findings files, deduped count and cri
     criticDropped: [{ id: 'b', reason: 'speculative' }],
     evidenceDropped: null,
     thresholdDropped: null,
+    impactBytes: null,
   })
 })
 
@@ -129,6 +130,7 @@ test('diagnostics report absent manifest, deduped and drop files as null', async
     criticDropped: null,
     evidenceDropped: null,
     thresholdDropped: null,
+    impactBytes: null,
   })
 })
 
@@ -161,4 +163,11 @@ test('a deduped findings file that is not an array is rejected', async () => {
   await writeFile(join(dir, 'log.jsonl'), '{"stage":"setup","status":"done"}\n')
   await writeFile(join(dir, 'findings.deduped.json'), '{"id":"a"}')
   await expect(replayDiagnostics(dir)).rejects.toThrow('findings.deduped.json')
+})
+
+test('diagnostics report the impact map size when the run wrote impact.md', async () => {
+  const dir = await scratchRunDir()
+  await writeFile(join(dir, 'log.jsonl'), '{"stage":"setup","status":"done"}\n')
+  await writeFile(join(dir, 'impact.md'), '### Sibling routes\n- `/é`\n')
+  expect((await replayDiagnostics(dir)).impactBytes).toBe(27)
 })

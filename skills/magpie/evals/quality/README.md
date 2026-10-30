@@ -138,7 +138,8 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
    `results/<ts>-full-<runId>.json` with `recall`, `recallVerdicts`, `judgeModel` and
    `judgeCostUsd` all null, plus `log`, `shardManifest`, `findingsFiles`, `dedupedCount`,
    `criticDropped`, `evidenceDropped` and `thresholdDropped` read from the scratch run dir
-   before it is deleted. `shardCoverage` is derived from the manifest and the findings file
+   before it is deleted, and `impactBytes`, the size of `impact.md` (null when the run
+   wrote none). `shardCoverage` is derived from the manifest and the findings file
    names: a shard counts as reviewed when any specialist wrote a file for it, so it overstates
    a shard only some focuses reviewed. The printed line ends with `, shards <reviewed>/<total>`.
 4. When the run has a recall set (see [Recall](#recall)), judges the new kept findings
@@ -152,6 +153,52 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
 spend cap; `claude -p` has no `--max-cost-usd` flag. Hitting the cap stops the session,
 and the replay then fails without scoring, on Claude's error result or on the missing
 `findings.kept.json`.
+
+## Specialist probe
+
+```
+bun evals/quality/probe-specialist.ts --corpus <runId> --repo <path-to-local-clone> \
+  --focus <focus> --file <diff path> --misses <id,id> --arm base|impact --repeats <n> \
+  [--max-cost-usd N] [--judge-model M] [--dry-run]
+```
+
+Runs one specialist on one shard, with (`impact`) or without (`base`) the impact map in
+its prompt, and judges its findings against the named misses from the run's recall set.
+It asks a narrower question than a full replay, for about a tenth of the cost. Repeats
+run one after another, each in its own scratch run dir and worktree:
+
+1. Scaffolds the run dir as the full replay does (worktree at the PR head, `pr.json`,
+   `diff.patch` and `brief.json` copied, a `setup` done line, then `magpie shard`), and
+   picks the shard whose files include `--file`; no such shard exits 1, naming the file.
+2. Impact arm only: `magpie impact`. A skipped impact stage fails the probe, since the arm
+   would then be a base arm. The prompt then carries `Outside the diff: <path>` under
+   `Diff:` and the `magpie-impact-part` block, filled from the shard's
+   `impact.shard-<n>.md` and `.brief.md` (`impact.md` on an unsharded run). A shard with no
+   impact file gets neither, and records `readImpact` as null.
+3. Builds the prompt from this checkout's `references/specialists.md` the way stage 4
+   does: focus block, run header, Output Contract, the excluded-files block when the
+   corpus run has `excluded-files.json`, and the brief rendered from `brief.json`.
+4. Runs `claude -p --output-format stream-json --verbose --allowedTools
+   Bash,Read,Grep,Glob,Write --max-budget-usd <N>` from the worktree, prompt on stdin.
+   The base arm runs `magpie impact` after the session ends, so both arms count outside
+   citations against the same map.
+5. Reads the focus's findings file for the shard, numbering any finding with no id as
+   `<focus>-s<n>-<i>`. A missing file records `findings: 0` and `missingFindings` with the
+   reason rather than failing. Writes
+   `results/<ts>-probe-<runId>-<focus>-s<shard>-<arm>-r<k>.json` with `caught`,
+   `verdicts`, `findings`, `readImpact` (the session opened the impact file with the Read
+   tool; a Bash `cat` is not counted), `citesOutside` (findings whose description cites a
+   `file:line` the shard's impact Markdown lists outside the shard), `costUsd` and
+   `judgeCostUsd`, then judges with `judgeRecall` and rewrites it. With no findings the
+   judge is not called and `caught` stays empty.
+6. Removes the worktree and scratch dir whatever happened.
+
+`--dry-run` stops after step 3, prints the chosen shard and the assembled prompt, cleans
+up and exits 0. It calls no model and spends nothing.
+
+**Cost:** one specialist session per repeat, about $1.1 to $1.3 on the corpus PRs, capped
+by `--max-cost-usd` (default 3, passed as `--max-budget-usd`), plus one judge call when
+there are findings. A session that hits the cap fails the probe on Claude's error result.
 
 ## Recall
 
