@@ -203,7 +203,7 @@ If codex returns non-zero on a batch, do not abort: record `{stage: peer-review,
 
 ### 7b. Proof
 
-Append `{stage: proof, status: running}` and re-render progress. `magpie proof-prompt "$RUN_DIR"` fills `references/proof.md` for up to 8 serious findings, printing `<prompt path>\t<output path>` each. On a PR run with any printed, first install `$WORKTREE`'s dependencies once with the repo's frozen-lockfile command (`npm ci`, `uv sync --frozen`, ...); on failure log `{stage: proof-deps, status: skipped, error}` and go on. Dispatch the prompts as stage 6 does its batches, then `magpie proof-apply "$RUN_DIR"`: it drops disproved findings to `proof-dropped.json`, marks the rest and logs `done`. On a non-zero exit, delete only the `proof-<id>.json` files or leftovers stderr names, then re-dispatch or re-apply.
+Append `{stage: proof, status: running}` and re-render progress. `magpie proof-prompt "$RUN_DIR"` fills `references/proof.md` for up to 8 must-fix or should-fix findings, printing `<prompt path>\t<output path>` each. On a PR run with any printed, first install `$WORKTREE`'s dependencies once with the repo's frozen-lockfile command (`npm ci`, `uv sync --frozen`, ...); on failure log `{stage: proof-deps, status: skipped, error}` and go on. Dispatch the prompts as stage 6 does its batches, then `magpie proof-apply "$RUN_DIR"`: it drops disproved findings to `proof-dropped.json`, marks the rest and logs `done`. On a non-zero exit, delete only the `proof-<id>.json` files or leftovers stderr names, then re-dispatch or re-apply.
 
 ### 8. Report
 

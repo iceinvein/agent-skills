@@ -42,6 +42,12 @@ function joinSections(sections: string[][]): string {
     .join('\n\n')
 }
 
+// The account GitHub Actions posts as: coverage tables, deploy previews and other
+// CI output, which reaches the review as checks. Review bots post as their own
+// apps, and what they raise still counts. gh prints the login without `[bot]`,
+// the REST API with it.
+const CI_AUTHORS = new Set(['github-actions', 'github-actions[bot]'])
+
 function raisedSections(input: Pick<History, 'activity' | 'previous'>): string[][] {
   const threads = (input.activity?.threads ?? [])
     .filter((t) => !t.resolved)
@@ -50,9 +56,9 @@ function raisedSections(input: Pick<History, 'activity' | 'previous'>): string[]
       const outdated = t.outdated ? ' [outdated]' : ''
       return `- ${location(t.file, t.line)} (${who})${outdated}: ${flatten(t.body)}`
     })
-  const comments = (input.activity?.comments ?? []).map(
-    (c) => `- ${c.magpie ? 'magpie, earlier run' : c.author}: ${flatten(c.body)}`,
-  )
+  const comments = (input.activity?.comments ?? [])
+    .filter((c) => !CI_AUTHORS.has(c.author))
+    .map((c) => `- ${c.magpie ? 'magpie, earlier run' : c.author}: ${flatten(c.body)}`)
   const dismissed = (input.previous?.findings ?? []).flatMap((f) =>
     f.label === 'dismissed' ? [`- ${location(f.file, f.line)} [${f.reason}]: ${f.title}`] : [],
   )

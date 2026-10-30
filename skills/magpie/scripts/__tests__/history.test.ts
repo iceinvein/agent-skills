@@ -202,3 +202,31 @@ test('history with only leads carries the leads heading and no repeats preamble'
     ].join('\n'),
   )
 })
+
+test('already-raised leaves out comments from github-actions, which posts CI output', () => {
+  const out = renderAlreadyRaised({
+    activity: {
+      checks: [],
+      threads: [],
+      comments: [
+        { author: 'github-actions', body: '<h2>Coverage Report</h2>', magpie: false },
+        { author: 'coderabbitai', body: 'This retry never backs off.', magpie: false },
+      ],
+    },
+    previous: null,
+  })
+  expect(out).toBe('PR comments:\n- coderabbitai: This retry never backs off.')
+})
+
+test('already-raised is (none) when the only comments are CI output', () => {
+  expect(
+    renderAlreadyRaised({
+      activity: {
+        checks: [],
+        threads: [],
+        comments: [{ author: 'github-actions', body: '<h2>Coverage Report</h2>', magpie: false }],
+      },
+      previous: null,
+    }),
+  ).toBe('(none)')
+})

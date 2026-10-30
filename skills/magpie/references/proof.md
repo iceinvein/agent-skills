@@ -1,8 +1,8 @@
 # Proof prompt
 
 Stage 7b of the walkthrough does not read this file by hand. `magpie proof-prompt
-"$RUN_DIR"` picks the findings worth proving from `findings.final.json` (impact
-critical or high, action must-fix or should-fix, at most 8, highest score first),
+"$RUN_DIR"` picks the findings worth proving from `findings.final.json` (action
+must-fix or should-fix, at most 8, highest score first),
 takes the fenced `magpie-proof` block below, fills its four placeholders, and writes
 one prompt file per finding:
 

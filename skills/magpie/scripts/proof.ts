@@ -33,10 +33,10 @@ export type ProofDropped = {
 }
 
 export function selectForProof(findings: ReviewFinding[], cap: number): ReviewFinding[] {
+  // Action, not impact: the critic keeps a confirmed defect at should-fix even when
+  // it rates the impact low, and a real PR left nothing high to prove.
   const eligible = findings.filter(
-    (f) =>
-      (f.risk.impact === 'critical' || f.risk.impact === 'high') &&
-      (f.risk.action === 'must-fix' || f.risk.action === 'should-fix'),
+    (f) => f.risk.action === 'must-fix' || f.risk.action === 'should-fix',
   )
   // Scored from risk here, not read from `score`: the peer reviewer may have
   // changed risk or added findings after dedupe set it.

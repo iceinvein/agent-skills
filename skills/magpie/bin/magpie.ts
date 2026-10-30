@@ -22,8 +22,8 @@ Subcommands:
   critic-apply <run-dir> [--design-cap N]
                              Apply critic verdicts, write findings.kept.json (no cap on
                              code-smells + architecture keeps unless --design-cap is given)
-  proof-prompt <run-dir>     Write one proof prompt per serious finding, print prompt and
-                             output paths
+  proof-prompt <run-dir>     Write one proof prompt per must-fix or should-fix finding, print
+                             prompt and output paths
   proof-apply <run-dir>      Fold proof results into findings.final.json, drop the disproved
   shard <run-dir> [--budget N] [--max-files N]
                              Re-split diff.patch into budgeted shards (and the

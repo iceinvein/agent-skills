@@ -44,17 +44,24 @@ const REPRO = {
   output: 'expected 1, received undefined',
 }
 
-test('only high or critical findings marked must-fix or should-fix are selected', () => {
+test('findings marked must-fix or should-fix are selected whatever their impact', () => {
   const selected = selectForProof(
     [
       finding('high-should', HIGH_SHOULD),
       finding('medium-should', MEDIUM_SHOULD),
+      finding('low-should', { ...HIGH_SHOULD, impact: 'low' }),
       finding('high-consider', HIGH_CONSIDER),
+      finding('high-optional', { ...HIGH_SHOULD, action: 'optional' }),
       finding('critical-must', CRITICAL_MUST),
     ],
     8,
   )
-  expect(selected.map((f) => f.id)).toEqual(['critical-must', 'high-should'])
+  expect(selected.map((f) => f.id)).toEqual([
+    'critical-must',
+    'high-should',
+    'medium-should',
+    'low-should',
+  ])
 })
 
 test('selection keeps the highest-scoring findings when there are more than the cap', () => {
