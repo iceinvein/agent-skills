@@ -1,5 +1,4 @@
 import { COMMON_NAME_HITS, type ImpactLocation, type ImpactMap, type ImpactRef } from './impact.ts'
-import type { ReviewFinding } from './types.ts'
 
 export const IMPACT_FULL_CAP_BYTES = 8192
 export const IMPACT_BRIEF_CAP_BYTES = 2048
@@ -18,7 +17,6 @@ type Entry = {
   section: number
   anchor: ImpactLocation
   shards: number[]
-  files: string[]
   head: string
   children: ImpactRef[]
   // Symbols report their hit count; every other kind reports its child count.
@@ -53,7 +51,6 @@ function entriesOf(map: ImpactMap): Entry[] {
       section: 0,
       anchor,
       shards: shardList(s.shard),
-      files: [...s.usedIn.map((u) => u.file), ...s.writers.map((w) => w.file)],
       head: head(s.name, anchor),
       children: s.writers,
       total: s.writers.length,
@@ -67,7 +64,6 @@ function entriesOf(map: ImpactMap): Entry[] {
       section: s.kind === 'added' ? 2 : 1,
       anchor,
       shards: shardList(s.shard),
-      files: [anchor.file, ...s.references.map((r) => r.file)],
       head: common ? `- \`${s.name}\`: ${s.hits} hits, too common to list` : head(s.name, anchor),
       children: common ? [] : s.references,
       total: common ? 0 : s.hits,
@@ -79,7 +75,6 @@ function entriesOf(map: ImpactMap): Entry[] {
       section: 3,
       anchor: u.usedIn,
       shards: shardList(u.shard),
-      files: [u.usedIn.file, ...u.definedAt.map((d) => d.file)],
       head: head(u.name, u.usedIn),
       children: u.definedAt,
       total: u.definedAt.length,
@@ -91,7 +86,6 @@ function entriesOf(map: ImpactMap): Entry[] {
       section: 4,
       anchor: r.usedIn,
       shards: shardList(r.shard),
-      files: [r.usedIn.file, ...r.siblings.map((s) => s.file)],
       head: head(r.path, r.usedIn),
       children: r.siblings,
       total: r.siblings.length,
@@ -102,7 +96,6 @@ function entriesOf(map: ImpactMap): Entry[] {
       section: 5,
       anchor: { file: d.file, line: d.line },
       shards: d.shards,
-      files: [d.file],
       head: `- ${d.file}:${d.line} ${codeSpan(d.text)} (names: ${d.mentions.join(', ')})`,
       children: [],
       total: 0,
@@ -162,15 +155,4 @@ export function renderImpactMarkdown(
   const { shard } = opts
   const entries = entriesOf(map).filter((e) => shard === null || e.shards.includes(shard))
   return renderCapped(entries, opts.capBytes, opts.maxChildren ?? Number.POSITIVE_INFINITY)
-}
-
-export function renderImpactForCandidates(
-  map: ImpactMap | null,
-  candidates: ReviewFinding[],
-): string {
-  if (!map) return '(none)'
-  const files = new Set(candidates.map((c) => c.file))
-  const entries = entriesOf(map).filter((e) => e.files.some((f) => files.has(f)))
-  if (entries.length === 0) return '(none)'
-  return renderCapped(entries, IMPACT_FULL_CAP_BYTES, Number.POSITIVE_INFINITY)
 }

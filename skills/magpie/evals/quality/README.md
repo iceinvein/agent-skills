@@ -138,8 +138,8 @@ Re-runs stages 3 to 6 (context, specialists, dedupe, critic) on the run's `diff.
    `results/<ts>-full-<runId>.json` with `recall`, `recallVerdicts`, `judgeModel` and
    `judgeCostUsd` all null, plus `log`, `shardManifest`, `findingsFiles`, `dedupedCount`,
    `criticDropped`, `evidenceDropped` and `thresholdDropped` read from the scratch run dir
-   before it is deleted, and `impactBytes`, the size of `impact.md` (null when the run
-   wrote none). `shardCoverage` is derived from the manifest and the findings file
+   before it is deleted, and `impactBytes`, the size of `impact.md`. It is null unless
+   `magpie impact` was run on the replay's run dir, which no review stage does now. `shardCoverage` is derived from the manifest and the findings file
    names: a shard counts as reviewed when any specialist wrote a file for it, so it overstates
    a shard only some focuses reviewed. The printed line ends with `, shards <reviewed>/<total>`.
 4. When the run has a recall set (see [Recall](#recall)), judges the new kept findings
@@ -164,8 +164,13 @@ bun evals/quality/probe-specialist.ts --corpus <runId> --repo <path-to-local-clo
 
 Runs one specialist on one shard, with (`impact`) or without (`base`) the impact map in
 its prompt, and judges its findings against the named misses from the run's recall set.
-It asks a narrower question than a full replay, for about a tenth of the cost. Repeats
-run one after another, each in its own scratch run dir and worktree:
+It asks a narrower question than a full replay, for about a tenth of the cost.
+
+The `impact` arm needs a `references/specialists.md` that carries a `magpie-impact-part`
+block, as it did at commit 731a686 (since reverted). Without that block the probe exits
+before any paid session, naming the missing block.
+
+Repeats run one after another, each in its own scratch run dir and worktree:
 
 1. Scaffolds the run dir as the full replay does (worktree at the PR head, `pr.json`,
    `diff.patch` and `brief.json` copied, a `setup` done line, then `magpie shard`), and

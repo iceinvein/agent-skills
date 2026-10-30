@@ -84,7 +84,7 @@ describe('extractDiffNames: definitions', () => {
 `,
     )
     expect(extractDiffNames(diff).defined).toEqual([
-      { name: 'wire_job', kind: 'changed', file: 'src/wire.rs', line: 10 },
+      { name: 'wire_job', kind: 'changed', file: 'src/wire.rs', line: null },
     ])
   })
 
@@ -260,6 +260,12 @@ describe('parseGrepOutput', () => {
     expect(hits[0]?.text).toBe('x'.repeat(160))
   })
 
+  test('a cut at 160 characters keeps a character outside the BMP whole', () => {
+    const line = `${'a'.repeat(159)}\u{1F600} tail`
+    const [hit] = parseGrepOutput(`src/x.ts:3:${line}\n`)
+    expect(hit?.text).toBe(`${'a'.repeat(159)}\u{1F600}`)
+  })
+
   test('keeps a carriage return line whole', () => {
     expect(parseGrepOutput('src/win.ts:4:const a = 1\r\n')).toEqual([
       { file: 'src/win.ts', line: 4, text: 'const a = 1', indented: false },
@@ -417,6 +423,18 @@ describe('planSearches', () => {
 })
 
 describe('buildImpactMap', () => {
+  test('a header-derived symbol with no definition line in its file is left out', () => {
+    const names = noNames()
+    names.defined = [{ name: 'sealReport', kind: 'changed', file: 'src/report.ts', line: null }]
+    const hits = noHits()
+    hits.definitions = [
+      { file: 'src/other.ts', line: 3, text: 'export function sealReport() {', indented: false },
+      { file: 'src/report.ts', line: 9, text: 'return sealReport(id)', indented: true },
+    ]
+    const map = buildImpactMap({ names, hits, shardOf: noShard, excluded: keepAll })
+    expect(map.symbols).toEqual([])
+  })
+
   function oneSymbol(): DiffNames {
     const names = noNames()
     names.defined = [{ name: 'scheduleJob', kind: 'changed', file: 'src/jobs.ts', line: 4 }]

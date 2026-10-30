@@ -91,7 +91,7 @@ async function removeImpactFiles(runDir: string): Promise<void> {
 }
 
 // Written beside the target and renamed over it, so a run cut off mid-write leaves
-// either the whole file or none: a truncated impact.json makes critic-prompt exit 1.
+// either the whole file or none: a reader of a half-written file gets malformed JSON.
 async function writeAtomic(path: string, text: string): Promise<void> {
   const temp = `${path}.tmp`
   await writeFile(temp, text)
@@ -199,27 +199,4 @@ export async function runImpact(runDir: string): Promise<number> {
     process.stderr.write(`impact: skipped: ${message}\n`)
     return 0
   }
-}
-
-export async function readImpactMap(runDir: string): Promise<ImpactMap | null> {
-  const path = join(runDir, 'impact.json')
-  let text: string
-  try {
-    text = await readFile(path, 'utf8')
-  } catch (err) {
-    if (isMissingFile(err)) return null
-    throw err
-  }
-  let raw: unknown
-  try {
-    raw = JSON.parse(text)
-  } catch (err) {
-    throw new Error(`${path}: not valid JSON (${err instanceof Error ? err.message : String(err)})`)
-  }
-  const map = raw as Partial<Record<keyof ImpactMap, unknown>> | null
-  if (map?.version !== 1) throw new Error(`${path}: version must be 1`)
-  for (const key of ['symbols', 'uses', 'stores', 'routes', 'docs'] as const) {
-    if (!Array.isArray(map[key])) throw new Error(`${path}: ${key} must be an array`)
-  }
-  return raw as ImpactMap
 }

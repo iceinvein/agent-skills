@@ -3,11 +3,8 @@ import type { ImpactMap } from '../impact.ts'
 import {
   IMPACT_BRIEF_CAP_BYTES,
   IMPACT_BRIEF_MAX_CHILDREN,
-  IMPACT_FULL_CAP_BYTES,
-  renderImpactForCandidates,
   renderImpactMarkdown,
 } from '../impact-render.ts'
-import type { ReviewFinding } from '../types.ts'
 
 // Entries are deliberately out of render order so the tests pin the sort.
 function sampleMap(): ImpactMap {
@@ -89,19 +86,6 @@ function sampleMap(): ImpactMap {
 
 function emptyMap(): ImpactMap {
   return { version: 1, symbols: [], uses: [], stores: [], routes: [], docs: [] }
-}
-
-function finding(file: string): ReviewFinding {
-  return {
-    id: 'x-1',
-    file,
-    line: 1,
-    severity: 'high',
-    risk: { impact: 'high', likelihood: 'likely', confidence: 'high', action: 'must-fix' },
-    title: 't',
-    description: 'd',
-    domain: 'bugs',
-  }
 }
 
 const FULL = `### Other writers of the same data
@@ -377,53 +361,5 @@ describe('renderImpactMarkdown', () => {
     expect(renderImpactMarkdown(map, { shard: null, capBytes: whole.length })).toBe(
       '1 more entries in impact.json',
     )
-  })
-})
-
-describe('renderImpactForCandidates', () => {
-  test('returns (none) when there is no map', () => {
-    expect(renderImpactForCandidates(null, [finding('src/user.ts')])).toBe('(none)')
-  })
-
-  test('returns (none) when no entry touches a candidate file', () => {
-    expect(renderImpactForCandidates(sampleMap(), [finding('nowhere.ts')])).toBe('(none)')
-  })
-
-  test('selects an entry whose diff-side file is a candidate file', () => {
-    expect(renderImpactForCandidates(sampleMap(), [finding('src/routes.ts')])).toBe(
-      `### Sibling routes
-- \`/api/users/:id\` (diff: src/routes.ts:20)
-  - src/admin.ts:3 \`router.get('/api/users', list)\``,
-    )
-  })
-
-  test('selects an entry whose outside file is a candidate file', () => {
-    expect(renderImpactForCandidates(sampleMap(), [finding('lib/config.ts')])).toBe(
-      `### Definitions this change relies on
-- \`getConfig\` (diff: src/user.ts:12)
-  - lib/config.ts:1 \`export function getConfig() {\``,
-    )
-  })
-
-  test('selects a doc by its own file', () => {
-    expect(renderImpactForCandidates(sampleMap(), [finding('docs/user.md')])).toBe(
-      `### Docs naming what changed
-- docs/user.md:4 \`Call loadUser before render.\` (names: loadUser, render)`,
-    )
-  })
-
-  test('stays under the full cap for a large map', () => {
-    const map = emptyMap()
-    for (let i = 0; i < 400; i++) {
-      map.uses.push({
-        name: `helper${i}`,
-        usedIn: { file: 'src/user.ts', line: i + 1 },
-        shard: 0,
-        definedAt: [{ file: 'lib/x.ts', line: i + 1, text: `export function helper${i}() {` }],
-      })
-    }
-    const out = renderImpactForCandidates(map, [finding('src/user.ts')])
-    expect(bytes(out)).toBeLessThanOrEqual(IMPACT_FULL_CAP_BYTES)
-    expect(out).toMatch(/\n\d+ more entries in impact\.json$/)
   })
 })

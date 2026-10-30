@@ -102,11 +102,13 @@ export type ImpactMap = {
 }
 
 export type DiffNames = {
+  // `line` is null for a name seen only in a hunk header: the header carries the
+  // enclosing definition's text but not its line, which the definitions search finds.
   defined: Array<{
     name: string
     kind: 'added' | 'changed' | 'removed'
     file: string
-    line: number
+    line: number | null
   }>
   used: Array<{ name: string; file: string; line: number }>
   stores: Array<{ name: string; kind: 'table' | 'file'; file: string; line: number }>
@@ -264,7 +266,7 @@ function wholeWord(name: string): RegExp {
 }
 
 export function extractDiffNames(diff: string): DiffNames {
-  type Seen = { file: string; line: number }
+  type Seen = { file: string; line: number | null }
   const added = new Map<string, Seen[]>()
   const removed = new Map<string, Seen[]>()
   const fromHeader = new Map<string, Seen[]>()
@@ -290,7 +292,7 @@ export function extractDiffNames(diff: string): DiffNames {
       const touched = hunk.lines.some((l) => l.type !== 'context')
       if (touched) {
         for (const name of definedNamesIn(file, hunk.header.trim())) {
-          note(fromHeader, name, { file, line: hunk.newStart })
+          note(fromHeader, name, { file, line: null })
         }
       }
       for (const l of hunk.lines) {
@@ -366,7 +368,8 @@ export function parseGrepOutput(out: string): GrepHit[] {
     hits.push({
       file: raw.slice(0, m.index),
       line: Number(m[1]),
-      text: rest.trim().slice(0, TEXT_MAX_CHARS),
+      // Cut by code point: slicing UTF-16 units can split a surrogate pair.
+      text: Array.from(rest.trim()).slice(0, TEXT_MAX_CHARS).join(''),
       indented: /^\s/.test(rest),
     })
   }
@@ -416,9 +419,10 @@ export function planSearches(names: DiffNames): GrepPlan[] {
   if (definedNames.length > 0) {
     add({ kind: 'references', args: [...WORDS, ...STDIN], patterns: definedNames })
   }
-  const usedNames = unique(names.used.map((u) => u.name))
-  if (usedNames.length > 0) {
-    add({ kind: 'definitions', args: [...WORDS, ...STDIN], patterns: usedNames })
+  const headerNames = names.defined.filter((d) => d.line === null).map((d) => d.name)
+  const lookupNames = unique([...names.used.map((u) => u.name), ...headerNames])
+  if (lookupNames.length > 0) {
+    add({ kind: 'definitions', args: [...WORDS, ...STDIN], patterns: lookupNames })
   }
   const tables = unique(names.stores.filter((s) => s.kind === 'table').map((s) => s.name))
   if (tables.length > 0) {
@@ -470,13 +474,29 @@ export function buildImpactMap(input: {
   }
   const ref = (h: GrepHit): ImpactRef => ({ file: h.file, line: h.line, text: h.text })
 
+  // A header-derived name is defined in a file the diff changes, so the path
+  // filter, which is about code outside the diff, does not apply to it.
+  const headerDefinitionLines = (name: string, file: string): ImpactLocation[] => {
+    const lines = new Set<number>()
+    for (const h of hits.definitions) {
+      if (h.file !== file || names.addedLines.get(file)?.has(h.line)) continue
+      if (definedNamesIn(file, h.indented ? ` ${h.text}` : h.text).includes(name)) lines.add(h.line)
+    }
+    return [...lines].sort((a, b) => a - b).map((line) => ({ file, line }))
+  }
+
   const references = outside(hits.references)
   const symbols: ImpactSymbol[] = []
   const symbolIndex = new Map<string, ImpactSymbol>()
   for (const d of names.defined) {
+    // A header-derived name with no definition line found in its file gets no
+    // location rather than a guessed one.
+    const locations =
+      d.line !== null ? [{ file: d.file, line: d.line }] : headerDefinitionLines(d.name, d.file)
+    if (locations.length === 0) continue
     const existing = symbolIndex.get(d.name)
     if (existing) {
-      existing.definedAt.push({ file: d.file, line: d.line })
+      existing.definedAt.push(...locations)
       continue
     }
     const word = wholeWord(d.name)
@@ -484,7 +504,7 @@ export function buildImpactMap(input: {
     const symbol: ImpactSymbol = {
       name: d.name,
       kind: d.kind,
-      definedAt: [{ file: d.file, line: d.line }],
+      definedAt: locations,
       shard: shardOf(d.file),
       hits: matched.length,
       references:
@@ -505,6 +525,7 @@ export function buildImpactMap(input: {
       else definedBy.set(name, [ref(h)])
     }
   }
+
   const uses: ImpactUse[] = []
   for (const u of names.used) {
     const definedAt = (definedBy.get(u.name) ?? []).slice(0, MAX_REFS_PER_NAME)

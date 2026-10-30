@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { readImpactMap, runImpact } from '../impact-cmd.ts'
+import { runImpact } from '../impact-cmd.ts'
 import { runRender } from '../render-cmd.ts'
 import { runStatus, type StatusResult } from '../status-cmd.ts'
 import { git } from './helpers/git-fixture.ts'
@@ -141,7 +141,7 @@ const REPORT_SHARD_MD = `### Other writers of the same data
   - src/lock-writer.ts:2 \`return db.insert(reportLocks).values({ id })\`
 
 ### References to changed symbols
-- \`sealReport\` (diff: src/report.ts:2)
+- \`sealReport\` (diff: src/report.ts:1)
   - docs/design.md:3 \`\` Sealing goes through \`sealReport\` before archive. \`\`
   - src/archive.ts:2 \`const sealed = sealReport(id)\`
   - src/close.ts:2 \`return sealReport(id)\`
@@ -170,7 +170,7 @@ describe('runImpact on a sharded PR run', () => {
         {
           name: 'sealReport',
           kind: 'changed',
-          definedAt: [{ file: 'src/report.ts', line: 2 }],
+          definedAt: [{ file: 'src/report.ts', line: 1 }],
           shard: 1,
           hits: 4,
           references: [
@@ -237,7 +237,7 @@ describe('runImpact on a sharded PR run', () => {
   - src/lock-writer.ts:2 \`return db.insert(reportLocks).values({ id })\`
 
 ### References to changed symbols
-- \`sealReport\` (diff: src/report.ts:2)
+- \`sealReport\` (diff: src/report.ts:1)
   - docs/design.md:3 \`\` Sealing goes through \`sealReport\` before archive. \`\`
   - src/archive.ts:2 \`const sealed = sealReport(id)\`
   - src/close.ts:2 \`return sealReport(id)\`
@@ -299,8 +299,8 @@ describe('runImpact on a sharded PR run', () => {
   test('a truncated impact.json from an earlier run is replaced by a readable map', async () => {
     await writeFile(join(runDir, 'impact.json'), '{"version": 1, "sym')
     expect(await runImpact(runDir)).toBe(0)
-    const map = await readImpactMap(runDir)
-    expect(map?.stores.map((s) => s.name)).toEqual(['reportLocks'])
+    const map = JSON.parse(await readFile(join(runDir, 'impact.json'), 'utf8'))
+    expect(map.stores.map((s: { name: string }) => s.name)).toEqual(['reportLocks'])
   })
 
   test('a second run removes shard files the first left behind', async () => {
@@ -380,6 +380,31 @@ describe('runImpact path filter config', () => {
   })
 })
 
+describe('runImpact symbol lines', () => {
+  test('a symbol found only in a hunk header is placed at its definition line', async () => {
+    const root = await tempDir('magpie-impact-header-')
+    await git(root, 'init', '-b', 'main')
+    await git(root, 'config', 'user.email', 'test@example.com')
+    await git(root, 'config', 'user.name', 'Test')
+    const body = (extra: string) =>
+      `export function sealReport(id: string) {\n  const a = 1\n  const b = 2\n  const c = 3\n${extra}  return id\n}\n`
+    await writeFiles(root, { 'src/report.ts': body('') })
+    await git(root, 'add', '.')
+    await git(root, 'commit', '-m', 'base')
+    await writeFiles(root, { 'src/report.ts': body('  const d = 4\n') })
+    await git(root, 'commit', '-am', 'change')
+    const dir = await tempDir('magpie-impact-run-')
+    await writeFile(join(dir, 'diff.patch'), `${await git(root, 'diff', 'HEAD~1', 'HEAD')}\n`)
+    await writeFile(join(dir, 'target.json'), JSON.stringify({ mode: 'pr', root }))
+    await writeFile(join(dir, 'log.jsonl'), '')
+
+    expect(await runImpact(dir)).toBe(0)
+    const map = JSON.parse(await readFile(join(dir, 'impact.json'), 'utf8'))
+    // Line 1 is `export function sealReport(...)`; line 2 is `const a = 1`.
+    expect(map.symbols[0].definedAt).toEqual([{ file: 'src/report.ts', line: 1 }])
+  })
+})
+
 describe('runImpact failures', () => {
   test('a review root that is not a git repo logs skipped and exits 0', async () => {
     const notRepo = await tempDir('magpie-impact-norepo-')
@@ -408,18 +433,6 @@ describe('runImpact failures', () => {
 
   test('a directory that is not a magpie run is a usage error', async () => {
     expect(await runImpact(await tempDir('magpie-impact-empty-'))).toBe(2)
-  })
-})
-
-describe('readImpactMap', () => {
-  test('returns null when impact.json is absent', async () => {
-    expect(await readImpactMap(await tempDir('magpie-impact-read-'))).toBeNull()
-  })
-
-  test('throws naming the file when impact.json is not a map', async () => {
-    const dir = await tempDir('magpie-impact-read-')
-    await writeFile(join(dir, 'impact.json'), '{}')
-    await expect(readImpactMap(dir)).rejects.toThrow(join(dir, 'impact.json'))
   })
 })
 
