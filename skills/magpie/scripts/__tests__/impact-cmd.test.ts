@@ -284,6 +284,25 @@ describe('runImpact on a sharded PR run', () => {
     })
   })
 
+  test('a run leaves no temp-named files, including one an interrupted run left behind', async () => {
+    await writeFile(join(runDir, 'impact.json.tmp'), '{"version": 1, "sym')
+    expect(await runImpact(runDir)).toBe(0)
+    expect(await impactFiles(runDir)).toEqual([
+      'impact.brief.md',
+      'impact.json',
+      'impact.md',
+      'impact.shard-1.brief.md',
+      'impact.shard-1.md',
+    ])
+  })
+
+  test('a truncated impact.json from an earlier run is replaced by a readable map', async () => {
+    await writeFile(join(runDir, 'impact.json'), '{"version": 1, "sym')
+    expect(await runImpact(runDir)).toBe(0)
+    const map = await readImpactMap(runDir)
+    expect(map?.stores.map((s) => s.name)).toEqual(['reportLocks'])
+  })
+
   test('a second run removes shard files the first left behind', async () => {
     await runImpact(runDir)
     await writeFile(join(runDir, 'impact.shard-3.md'), 'stale\n')

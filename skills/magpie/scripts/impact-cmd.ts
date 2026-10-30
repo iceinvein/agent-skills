@@ -1,4 +1,4 @@
-import { appendFile, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { appendFile, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   buildImpactMap,
@@ -19,7 +19,8 @@ import { loadPathFilterConfig, matchesAny, type PathFilterConfig } from './path-
 import type { ShardEntry } from './shard.ts'
 import { type ReviewTarget, readTarget } from './target.ts'
 
-const IMPACT_FILE = /^impact(?:\.brief)?\.md$|^impact\.json$|^impact\.shard-.*\.md$/
+const IMPACT_FILE =
+  /^impact(?:\.brief)?\.md$|^impact\.json$|^impact\.shard-.*\.md$|^impact\..*\.tmp$/
 
 async function logLine(runDir: string, entry: Record<string, unknown>): Promise<void> {
   await appendFile(join(runDir, 'log.jsonl'), `${JSON.stringify({ ...entry, ts: Date.now() })}\n`)
@@ -89,8 +90,16 @@ async function removeImpactFiles(runDir: string): Promise<void> {
   }
 }
 
+// Written beside the target and renamed over it, so a run cut off mid-write leaves
+// either the whole file or none: a truncated impact.json makes critic-prompt exit 1.
+async function writeAtomic(path: string, text: string): Promise<void> {
+  const temp = `${path}.tmp`
+  await writeFile(temp, text)
+  await rename(temp, path)
+}
+
 async function writeIfNonEmpty(path: string, text: string): Promise<void> {
-  if (text.length > 0) await writeFile(path, `${text}\n`)
+  if (text.length > 0) await writeAtomic(path, `${text}\n`)
 }
 
 async function writeRenders(runDir: string, map: ImpactMap, prefix: string, shard: number | null) {
@@ -169,7 +178,7 @@ export async function runImpact(runDir: string): Promise<number> {
     await removeImpactFiles(runDir)
     const shards = await readShards(runDir)
     const map = await buildMap(runDir, target, shards)
-    await writeFile(join(runDir, 'impact.json'), `${JSON.stringify(map, null, 2)}\n`)
+    await writeAtomic(join(runDir, 'impact.json'), `${JSON.stringify(map, null, 2)}\n`)
     await writeRenders(runDir, map, 'impact', null)
     if (shards.length > 1) {
       for (const s of shards) await writeRenders(runDir, map, `impact.shard-${s.id}`, s.id)

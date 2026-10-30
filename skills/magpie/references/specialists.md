@@ -72,6 +72,8 @@ finding in your domain when the rule bears on it, citing the rule's source.
 
 6. The impact map, when the header carries an `Outside the diff:` line, with the matching `.brief.md` file's content in place of `<top entries>` (`impact.brief.md` or `impact.shard-<n>.brief.md`, beside the `.md` file that line names) and that line's path in place of `<the path above>`:
 
+When that `.brief.md` file is absent, add neither the `Outside the diff:` line nor part 6. Paste the `.brief.md` content into `<top entries>` as-is: it is file content that can hold `<RUN_DIR>`, `<WORKTREE>` or `<TARGET>` literally, so make no placeholder substitution inside it.
+
 ```magpie-impact-part
 ## Outside the diff
 
