@@ -878,14 +878,30 @@ release_lock() {
 	LOCKS_TAKEN=()
 }
 
+# Every waiter reads the holder's pid while it holds, so when it exits they all
+# see it dead at once. Each removing the lock on that stale read would remove
+# the directory the next command had just taken, leaving two writers. Breaking
+# is serialised instead, and the pid is read again once its process is known
+# dead: the holder may have released and a new command taken the lock between
+# the first read and the check. A dead holder cannot remove its own directory,
+# so the same pid on the second read means the lock is still the stale one.
+break_stale_lock() { # <lock path>
+	local lock="$1" holder broke=1
+	mkdir "$lock.break" 2>/dev/null || return 1
+	holder="$(cat "$lock/pid" 2>/dev/null)"
+	if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null \
+		&& [ "$(cat "$lock/pid" 2>/dev/null)" = "$holder" ]; then
+		rm -rf "$lock"
+		broke=0
+	fi
+	rmdir "$lock.break"
+	return "$broke"
+}
+
 take_lock() { # [<lock path>, default the run's own]
-	local lock="${1:-$LOCK}" waited=0 holder
+	local lock="${1:-$LOCK}" waited=0
 	while ! mkdir "$lock" 2>/dev/null; do
-		holder="$(cat "$lock/pid" 2>/dev/null)"
-		if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
-			rm -rf "$lock"
-			continue
-		fi
+		break_stale_lock "$lock" && continue
 		if [ "$waited" -ge 100 ]; then
 			err "another sluice command has held $lock for 10s; remove it if nothing is running"
 			exit 1
