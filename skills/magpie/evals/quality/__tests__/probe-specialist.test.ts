@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ReviewFinding } from '../../../scripts/types.ts'
 import {
@@ -7,11 +8,12 @@ import {
   countOutsideCitations,
   EXCLUDED_FILES_BLOCK,
   numberProbeFindings,
+  readImpactPart,
   renderBriefPart,
   RUN_HEADER_SHARDED,
   RUN_HEADER_UNSHARDED,
   BRIEF_CLOSING,
-  streamCostUsd,
+  sessionOutcome,
   transcriptReadPath,
 } from '../probe-specialist.ts'
 
@@ -141,8 +143,30 @@ test('an impact prompt puts the outside-diff line under Diff and the impact part
       `${CONTRACT}\n\n` +
       '## What this PR is for\n\nLocks the namespace.\n\n' +
       '## Outside the diff\n\n### Sibling routes\n- `/a` (diff: a.ts:3)\n\n' +
-      '<the path above> has the full list.',
+      '/runs/r1/impact.shard-2.md has the full list.',
   )
+})
+
+test('dollar patterns in the inline entries are pasted as written', () => {
+  const prompt = assembleSpecialistPrompt({
+    ...base,
+    specialistsMd: SPECIALISTS_MD + IMPACT_PART,
+    impact: { path: '/runs/r1/impact.md', inline: "  - a.ts:3 `s.replace(x, '$&$1')` `$'` `$$`" },
+  })
+  expect(prompt).toEndWith(
+    "## Outside the diff\n\n  - a.ts:3 `s.replace(x, '$&$1')` `$'` `$$`\n\n" +
+      '/runs/r1/impact.md has the full list.',
+  )
+})
+
+test('dollar patterns in the impact path are pasted as written', () => {
+  const prompt = assembleSpecialistPrompt({
+    ...base,
+    specialistsMd: SPECIALISTS_MD + IMPACT_PART,
+    impact: { path: "/runs/$&$'/impact.md", inline: 'top' },
+  })
+  expect(prompt).toEndWith("top\n\n/runs/$&$'/impact.md has the full list.")
+  expect(prompt).toContain("Diff: /runs/r1/diff.patch\nOutside the diff: /runs/$&$'/impact.md\n")
 })
 
 test('an unsharded impact prompt adds the outside-diff line as the header’s last line', () => {
@@ -259,19 +283,39 @@ test('a transcript line that is not JSON is rejected with its line number', () =
   expect(() => transcriptReadPath(`${STREAM_HEAD}not json\n`, '/x')).toThrow('line 2')
 })
 
-test('the session cost is the result event total_cost_usd', () => {
+test('a successful session reports its cost and no error', () => {
   const stream = `${STREAM_HEAD}{"type":"result","subtype":"success","is_error":false,"total_cost_usd":1.25}\n`
-  expect(streamCostUsd(stream)).toBe(1.25)
+  expect(sessionOutcome(stream, 0, '')).toEqual({ costUsd: 1.25, error: null })
 })
 
 test('a result event with no cost reports the cost as null', () => {
   expect(
-    streamCostUsd(`${STREAM_HEAD}{"type":"result","subtype":"success","is_error":false}\n`),
-  ).toBe(null)
+    sessionOutcome(`${STREAM_HEAD}{"type":"result","subtype":"success","is_error":false}\n`, 0, ''),
+  ).toEqual({ costUsd: null, error: null })
 })
 
-test('a transcript with no result event is rejected', () => {
-  expect(() => streamCostUsd(STREAM_HEAD)).toThrow('no result event')
+test('a session that ended in error keeps its cost and records the error', () => {
+  const stream =
+    `${STREAM_HEAD}{"type":"result","subtype":"error_max_budget_usd","is_error":true,` +
+    '"total_cost_usd":3.02,"result":"budget spent"}\n'
+  expect(sessionOutcome(stream, 1, 'boom')).toEqual({
+    costUsd: 3.02,
+    error: 'session ended in error (error_max_budget_usd): budget spent; exit 1: boom',
+  })
+})
+
+test('a session with no result event records that instead of throwing', () => {
+  expect(sessionOutcome(STREAM_HEAD, 0, '')).toEqual({
+    costUsd: null,
+    error: 'stream-json has no result event',
+  })
+})
+
+test('a session whose transcript is not JSON records that instead of throwing', () => {
+  expect(sessionOutcome('oops\n', 137, 'killed')).toEqual({
+    costUsd: null,
+    error: 'stream-json line 1 is not JSON: oops; exit 137: killed',
+  })
 })
 
 function finding(id: string, file: string, description: string): ReviewFinding {
@@ -338,4 +382,62 @@ test('a findings file that is not an array is rejected, naming it', () => {
   expect(() => numberProbeFindings({}, 'security', 1, 'findings/security.json')).toThrow(
     'findings/security.json',
   )
+})
+
+async function runDirWith(files: Record<string, string>): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'magpie-probe-impact-'))
+  for (const [name, text] of Object.entries(files)) await writeFile(join(dir, name), text)
+  return dir
+}
+
+test('a shard with no impact file is refused, naming the shard', async () => {
+  const dir = await runDirWith({ 'impact.md': 'whole run\n', 'impact.brief.md': 'top\n' })
+  await expect(readImpactPart(dir, { n: 2, total: 5 })).rejects.toThrow('shard 2')
+})
+
+test('a sharded run reads its shard’s impact file and brief', async () => {
+  const dir = await runDirWith({
+    'impact.shard-2.md': 'full\n',
+    'impact.shard-2.brief.md': 'top entries\n',
+  })
+  expect(await readImpactPart(dir, { n: 2, total: 5 })).toEqual({
+    path: join(dir, 'impact.shard-2.md'),
+    inline: 'top entries',
+  })
+})
+
+test('an unsharded run with no impact.md is refused', async () => {
+  const dir = await runDirWith({})
+  await expect(readImpactPart(dir, null)).rejects.toThrow('impact.md')
+})
+
+const LIVE_MD = join(import.meta.dir, '../../../references/specialists.md')
+
+test('a base prompt from the live specialists.md carries the focus block and the whole contract', async () => {
+  const prompt = assembleSpecialistPrompt({
+    ...base,
+    specialistsMd: await readFile(LIVE_MD, 'utf8'),
+    focus: 'bugs',
+  })
+  expect(prompt).toStartWith(
+    'You are a senior software engineer specialized in finding bugs through code review.\n',
+  )
+  expect(prompt).toContain(
+    'If you have no findings, write []. Return as your final tool result a single line: ' +
+      '`<focus>: <N> findings (<critical>/<high>/<medium>/<low> by risk.impact)`. ' +
+      'Do not include other prose.',
+  )
+})
+
+test('the live specialists.md names the part-5 headings renderBriefPart writes', async () => {
+  const live = await readFile(LIVE_MD, 'utf8')
+  for (const heading of [
+    '## What this PR is for',
+    'What it does:',
+    'Watch items:',
+    'Open questions the scout could not resolve:',
+    'Repository review rules:',
+  ]) {
+    expect(live).toContain(`\n${heading}\n`)
+  }
 })

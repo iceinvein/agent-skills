@@ -27,7 +27,7 @@ import {
 } from './recall.ts'
 import { worktreeRemoveCommand } from './replay-critic.ts'
 import { exec } from './replay-full.ts'
-import { parseClaudeResult, parseFlags, positiveNumberFlag, resultTimestamp } from './score.ts'
+import { parseFlags, positiveNumberFlag, resultTimestamp } from './score.ts'
 
 const SKILL_DIR = new URL('../..', import.meta.url).pathname.replace(/\/$/, '')
 const MAGPIE_BIN = join(SKILL_DIR, 'bin', 'magpie.ts')
@@ -120,10 +120,11 @@ export function assembleSpecialistPrompt(input: {
   const impactPart =
     input.impact === null
       ? null
-      : taggedBlock(input.specialistsMd, 'magpie-impact-part').replace(
-          '<top entries>',
-          input.impact.inline,
-        )
+      : // Replacer functions, because the entries are source code and `$&` or `$'`
+        // in a string replacement would splice in other text.
+        taggedBlock(input.specialistsMd, 'magpie-impact-part')
+          .replace('<top entries>', () => input.impact?.inline ?? '')
+          .replace('<the path above>', () => input.impact?.path ?? '')
 
   const headerTemplate =
     input.shard === null
@@ -208,11 +209,30 @@ export function transcriptReadPath(streamJson: string, path: string): boolean {
   })
 }
 
-/** The `total_cost_usd` of the session's result event; an error result fails the probe. */
-export function streamCostUsd(streamJson: string): number | null {
-  const result = streamEvents(streamJson).find((event) => event.type === 'result')
-  if (result === undefined) throw new Error('probe session: stream-json has no result event')
-  return parseClaudeResult(JSON.stringify(result), 'probe session').costUsd
+/** What a finished session cost and, if it failed, why. Never throws: the
+ *  session is paid for whatever happened, so its result file must still be written. */
+export function sessionOutcome(
+  streamJson: string,
+  exit: number,
+  stderr: string,
+): { costUsd: number | null; error: string | null } {
+  const errors: string[] = []
+  let costUsd: number | null = null
+  try {
+    const result = streamEvents(streamJson).find((event) => event.type === 'result')
+    if (result === undefined) {
+      errors.push('stream-json has no result event')
+    } else {
+      if (typeof result.total_cost_usd === 'number') costUsd = result.total_cost_usd
+      if (result.is_error === true) {
+        errors.push(`session ended in error (${String(result.subtype)}): ${String(result.result)}`)
+      }
+    }
+  } catch (err) {
+    errors.push(err instanceof Error ? err.message : String(err))
+  }
+  if (exit !== 0) errors.push(`exit ${exit}: ${stderr.trim()}`)
+  return { costUsd, error: errors.length === 0 ? null : errors.join('; ') }
 }
 
 const CITATION = /([^\s`'"()[\],:]+):(\d+)/g
@@ -299,9 +319,20 @@ function impactPrefix(scratch: string, shard: { n: number; total: number } | nul
   return join(scratch, shard === null ? 'impact' : `impact.shard-${shard.n}`)
 }
 
-async function readImpactPart(prefix: string): Promise<{ path: string; inline: string } | null> {
+/** The impact arm's part 6. A shard with no impact file has nothing to measure,
+ *  so it is refused before any money is spent on it. */
+export async function readImpactPart(
+  runDir: string,
+  shard: { n: number; total: number } | null,
+): Promise<{ path: string; inline: string }> {
+  const prefix = impactPrefix(runDir, shard)
   const path = `${prefix}.md`
-  if (!existsSync(path)) return null
+  if (!existsSync(path)) {
+    const scope = shard === null ? 'the run' : `shard ${shard.n}`
+    throw new Error(
+      `magpie impact wrote no ${path} for ${scope}; the impact arm would measure nothing`,
+    )
+  }
   const inline = await readOptionalText(`${prefix}.brief.md`)
   if (inline === null) throw new Error(`${path} exists without ${prefix}.brief.md`)
   return { path, inline: inline.trimEnd() }
@@ -315,6 +346,37 @@ async function runImpactStage(scratch: string): Promise<void> {
   if (last.stage !== 'impact' || last.status !== 'done') {
     throw new Error(`magpie impact did not finish: ${JSON.stringify(last)}`)
   }
+}
+
+// Not `exec`: a failed session still has a transcript and a cost to record.
+async function runSession(
+  prompt: string,
+  worktree: string,
+  scratch: string,
+  maxCostUsd: number,
+): Promise<{ stdout: string; stderr: string; exit: number }> {
+  const proc = Bun.spawn(
+    [
+      'claude',
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--allowedTools',
+      'Bash,Read,Grep,Glob,Write',
+      '--max-budget-usd',
+      String(maxCostUsd),
+      '--add-dir',
+      scratch,
+    ],
+    { cwd: worktree, stdin: new Blob([prompt]), stdout: 'pipe', stderr: 'pipe' },
+  )
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  return { stdout, stderr, exit }
 }
 
 async function probeOnce(opts: ProbeOptions): Promise<void> {
@@ -346,7 +408,7 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
     const shard = shards.length > 1 ? { n: chosen.id, total: shards.length } : null
 
     if (opts.arm === 'impact') await runImpactStage(scratch)
-    const impact = opts.arm === 'impact' ? await readImpactPart(impactPrefix(scratch, shard)) : null
+    const impact = opts.arm === 'impact' ? await readImpactPart(scratch, shard) : null
     const prompt = assembleSpecialistPrompt({
       specialistsMd: await readFile(SPECIALISTS_MD, 'utf8'),
       focus,
@@ -368,39 +430,8 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       return
     }
 
-    const stream = await exec(
-      [
-        'claude',
-        '-p',
-        '--output-format',
-        'stream-json',
-        '--verbose',
-        '--allowedTools',
-        'Bash,Read,Grep,Glob,Write',
-        '--max-budget-usd',
-        String(opts.maxCostUsd),
-        '--add-dir',
-        scratch,
-      ],
-      { cwd: worktree, stdinText: prompt, claudeLabel: 'probe session' },
-    )
-    const costUsd = streamCostUsd(stream)
-
-    // A base-arm session has ended before this map exists, so it cannot have read
-    // it; computing it here lets both arms count outside citations the same way.
-    if (opts.arm === 'base') await runImpactStage(scratch)
-    const impactMarkdown = (await readOptionalText(`${impactPrefix(scratch, shard)}.md`)) ?? ''
-
-    const findingsName = shard === null ? `${focus}.json` : `${focus}.shard-${shard.n}.json`
-    const findingsPath = join(scratch, 'findings', findingsName)
-    const findings = existsSync(findingsPath)
-      ? numberProbeFindings(
-          JSON.parse(await readFile(findingsPath, 'utf8')),
-          focus,
-          chosen.id,
-          findingsPath,
-        )
-      : []
+    const session = await runSession(prompt, worktree, scratch, opts.maxCostUsd)
+    const outcome = sessionOutcome(session.stdout, session.exit, session.stderr)
 
     const resultsDir = join(opts.corpusRoot, 'results')
     await mkdir(resultsDir, { recursive: true })
@@ -408,6 +439,10 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       resultsDir,
       `${resultTimestamp(new Date())}-probe-${run.runId}-${focus}-s${chosen.id}-${opts.arm}-r${opts.repeat}.json`,
     )
+    const findingsName = shard === null ? `${focus}.json` : `${focus}.shard-${shard.n}.json`
+    const findingsPath = join(scratch, 'findings', findingsName)
+    // Null fields are steps not yet reached; a probe that stops early leaves them null
+    // and says why in `error`.
     const result = {
       tier: 'probe',
       runId: run.runId,
@@ -418,19 +453,46 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
       missIds: opts.misses.map((m) => m.id),
       caught: [] as string[],
       verdicts: [] as RecallVerdict[],
-      findings: findings.length,
-      missingFindings: existsSync(findingsPath) ? null : `session wrote no ${findingsName}`,
-      readImpact: impact === null ? null : transcriptReadPath(stream, impact.path),
-      citesOutside: countOutsideCitations(findings, impactMarkdown, chosen.files),
-      costUsd,
+      judged: false,
+      notJudged: null as string | null,
+      findings: null as number | null,
+      missingFindings: null as string | null,
+      readImpact: null as boolean | null,
+      citesOutside: null as number | null,
+      costUsd: outcome.costUsd,
       judgeCostUsd: null as number | null,
+      sessionError: outcome.error,
+      error: null as string | null,
     }
-    // Written before the judge runs so a judge failure cannot lose a paid session.
-    await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+    const save = () => writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
+    // Saved before anything else can throw, so a paid session's cost is never lost.
+    await save()
 
-    // With no findings every verdict is null, so the judge is not paid to say so.
-    if (findings.length > 0) {
-      try {
+    try {
+      const findings = existsSync(findingsPath)
+        ? numberProbeFindings(
+            JSON.parse(await readFile(findingsPath, 'utf8')),
+            focus,
+            chosen.id,
+            findingsPath,
+          )
+        : []
+      result.findings = findings.length
+      result.missingFindings = existsSync(findingsPath) ? null : `session wrote no ${findingsName}`
+      result.readImpact = impact === null ? null : transcriptReadPath(session.stdout, impact.path)
+      await save()
+
+      // A base-arm session has ended before this map exists, so it cannot have read
+      // it; computing it here lets both arms count outside citations the same way.
+      if (opts.arm === 'base') await runImpactStage(scratch)
+      const impactMarkdown = (await readOptionalText(`${impactPrefix(scratch, shard)}.md`)) ?? ''
+      result.citesOutside = countOutsideCitations(findings, impactMarkdown, chosen.files)
+      await save()
+
+      // With no findings every verdict is null, so the judge is not paid to say so.
+      if (findings.length === 0) {
+        result.notJudged = result.missingFindings ?? 'no findings to judge'
+      } else {
         const judged = await judgeRecall({
           misses: opts.misses,
           findings,
@@ -440,20 +502,24 @@ async function probeOnce(opts: ProbeOptions): Promise<void> {
         result.verdicts = judged.verdicts
         result.caught = judged.verdicts.filter((v) => v.findingId !== null).map((v) => v.missId)
         result.judgeCostUsd = judged.costUsd
-        await writeFile(outPath, `${JSON.stringify(result, null, 2)}\n`)
-      } catch (err) {
-        throw new Error(
-          `${err instanceof Error ? err.message : err} (probe result already written to ${outPath})`,
-        )
+        result.judged = true
       }
+      await save()
+    } catch (err) {
+      result.error = err instanceof Error ? err.message : String(err)
+      await save()
+      throw new Error(`${result.error} (probe result written to ${outPath})`)
     }
 
+    if (outcome.error !== null) process.exitCode = 1
     process.stdout.write(
       `${run.runId} ${focus} s${chosen.id} ${opts.arm} r${opts.repeat}: ` +
-        `caught ${result.caught.length}/${opts.misses.length}, findings ${findings.length}, ` +
+        `caught ${result.caught.length}/${opts.misses.length}${result.judged ? '' : ' (not judged)'}, ` +
+        `findings ${result.findings}, ` +
         `read impact ${result.readImpact === null ? '-' : result.readImpact}, ` +
         `cites outside ${result.citesOutside}, ` +
-        `cost ${costUsd === null ? 'unreported' : `$${costUsd.toFixed(2)}`}\nwrote ${outPath}\n`,
+        `cost ${outcome.costUsd === null ? 'unreported' : `$${outcome.costUsd.toFixed(2)}`}` +
+        `${outcome.error === null ? '' : `, session error: ${outcome.error}`}\nwrote ${outPath}\n`,
     )
   } finally {
     // A failed removal must not mask the error that got us here, but it must be seen.

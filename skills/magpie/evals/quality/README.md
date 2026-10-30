@@ -172,33 +172,49 @@ run one after another, each in its own scratch run dir and worktree:
    picks the shard whose files include `--file`; no such shard exits 1, naming the file.
 2. Impact arm only: `magpie impact`. A skipped impact stage fails the probe, since the arm
    would then be a base arm. The prompt then carries `Outside the diff: <path>` under
-   `Diff:` and the `magpie-impact-part` block, filled from the shard's
-   `impact.shard-<n>.md` and `.brief.md` (`impact.md` on an unsharded run). A shard with no
-   impact file gets neither, and records `readImpact` as null.
+   `Diff:` and the `magpie-impact-part` block, with `<top entries>` filled from the
+   shard's `impact.shard-<n>.brief.md` and `<the path above>` with the path
+   (`impact.md` and `impact.brief.md` on an unsharded run). A shard with no impact file
+   exits 1, naming the shard, before any session is paid for.
 3. Builds the prompt from this checkout's `references/specialists.md` the way stage 4
    does: focus block, run header, Output Contract, the excluded-files block when the
    corpus run has `excluded-files.json`, and the brief rendered from `brief.json`.
 4. Runs `claude -p --output-format stream-json --verbose --allowedTools
    Bash,Read,Grep,Glob,Write --max-budget-usd <N>` from the worktree, prompt on stdin.
-   The base arm runs `magpie impact` after the session ends, so both arms count outside
-   citations against the same map.
-5. Reads the focus's findings file for the shard, numbering any finding with no id as
-   `<focus>-s<n>-<i>`. A missing file records `findings: 0` and `missingFindings` with the
-   reason rather than failing. Writes
-   `results/<ts>-probe-<runId>-<focus>-s<shard>-<arm>-r<k>.json` with `caught`,
-   `verdicts`, `findings`, `readImpact` (the session opened the impact file with the Read
-   tool; a Bash `cat` is not counted), `citesOutside` (findings whose description cites a
-   `file:line` the shard's impact Markdown lists outside the shard), `costUsd` and
-   `judgeCostUsd`, then judges with `judgeRecall` and rewrites it. With no findings the
-   judge is not called and `caught` stays empty.
-6. Removes the worktree and scratch dir whatever happened.
+5. Writes `results/<ts>-probe-<runId>-<focus>-s<shard>-<arm>-r<k>.json` as soon as the
+   session ends, with `costUsd` and `sessionError` (a non-zero exit, an `is_error` result
+   such as a spent budget, or no result event; the probe then exits 1 after finishing).
+   Each later step fills its fields and rewrites the file; a step that throws records
+   `error`, rewrites it and exits 1, so a paid session is never lost. In order:
+   - `findings`, from the focus's findings file for the shard, numbering any finding
+     with no id as `<focus>-s<n>-<i>`. A missing file records `findings: 0` and
+     `missingFindings` with the reason rather than failing. `readImpact`: the session
+     opened the impact file with the Read tool (a Bash `cat` is not counted); null on
+     the base arm.
+   - `citesOutside`: findings whose description cites a `file:line` the shard's impact
+     Markdown lists outside the shard. The base arm runs `magpie impact` after its
+     session ends, so both arms count against the same map. It is a lower bound: only an
+     exact `path:line` match counts, so a citation by line range or by a nearby line is
+     missed.
+   - `judged`, `caught`, `verdicts` and `judgeCostUsd` from `judgeRecall`. With no
+     findings the judge is not called, `judged` stays false and `notJudged` says why.
+6. Removes the worktree and scratch dir whatever happened. A probe killed before its
+   cleanup ran leaves a stale worktree registered in the clone: run
+   `git -C <repo> worktree prune` there.
 
 `--dry-run` stops after step 3, prints the chosen shard and the assembled prompt, cleans
 up and exits 0. It calls no model and spends nothing.
 
+**Reading results:** a phase A tally counts only runs with `judged: true` or with zero
+findings (`findings: 0`); a run with an `error`, or with findings that were never judged,
+is left out and re-run. Findings are judged straight from the specialist, before dedupe's
+evidence filter, on both arms alike, so a finding dedupe would drop can still count as a
+catch.
+
 **Cost:** one specialist session per repeat, about $1.1 to $1.3 on the corpus PRs, capped
 by `--max-cost-usd` (default 3, passed as `--max-budget-usd`), plus one judge call when
-there are findings. A session that hits the cap fails the probe on Claude's error result.
+there are findings. A session that hits the cap is recorded with its cost and
+`sessionError`, and its findings are still read and judged.
 
 ## Recall
 
