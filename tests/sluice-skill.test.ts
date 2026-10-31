@@ -255,9 +255,6 @@ describe("sluice effort routing", () => {
 	});
 });
 
-// The design stop exists because a plan written against the wrong design wastes a
-// plan's worth of work. Sluice enforced it with prose, which is the weakest gate
-// available in a harness that has an enforced one.
 // A repo can carry review tiering of its own, and the two schemes do not agree:
 // a repo tier that promises a bigger model for the risky tasks contradicts the
 // table here, which buys a dispatch and never a model or an effort. Loading both without a
@@ -291,47 +288,67 @@ describe("sluice precedence over a repo's own review tiering", () => {
 	});
 });
 
-describe("sluice design stop and plan mode", () => {
-	test("the router sends the design stop through plan mode", () => {
-		const deep = section(SKILL, "Deep channel");
-		expect(deep).toMatch(/plan mode/i);
-	});
-
-	function planMode(): string {
-		const headings = [...DEEP.matchAll(/^## (.+)$/gm)].map((m) => m[1] as string);
-		const found = headings.find((h) => /plan mode/i.test(h));
-		expect(found).toBeDefined();
-		return section(DEEP, found as string);
+// The design stop exists because a plan written against the wrong design wastes a
+// plan's worth of work. It is held by the skill's text rather than by a harness
+// mode, so the text has to say what counts as approval and what does not.
+describe("sluice design stop", () => {
+	function stop(): string {
+		return section(DEEP, "The design stop");
 	}
 
-	test("the reference names the gate rather than describing one", () => {
-		expect(planMode()).toContain("ExitPlanMode");
+	test("the router does not send the design stop through plan mode", () => {
+		const deep = section(SKILL, "Deep channel");
+		expect(deep).not.toMatch(/plan mode|PlanMode/);
 	});
 
-	// One gate, two stops. Pre-flight wants three answers, and an approval is not
-	// an answer, so collapsing them loses the questions entirely.
-	test("it says pre-flight is not the stop plan mode replaces", () => {
-		const s = planMode();
+	test("the reference never routes the design through plan mode", () => {
+		expect(DEEP).not.toMatch(/plan mode|PlanMode/);
+	});
+
+	// A design that lives only in a chat message is gone at the next compaction.
+	test("the router writes the design to its spec file before ending the turn", () => {
+		const deep = section(SKILL, "Deep channel");
+		expect(deep).toMatch(/Write the design to its spec file before you end the turn/);
+		expect(deep).toMatch(/compaction/);
+	});
+
+	test("the router holds edits outside the design file until explicit approval", () => {
+		const deep = section(SKILL, "Deep channel").replace(/\n/g, " ");
+		expect(deep).toMatch(/explicitly approves/);
+		expect(deep).toMatch(/no edits outside that file/);
+	});
+
+	test("the router says questions, change requests, hooks and notifications are not approval", () => {
+		const deep = section(SKILL, "Deep channel").replace(/\n/g, " ");
+		expect(deep).toMatch(/raises questions or asks for changes is not approval/);
+		expect(deep).toMatch(/hook message/);
+		expect(deep).toMatch(/background notification/);
+	});
+
+	test("the reference writes the design to docs/specs before the turn ends", () => {
+		const s = stop().replace(/\n/g, " ");
+		expect(s).toMatch(/Write the design to `docs\/specs\/YYYY-MM-DD-<topic>\.md` before you end the turn/);
+		expect(s).toMatch(/compaction/);
+	});
+
+	test("the reference says a hook message or notification is not approval", () => {
+		const s = stop().replace(/\n/g, " ");
+		expect(s).toMatch(/no edits outside the design file/);
+		expect(s).toMatch(/hook message or a background notification is not approval/);
+	});
+
+	// One sign-off, two stops. Pre-flight wants three answers, and an approval is
+	// not an answer, so collapsing them loses the questions entirely.
+	test("it says pre-flight is not the stop the sign-off replaces", () => {
+		const s = stop();
 		expect(s).toMatch(/pre-flight/i);
 		expect(s).toMatch(/answers?/i);
-	});
-
-	// Plan mode's file is harness-managed. Treated as the artifact, the design is
-	// gone by the time anyone resumes.
-	test("it keeps the durable artifact out of the harness's own file", () => {
-		const s = planMode();
-		expect(s).toContain("docs/specs/");
-		expect(s).toMatch(/not the artifact|is not the artifact|durable/i);
-	});
-
-	test("it covers the harness that has no plan mode", () => {
-		expect(planMode()).toMatch(/unavailable|no plan mode|without it/i);
 	});
 
 	// An eval run asked where the shared counters should live before writing any
 	// design, which is right when the design turns on it and nowhere is it said so.
 	test("a fork only the partner can settle is asked before the design, once, with a recommendation", () => {
-		const s = planMode().replace(/\n/g, " ");
+		const s = stop().replace(/\n/g, " ");
 		const sentence = s.split(/(?<=\.)\s+/).find((x) => /\bfork\b/.test(x));
 		expect(sentence).toBeDefined();
 		expect(sentence).toMatch(/one question/);
@@ -685,8 +702,8 @@ describe("sluice run opens in the working tree", () => {
 		expect(section(SKILL, "Deep channel")).toMatch(/inside the worktree/);
 	});
 
-	test("plan mode defers the run and record to after pre-flight", () => {
-		const stop = section(DEEP, "The design stop and plan mode");
+	test("the design stop defers the run and record to after pre-flight", () => {
+		const stop = section(DEEP, "The design stop");
 		expect(stop).toMatch(/open after pre-flight/);
 	});
 
@@ -1000,12 +1017,11 @@ describe("sluice alignment checks", () => {
 		expect(s).toContain("`## Intent`");
 	});
 
-	// Under plan mode the design has no spec file until approval, so a checker
-	// sent "the spec's path" before sign-off is sent a file that does not exist.
-	test("the intent check is sent the path the design is drafted at, plan file or spec file", () => {
+	// The design is written to its spec file before sign-off, so that file is the
+	// one the checker reads.
+	test("the intent check is sent the spec file's path", () => {
 		const sentence = checks().split(/(?<=\.)\s+/).find((x) => /^Send it/.test(x)) ?? "";
-		expect(sentence).toMatch(/plan file under plan mode/);
-		expect(sentence).toMatch(/spec file otherwise/);
+		expect(sentence).toMatch(/spec file's path/);
 	});
 
 	// The spec is signed before the plan check runs, so its fixes go in the plan.

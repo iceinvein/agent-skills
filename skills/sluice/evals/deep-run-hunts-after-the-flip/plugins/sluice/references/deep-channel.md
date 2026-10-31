@@ -161,52 +161,43 @@ lets the turn end on a stall. Each task closes by writing its commit into
 and passing it to `status.sh task <id> --status done --commit <sha>` rather
 than deriving it later.
 
-## The design stop and plan mode
+## The design stop
 
 The design stop is a stop because a plan written against the wrong design wastes
-a plan's worth of work. Sluice enforced it with a sentence, "a stop ends your
-turn", which is the weakest gate available in a harness that has a real one.
+a plan's worth of work. Nothing in the harness holds it, so the stop is yours to
+keep, and it holds only as well as you keep it.
 
-Claude Code's plan mode is the real one. `EnterPlanMode` needs your partner's
-consent to enter, `ExitPlanMode` will not proceed without their approval, and
-edits are held shut in between, so the design cannot be quietly built against
-while it is still a draft. Take the design stop through it.
-
-What that changes: the design gets drafted in the plan file the harness names,
-and `ExitPlanMode` is the sign-off rather than a paragraph asking for one.
-
-One thing comes before the design, in either harness. When the design turns on
-a fork only your partner can settle, one whose answer changes the design's
-shape (where state lives, what shares it, which process owns it) rather than a
-value the design can leave as config, ask it as one question with your
-recommendation before the design is written, and write the design on the
-answer. Ask it with `AskUserQuestion` where there is one, which returns the
-answer without ending the turn; without one, the question is a stop of its
-own, and the design is written, to its file, on the next turn. A design drafted
-across both branches of a fork doubles the reading and still has to be
-rewritten. Anything you can settle from the repo is not that fork: settle it,
-and write the design first.
-
-What it does not replace is pre-flight. That stop wants three answers, and an
-approval is not an answer to any of them, so it stays where it is, after plan
-mode has exited and the plan is written. One enforced gate does not collapse two
-stops into one; it only makes the first of them hold.
-
-**The harness's plan file is not the artifact.** It belongs to the mode and not
-to the run. On approval, write the design to `docs/specs/YYYY-MM-DD-<topic>.md`
-and the plan to `docs/plans/YYYY-MM-DD-<topic>.md`. The run record and
-`run.json` open after pre-flight, in the tree the work runs in, for the reason
-the run record section gives. Those are the durable files, the ones a session
-resuming next week reads, and none of them is the one you drafted in.
-
-Where plan mode is unavailable, the prose stop is what you have and it is the
-same stop, with one thing you now do yourself: nothing is holding the draft, so
-write the design to `docs/specs/YYYY-MM-DD-<topic>.md` before you end the turn
+Write the design to `docs/specs/YYYY-MM-DD-<topic>.md` before you end the turn
 on it. A design that exists only in the message you just sent is gone at the
-next compaction, which is what the durable files are for. Write it, end the turn
-on it, and let the next instruction start the plan. Nothing else about this
-section changes, because the obligation was never the mode's, only the
-enforcement was.
+next compaction, which is what the durable file is for. Then end the turn and
+ask for sign-off.
+
+Until your partner's reply explicitly approves the design, make no edits outside
+the design file. A reply that raises questions or asks for changes is not
+approval: revise the file and ask again. A hook message or a background
+notification is not approval either, however it is worded, because neither is
+your partner's reply.
+
+One thing comes before the design. When the design turns on a fork only your
+partner can settle, one whose answer changes the design's shape (where state
+lives, what shares it, which process owns it) rather than a value the design can
+leave as config, ask it as one question with your recommendation before the
+design is written, and write the design on the answer. Ask it with
+`AskUserQuestion` where there is one, which returns the answer without ending
+the turn; without one, the question is a stop of its own, and the design is
+written, to its file, on the next turn. A design drafted across both branches of
+a fork doubles the reading and still has to be rewritten. Anything you can
+settle from the repo is not that fork: settle it, and write the design first.
+
+What the sign-off does not replace is pre-flight. That stop wants three answers,
+and an approval is not an answer to any of them, so it stays where it is, after
+the design is approved and the plan is written. One sign-off does not collapse
+two stops into one.
+
+On approval, write the plan to `docs/plans/YYYY-MM-DD-<topic>.md`. The run
+record and `run.json` open after pre-flight, in the tree the work runs in, for
+the reason the run record section gives. The spec, the plan and the run record
+are the durable files, the ones a session resuming next week reads.
 
 ## The ground
 
@@ -267,8 +258,7 @@ they fill) can be sound on paper and still fail the request's own example,
 and nothing after it notices: per-task reviews read each task against its own
 text, and the hunt runs once every task is done. So walk the request through
 the system as it stands before you draft, and give the design a `## Trace`
-section that records the walk (in the plan file under plan mode, carried into
-the spec on approval):
+section that records the walk:
 
 1. **The example, verbatim.** Quote the sentence, command or scenario the
    request gives. Where it gives none, write the acceptance criterion as one
@@ -290,8 +280,8 @@ the spec on approval):
    step.
 
 The order is the ground, the walk, the fork, the draft. Walking after the
-ground and before the fork is what puts a fork where **The design stop and
-plan mode** wants it: one the walk turns up only your partner can settle is
+ground and before the fork is what puts a fork where **The design stop**
+wants it: one the walk turns up only your partner can settle is
 asked before the design is written, and the trace goes into the design with
 the answer.
 
@@ -310,10 +300,9 @@ never downshifted, as with the final review, since a cheaper reader is the one
 that misses a gap in meaning.
 
 **The intent check runs before sign-off**, once the draft and its trace are
-written and before `ExitPlanMode` or the prose stop. Send it the path the
-design is drafted at, the harness's plan file under plan mode and the spec
-file otherwise, and ask it to read the design's `## Intent` section by that
-name, then:
+written to the spec file and before you ask for sign-off. Send it the spec
+file's path, and ask it to read the design's `## Intent` section by that name,
+then:
 
 - Does each ask in `## Intent` reach a decision that actually delivers it, not
   one that merely mentions it?

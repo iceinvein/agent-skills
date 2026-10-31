@@ -151,13 +151,13 @@ check after `plan.sh validate` and before pre-flight, because an author reads
 past the gap between what was meant and what was written.
 `references/deep-channel.md` has the briefs under `## The alignment checks`.
 
-Take the design stop through the harness's plan mode where there is one. Its
-gate is enforced rather than requested and it holds edits shut while it is open,
-so nothing gets built against a design nobody signed. It carries the first stop
-only; pre-flight still wants answers, and an approval is not one. Where there is
-no plan mode, nothing is holding the draft: write the design to its file before
-you end the turn on it, because a design that lives only in the message you just
-sent is gone at the next compaction.
+Write the design to its spec file before you end the turn on it, then stop and
+ask for sign-off. A design that lives only in the message you just sent is gone
+at the next compaction. Until your partner's reply explicitly approves it, make
+no edits outside that file: a reply that raises questions or asks for changes is
+not approval, and neither is a hook message or a background notification. The
+sign-off carries the first stop only; pre-flight still wants answers, and an
+approval is not one.
 
 The run's state goes in `.sluice/run.json`, written a command at a time by
 `scripts/status.sh`. That is what makes the breakdown readable from outside the
